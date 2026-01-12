@@ -35,7 +35,7 @@ MOON_FEATURES_FILE_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_features.csv")
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description=APP_NAME + " - ray traced Moon observatory",
+        description=APP_NAME + " - ray-traced Moon observatory",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
