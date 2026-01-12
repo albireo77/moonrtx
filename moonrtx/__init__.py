@@ -1,5 +1,5 @@
 """
-MoonRTX - ray traced Moon observatory
+MoonRTX - ray-traced Moon observatory
 """
 
 __author__  = "Michal Domagala"
