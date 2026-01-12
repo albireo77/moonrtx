@@ -11,7 +11,13 @@ git clone https://github.com/albireo77/moonrtx.git  # or download and unpack zip
 cd moonrtx
 pip install -r requirements.txt
 ```
-Run examples: `python -m moonrtx.main --help` or `python -m moonrtx.main --time "2023-05-28T19:39:00+01:00" --lat 50.0 --lon 20.0`
+## Run (examples)
+
+`python -m moonrtx.main --help`
+
+`python -m moonrtx.main --time "2023-05-28T19:39:00+01:00" --lat 50.1 --lon 20.0`
+
+`python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 2 --light-intensity 100`
 
 ## Notes
 - On first run around 9GB of data (most of all Lunar Orbiter Laser Altimeter elevation map) will be downloaded.
