@@ -5,7 +5,7 @@ MoonRTX is a ray-traced Moon observatory developed in Python. It uses [PlotOptiX
 - Python
 - NVIDIA RTX graphics card
 
-## Installation
+## Install
 ```bash
 git clone https://github.com/albireo77/moonrtx.git  # or download and unpack zip
 cd moonrtx
