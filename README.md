@@ -21,7 +21,7 @@ pip install -r requirements.txt
 
 ## Notes
 - On first run around 9GB of data (most of all Lunar Orbiter Laser Altimeter elevation map) will be downloaded.
-- Rendering Moon scene can take around 1 minute depending on --downscale parameter  value.
+- Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
 - Available keyboard shortcuts and mouse actions are displayed in program console output.
 
 ## Screens
