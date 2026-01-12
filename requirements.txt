@@ -1,4 +1,4 @@
-numpy==2.4.1
-opencv_python_headless==4.12.0.88
+numpy
+opencv_python_headless
 plotoptix==0.18.4
 pymeeus==0.5.12
