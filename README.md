@@ -16,7 +16,7 @@ Run examples: `python -m moonrtx.main --help` or `python -m moonrtx.main --time 
 ## Notes
 - On first run around 9GB of data must be downloaded.
 - Rendering Moon scene can take around 1 minute depending on --downscale parameter  value.
-- Available keyboard shortcuts and mouse actions are displayed in program output.
+- Available keyboard shortcuts and mouse actions are displayed in program console output.
 
 ## Screens
 ![Plato](images/plato.jpg)
