@@ -192,7 +192,6 @@ def main():
         print("No RTX GPU found.")
         sys.exit(1)
 
-
     if not check_elevation_file(args.elevation_file):
         sys.exit(1)
 
