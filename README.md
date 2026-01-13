@@ -1,5 +1,5 @@
 # MoonRTX
-MoonRTX is a ray-traced, ultra-realistic Moon observatory developed in Python. It uses [PlotOptiX](https://github.com/rnd-team-dev/plotoptix) package and is based on PlotOptiX example use [making_the_moon__displacement](https://github.com/rnd-team-dev/plotoptix/blob/master/examples/3_projects/moon/making_the_moon__displacement.ipynb).
+MoonRTX is ray-traced, ultra-realistic Moon observatory developed in Python. It uses [PlotOptiX](https://github.com/rnd-team-dev/plotoptix) package and is based on PlotOptiX use example [making_the_moon__displacement](https://github.com/rnd-team-dev/plotoptix/blob/master/examples/3_projects/moon/making_the_moon__displacement.ipynb).
 
 ## Requirements
 - Python
@@ -20,9 +20,9 @@ pip install -r requirements.txt
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --light-intensity 100`
 
 ## Notes
-- On first run around 9GB of data (most of all Lunar Orbiter Laser Altimeter elevation map) will be downloaded.
+- On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is going to be downloaded so internet connection and sufficient disk space is required.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
-- Available keyboard shortcuts and mouse actions are displayed in program console output.
+- Available keyboard and mouse actions are displayed in program console output.
 
 ## Screens
 ![Plato](images/plato.jpg)
