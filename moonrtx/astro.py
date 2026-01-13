@@ -1,4 +1,3 @@
-import numpy as np
 import math
 from datetime import datetime
 from datetime import timezone
@@ -89,7 +88,7 @@ def calculate_moon_positions_topo(dt_local: datetime, lat: float, lon: float) ->
     illum_frac = Moon.illuminated_fraction_disk(epoch_tt)
     # Calculate Moon phase angle
     # k = (1 + cos(i)) / 2, so i = arccos(2k - 1)
-    phase_angle = np.degrees(np.arccos(2 * illum_frac - 1))
+    phase_angle = math.degrees(math.acos(2 * illum_frac - 1))
     
     # Get position angle of the bright limb using pymeeus
     position_angle = float(Moon.position_bright_limb(epoch_tt))
