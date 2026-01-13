@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from datetime import datetime
+from datetime import timezone
 
 from pymeeus.Epoch import Epoch
 from pymeeus.Moon import Moon
@@ -9,14 +10,15 @@ from pymeeus import Coordinates
 
 EARTH_RADIUS_KM = 6378.14
 
-def calculate_moon_librations(date_time_utc: datetime) -> dict:
-    lopt, bopt, lphys, bphys, ltot, btot = Moon.moon_librations(Epoch(date_time_utc, utc=True))
+def calculate_moon_librations(dt_local: datetime) -> dict:
+    dt_utc = dt_local.astimezone(timezone.utc)
+    lopt, bopt, lphys, bphys, ltot, btot = Moon.moon_librations(Epoch(dt_utc, utc=True))
     return {
         'libration_longitude': float(ltot),
         'libration_latitude': float(btot)
     }
 
-def calculate_moon_positions_topo(date_time_utc: datetime, lat: float, lon: float) -> dict:
+def calculate_moon_positions_topo(dt_local: datetime, lat: float, lon: float) -> dict:
     """
     Calculate topocentric Moon positions for a given time and observer location.
     
@@ -25,8 +27,8 @@ def calculate_moon_positions_topo(date_time_utc: datetime, lat: float, lon: floa
     
     Parameters
     ----------
-    date_time_utc : date_time
-        Time as datetime object
+    dt_local : date_time
+        Local time
     lat : float
         Observer latitude in degrees
     lon : float
@@ -45,9 +47,9 @@ def calculate_moon_positions_topo(date_time_utc: datetime, lat: float, lon: floa
         - position_angle_axis_view
         - parallactic_angle: Tilt of celestial N from zenith
     """
-
-    epoch_utc = Epoch(date_time_utc)
-    epoch_tt = Epoch(date_time_utc, utc=True)
+    dt_utc = dt_local.astimezone(timezone.utc)
+    epoch_utc = Epoch(dt_utc)
+    epoch_tt = Epoch(dt_utc, utc=True)
     
     moon_ra_deg, moon_dec_deg, moon_distance, moon_parallax = Moon.apparent_equatorial_pos(epoch_tt)
     

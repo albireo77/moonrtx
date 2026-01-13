@@ -4,7 +4,6 @@ import sys
 import shutil
 import urllib.request
 from datetime import datetime
-from datetime import timezone
 
 from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
@@ -101,7 +100,7 @@ def check_color_file() -> bool:
             return False
     return True
 
-def get_date_time(time_iso: str):
+def get_date_time_local(time_iso: str):
     if time_iso.endswith("Z"):
         time_iso = time_iso.replace("Z", "+00:00")
     try:
@@ -182,7 +181,7 @@ def main():
         sys.exit(1)
 
     time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
-    date_time, error = get_date_time(time_iso)
+    dt_local, error = get_date_time_local(time_iso)
     if error:
         print(f"Incorrect time: {error}")
         sys.exit(1)    
@@ -203,14 +202,14 @@ def main():
 
     print(f"\nStarting renderer with parameters:")
     print(f"  Geographical Location: Lat {args.lat}°, Lon {args.lon}°")
-    print(f"  Time: {date_time}")
+    print(f"  Local Time: {dt_local}")
     print(f"  Elevation Map File: {args.elevation_file}")
     print(f"  Light Intensity: {args.light_intensity}")
     print(f"  Downscale Factor: {args.downscale}\n")
 
     moon_features = load_moon_features(MOON_FEATURES_FILE_PATH)
 
-    run_renderer(date_time_utc=date_time.astimezone(timezone.utc),
+    run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
                  lat=args.lat,
                  lon=args.lon,

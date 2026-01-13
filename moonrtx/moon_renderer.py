@@ -15,7 +15,7 @@ GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9  # Moon fills 90% of window height (5% margins top/bottom)
 APP_NAME = "MoonRTX"
 
-def run_renderer(date_time_utc: datetime,
+def run_renderer(dt_local: datetime,
                  lat: float,
                  lon: float,
                  elevation_file: str,
@@ -29,8 +29,8 @@ def run_renderer(date_time_utc: datetime,
     
     Parameters
     ----------
-    date_time_utc : datetime
-        UTC Time as datetime object
+    dt_local : datetime
+        Local time
     lat, lon : float
         Observer latitude and longitude in degrees
     elevation_file, color_file, starmap_file : str
@@ -59,7 +59,7 @@ def run_renderer(date_time_utc: datetime,
     moon_renderer.setup_renderer()
     
     # Set view
-    moon_renderer.update_view(date_time_utc=date_time_utc, lat=lat, lon=lon, light_intensity=light_intensity)
+    moon_renderer.update_view(dt_local=dt_local, lat=lat, lon=lon, light_intensity=light_intensity)
     
     # Print info
     print("\n" + moon_renderer.get_info())
@@ -1093,14 +1093,14 @@ class MoonRenderer:
         # Apply displacement map
         self.rt.set_displacement("moon", self.elevation, refresh=True)
 
-    def update_view(self, date_time_utc: datetime, lat: float, lon: float, zoom: float = 1000, light_intensity: int = 180):
+    def update_view(self, dt_local: datetime, lat: float, lon: float, zoom: float = 1000, light_intensity: int = 180):
         """
         Update the view for a specific time and location.
         
         Parameters
         ----------
-        date_time_utc : datetime
-            UTC Time as datetime object
+        dt_local : datetime
+            Local time
         lat, lon : float
             Observer latitude and longitude in degrees
         zoom : float
@@ -1109,9 +1109,9 @@ class MoonRenderer:
             Light intensity
         """
 
-        self.moon_positions = calculate_moon_positions_topo(date_time_utc, lat, lon)
+        self.moon_positions = calculate_moon_positions_topo(dt_local, lat, lon)
         
-        librations = calculate_moon_librations(date_time_utc)
+        librations = calculate_moon_librations(dt_local)
         self.moon_positions.update(librations)
         
         moon_alt = self.moon_positions['moon_alt']
