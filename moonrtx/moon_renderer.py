@@ -3,8 +3,9 @@ import cv2
 import os
 from typing import Optional
 from datetime import datetime
+from datetime import timezone
 
-from moonrtx.astro import calculate_moon_librations, calculate_moon_positions_topo
+from moonrtx.astro import calculate_moon_positions_topo
 
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
@@ -1109,10 +1110,8 @@ class MoonRenderer:
             Light intensity
         """
 
-        self.moon_positions = calculate_moon_positions_topo(dt_local, lat, lon)
-        
-        librations = calculate_moon_librations(dt_local)
-        self.moon_positions.update(librations)
+        dt_utc = dt_local.astimezone(timezone.utc)
+        self.moon_positions = calculate_moon_positions_topo(dt_utc, lat, lon)
         
         moon_alt = self.moon_positions['moon_alt']
         if moon_alt < 0:
