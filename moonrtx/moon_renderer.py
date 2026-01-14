@@ -713,7 +713,7 @@ def create_centered_text_on_sphere(text: str,
     return all_segments
 
 
-def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> dict:
+def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
     """
     Create labels for Moon features marked with standard label
     
@@ -730,10 +730,10 @@ def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offse
         
     Returns
     -------
-    dict
-        Dictionary with 'labels' containing list of (feature_name, segments) tuples
+    list
+        List of standard labels
     """
-    moon_labels = []
+    standard_labels = []
     
     for moon_feature in moon_features:
 
@@ -767,11 +767,11 @@ def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offse
             lat=label_lat,
             lon=label_lon
         )
-        moon_labels.append(moon_label)
+        standard_labels.append(moon_label)
     
-    return {'labels': moon_labels}
+    return standard_labels
 
-def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> dict:
+def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
     """
     Create labels for Moon features marked as spot label
     
@@ -786,10 +786,10 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
         
     Returns
     -------
-    dict
-        Dictionary with 'labels' containing list of label info dicts
+    list
+        List of spot labels.
     """
-    moon_labels = []
+    spot_labels = []
     
     for moon_feature in moon_features:
 
@@ -823,9 +823,9 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
             lat=label_lat,
             lon=label_lon
         )
-        moon_labels.append(moon_label)
+        spot_labels.append(moon_label)
     
-    return {'labels': moon_labels}
+    return spot_labels
 
 
 def create_selenographic_grid(moon_radius: float = 10.0,
@@ -1394,7 +1394,7 @@ class MoonRenderer:
         label_color = [0.85, 0.85, 0.85]
         
         # Add each label's segments
-        for i, standard_label in enumerate(self.standard_labels_data['labels']):
+        for i, standard_label in enumerate(self.standard_labels_data):
             for j, seg in enumerate(standard_label.segments):
                 name = f"standard_label_{i}_{j}"
                 self.rt.set_data(name, pos=seg, r=label_radius,
@@ -1425,7 +1425,7 @@ class MoonRenderer:
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         label_radius = 0.008 if visible else 0.0
         
-        for i, standard_label in enumerate(self.standard_labels_data['labels']):
+        for i, standard_label in enumerate(self.standard_labels_data):
             for j in range(len(standard_label.segments)):
                 name = f"standard_label_{i}_{j}"
                 try:
@@ -1465,7 +1465,7 @@ class MoonRenderer:
         label_color = [1.0, 0.9, 0.3]
         
         # Add each label's segments
-        for i, spot_label in enumerate(self.spot_labels_data['labels']):
+        for i, spot_label in enumerate(self.spot_labels_data):
             for j, seg in enumerate(spot_label.segments):
                 name = f"spot_label_{i}_{j}"
                 self.rt.set_data(name, pos=seg, r=label_radius,
@@ -1496,7 +1496,7 @@ class MoonRenderer:
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         label_radius = 0.008 if visible else 0.0
         
-        for i, spot_label in enumerate(self.spot_labels_data['labels']):
+        for i, spot_label in enumerate(self.spot_labels_data):
             for j in range(len(spot_label.segments)):
                 name = f"spot_label_{i}_{j}"
                 try:
@@ -1526,7 +1526,7 @@ class MoonRenderer:
             return
         
         # Update spot labels
-        for i, spot_label in enumerate(self.spot_labels_data['labels']):
+        for i, spot_label in enumerate(self.spot_labels_data):
             for j, orig_seg in enumerate(spot_label.segments):
                 name = f"spot_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
@@ -1551,7 +1551,7 @@ class MoonRenderer:
             return
         
         # Update standard labels
-        for i, standard_label in enumerate(self.standard_labels_data['labels']):
+        for i, standard_label in enumerate(self.standard_labels_data):
             for j, orig_seg in enumerate(standard_label.segments):
                 name = f"standard_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
