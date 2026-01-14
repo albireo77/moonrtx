@@ -6,6 +6,7 @@ from datetime import datetime
 from datetime import timezone
 
 from moonrtx.types import MoonEphemeris
+from moonrtx.types import MoonFeature
 from moonrtx.astro import calculate_moon_ephemeris
 
 from plotoptix import TkOptiX
@@ -119,9 +120,9 @@ def run_renderer(dt_local: datetime,
                 if lat is not None and lon is not None:
                     # Check if hovering over a named feature
                     feature = moon_renderer.find_feature_at(lat, lon)
-                    feature_name = feature['name'] if feature is not None and feature['status_bar'] else ""
+                    feature_name = feature.name if feature is not None and feature.status_bar else ""
                     if feature_name:
-                        feature_size_km = feature['angular_size'] * 30.34
+                        feature_size_km = feature.angle * 30.34
                         feature_data = f"{feature_name} (Size = {feature_size_km:.1f} km)"
                     else:
                         feature_data = ""
@@ -734,12 +735,13 @@ def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offse
     labels = []
     
     for moon_feature in moon_features:
-        if not moon_feature.get('standard_label', False):
+
+        if not moon_feature.standard_label:
             continue
         
-        name = moon_feature['name']
-        feat_lat = moon_feature['lat']
-        feat_lon = moon_feature['lon']
+        name = moon_feature.name
+        feat_lat = moon_feature.lat
+        feat_lon = moon_feature.lon
         
         # Label centered at feature position
         label_lat = feat_lat
@@ -788,13 +790,14 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
     labels = []
     
     for moon_feature in moon_features:
-        if not moon_feature.get('spot_label', False):
+
+        if not moon_feature.spot_label:
             continue
         
-        name = moon_feature['name']
-        feat_lat = moon_feature['lat']
-        feat_lon = moon_feature['lon']
-        angular_size = moon_feature['angular_size']
+        name = moon_feature.name
+        feat_lat = moon_feature.lat
+        feat_lon = moon_feature.lon
+        angular_size = moon_feature.angle
         
         label_text = "< " + name
         label_lon = feat_lon + angular_size
@@ -1566,7 +1569,7 @@ class MoonRenderer:
         new_up = [0, 0, -1] if self.inverted else [0, 0, 1]
         self.rt.setup_camera("cam1", up=new_up)
     
-    def find_feature_at(self, lat: float, lon: float) -> Optional[dict]:
+    def find_feature_at(self, lat: float, lon: float) -> Optional[MoonFeature]:
         """
         Find a Moon feature at the given selenographic coordinates.
         
@@ -1582,29 +1585,29 @@ class MoonRenderer:
             
         Returns
         -------
-        str or None
-            Name of the feature if found, None otherwise
+        MoonFeature
+            Moon feature if found, None otherwise
         """
         matching_features = []
         
         for moon_feature in self.moon_features:
             # Calculate angular distance from feature center
-            dlat = lat - moon_feature['lat']
-            dlon = lon - moon_feature['lon']
+            dlat = lat - moon_feature.lat
+            dlon = lon - moon_feature.lon
             # Simple approximation for small angles
             # Use cos(lat) correction for longitude
-            cos_lat = np.cos(np.radians(moon_feature['lat']))
+            cos_lat = np.cos(np.radians(moon_feature.lat))
             angular_dist = np.sqrt(dlat**2 + (dlon * cos_lat)**2)
             
             # Check if within feature's angular radius (half of angular size)
-            if angular_dist <= moon_feature['angular_size'] / 2:
+            if angular_dist <= moon_feature.angle / 2:
                 matching_features.append(moon_feature)
         
         if not matching_features:
             return None
         
         # Return the feature with the smallest angular size
-        smallest_feature = min(matching_features, key=lambda f: f['angular_size'])
+        smallest_feature = min(matching_features, key=lambda f: f.angle)
         return smallest_feature
     
     def reset_camera_position(self):

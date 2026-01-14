@@ -9,6 +9,7 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
+from moonrtx.types import MoonFeature
 from moonrtx.moon_renderer import run_renderer, APP_NAME
 
 BASE_PATH = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__) 
@@ -143,20 +144,21 @@ def load_moon_features(filepath: str) -> list:
                     # Handle Unicode minus sign (−) and regular minus (-)
                     lat_str = parts[1].strip().replace('−', '-')
                     lon_str = parts[2].strip().replace('−', '-')
-                    angular_size_str = parts[3].strip().replace('−', '-')
+                    angle_str = parts[3].strip().replace('−', '-')
                     standard_label = parts[4].strip().lower() == 'true'
                     spot_label = parts[5].strip().lower() == 'true'
                     status_bar = parts[6].strip().lower() == 'true'
                     try:
-                        features.append({
-                            'name': name,
-                            'lat': float(lat_str),
-                            'lon': float(lon_str),
-                            'angular_size': float(angular_size_str),
-                            'standard_label': standard_label,
-                            'spot_label': spot_label,
-                            'status_bar': status_bar
-                        })
+                        moon_feature = MoonFeature(
+                            name=name,
+                            lat=float(lat_str),
+                            lon=float(lon_str),
+                            angle=float(angle_str),
+                            standard_label=standard_label,
+                            spot_label=spot_label,
+                            status_bar=status_bar
+                        )
+                        features.append(moon_feature)
                     except ValueError:
                         continue
     except Exception as e:

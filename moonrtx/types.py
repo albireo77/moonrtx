@@ -13,3 +13,12 @@ class MoonEphemeris(NamedTuple):
     q: float
     libr_long: float
     libr_lat: float
+
+class MoonFeature(NamedTuple):
+    name: str
+    lat: float
+    lon: float
+    angle: float
+    standard_label: bool
+    spot_label: bool
+    status_bar: bool
