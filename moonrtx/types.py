@@ -22,9 +22,3 @@ class MoonFeature(NamedTuple):
     standard_label: bool
     spot_label: bool
     status_bar: bool
-
-class MoonLabel(NamedTuple):
-    name: str
-    segments: list
-    lat: float
-    lon: float

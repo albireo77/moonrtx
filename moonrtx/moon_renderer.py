@@ -7,7 +7,6 @@ from datetime import timezone
 
 from moonrtx.types import MoonEphemeris
 from moonrtx.types import MoonFeature
-from moonrtx.types import MoonLabel
 from moonrtx.astro import calculate_moon_ephemeris
 
 from plotoptix import TkOptiX
@@ -751,7 +750,7 @@ def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offse
         # Create text segments for this label
         # Use small character scale for readability
         char_scale = 0.12  # Small but readable
-        segments = create_centered_text_on_sphere(
+        label_segments = create_centered_text_on_sphere(
             text=name,
             lat=label_lat, 
             lon=label_lon,
@@ -760,14 +759,7 @@ def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offse
             char_scale=char_scale,
             spacing=0.1
         )
-        
-        moon_label = MoonLabel(
-            name=name,
-            segments=segments,
-            lat=label_lat,
-            lon=label_lon
-        )
-        standard_labels.append(moon_label)
+        standard_labels.append(label_segments)
     
     return standard_labels
 
@@ -807,7 +799,7 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
         
         # Create text segments for this label
         char_scale = 0.10  # Small but readable
-        segments = create_text_on_sphere(
+        label_segments = create_text_on_sphere(
             label_text, 
             lat=label_lat, 
             lon=label_lon,
@@ -816,14 +808,7 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
             char_scale=char_scale,
             spacing=0.1
         )
-        
-        moon_label = MoonLabel(
-            name=name,
-            segments=segments,
-            lat=label_lat,
-            lon=label_lon
-        )
-        spot_labels.append(moon_label)
+        spot_labels.append(label_segments)
     
     return spot_labels
 
@@ -1043,11 +1028,11 @@ class MoonRenderer:
         
         # Standard labels settings
         self.standard_labels_visible = False
-        self.standard_labels_data = None
+        self.standard_labels = None
         
         # Spot labels settings
         self.spot_labels_visible = False
-        self.spot_labels_data = None
+        self.spot_labels = None
         
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
@@ -1377,7 +1362,7 @@ class MoonRenderer:
             print("Renderer not initialized")
             return
             
-        self.standard_labels_data = create_standard_labels(
+        self.standard_labels = create_standard_labels(
             self.moon_features,
             moon_radius=self.moon_radius,
             offset=0.0
@@ -1394,8 +1379,8 @@ class MoonRenderer:
         label_color = [0.85, 0.85, 0.85]
         
         # Add each label's segments
-        for i, standard_label in enumerate(self.standard_labels_data):
-            for j, seg in enumerate(standard_label.segments):
+        for i, standard_label in enumerate(self.standard_labels):
+            for j, seg in enumerate(standard_label):
                 name = f"standard_label_{i}_{j}"
                 self.rt.set_data(name, pos=seg, r=label_radius,
                                 c=label_color, geom="SegmentChain", mat="standard_label_material")
@@ -1417,7 +1402,7 @@ class MoonRenderer:
         if self.rt is None:
             return
         
-        if self.standard_labels_data is None:
+        if self.standard_labels is None:
             if visible:
                 self.setup_standard_labels()
             return
@@ -1425,8 +1410,8 @@ class MoonRenderer:
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         label_radius = 0.008 if visible else 0.0
         
-        for i, standard_label in enumerate(self.standard_labels_data):
-            for j in range(len(standard_label.segments)):
+        for i, standard_label in enumerate(self.standard_labels):
+            for j in range(len(standard_label)):
                 name = f"standard_label_{i}_{j}"
                 try:
                     self.rt.update_data(name, r=label_radius)
@@ -1448,7 +1433,7 @@ class MoonRenderer:
             return
             
         # Generate spot labels data
-        self.spot_labels_data = create_spot_labels(
+        self.spot_labels = create_spot_labels(
             self.moon_features,
             moon_radius=self.moon_radius,
             offset=0.0
@@ -1465,8 +1450,8 @@ class MoonRenderer:
         label_color = [1.0, 0.9, 0.3]
         
         # Add each label's segments
-        for i, spot_label in enumerate(self.spot_labels_data):
-            for j, seg in enumerate(spot_label.segments):
+        for i, spot_label in enumerate(self.spot_labels):
+            for j, seg in enumerate(spot_label):
                 name = f"spot_label_{i}_{j}"
                 self.rt.set_data(name, pos=seg, r=label_radius,
                                 c=label_color, geom="SegmentChain", mat="spot_label_material")
@@ -1488,7 +1473,7 @@ class MoonRenderer:
         if self.rt is None:
             return
         
-        if self.spot_labels_data is None:
+        if self.spot_labels is None:
             if visible:
                 self.setup_spot_labels()
             return
@@ -1496,8 +1481,8 @@ class MoonRenderer:
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         label_radius = 0.008 if visible else 0.0
         
-        for i, spot_label in enumerate(self.spot_labels_data):
-            for j in range(len(spot_label.segments)):
+        for i, spot_label in enumerate(self.spot_labels):
+            for j in range(len(spot_label)):
                 name = f"spot_label_{i}_{j}"
                 try:
                     self.rt.update_data(name, r=label_radius)
@@ -1517,7 +1502,7 @@ class MoonRenderer:
         This should be called after update_view() to rotate the labels
         along with the Moon surface.
         """
-        if self.rt is None or self.spot_labels_data is None or not self.spot_labels_visible:
+        if self.rt is None or self.spot_labels is None or not self.spot_labels_visible:
             return
         
         R = self.calculate_moon_rotation()
@@ -1526,8 +1511,8 @@ class MoonRenderer:
             return
         
         # Update spot labels
-        for i, spot_label in enumerate(self.spot_labels_data):
-            for j, orig_seg in enumerate(spot_label.segments):
+        for i, spot_label in enumerate(self.spot_labels):
+            for j, orig_seg in enumerate(spot_label):
                 name = f"spot_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
                 try:
@@ -1542,7 +1527,7 @@ class MoonRenderer:
         This should be called after update_view() to rotate the labels
         along with the Moon surface.
         """
-        if self.rt is None or self.standard_labels_data is None or not self.standard_labels_visible:
+        if self.rt is None or self.standard_labels is None or not self.standard_labels_visible:
             return
         
         R = self.calculate_moon_rotation()
@@ -1551,8 +1536,8 @@ class MoonRenderer:
             return
         
         # Update standard labels
-        for i, standard_label in enumerate(self.standard_labels_data):
-            for j, orig_seg in enumerate(standard_label.segments):
+        for i, standard_label in enumerate(self.standard_labels):
+            for j, orig_seg in enumerate(standard_label):
                 name = f"standard_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
                 try:
