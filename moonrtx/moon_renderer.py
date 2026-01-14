@@ -17,6 +17,7 @@ from plotoptix.utils import read_image, make_color_2d
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9  # Moon fills 90% of window height (5% margins top/bottom)
 APP_NAME = "MoonRTX"
+LABEL_CHAR_SCALE = 0.12
 
 def run_renderer(dt_local: datetime,
                  lat: float,
@@ -634,12 +635,12 @@ def create_text_on_sphere(text: str,
 
     return all_segments
 
-def create_centered_text_on_sphere(text: str, 
-                          lat: float, lon: float,
-                          moon_radius: float,
-                          offset: float,
-                          char_scale: float = 0.15,
-                          spacing: float = 0.15) -> list:
+def create_centered_text_on_sphere(text: str,
+                                   lat: float, lon: float,
+                                   moon_radius: float,
+                                   offset: float,
+                                   char_scale: float = 0.15,
+                                   spacing: float = 0.15) -> list:
     """
     Create 3D line segments for text positioned on the Moon sphere.
     
@@ -739,24 +740,13 @@ def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offse
         if not moon_feature.standard_label:
             continue
         
-        name = moon_feature.name
-        feat_lat = moon_feature.lat
-        feat_lon = moon_feature.lon
-        
-        # Label centered at feature position
-        label_lat = feat_lat
-        label_lon = feat_lon
-        
-        # Create text segments for this label
-        # Use small character scale for readability
-        char_scale = 0.12  # Small but readable
         label_segments = create_centered_text_on_sphere(
-            text=name,
-            lat=label_lat, 
-            lon=label_lon,
+            text=moon_feature.name,
+            lat=moon_feature.lat, 
+            lon=moon_feature.lon,
             moon_radius=moon_radius,
             offset=offset,
-            char_scale=char_scale,
+            char_scale=LABEL_CHAR_SCALE,
             spacing=0.1
         )
         standard_labels.append(label_segments)
@@ -788,24 +778,17 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
         if not moon_feature.spot_label:
             continue
         
-        name = moon_feature.name
-        feat_lat = moon_feature.lat
-        feat_lon = moon_feature.lon
-        angular_size = moon_feature.angle
+        label_text = "< " + moon_feature.name
+        label_lon = moon_feature.lon + moon_feature.angle
+        label_lat = moon_feature.lat
         
-        label_text = "< " + name
-        label_lon = feat_lon + angular_size
-        label_lat = feat_lat
-        
-        # Create text segments for this label
-        char_scale = 0.10  # Small but readable
         label_segments = create_text_on_sphere(
             label_text, 
             lat=label_lat, 
             lon=label_lon,
             moon_radius=moon_radius,
             offset=offset,
-            char_scale=char_scale,
+            char_scale=LABEL_CHAR_SCALE,
             spacing=0.1
         )
         spot_labels.append(label_segments)
@@ -1209,15 +1192,16 @@ class MoonRenderer:
         if self.moon_ephem is None:
             return "No view set"
         
+        eph = self.moon_ephem
         return (f"Moon topocentric ephemeris:\n"
-                f"  Altitude: {self.moon_ephem.alt:.2f}°\n"
-                f"  Azimuth: {self.moon_ephem.az:.2f}°\n"
-                f"  RA: {self.moon_ephem.ra:.2f}°\n"
-                f"  DEC: {self.moon_ephem.dec:.2f}°\n"
-                f"  Distance: {self.moon_ephem.distance:.0f} km\n"
-                f"  Phase: {self.moon_ephem.phase:.2f}°\n"
-                f"  Illumination: {self.moon_ephem.illum:.2f}%\n"
-                f"  Libration: L={self.moon_ephem.libr_long:+.2f}° B={self.moon_ephem.libr_lat:+.2f}°")
+                f"  Altitude: {eph.alt:.2f}°\n"
+                f"  Azimuth: {eph.az:.2f}°\n"
+                f"  RA: {eph.ra:.2f}°\n"
+                f"  DEC: {eph.dec:.2f}°\n"
+                f"  Distance: {eph.distance:.0f} km\n"
+                f"  Phase: {eph.phase:.2f}°\n"
+                f"  Illumination: {eph.illum:.2f}%\n"
+                f"  Libration: L={eph.libr_long:+.2f}° B={eph.libr_lat:+.2f}°")
     
     def setup_grid(self, lat_step: float = 15.0, lon_step: float = 15.0):
         """

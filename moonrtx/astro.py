@@ -84,7 +84,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     position_angle = float(Moon.position_bright_limb(epoch))
     
     # Parallactic angle tells us how much celestial north is tilted from zenith
-    parallactic_angle = float(Coordinates.parallactic_angle(moon_ha, moon_dec, Angle(lat)))
+    q = float(Coordinates.parallactic_angle(moon_ha, moon_dec, Angle(lat)))
 
     pa_axis = float(Moon.moon_position_angle_axis(epoch))
 
@@ -99,8 +99,8 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
         illum=illum_frac * 100,
         phase=phase_angle,
         pa=position_angle,
-        pa_axis_view=-pa_axis + parallactic_angle,
-        q=parallactic_angle,
+        pa_axis_view=-pa_axis + q,
+        q=q,
         libr_long=float(ltot),
         libr_lat=float(btot)
     )
