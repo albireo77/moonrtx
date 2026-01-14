@@ -5,7 +5,8 @@ from typing import Optional
 from datetime import datetime
 from datetime import timezone
 
-from moonrtx.astro import calculate_moon_positions_topo
+from moonrtx.types import MoonEphemeris
+from moonrtx.astro import calculate_moon_ephemeris
 
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
@@ -153,7 +154,7 @@ def calculate_rotation(z: float, x: float, y: float):
         return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
     return rot_y(y) @ rot_x(x) @ rot_z(z)
 
-def calculate_camera_and_light(moon_positions: dict, zoom: float = 1000) -> dict:
+def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) -> dict:
     """
     Calculate camera position and light direction for the renderer.
     
@@ -165,8 +166,8 @@ def calculate_camera_and_light(moon_positions: dict, zoom: float = 1000) -> dict
     
     Parameters
     ----------
-    moon_positions : dict
-        Output from calculate_moon_positions()
+    moon_ephem : MoonEphemeris
+        Moon ephemeris
     zoom : float
         Camera zoom factor (distance multiplier)
         
@@ -190,21 +191,18 @@ def calculate_camera_and_light(moon_positions: dict, zoom: float = 1000) -> dict
     # This gives us the angle from ZENITH (top of view) to the bright limb
     # Positive angles go toward EAST (counterclockwise as seen from behind camera)
     
-    pa = moon_positions['position_angle']  # degrees - PA of bright limb from celestial north
-    parallactic = moon_positions['parallactic_angle']  # degrees
-    
     # The surface is rotated by (parallactic - PA_axis) around Y.
     # The light direction in celestial coords is PA (from celestial north).
     # To get light direction in view coords (from zenith), subtract parallactic.
     # This puts light in the same reference frame as the rotated surface.
-    bright_limb_angle_deg = pa - parallactic
+    bright_limb_angle_deg = moon_ephem.pa - moon_ephem.q
     
     # Normalize to -180 to 180
     while bright_limb_angle_deg > 180: bright_limb_angle_deg -= 360
     while bright_limb_angle_deg < -180: bright_limb_angle_deg += 360
     
     bright_limb_angle = np.radians(bright_limb_angle_deg)
-    phase = np.radians(moon_positions['moon_phase'])
+    phase = np.radians(moon_ephem.phase)
     light_distance = 100  # Far away for parallel rays
     
     # The bright limb angle tells us which edge of the Moon is illuminated
@@ -1014,7 +1012,7 @@ class MoonRenderer:
         
         # Renderer
         self.rt = None
-        self.moon_positions = None
+        self.moon_ephem = None
         
         # Grid settings
         self.grid_visible = False
@@ -1111,13 +1109,12 @@ class MoonRenderer:
         """
 
         dt_utc = dt_local.astimezone(timezone.utc)
-        self.moon_positions = calculate_moon_positions_topo(dt_utc, lat, lon)
+        self.moon_ephem = calculate_moon_ephemeris(dt_utc, lat, lon)
         
-        moon_alt = self.moon_positions['moon_alt']
-        if moon_alt < 0:
-            print(f"Warning: Moon is below horizon (altitude: {moon_alt:.1f}°)")
+        if self.moon_ephem.alt < 0:
+            print(f"Warning: Moon is below horizon (altitude: {self.moon_ephem.alt:.1f}°)")
         
-        scene = calculate_camera_and_light(self.moon_positions, zoom)
+        scene = calculate_camera_and_light(self.moon_ephem, zoom)
 
         R = self.calculate_moon_rotation()
         
@@ -1172,7 +1169,7 @@ class MoonRenderer:
             }
         
         # Light intensity based on phase - full moon is brighter
-        # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_positions['moon_phase']))
+        # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
         
         self.rt.setup_light("sun", 
                            pos=scene['light_pos'].tolist(),
@@ -1188,14 +1185,14 @@ class MoonRenderer:
             self.update_standard_labels_orientation()
 
     def calculate_moon_rotation(self):
-        if self.moon_positions is None:
+        if self.moon_ephem is None:
             return None
         # Apply rotations in order: first -longitude (Z), then latitude (X), finally pa_view (Y)
         # Matrix multiplication is right-to-left, so rightmost is applied first
         return calculate_rotation(
-            -self.moon_positions.get('libration_longitude'),
-            self.moon_positions.get('libration_latitude'),
-            self.moon_positions.get('position_angle_axis_view')
+            -self.moon_ephem.libr_long,
+            self.moon_ephem.libr_lat,
+            self.moon_ephem.pa_axis_view
         )
         
     def start(self):
@@ -1218,23 +1215,18 @@ class MoonRenderer:
     def get_info(self) -> str:
         """Get information about current view."""
 
-        p = self.moon_positions
-        if p is None:
+        if self.moon_ephem is None:
             return "No view set"
         
-        # Get libration info if available
-        lib_lon = p.get('libration_longitude', 0)
-        lib_lat = p.get('libration_latitude', 0)
-        
         return (f"Moon topocentric ephemeris:\n"
-                f"  Altitude: {p['moon_alt']:.2f}°\n"
-                f"  Azimuth: {p['moon_az']:.2f}°\n"
-                f"  RA: {p['moon_ra']:.2f}°\n"
-                f"  DEC: {p['moon_dec']:.2f}°\n"
-                f"  Distance: {p['moon_distance']:.0f} km\n"
-                f"  Phase: {p['moon_phase']:.2f}°\n"
-                f"  Illumination: {p['illumination']:.2f}%\n"
-                f"  Libration: L={lib_lon:+.2f}° B={lib_lat:+.2f}°")
+                f"  Altitude: {self.moon_ephem.alt:.2f}°\n"
+                f"  Azimuth: {self.moon_ephem.az:.2f}°\n"
+                f"  RA: {self.moon_ephem.ra:.2f}°\n"
+                f"  DEC: {self.moon_ephem.dec:.2f}°\n"
+                f"  Distance: {self.moon_ephem.distance:.0f} km\n"
+                f"  Phase: {self.moon_ephem.phase:.2f}°\n"
+                f"  Illumination: {self.moon_ephem.illum:.2f}%\n"
+                f"  Libration: L={self.moon_ephem.libr_long:+.2f}° B={self.moon_ephem.libr_lat:+.2f}°")
     
     def setup_grid(self, lat_step: float = 15.0, lon_step: float = 15.0):
         """

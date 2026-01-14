@@ -6,11 +6,13 @@ from pymeeus.Moon import Moon
 from pymeeus.Angle import Angle
 from pymeeus import Coordinates
 
+from moonrtx.types import MoonEphemeris
+
 EARTH_RADIUS_KM = 6378.14
 
-def calculate_moon_positions_topo(dt_utc: datetime, lat: float, lon: float) -> dict:
+def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEphemeris:
     """
-    Calculate topocentric Moon positions for a given time and observer location.
+    Calculate Moon ephemeris for a given time and observer location (topocentric system)
     
     Parameters
     ----------
@@ -23,17 +25,17 @@ def calculate_moon_positions_topo(dt_utc: datetime, lat: float, lon: float) -> d
         
     Returns
     -------
-    dict
-        Dictionary containing:
-        - moon_alt, moon_az: Moon altitude and azimuth (topocentric)
-        - moon_ra, moon_dec: Moon right ascension and declination (topocentric)
-        - moon_distance: Distance to Moon in km (topocentric)
-        - moon_phase: Moon phase angle (0 = new, 180 = full)
-        - illumination: Moon illumination fraction
-        - position_angle: Position angle of the bright limb (from celestial north)
-        - position_angle_axis_view
-        - parallactic_angle: Tilt of celestial N from zenith
-        - libration_longitude, libration_latitude: Moon librations
+    MoonEphemeris class
+        Containing:
+        - az, alt: Azimuth and altitude (topocentric)
+        - ra, dec: Right ascension and declination (topocentric)
+        - distance: Distance to in km (topocentric)
+        - illum: Illumination fraction
+        - phase: Phase angle (0 = new, 180 = full)
+        - pa: Position angle of the bright limb (from celestial north)
+        - pa_axis_view
+        - q: Parallactic angle (tilt of celestial N from zenith)
+        - libr_long, libr_lat: Librations (in longitude and in latitude)
     """
 
     epoch = Epoch(dt_utc, utc=True)
@@ -87,22 +89,21 @@ def calculate_moon_positions_topo(dt_utc: datetime, lat: float, lon: float) -> d
     pa_axis = float(Moon.moon_position_angle_axis(epoch))
 
     lopt, bopt, lphys, bphys, ltot, btot = Moon.moon_librations(epoch)
-    
-    return {
-        'moon_alt': moon_alt_deg,
-        'moon_az': moon_az_deg,
-        'moon_distance': moon_distance - EARTH_RADIUS_KM,
-        'illumination': illum_frac * 100,
-        'moon_phase': phase_angle,
-        'moon_ra': moon_ra_deg,
-        'moon_dec': moon_dec_deg,
-        'position_angle': position_angle,  # PA of bright limb from celestial N
-        'position_angle_axis_view': -pa_axis + parallactic_angle,
-        'parallactic_angle': parallactic_angle,  # tilt of celestial N from zenith
-        'libration_longitude': float(ltot),
-        'libration_latitude': float(btot)
-    }
 
+    return MoonEphemeris(
+        az=moon_az_deg,
+        alt=moon_alt_deg,
+        ra=moon_ra_deg,
+        dec=moon_dec_deg,
+        distance=moon_distance - EARTH_RADIUS_KM,
+        illum=illum_frac * 100,
+        phase=phase_angle,
+        pa=position_angle,
+        pa_axis_view=-pa_axis + parallactic_angle,
+        q=parallactic_angle,
+        libr_long=float(ltot),
+        libr_lat=float(btot)
+    )
 
 def moon_topocentric_ra_dec_deg(
     ra_deg, dec_deg,
