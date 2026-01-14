@@ -159,8 +159,8 @@ def load_moon_features(filepath: str) -> list:
                             status_bar=status_bar
                         )
                         moon_features.append(moon_feature)
-                    except ValueError:
-                        print(f"Warning: Could not load Moon feature named {name}. Incorrect data.")
+                    except ValueError as e:
+                        print(f"Warning: Could not load Moon feature named {name}: {e}")
                         continue
     except Exception as e:
         print(f"Warning: Could not load Moon features file: {e}")
