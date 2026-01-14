@@ -20,7 +20,7 @@ pip install -r requirements.txt
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --light-intensity 100`
 
 ## Notes
-- On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is going to be downloaded so internet connection and sufficient disk space is required.
+- On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
 - Available keyboard and mouse actions are displayed in program console output.
 
