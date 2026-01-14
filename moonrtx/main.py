@@ -127,10 +127,10 @@ def load_moon_features(filepath: str) -> list:
     list
         List of dicts with keys: name, lat, lon, angular_size, standard_label, spot_label, status_bar
     """
-    features = []
+    moon_features = []
     if not os.path.isfile(filepath):
         print(f"Warning: Moon features file {filepath} was not found. Features not loaded.")
-        return features
+        return moon_features
     
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -158,13 +158,14 @@ def load_moon_features(filepath: str) -> list:
                             spot_label=spot_label,
                             status_bar=status_bar
                         )
-                        features.append(moon_feature)
+                        moon_features.append(moon_feature)
                     except ValueError:
+                        print(f"Warning: Could not load Moon feature named {name}. Incorrect data.")
                         continue
     except Exception as e:
         print(f"Warning: Could not load Moon features file: {e}")
     
-    return features
+    return moon_features
 
 def main():
 
