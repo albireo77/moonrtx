@@ -40,22 +40,15 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
 
     epoch = Epoch(dt_utc, utc=True)
     
-    moon_ra_deg, moon_dec_deg, moon_distance, moon_parallax = Moon.apparent_equatorial_pos(epoch)
+    moon_ra, moon_dec, moon_distance, moon_parallax = Moon.apparent_equatorial_pos(epoch)
     
     # Calculate local sidereal time for hour angle computation
     # LST = Greenwich Sidereal Time + observer longitude
     lst_hours = (epoch.mean_sidereal_time() * 24.0 + lon / 15.0) % 24.0
     lst_deg = lst_hours * 15.0  # convert to degrees
 
-    moon_ra_deg, moon_dec_deg = moon_topocentric_ra_dec_deg(
-        moon_ra_deg, moon_dec_deg,
-        moon_distance,
-        lat, lon,
-        lst_deg
-    )
-
-    moon_ra = Angle(moon_ra_deg)
-    moon_dec = Angle(moon_dec_deg)
+    observer_lat = Angle(lat)
+    moon_ra, moon_dec = moon_topocentric_ra_dec(moon_ra, moon_dec, observer_lat, lst_deg, moon_distance)
     
     # Moon hour angle
     moon_ha_deg = (lst_deg - float(moon_ra)) % 360.0
@@ -67,8 +60,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     # Note: pymeeus equatorial2horizontal returns (azimuth, elevation)
     # where azimuth is measured westward from SOUTH (Meeus convention)
     # We need to add 180° to get azimuth from North
-    observer_lat = Angle(lat)
-    
     moon_az_meeus, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
     
     # Convert from Meeus convention (azimuth from South) to standard (from North)
@@ -81,40 +72,40 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     phase_angle = math.degrees(math.acos(2 * illum_frac - 1))
     
     # Get position angle of the bright limb using pymeeus
-    position_angle = float(Moon.position_bright_limb(epoch))
+    pa = Moon.position_bright_limb(epoch)
     
     # Parallactic angle tells us how much celestial north is tilted from zenith
-    q = float(Coordinates.parallactic_angle(moon_ha, moon_dec, Angle(lat)))
+    q = Coordinates.parallactic_angle(moon_ha, moon_dec, observer_lat)
 
-    pa_axis = float(Moon.moon_position_angle_axis(epoch))
+    pa_axis = Moon.moon_position_angle_axis(epoch)
 
     lopt, bopt, lphys, bphys, ltot, btot = Moon.moon_librations(epoch)
 
     return MoonEphemeris(
         az=moon_az_deg,
         alt=moon_alt_deg,
-        ra=moon_ra_deg,
-        dec=moon_dec_deg,
+        ra=float(moon_ra),
+        dec=float(moon_dec),
         distance=moon_distance - EARTH_RADIUS_KM,
         illum=illum_frac * 100,
         phase=phase_angle,
-        pa=position_angle,
-        pa_axis_view=-pa_axis + q,
-        q=q,
+        pa=float(pa),
+        pa_axis_view=float(q - pa_axis),
+        q=float(q),
         libr_long=float(ltot),
         libr_lat=float(btot)
     )
 
-def moon_topocentric_ra_dec_deg(
-    ra_deg, dec_deg,
-    distance_km,
-    lat_deg, lon_deg,
-    lst_deg):
+def moon_topocentric_ra_dec(
+    ra_deg: Angle,
+    dec_deg: Angle,
+    lat_deg: Angle,
+    lst_deg: float,
+    distance_km: float):
 
-    ra = math.radians(ra_deg)
-    dec = math.radians(dec_deg)
-    lat = math.radians(lat_deg)
-    lon = math.radians(lon_deg)
+    ra = ra_deg.rad()
+    dec = dec_deg.rad()
+    lat = lat_deg.rad()
     lst = math.radians(lst_deg)
 
     pi = math.asin(EARTH_RADIUS_KM / distance_km)
@@ -142,7 +133,4 @@ def moon_topocentric_ra_dec_deg(
     ra_topo = ra + delta_ra
     dec_topo = dec + delta_dec
 
-    ra_topo_deg = math.degrees(ra_topo) % 360.0
-    dec_topo_deg = math.degrees(dec_topo)
-
-    return ra_topo_deg, dec_topo_deg
+    return Angle(ra_topo, radians=True), Angle(dec_topo, radians=True)
