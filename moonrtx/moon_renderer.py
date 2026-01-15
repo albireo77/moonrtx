@@ -7,6 +7,7 @@ from datetime import timezone
 
 from moonrtx.types import MoonEphemeris
 from moonrtx.types import MoonFeature
+from moonrtx.types import MoonGrid
 from moonrtx.astro import calculate_moon_ephemeris
 
 from plotoptix import TkOptiX
@@ -796,11 +797,11 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
     return spot_labels
 
 
-def create_selenographic_grid(moon_radius: float = 10.0,
-                               lat_step: float = 15.0,
-                               lon_step: float = 15.0,
-                               points_per_line: int = 100,
-                               offset: float = 0.02) -> dict:
+def create_moon_grid(moon_radius: float = 10.0,
+                     lat_step: float = 15.0,
+                     lon_step: float = 15.0,
+                     points_per_line: int = 100,
+                     offset: float = 0.02) -> MoonGrid:
     """
     Create selenographic coordinate grid lines for the Moon.
     
@@ -822,8 +823,8 @@ def create_selenographic_grid(moon_radius: float = 10.0,
         
     Returns
     -------
-    dict
-        Dictionary with 'lat_lines', 'lon_lines' containing lists of point arrays
+    MoonGrid
+        MoonGrid tuple containing lists of point arrays
     """
     r = moon_radius * (1 + offset)  # Slightly above surface
     
@@ -917,7 +918,7 @@ def create_selenographic_grid(moon_radius: float = 10.0,
     z_base = r_label + n_scale * 0.6  # Position base of "N" just above the pole
     y_offset = -0.01  # Slight offset toward camera so it's visible
     
-    north_label_segments = []
+    N = []
     for (p1_local, p2_local) in north_pole_label:
         points_3d = []
         for lx, lz in [p1_local, p2_local]:
@@ -927,23 +928,20 @@ def create_selenographic_grid(moon_radius: float = 10.0,
             y = y_offset
             z = z_base + lz
             points_3d.append([x, y, z])
-        north_label_segments.append(np.array(points_3d))
-    
-    return {
-        'lat_lines': lat_lines,
-        'lon_lines': lon_lines,
-        'lat_labels': lat_labels,
-        'lat_label_values': lat_label_values,
-        'lon_labels': lon_labels,
-        'lon_label_values': lon_label_values,
-        'north_pole_label': north_label_segments
-    }
+        N.append(np.array(points_3d))
 
+    return MoonGrid(
+        lat_lines=lat_lines,
+        lon_lines=lon_lines,
+        lat_labels=lat_labels,
+        lat_label_values=lat_label_values,
+        lon_labels=lon_labels,
+        lon_label_values=lon_label_values,
+        N=N
+    )
 
 class MoonRenderer:
     """
-    MoonRTX Application
-    
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
     """
@@ -989,8 +987,8 @@ class MoonRenderer:
         self.moon_ephem = None
         
         # Grid settings
-        self.grid_visible = False
-        self.grid_data = None
+        self.moon_grid_visible = False
+        self.moon_grid = None
         self.moon_radius = 10.0  # Same as in set_data("moon", ...)
         
         # View inversion (upside down)
@@ -1151,8 +1149,8 @@ class MoonRenderer:
                            radius=8)
         
         # Update grid orientation if visible
-        if self.grid_visible:
-            self.update_grid_orientation()
+        if self.moon_grid_visible:
+            self.update_moon_grid_orientation()
         
         # Update standard labels orientation if visible
         if self.standard_labels_visible:
@@ -1203,7 +1201,7 @@ class MoonRenderer:
                 f"  Illumination: {eph.illum:.2f}%\n"
                 f"  Libration: L={eph.libr_long:+.2f}° B={eph.libr_lat:+.2f}°")
     
-    def setup_grid(self, lat_step: float = 15.0, lon_step: float = 15.0):
+    def setup_moon_grid(self, lat_step: float = 15.0, lon_step: float = 15.0):
         """
         Create selenographic coordinate grid.
         
@@ -1219,7 +1217,7 @@ class MoonRenderer:
             return
             
         # Generate grid data
-        self.grid_data = create_selenographic_grid(
+        self.moon_grid = create_moon_grid(
             moon_radius=self.moon_radius,
             lat_step=lat_step,
             lon_step=lon_step,
@@ -1235,43 +1233,43 @@ class MoonRenderer:
         line_radius = 0.006
         
         # Add latitude lines
-        for i, points in enumerate(self.grid_data['lat_lines']):
+        for i, points in enumerate(self.moon_grid.lat_lines):
             name = f"grid_lat_{i}"
             self.rt.set_data(name, pos=points, r=line_radius, 
                             c=GRID_COLOR, geom="BezierChain", mat="grid_material")
         
         # Add longitude lines
-        for i, points in enumerate(self.grid_data['lon_lines']):
+        for i, points in enumerate(self.moon_grid.lon_lines):
             name = f"grid_lon_{i}"
             self.rt.set_data(name, pos=points, r=line_radius,
                             c=GRID_COLOR, geom="BezierChain", mat="grid_material")
         
         # Add latitude labels
         label_radius = 0.012
-        for i, segments in enumerate(self.grid_data['lat_labels']):
+        for i, segments in enumerate(self.moon_grid.lat_labels):
             for j, seg in enumerate(segments):
                 name = f"grid_lat_label_{i}_{j}"
                 self.rt.set_data(name, pos=seg, r=label_radius,
                                 c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         # Add longitude labels
-        for i, segments in enumerate(self.grid_data['lon_labels']):
+        for i, segments in enumerate(self.moon_grid.lon_labels):
             for j, seg in enumerate(segments):
                 name = f"grid_lon_label_{i}_{j}"
                 self.rt.set_data(name, pos=seg, r=label_radius,
                                 c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         # Add north pole "N" label
-        for j, seg in enumerate(self.grid_data['north_pole_label']):
+        for j, seg in enumerate(self.moon_grid.N):
             name = f"grid_north_label_{j}"
             self.rt.set_data(name, pos=seg, r=label_radius,
                             c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
-        self.grid_visible = True
+        self.moon_grid_visible = True
         
-        self.update_grid_orientation()
+        self.update_moon_grid_orientation()
     
-    def show_grid(self, visible: bool = True):
+    def show_moon_grid(self, visible: bool = True):
         """
         Show or hide the selenographic grid.
         
@@ -1283,22 +1281,22 @@ class MoonRenderer:
         if self.rt is None:
             return
         
-        if self.grid_data is None:
+        if self.moon_grid is None:
             if visible:
-                self.setup_grid()
+                self.setup_moon_grid()
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         line_radius = 0.015 if visible else 0.0
         
-        for i in range(len(self.grid_data['lat_lines'])):
+        for i in range(len(self.moon_grid.lat_lines)):
             name = f"grid_lat_{i}"
             try:
                 self.rt.update_data(name, r=line_radius)
             except:
                 pass
         
-        for i in range(len(self.grid_data['lon_lines'])):
+        for i in range(len(self.moon_grid.lon_lines)):
             name = f"grid_lon_{i}"
             try:
                 self.rt.update_data(name, r=line_radius)
@@ -1308,7 +1306,7 @@ class MoonRenderer:
         # Toggle label visibility
         label_radius = 0.012 if visible else 0.0
         
-        for i, segments in enumerate(self.grid_data['lat_labels']):
+        for i, segments in enumerate(self.moon_grid.lat_labels):
             for j in range(len(segments)):
                 name = f"grid_lat_label_{i}_{j}"
                 try:
@@ -1316,7 +1314,7 @@ class MoonRenderer:
                 except:
                     pass
         
-        for i, segments in enumerate(self.grid_data['lon_labels']):
+        for i, segments in enumerate(self.moon_grid.lon_labels):
             for j in range(len(segments)):
                 name = f"grid_lon_label_{i}_{j}"
                 try:
@@ -1325,18 +1323,18 @@ class MoonRenderer:
                     pass
         
         # Toggle north pole label visibility
-        for j in range(len(self.grid_data['north_pole_label'])):
+        for j in range(len(self.moon_grid.N)):
             name = f"grid_north_label_{j}"
             try:
                 self.rt.update_data(name, r=label_radius)
             except:
                 pass
         
-        self.grid_visible = visible
+        self.moon_grid_visible = visible
     
     def toggle_grid(self):
         """Toggle the selenographic grid visibility."""
-        self.show_grid(not self.grid_visible)
+        self.show_moon_grid(not self.moon_grid_visible)
     
     def setup_standard_labels(self):
         """
@@ -1655,14 +1653,14 @@ class MoonRenderer:
         
         return lat, lon
     
-    def update_grid_orientation(self):
+    def update_moon_grid_orientation(self):
         """
         Update grid lines to match current Moon orientation.
         
         This should be called after update_view() to rotate the grid
         along with the Moon surface.
         """
-        if self.rt is None or self.grid_data is None or not self.grid_visible:
+        if self.rt is None or self.moon_grid is None or not self.moon_grid_visible:
             return
         
         R = self.calculate_moon_rotation()
@@ -1671,7 +1669,7 @@ class MoonRenderer:
             return
         
         # Update latitude lines
-        for i, orig_points in enumerate(self.grid_data['lat_lines']):
+        for i, orig_points in enumerate(self.moon_grid.lat_lines):
             name = f"grid_lat_{i}"
             rotated = (R @ orig_points.T).T
             try:
@@ -1680,7 +1678,7 @@ class MoonRenderer:
                 pass
         
         # Update longitude lines
-        for i, orig_points in enumerate(self.grid_data['lon_lines']):
+        for i, orig_points in enumerate(self.moon_grid.lon_lines):
             name = f"grid_lon_{i}"
             rotated = (R @ orig_points.T).T
             try:
@@ -1689,7 +1687,7 @@ class MoonRenderer:
                 pass
         
         # Update latitude labels
-        for i, segments in enumerate(self.grid_data['lat_labels']):
+        for i, segments in enumerate(self.moon_grid.lat_labels):
             for j, orig_seg in enumerate(segments):
                 name = f"grid_lat_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
@@ -1699,7 +1697,7 @@ class MoonRenderer:
                     pass
         
         # Update longitude labels
-        for i, segments in enumerate(self.grid_data['lon_labels']):
+        for i, segments in enumerate(self.moon_grid.lon_labels):
             for j, orig_seg in enumerate(segments):
                 name = f"grid_lon_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
@@ -1709,7 +1707,7 @@ class MoonRenderer:
                     pass
         
         # Update north pole label
-        for j, orig_seg in enumerate(self.grid_data['north_pole_label']):
+        for j, orig_seg in enumerate(self.moon_grid.N):
             name = f"grid_north_label_{j}"
             rotated = (R @ orig_seg.T).T
             try:

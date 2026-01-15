@@ -22,3 +22,12 @@ class MoonFeature(NamedTuple):
     standard_label: bool
     spot_label: bool
     status_bar: bool
+
+class MoonGrid(NamedTuple):
+    lat_lines: list
+    lon_lines: list
+    lat_labels: list
+    lat_label_values: list
+    lon_labels: list
+    lon_label_values: list
+    N: list
