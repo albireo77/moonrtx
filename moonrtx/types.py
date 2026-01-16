@@ -31,3 +31,9 @@ class MoonGrid(NamedTuple):
     lon_labels: list
     lon_label_values: list
     N: list
+
+class CameraParams(NamedTuple):
+    eye: list
+    target: list
+    up: list
+    fov: float

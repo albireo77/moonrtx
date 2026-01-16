@@ -6,6 +6,7 @@ from datetime import timezone
 
 from moonrtx.types import MoonEphemeris
 from moonrtx.types import MoonFeature
+from moonrtx.types import CameraParams
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels
@@ -458,12 +459,7 @@ class MoonRenderer:
         
         # Store initial camera parameters for reset functionality
         if self.initial_camera_params is None:
-            self.initial_camera_params = {
-                'eye': scene['eye'].tolist(),
-                'target': scene['target'].tolist(),
-                'up': camera_up.tolist(),
-                'fov': fov
-            }
+            self.initial_camera_params = CameraParams(eye=scene['eye'].tolist(), target=scene['target'].tolist(), up=camera_up.tolist(), fov=fov)
         
         # Light intensity based on phase - full moon is brighter
         # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
@@ -912,22 +908,21 @@ class MoonRenderer:
         Restores the camera to the position it had when the view was first set up,
         undoing any mouse rotation/panning performed by the user.
         """
-        if self.rt is None or self.initial_camera_params is None:
+
+        cp = self.initial_camera_params
+
+        if self.rt is None or cp is None:
             return
         
         print("Camera reset to initial position")
         
         # Restore initial camera parameters
         # Adjust up vector based on current inversion state
-        up = self.initial_camera_params['up'][:]
+        up = cp.up[:]
         if self.inverted:
             up = [u * -1 for u in up]
         
-        self.rt.setup_camera("cam1",
-                            eye=self.initial_camera_params['eye'],
-                            target=self.initial_camera_params['target'],
-                            up=up,
-                            fov=self.initial_camera_params['fov'])
+        self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
     
     def hit_to_selenographic(self, hx: float, hy: float, hz: float) -> tuple:
         """
