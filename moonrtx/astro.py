@@ -48,23 +48,18 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     lst_deg = lst_hours * 15.0  # convert to degrees
 
     observer_lat = Angle(lat)
-    moon_ra, moon_dec = moon_topocentric_ra_dec(moon_ra, moon_dec, observer_lat, lst_deg, moon_distance)
+    moon_ra, moon_dec = moon_topocentric_ra_dec(moon_ra, moon_dec, observer_lat, moon_parallax, lst_deg)
     
     # Moon hour angle
     moon_ha_deg = (lst_deg - float(moon_ra)) % 360.0
     if moon_ha_deg > 180:
         moon_ha_deg -= 360
     moon_ha = Angle(moon_ha_deg)
+
+    moon_distance_topo = moon_topocentric_distance(moon_distance, observer_lat, moon_dec, moon_ha)
     
     # Convert equatorial to horizontal coordinates
-    # Note: pymeeus equatorial2horizontal returns (azimuth, elevation)
-    # where azimuth is measured westward from SOUTH (Meeus convention)
-    # We need to add 180° to get azimuth from North
-    moon_az_meeus, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
-    
-    # Convert from Meeus convention (azimuth from South) to standard (from North)
-    moon_az_deg = (float(moon_az_meeus) + 180.0) % 360.0
-    moon_alt_deg = float(moon_alt)
+    moon_az, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
     
     illum_frac = Moon.illuminated_fraction_disk(epoch)
     # Calculate Moon phase angle
@@ -78,37 +73,38 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     q = Coordinates.parallactic_angle(moon_ha, moon_dec, observer_lat)
 
     pa_axis = Moon.moon_position_angle_axis(epoch)
+    pa_axis_view = q - pa_axis
 
-    lopt, bopt, lphys, bphys, ltot, btot = Moon.moon_librations(epoch)
+    _, _, _, _, libr_long_tot, libr_lat_tot = Moon.moon_librations(epoch)
 
     return MoonEphemeris(
-        az=moon_az_deg,
-        alt=moon_alt_deg,
+        az=(float(moon_az) + 180.0) % 360.0,      # Convert from Meeus convention (azimuth from South) to standard (from North)
+        alt=float(moon_alt),
         ra=float(moon_ra),
         dec=float(moon_dec),
-        distance=moon_distance - EARTH_RADIUS_KM,
+        distance=moon_distance_topo,
         illum=illum_frac * 100,
         phase=phase_angle,
         pa=float(pa),
-        pa_axis_view=float(q - pa_axis),
+        pa_axis_view=float(pa_axis_view),
         q=float(q),
-        libr_long=float(ltot),
-        libr_lat=float(btot)
+        libr_long=float(libr_long_tot),
+        libr_lat=float(libr_lat_tot)
     )
 
 def moon_topocentric_ra_dec(
     ra_deg: Angle,
     dec_deg: Angle,
     lat_deg: Angle,
-    lst_deg: float,
-    distance_km: float):
+    parallax: Angle,
+    lst_deg: float):
 
     ra = ra_deg.rad()
     dec = dec_deg.rad()
     lat = lat_deg.rad()
     lst = math.radians(lst_deg)
 
-    pi = math.asin(EARTH_RADIUS_KM / distance_km)
+    pi = parallax.rad()
 
     H = lst - ra
 
@@ -134,3 +130,49 @@ def moon_topocentric_ra_dec(
     dec_topo = dec + delta_dec
 
     return Angle(ra_topo, radians=True), Angle(dec_topo, radians=True)
+
+def moon_topocentric_distance(
+    distance_geo_km: float,
+    lat: Angle,
+    dec_topo: Angle,
+    ha_topo: Angle
+) -> float:
+    """
+    Compute topocentric distance Δ′ of the Moon (Meeus, ch. 40)
+
+    Parameters
+    ----------
+    distance_geo_km : float
+        Geocentric distance Δ (km)
+    lat : Angle
+        Observer latitude φ
+    dec_topo : Angle
+        Topocentric declination δ′
+    ha_topo : Angle
+        Topocentric hour angle H′
+
+    Returns
+    -------
+    float
+        Topocentric distance Δ′ in km
+    """
+
+    # Convert to radians
+    phi = lat.rad()
+    dec = dec_topo.rad()
+    H = ha_topo.rad()
+
+    # cos(z) where z is the zenith distance
+    cos_z = (
+        math.sin(phi) * math.sin(dec) +
+        math.cos(phi) * math.cos(dec) * math.cos(H)
+    )
+
+    # Meeus formula
+    delta_prime = math.sqrt(
+        distance_geo_km**2 +
+        EARTH_RADIUS_KM**2 -
+        2.0 * distance_geo_km * EARTH_RADIUS_KM * cos_z
+    )
+
+    return delta_prime
