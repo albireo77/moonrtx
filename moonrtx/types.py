@@ -1,4 +1,5 @@
 from typing import NamedTuple
+from numpy.typing import NDArray
 
 class MoonEphemeris(NamedTuple):
     az: float
@@ -37,3 +38,9 @@ class CameraParams(NamedTuple):
     target: list
     up: list
     fov: float
+
+class Scene(NamedTuple):
+    eye: NDArray
+    target: NDArray
+    up: NDArray
+    light_pos: NDArray

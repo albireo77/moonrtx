@@ -7,6 +7,7 @@ from datetime import timezone
 from moonrtx.types import MoonEphemeris
 from moonrtx.types import MoonFeature
 from moonrtx.types import CameraParams
+from moonrtx.types import Scene
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels
@@ -255,13 +256,8 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) ->
     light_y = -np.cos(phase) * light_distance
     
     light_pos = np.array([light_x, light_y, light_z])
-    
-    return {
-        'eye': camera_eye,
-        'target': camera_target,
-        'up': camera_up,
-        'light_pos': light_pos
-    }
+
+    return Scene(eye=camera_eye, target=camera_target, up=camera_up, light_pos=light_pos)
 
 class MoonRenderer:
     """
@@ -446,28 +442,26 @@ class MoonRenderer:
         fov = max(1, min(90, fov))  # Clamp to valid range
         
         # Invert up vector for upside down view
-        camera_up = scene['up'] if not self.inverted else -scene['up']
+        camera_up = scene.up if not self.inverted else -scene.up
         
-        self.rt.setup_camera("cam1", cam_type="Pinhole",
-                            eye=scene['eye'].tolist(),
-                            target=scene['target'].tolist(),
-                            up=camera_up.tolist(),
-                            aperture_radius=0.01,
-                            aperture_fract=0.2,
-                            focal_scale=0.7,
-                            fov=fov)
+        self.rt.setup_camera("cam1",
+                             cam_type="Pinhole",
+                             eye=scene.eye.tolist(),
+                             target=scene.target.tolist(),
+                             up=camera_up.tolist(),
+                             aperture_radius=0.01,
+                             aperture_fract=0.2,
+                             focal_scale=0.7,
+                             fov=fov)
         
         # Store initial camera parameters for reset functionality
         if self.initial_camera_params is None:
-            self.initial_camera_params = CameraParams(eye=scene['eye'].tolist(), target=scene['target'].tolist(), up=camera_up.tolist(), fov=fov)
+            self.initial_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=camera_up.tolist(), fov=fov)
         
         # Light intensity based on phase - full moon is brighter
         # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
         
-        self.rt.setup_light("sun", 
-                           pos=scene['light_pos'].tolist(),
-                           color=light_intensity,
-                           radius=10)
+        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=light_intensity, radius=10)
         
         # Update grid orientation if visible
         if self.moon_grid_visible:
