@@ -78,7 +78,6 @@ def run_renderer(dt_local: datetime,
     print("  Hold shift + left mouse button and drag up/down - Zoom out/in")
     print("  Hold and drag right mouse button - Rotate Moon around the eye")
     print("  Hold shift + right mouse button and drag up/down - Move eye backward/forward")
-    print("  Hold ctrl + left mouse button and drag up/down - Change focus distance (sharpens Moon surface details)")
     
     original_key_handler = moon_renderer.rt._gui_key_pressed
     def custom_key_handler(event):
@@ -448,7 +447,7 @@ class MoonRenderer:
         # Invert up vector for upside down view
         camera_up = scene['up'] if not self.inverted else -scene['up']
         
-        self.rt.setup_camera("cam1", cam_type="DoF",
+        self.rt.setup_camera("cam1", cam_type="Pinhole",
                             eye=scene['eye'].tolist(),
                             target=scene['target'].tolist(),
                             up=camera_up.tolist(),
