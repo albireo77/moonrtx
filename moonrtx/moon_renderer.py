@@ -74,7 +74,8 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  I - Upside down view")
-    print("  C - Reset scene to initial state")
+    print("  R - Reset scene to initial state")
+    print("  C - Center view on point under cursor")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
     print("  Hold shift + left mouse button and drag up/down - Zoom out/in")
@@ -91,8 +92,10 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_spot_labels()
         elif event.keysym.lower() == 'i':
             moon_renderer.toggle_invert()
-        elif event.keysym.lower() == 'c':
+        elif event.keysym.lower() == 'r':
             moon_renderer.reset_camera_position()
+        elif event.keysym.lower() == 'c':
+            moon_renderer.center_view_on_cursor(event)
         else:
             original_key_handler(event)
     moon_renderer.rt._gui_key_pressed = custom_key_handler
@@ -917,6 +920,53 @@ class MoonRenderer:
             up = [u * -1 for u in up]
         
         self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
+    
+    def center_view_on_cursor(self, event):
+        """
+        Center the view on the point under the mouse cursor.
+        
+        This method gets the 3D hit position at the current mouse location
+        and moves the camera to look at that point, maintaining the current
+        camera distance.
+        
+        Parameters
+        ----------
+        event : tk.Event
+            The keyboard event containing mouse position (event.x, event.y)
+        """
+        if self.rt is None:
+            return
+        
+        # Get mouse position in image coordinates
+        x, y = self.rt._get_image_xy(event.x, event.y)
+        
+        # Get hit position at mouse location
+        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
+        
+        # Check if we hit something (distance > 0 means valid hit)
+        if hd <= 0:
+            return
+        
+        # Get current camera parameters using PlotOptix internal state
+        cam = self.rt.get_camera("cam1")
+        eye = np.array(cam["Eye"])
+        target = np.array(cam["Target"])
+        
+        # Calculate current camera distance from target
+        current_distance = np.linalg.norm(eye - target)
+        
+        # New target is the hit position
+        new_target = np.array([hx, hy, hz])
+        
+        # Calculate direction from new target to current eye position
+        direction = eye - target
+        direction = direction / np.linalg.norm(direction)
+        
+        # New eye position: same distance from new target, same direction
+        new_eye = new_target + direction * current_distance
+        
+        # Update camera with new eye and target
+        self.rt.setup_camera("cam1", eye=new_eye.tolist(), target=new_target.tolist())
     
     def hit_to_selenographic(self, hx: float, hy: float, hz: float) -> tuple:
         """
