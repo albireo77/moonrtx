@@ -1146,7 +1146,7 @@ class MoonRenderer:
         self.rt.setup_light("sun", 
                            pos=scene['light_pos'].tolist(),
                            color=light_intensity,
-                           radius=8)
+                           radius=10)
         
         # Update grid orientation if visible
         if self.moon_grid_visible:
