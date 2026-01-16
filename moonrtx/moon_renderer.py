@@ -1,24 +1,21 @@
 import numpy as np
-import cv2
-import os
+
 from typing import Optional
 from datetime import datetime
 from datetime import timezone
 
 from moonrtx.types import MoonEphemeris
 from moonrtx.types import MoonFeature
-from moonrtx.types import MoonGrid
 from moonrtx.astro import calculate_moon_ephemeris
+from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
+from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels
 
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
 from plotoptix.materials import m_flat
-from plotoptix.utils import read_image, make_color_2d
 
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9  # Moon fills 90% of window height (5% margins top/bottom)
-APP_NAME = "MoonRTX"
-LABEL_CHAR_SCALE = 0.12
 
 def run_renderer(dt_local: datetime,
                  lat: float,
@@ -26,9 +23,10 @@ def run_renderer(dt_local: datetime,
                  elevation_file: str,
                  color_file: str,
                  starmap_file: str,
+                 features_file: str,
                  downscale: int,
                  light_intensity: int,
-                 moon_features: list) -> TkOptiX:
+                 app_name: str) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
     
@@ -38,14 +36,14 @@ def run_renderer(dt_local: datetime,
         Local time
     lat, lon : float
         Observer latitude and longitude in degrees
-    elevation_file, color_file, starmap_file : str
+    elevation_file, color_file, starmap_file, features_file : str
         Paths to data files
     downscale : int
         Elevation downscale factor
     light_intensity : int
-        Light intensity  
-    moon_features : list
-        Moon features (craters, mounts etc.)   
+        Light intensity 
+    app_name : str
+        Application name
     Returns
     -------
     TkOptiX
@@ -53,11 +51,12 @@ def run_renderer(dt_local: datetime,
     """
 
     moon_renderer = MoonRenderer(
+        app_name=app_name,
         elevation_file=elevation_file,
         color_file=color_file,
         starmap_file=starmap_file,
         downscale=downscale,
-        moon_features=moon_features
+        features_file=features_file
     )
     
     # Setup renderer
@@ -264,713 +263,40 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) ->
         'light_pos': light_pos
     }
 
-
-def load_elevation_data(filepath: str, downscale: int) -> np.ndarray:
-    """
-    Load and process the Moon elevation data.
-    
-    Parameters
-    ----------
-    filepath : str
-        Path to the elevation TIFF file
-    downscale : int
-        Downscale factor (2-3 recommended for most GPUs)
-        
-    Returns
-    -------
-    np.ndarray
-        Processed elevation data normalized for displacement mapping
-    """
-    print(f"Loading elevation data from {filepath}...")
-    elev_src = read_image(filepath)
-    
-    if elev_src is None:
-        raise ValueError(f"Failed to read elevation file: {filepath}")
-    
-    print(f"  Original dimensions: {elev_src.shape}")
-    print(f"  Size: {elev_src.nbytes / (1024**3):.2f} GB")
-    
-    # Convert to signed 16-bit and normalize
-    elev_src.dtype = np.int16
-    scale = 1. / np.iinfo(np.int16).max
-    
-    h = elev_src.shape[0] // downscale
-    w = elev_src.shape[1] // downscale
-    
-    # Downscale by averaging
-    elevation = elev_src.reshape(1, h, downscale, w, downscale).mean(
-        4, dtype=np.float32).mean(2, dtype=np.float32).reshape(h, w)
-    elevation *= scale
-    
-    # Release source memory
-    elev_src = None
-    
-    print(f"  Downscaled dimensions: {elevation.shape}")
-    print(f"  Downscaled size: {elevation.nbytes / (1024**3):.2f} GB")
-    
-    # Normalize for displacement mapping
-    # Real Moon: radius ~1737 km, max relief ~20 km = ~1.15% of radius
-    # Increase this value for more dramatic terrain, decrease for flatter appearance
-    displacement_range = 0.0115  # 1.15% of radius
-    
-    rmin = np.min(elevation)
-    rmax = np.max(elevation)
-    rv = rmax - rmin
-    
-    elevation += rmin
-    elevation *= displacement_range / rv
-    elevation += (1.0 - displacement_range)
-    
-    return elevation
-
-
-def load_color_data(filepath: str, gamma: float = 2.2) -> np.ndarray:
-    """
-    Load and process the Moon color/albedo data.
-    
-    Parameters
-    ----------
-    filepath : str
-        Path to the color TIFF file
-    gamma : float
-        Gamma correction value
-        
-    Returns
-    -------
-    np.ndarray
-        Processed color data ready for texturing
-    """
-    print(f"Loading color data from {filepath}...")
-    color_src = cv2.imread(filepath)
-    
-    if color_src is None:
-        raise ValueError(f"Failed to read color file: {filepath}")
-    
-    # Convert BGR to RGB and normalize
-    color_src = color_src[..., ::-1].astype(np.float32)
-    color_src = 0.2 + (0.75 / 255) * color_src
-    
-    print(f"  Dimensions: {color_src.shape}")
-    print(f"  Size: {color_src.nbytes / (1024**3):.2f} GB")
-    
-    # Prepare for texture
-    color_data = make_color_2d(color_src, gamma=gamma, channel_order="RGBA")
-    color_data *= 255
-    
-    return color_data.astype(np.uint8)
-
-
-def load_starmap(filepath: str, target_width: int = 10240) -> Optional[np.ndarray]:
-    """
-    Load and process the star map for background.
-    
-    Parameters
-    ----------
-    filepath : str
-        Path to the star map TIFF file
-    target_width : int
-        Target width for downscaling (to save memory)
-        
-    Returns
-    -------
-    np.ndarray or None
-        Processed star map, or None if file not found
-    """
-    if not os.path.isfile(filepath):
-        print(f"Star map not found: {filepath}")
-        return None
-    
-    print(f"Loading star map from {filepath}...")
-    star_src = cv2.imread(filepath)
-    
-    if star_src is None:
-        print(f"Failed to read star map: {filepath}")
-        return None
-    
-    # Convert BGR to RGB and normalize
-    star_src = star_src[..., ::-1].astype(np.float32)
-    star_src *= 1 / 255
-    
-    # Downscale if needed
-    if target_width < star_src.shape[1]:
-        target_height = int(star_src.shape[0] * target_width / star_src.shape[1])
-        star_map = cv2.resize(star_src, (target_width, target_height), 
-                             interpolation=cv2.INTER_CUBIC)
-        np.clip(star_map, 0, 1, out=star_map)
-    else:
-        star_map = star_src
-    
-    print(f"  Dimensions: {star_map.shape}")
-    
-    return star_map
-
-
-def create_digit_segments(digit: str, scale: float = 0.1) -> list:
-    """
-    Create line segments for a digit (7-segment style display).
-    
-    Returns list of (start, end) tuples in local 2D coordinates,
-    where the digit is centered at origin, width ~0.6*scale, height ~1.0*scale.
-    """
-    # 7-segment layout:
-    #  _a_
-    # |   |
-    # f   b
-    # |_g_|
-    # |   |
-    # e   c
-    # |_d_|
-    
-    w = 0.3 * scale  # half width
-    h = 0.5 * scale  # half height
-    
-    # Segment endpoints (centered at origin)
-    segments = {
-        'a': ((-w, h), (w, h)),           # top
-        'b': ((w, h), (w, 0)),            # upper right
-        'c': ((w, 0), (w, -h)),           # lower right
-        'd': ((-w, -h), (w, -h)),         # bottom
-        'e': ((-w, 0), (-w, -h)),         # lower left
-        'f': ((-w, h), (-w, 0)),          # upper left
-        'g': ((-w, 0), (w, 0)),           # middle
-    }
-    
-    # Which segments are on for each digit/letter
-    digit_segments = {
-        '0': 'abcdef',
-        '1': 'bc',
-        '2': 'abged',
-        '3': 'abgcd',
-        '4': 'fgbc',
-        '5': 'afgcd',
-        '6': 'afgedc',
-        '7': 'abc',
-        '8': 'abcdefg',
-        '9': 'abcdfg',
-        '-': 'g',
-        'N': 'N',  # Special case handled below
-    }
-    
-    # Handle letter N specially (diagonal stroke)
-    if digit == 'N':
-        return [
-            ((-w, -h), (-w, h)),   # left vertical
-            ((-w, h), (w, -h)),    # diagonal
-            ((w, -h), (w, h)),     # right vertical
-        ]
-    
-    # Handle other letters with custom segment definitions
-    letter_definitions = {
-        'A': [((-w, -h), (-w, h*0.3)), ((-w, h*0.3), (0, h)), ((0, h), (w, h*0.3)), ((w, h*0.3), (w, -h)), ((-w, 0), (w, 0))],
-        'B': [((-w, -h), (-w, h)), ((-w, h), (w*0.6, h)), ((w*0.6, h), (w*0.6, h*0.1)), ((w*0.6, h*0.1), (-w, 0)), ((-w, 0), (w*0.6, 0)), ((w*0.6, 0), (w*0.6, -h*0.9)), ((w*0.6, -h*0.9), (-w, -h))],
-        'C': [((w, h), (-w*0.3, h)), ((-w*0.3, h), (-w, h*0.5)), ((-w, h*0.5), (-w, -h*0.5)), ((-w, -h*0.5), (-w*0.3, -h)), ((-w*0.3, -h), (w, -h))],
-        'D': [((-w, -h), (-w, h)), ((-w, h), (w*0.3, h)), ((w*0.3, h), (w, h*0.5)), ((w, h*0.5), (w, -h*0.5)), ((w, -h*0.5), (w*0.3, -h)), ((w*0.3, -h), (-w, -h))],
-        'E': [((-w, -h), (-w, h)), ((-w, h), (w, h)), ((-w, 0), (w*0.6, 0)), ((-w, -h), (w, -h))],
-        'F': [((-w, -h), (-w, h)), ((-w, h), (w, h)), ((-w, 0), (w*0.6, 0))],
-        'G': [((w, h*0.6), (w*0.3, h)), ((w*0.3, h), (-w, h*0.5)), ((-w, h*0.5), (-w, -h*0.5)), ((-w, -h*0.5), (w*0.3, -h)), ((w*0.3, -h), (w, -h*0.5)), ((w, -h*0.5), (w, 0)), ((w, 0), (0, 0))],
-        'H': [((-w, -h), (-w, h)), ((w, -h), (w, h)), ((-w, 0), (w, 0))],
-        'I': [((-w*0.5, h), (w*0.5, h)), ((0, h), (0, -h)), ((-w*0.5, -h), (w*0.5, -h))],
-        'J': [((w*0.5, h), (w*0.5, -h*0.5)), ((w*0.5, -h*0.5), (0, -h)), ((0, -h), (-w*0.5, -h*0.5))],
-        'K': [((-w, -h), (-w, h)), ((-w, 0), (w, h)), ((-w, 0), (w, -h))],
-        'L': [((-w, h), (-w, -h)), ((-w, -h), (w, -h))],
-        'M': [((-w, -h), (-w, h)), ((-w, h), (0, 0)), ((0, 0), (w, h)), ((w, h), (w, -h))],
-        'O': [((-w, h*0.5), (-w, -h*0.5)), ((-w, -h*0.5), (-w*0.3, -h)), ((-w*0.3, -h), (w*0.3, -h)), ((w*0.3, -h), (w, -h*0.5)), ((w, -h*0.5), (w, h*0.5)), ((w, h*0.5), (w*0.3, h)), ((w*0.3, h), (-w*0.3, h)), ((-w*0.3, h), (-w, h*0.5))],
-        'P': [((-w, -h), (-w, h)), ((-w, h), (w*0.6, h)), ((w*0.6, h), (w*0.6, h*0.1)), ((w*0.6, h*0.1), (-w, 0))],
-        'Q': [((-w, h*0.5), (-w, -h*0.5)), ((-w, -h*0.5), (-w*0.3, -h)), ((-w*0.3, -h), (w*0.3, -h)), ((w*0.3, -h), (w, -h*0.5)), ((w, -h*0.5), (w, h*0.5)), ((w, h*0.5), (w*0.3, h)), ((w*0.3, h), (-w*0.3, h)), ((-w*0.3, h), (-w, h*0.5)), ((w*0.3, -h*0.3), (w*0.8, -h*0.9))],
-        'R': [((-w, -h), (-w, h)), ((-w, h), (w*0.6, h)), ((w*0.6, h), (w*0.6, h*0.1)), ((w*0.6, h*0.1), (-w, 0)), ((-w*0.2, 0), (w, -h))],
-        'S': [((w, h*0.7), (w*0.3, h)), ((w*0.3, h), (-w*0.3, h)), ((-w*0.3, h), (-w, h*0.5)), ((-w, h*0.5), (-w, h*0.2)), ((-w, h*0.2), (w, -h*0.2)), ((w, -h*0.2), (w, -h*0.5)), ((w, -h*0.5), (w*0.3, -h)), ((w*0.3, -h), (-w*0.3, -h)), ((-w*0.3, -h), (-w, -h*0.7))],
-        'T': [((-w, h), (w, h)), ((0, h), (0, -h))],
-        'U': [((-w, h), (-w, -h*0.5)), ((-w, -h*0.5), (-w*0.3, -h)), ((-w*0.3, -h), (w*0.3, -h)), ((w*0.3, -h), (w, -h*0.5)), ((w, -h*0.5), (w, h))],
-        'V': [((-w, h), (0, -h)), ((0, -h), (w, h))],
-        'W': [((-w, h), (-w*0.5, -h)), ((-w*0.5, -h), (0, h*0.3)), ((0, h*0.3), (w*0.5, -h)), ((w*0.5, -h), (w, h))],
-        'X': [((-w, h), (w, -h)), ((-w, -h), (w, h))],
-        'Y': [((-w, h), (0, 0)), ((w, h), (0, 0)), ((0, 0), (0, -h))],
-        'Z': [((-w, h), (w, h)), ((w, h), (-w, -h)), ((-w, -h), (w, -h))],
-        ' ': [],  # Space - no segments
-        "'": [((0, h), (0, h*0.5))],  # Apostrophe
-        '>': [((-w, h*0.4), (w, 0)), ((w, 0), (-w, -h*0.4))],  # Right arrow
-        '<': [((w, h*0.4), (-w, 0)), ((-w, 0), (w, -h*0.4))],  # Left arrow
-    }
-    
-    if digit in letter_definitions:
-        return letter_definitions[digit]
-    
-    if digit not in digit_segments:
-        return []
-    
-    return [segments[s] for s in digit_segments[digit]]
-
-
-def create_number_on_sphere(number: int, 
-                            lat: float, lon: float,
-                            moon_radius: float,
-                            offset: float,
-                            digit_scale: float = 0.3,
-                            spacing: float = 0.25) -> list:
-    """
-    Create 3D line segments for a number positioned on the Moon sphere.
-    
-    Parameters
-    ----------
-    number : int
-        The number to display (can be negative)
-    lat, lon : float
-        Selenographic coordinates in degrees
-    moon_radius : float
-        Radius of the Moon
-    offset : float
-        Height above surface (fraction of radius)
-    digit_scale : float
-        Size of digits
-    spacing : float
-        Spacing between digits (as fraction of scale)
-        
-    Returns
-    -------
-    list
-        List of numpy arrays, each containing points for one line segment
-    """
-    r = moon_radius * (1 + offset + 0.005)  # Slightly above grid lines
-    
-    # Convert number to string
-    num_str = str(number)
-    
-    # Calculate total width for centering
-    num_digits = len(num_str)
-    total_width = num_digits * digit_scale * (1 + spacing) - digit_scale * spacing
-    
-    all_segments = []
-    
-    # Position for each digit
-    for i, digit in enumerate(num_str):
-        # Local x offset for this digit (centered)
-        local_x = -total_width/2 + i * digit_scale * (1 + spacing) + digit_scale * 0.5
-        
-        # Get segments for this digit
-        digit_segs = create_digit_segments(digit, digit_scale)
-        
-        for (p1_local, p2_local) in digit_segs:
-            # Transform local 2D to 3D on sphere surface
-            # Local coordinates: x = along latitude, z = up (along meridian)
-            points_3d = []
-            for p_local in [p1_local, p2_local]:
-                lx, lz = p_local
-                lx += local_x  # Apply digit offset
-                
-                # Convert local offset to lat/lon offset
-                # Approximate: at this latitude, 1 unit of local x = some degrees of longitude
-                # and 1 unit of local z = some degrees of latitude
-                lat_offset = np.degrees(lz / r)
-                lon_offset = np.degrees(lx / (r * np.cos(np.radians(lat)))) if abs(lat) < 89 else 0
-                
-                new_lat = lat + lat_offset
-                new_lon = lon + lon_offset
-                
-                # Convert to 3D
-                lat_rad = np.radians(new_lat)
-                lon_rad = np.radians(new_lon)
-                
-                x = r * np.cos(lat_rad) * np.sin(lon_rad)
-                y = -r * np.cos(lat_rad) * np.cos(lon_rad)
-                z = r * np.sin(lat_rad)
-                
-                points_3d.append([x, y, z])
-            
-            all_segments.append(np.array(points_3d))
-    
-    return all_segments
-
-def create_text_on_sphere(text: str, 
-                          lat: float, lon: float,
-                          moon_radius: float,
-                          offset: float,
-                          char_scale: float = 0.15,
-                          spacing: float = 0.15) -> list:
-    """
-    Create 3D line segments for text positioned on the Moon sphere.
-    Text starts horizontally at the given lon (not centered).
-    """
-
-    r = moon_radius * (1 + offset + 0.005)
-    all_segments = []
-
-    char_width = char_scale * (1 + spacing)
-
-    for i, char in enumerate(text.upper()):
-        # Local x offset: text starts at lon and grows eastward
-        local_x = i * char_width
-
-        char_segs = create_digit_segments(char, char_scale)
-
-        for seg in char_segs:
-            if len(seg) != 2:
-                continue
-
-            p1_local, p2_local = seg
-            points_3d = []
-
-            for p_local in (p1_local, p2_local):
-                lx, lz = p_local
-                lx += local_x
-
-                # Convert local offsets to lat/lon offsets
-                lat_offset = np.degrees(lz / r)
-                lon_offset = (
-                    np.degrees(lx / (r * np.cos(np.radians(lat))))
-                    if abs(lat) < 89 else 0
-                )
-
-                new_lat = lat + lat_offset
-                new_lon = lon + lon_offset
-
-                lat_rad = np.radians(new_lat)
-                lon_rad = np.radians(new_lon)
-
-                x = r * np.cos(lat_rad) * np.sin(lon_rad)
-                y = -r * np.cos(lat_rad) * np.cos(lon_rad)
-                z = r * np.sin(lat_rad)
-
-                points_3d.append([x, y, z])
-
-            all_segments.append(np.array(points_3d))
-
-    return all_segments
-
-def create_centered_text_on_sphere(text: str,
-                                   lat: float, lon: float,
-                                   moon_radius: float,
-                                   offset: float,
-                                   char_scale: float = 0.15,
-                                   spacing: float = 0.15) -> list:
-    """
-    Create 3D line segments for text positioned on the Moon sphere.
-    
-    Parameters
-    ----------
-    text : str
-        The text to display
-    lat, lon : float
-        Selenographic coordinates in degrees (center position of text)
-    moon_radius : float
-        Radius of the Moon
-    offset : float
-        Height above surface (fraction of radius)
-    char_scale : float
-        Size of characters
-    spacing : float
-        Spacing between characters (as fraction of scale)
-        
-    Returns
-    -------
-    list
-        List of numpy arrays, each containing points for one line segment
-    """
-    r = moon_radius * (1 + offset + 0.005)  # Slightly above grid lines
-    
-    all_segments = []
-    
-    # Calculate total width for centering
-    char_width = char_scale * (1 + spacing)
-    num_chars = len(text)
-    total_width = num_chars * char_width - char_scale * spacing  # subtract last spacing
-    
-    for i, char in enumerate(text.upper()):
-        # Local x offset for this character (centered around origin)
-        local_x = i * char_width - total_width / 2 + char_width / 2
-        
-        # Get segments for this character
-        char_segs = create_digit_segments(char, char_scale)
-        
-        for seg in char_segs:
-            if len(seg) != 2:
-                continue
-            p1_local, p2_local = seg
-            # Transform local 2D to 3D on sphere surface
-            # Local coordinates: x = along latitude (positive = east), z = up (along meridian)
-            points_3d = []
-            for p_local in [p1_local, p2_local]:
-                lx, lz = p_local
-                lx += local_x  # Apply character offset (already centered)
-                
-                # Convert local offset to lat/lon offset
-                lat_offset = np.degrees(lz / r)
-                lon_offset = np.degrees(lx / (r * np.cos(np.radians(lat)))) if abs(lat) < 89 else 0
-                
-                new_lat = lat + lat_offset
-                new_lon = lon + lon_offset
-                
-                # Convert to 3D
-                lat_rad = np.radians(new_lat)
-                lon_rad = np.radians(new_lon)
-                
-                x = r * np.cos(lat_rad) * np.sin(lon_rad)
-                y = -r * np.cos(lat_rad) * np.cos(lon_rad)
-                z = r * np.sin(lat_rad)
-                
-                points_3d.append([x, y, z])
-            
-            all_segments.append(np.array(points_3d))
-    
-    return all_segments
-
-
-def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
-    """
-    Create labels for Moon features marked with standard label
-    
-    The label is centered at the feature's (latitude, longitude) position.
-    
-    Parameters
-    ----------
-    moon_features : list
-        List of Moon features
-    moon_radius : float
-        Radius of the Moon sphere
-    offset : float
-        Height offset above surface
-        
-    Returns
-    -------
-    list
-        List of standard labels
-    """
-    standard_labels = []
-    
-    for moon_feature in moon_features:
-
-        if not moon_feature.standard_label:
-            continue
-        
-        label_segments = create_centered_text_on_sphere(
-            text=moon_feature.name,
-            lat=moon_feature.lat, 
-            lon=moon_feature.lon,
-            moon_radius=moon_radius,
-            offset=offset,
-            char_scale=LABEL_CHAR_SCALE,
-            spacing=0.1
-        )
-        standard_labels.append(label_segments)
-    
-    return standard_labels
-
-def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
-    """
-    Create labels for Moon features marked as spot label
-    
-    Parameters
-    ----------
-    moon_features : list
-        List of Moon features
-    moon_radius : float
-        Radius of the Moon sphere
-    offset : float
-        Height offset above surface
-        
-    Returns
-    -------
-    list
-        List of spot labels.
-    """
-    spot_labels = []
-    
-    for moon_feature in moon_features:
-
-        if not moon_feature.spot_label:
-            continue
-        
-        label_text = "< " + moon_feature.name
-        label_lon = moon_feature.lon + moon_feature.angle
-        label_lat = moon_feature.lat
-        
-        label_segments = create_text_on_sphere(
-            label_text, 
-            lat=label_lat, 
-            lon=label_lon,
-            moon_radius=moon_radius,
-            offset=offset,
-            char_scale=LABEL_CHAR_SCALE,
-            spacing=0.1
-        )
-        spot_labels.append(label_segments)
-    
-    return spot_labels
-
-
-def create_moon_grid(moon_radius: float = 10.0,
-                     lat_step: float = 15.0,
-                     lon_step: float = 15.0,
-                     points_per_line: int = 100,
-                     offset: float = 0.02) -> MoonGrid:
-    """
-    Create selenographic coordinate grid lines for the Moon.
-    
-    Generates latitude and longitude lines as 3D points on a sphere
-    slightly above the Moon's surface (to avoid z-fighting).
-    
-    Parameters
-    ----------
-    moon_radius : float
-        Radius of the Moon sphere
-    lat_step : float
-        Spacing between latitude lines in degrees
-    lon_step : float
-        Spacing between longitude lines in degrees
-    points_per_line : int
-        Number of points per line (more = smoother)
-    offset : float
-        Offset above surface (fraction of radius)
-        
-    Returns
-    -------
-    MoonGrid
-        MoonGrid tuple containing lists of point arrays
-    """
-    r = moon_radius * (1 + offset)  # Slightly above surface
-    
-    lat_lines = []
-    lon_lines = []
-    
-    # Latitude lines (circles at constant latitude)
-    # From -60° to +60° (skip poles where circles become very small)
-    for lat in np.arange(-60, 61, lat_step):
-        if lat == 90 or lat == -90:
-            continue
-        lat_rad = np.radians(lat)
-        cos_lat = np.cos(lat_rad)
-        z = r * np.sin(lat_rad)
-        r_circle = r * cos_lat
-        
-        # Full circle at this latitude
-        points = []
-        for lon in np.linspace(0, 360, points_per_line, endpoint=True):
-            lon_rad = np.radians(lon)
-            x = r_circle * np.sin(lon_rad)  # lon=0 faces -Y
-            y = -r_circle * np.cos(lon_rad)  # -Y is toward camera
-            points.append([x, y, z])
-        
-        lat_lines.append(np.array(points))
-    
-    # Longitude lines (great circles at constant longitude)
-    # Full 360° but only draw visible portion (front half approximately)
-    for lon in np.arange(0, 360, lon_step):
-        lon_rad = np.radians(lon)
-        
-        points = []
-        # From south pole to north pole
-        for lat in np.linspace(-90, 90, points_per_line):
-            lat_rad = np.radians(lat)
-            cos_lat = np.cos(lat_rad)
-            z = r * np.sin(lat_rad)
-            
-            x = r * cos_lat * np.sin(lon_rad)
-            y = -r * cos_lat * np.cos(lon_rad)  # -Y is toward camera
-            points.append([x, y, z])
-        
-        lon_lines.append(np.array(points))
-    
-    # Create labels for latitude lines
-    # Labels are placed at longitudes 0, 90, 180, and -90 (270) degrees
-    lat_labels = []
-    lat_label_values = []
-    label_longitudes = [0, 90, 180, -90]  # Longitudes where latitude labels are placed
-    for label_lon in label_longitudes:
-        for lat in np.arange(-60, 61, lat_step):
-            if lat == 90 or lat == -90:
-                continue
-            # Place label slightly offset from the meridian
-            segments = create_number_on_sphere(
-                int(lat), lat=lat+1, lon=label_lon + lat_step/2-1,
-                moon_radius=moon_radius, offset=offset,
-                digit_scale=0.125
-            )
-            lat_labels.append(segments)
-            lat_label_values.append(int(lat))
-    
-    # Create labels for longitude lines
-    # Labels are placed on the right side of the meridian (positive latitude offset)
-    lon_labels = []
-    lon_label_values = []    
-    for lon in np.arange(0, 360, lon_step):
-        # Normalize longitude to -180 to 180 for display
-        display_lon = lon if lon <= 180 else lon - 360
-        # Place label on the right side of the meridian
-        # For negative values, add extra offset to account for the minus sign width
-        lon_offset = 2 if display_lon < 0 else 1
-        segments = create_number_on_sphere(
-            int(display_lon), lat=lat_step/2-1, lon=display_lon+lon_offset,
-            moon_radius=moon_radius, offset=offset,
-            digit_scale=0.125
-        )
-        lon_labels.append(segments)
-        lon_label_values.append(int(display_lon))
-    
-    # Create north pole label "N" - vertically oriented above the pole
-    # The "N" will be positioned above the north pole, standing upright
-    # facing the camera (which looks along +Y toward the Moon)
-    n_scale = 0.50 * moon_radius / 10.0
-    north_pole_label = create_digit_segments('N', scale=n_scale)
-    
-    # Position the "N" above the north pole
-    # The letter will be in the XZ plane (facing -Y toward camera)
-    # with its center at (0, y_offset, z_base) where z_base is above the pole
-    r_label = moon_radius * (1 + offset + 0.005)
-    z_base = r_label + n_scale * 0.6  # Position base of "N" just above the pole
-    y_offset = -0.01  # Slight offset toward camera so it's visible
-    
-    N = []
-    for (p1_local, p2_local) in north_pole_label:
-        points_3d = []
-        for lx, lz in [p1_local, p2_local]:
-            # lx is horizontal (maps to X in 3D)
-            # lz is vertical in the letter (maps to Z in 3D, going up)
-            x = lx
-            y = y_offset
-            z = z_base + lz
-            points_3d.append([x, y, z])
-        N.append(np.array(points_3d))
-
-    return MoonGrid(
-        lat_lines=lat_lines,
-        lon_lines=lon_lines,
-        lat_labels=lat_labels,
-        lat_label_values=lat_label_values,
-        lon_labels=lon_labels,
-        lon_label_values=lon_label_values,
-        N=N
-    )
-
 class MoonRenderer:
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
     """
     
-    def __init__(self, 
+    def __init__(self,
+                 app_name: str, 
                  elevation_file: str,
                  color_file: str,
+                 features_file: str,
                  starmap_file: Optional[str] = None,
                  downscale: int = 3,
                  width: int = 1400,
-                 height: int = 900,
-                 moon_features: list = []):
+                 height: int = 900):
         """
         Initialize the planetarium.
         
         Parameters
         ----------
+        app_name : str
+            Application name
         elevation_file : str
             Path to Moon elevation data TIFF
         color_file : str
             Path to Moon color data TIFF
+        features_file : str
+            Moon features CSV file with craters, mounts etc.
         starmap_file : str, optional
             Path to star map TIFF for background
         downscale : int
             Elevation downscale factor
         width, height : int
             Render window size
-        moon_features : list
-            Moon features (craters, mounts etc.)
         """
         self.width = width
         self.height = height
@@ -980,7 +306,10 @@ class MoonRenderer:
         # Load data
         self.elevation = load_elevation_data(elevation_file, downscale)
         self.color_data = load_color_data(color_file, self.gamma)
+        self.moon_features = load_moon_features(features_file)
         self.star_map = load_starmap(starmap_file) if starmap_file else None
+
+        self.app_name = app_name
         
         # Renderer
         self.rt = None
@@ -1004,9 +333,6 @@ class MoonRenderer:
         # Flag to track if window has been maximized
         self._window_maximized = False
         
-        # Moon features for hover display
-        self.moon_features = moon_features
-        
         # Standard labels settings
         self.standard_labels_visible = False
         self.standard_labels = None
@@ -1022,7 +348,7 @@ class MoonRenderer:
             # Schedule maximize and title change on the main thread
             def init_window():
                 rt._root.state('zoomed')
-                rt._root.title(APP_NAME)
+                rt._root.title(self.app_name)
             rt._root.after_idle(init_window)
         
     def setup_renderer(self):

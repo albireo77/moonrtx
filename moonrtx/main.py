@@ -9,10 +9,9 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.types import MoonFeature
-from moonrtx.moon_renderer import run_renderer, APP_NAME
+from moonrtx.moon_renderer import run_renderer
 
-BASE_PATH = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__) 
+BASE_PATH = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)     # frozen attribute from cx_Freeze
 DATA_DIRECTORY_PATH = os.path.join(BASE_PATH, "data")
 
 DEFAULT_ELEVATION_FILE_NAME = "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif"
@@ -31,11 +30,12 @@ COLOR_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_color_10k_8bit.t
 COLOR_FILE_SIZE_MB = 71.3
 COLOR_FILE_SIZE_BYTES = COLOR_FILE_SIZE_MB * 1024**2
 
-MOON_FEATURES_FILE_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_features.csv")
+MOON_FEATURES_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_features.csv")
 
-def parse_args():
+def parse_args(app_name: str):
+
     parser = argparse.ArgumentParser(
-        description=APP_NAME + " - ray-traced Moon observatory",
+        description=f"{app_name} - ray-traced Moon observatory",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
@@ -112,64 +112,11 @@ def get_date_time_local(time_iso: str):
         return None, ValueError("Time without timezone information.")
     return dt, None
 
-def load_moon_features(filepath: str) -> list:
-    """
-    Load Moon features from a CSV file.
-    
-    Parameters
-    ----------
-    filepath : str
-        Path to CSV file with columns: name, latitude, longitude, angular_size, standard_label, spot_label, status_bar
-        Separator is ':'
-        
-    Returns
-    -------
-    list
-        List of dicts with keys: name, lat, lon, angular_size, standard_label, spot_label, status_bar
-    """
-    moon_features = []
-    if not os.path.isfile(filepath):
-        print(f"Warning: Moon features file {filepath} was not found. Features not loaded.")
-        return moon_features
-    
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                parts = line.split(':')
-                if len(parts) >= 7:
-                    name = parts[0].strip()
-                    # Handle Unicode minus sign (−) and regular minus (-)
-                    lat_str = parts[1].strip().replace('−', '-')
-                    lon_str = parts[2].strip().replace('−', '-')
-                    angle_str = parts[3].strip().replace('−', '-')
-                    standard_label = parts[4].strip().lower() == 'true'
-                    spot_label = parts[5].strip().lower() == 'true'
-                    status_bar = parts[6].strip().lower() == 'true'
-                    try:
-                        moon_feature = MoonFeature(
-                            name=name,
-                            lat=float(lat_str),
-                            lon=float(lon_str),
-                            angle=float(angle_str),
-                            standard_label=standard_label,
-                            spot_label=spot_label,
-                            status_bar=status_bar
-                        )
-                        moon_features.append(moon_feature)
-                    except ValueError as e:
-                        print(f"Warning: Could not load Moon feature named {name}: {e}")
-                        continue
-    except Exception as e:
-        print(f"Warning: Could not load Moon features file: {e}")
-    
-    return moon_features
-
 def main():
 
-    args = parse_args()
+    app_name = "MoonRTX"
+
+    args = parse_args(app_name)
 
     if not (args.lon >= -180.0 and args.lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
@@ -210,18 +157,16 @@ def main():
     print(f"  Light Intensity: {args.light_intensity}")
     print(f"  Downscale Factor: {args.downscale}\n")
 
-    moon_features = load_moon_features(MOON_FEATURES_FILE_PATH)
-
     run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
                  lat=args.lat,
                  lon=args.lon,
                  downscale=args.downscale,
+                 light_intensity=args.light_intensity,
+                 app_name=app_name,
                  color_file=COLOR_FILE_LOCAL_PATH,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
-                 light_intensity=args.light_intensity,
-                 moon_features=moon_features
-                 )
+                 features_file=MOON_FEATURES_FILE_LOCAL_PATH)
 
 if __name__ == "__main__":
     main()
