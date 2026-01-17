@@ -1367,8 +1367,6 @@ class MoonRenderer:
         if self.rt is None or cp is None:
             return
         
-        print("Camera reset to initial position")
-        
         # Restore initial camera parameters
         # Adjust up vector based on current inversion state
         up = cp.up[:]
