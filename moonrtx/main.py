@@ -3,6 +3,7 @@ import os
 import sys
 import shutil
 import urllib.request
+import plotoptix
 from datetime import datetime
 
 from plotoptix.utils import get_gpu_architecture
@@ -179,7 +180,9 @@ def main():
     if not check_starmap_file():
         sys.exit(1)
 
-    print(f"\nStarting renderer with parameters:")
+    print()
+    print("Using PlotOptiX version:", plotoptix.__version__)
+    print("Starting renderer with parameters:")
     print(f"  Geographical Location: Lat {lat}°, Lon {lon}°")
     print(f"  Local Time: {dt_local}")
     print(f"  Elevation Map File: {args.elevation_file}")
