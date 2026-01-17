@@ -32,7 +32,7 @@ L - Toggle standard labels
 S - Toggle spot labels  
 I - Upside down view  
 R - Reset view to initial state  
-V - Reset view to that calculated from ephemeris (useful after starting with `--init-view` parameter)  
+V - Reset view to that based on ephemeris (useful after starting with `--init-view` parameter)  
 C - Center view on point under cursor  
 F - Search for Moon features (craters, rims)  
 Arrow keys - Navigate view  
