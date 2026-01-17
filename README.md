@@ -19,6 +19,9 @@ pip install -r requirements.txt
 
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --light-intensity 100`
 
+`python -m moonrtx.main --lat 0 --lon 0 --init-view "2025-03-07T18.53.00+01.00_lat+50.000000_lon+20.000000_cambMOZPzVT28IXi6y_bMOZP6uZGsEXi6y_AAAAAAAAAAAAAIA_5oB3QA"`  
+where `--init-view` value was taken from screenshot filename
+
 ## Notes
 - On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
@@ -29,7 +32,7 @@ L - Toggle standard labels
 S - Toggle spot labels  
 I - Upside down view  
 R - Reset view to initial state  
-V - Reset view to that calculated from ephemeris (useful after starting with --init-view parameter)  
+V - Reset view to that calculated from ephemeris (useful after starting with `--init-view` parameter)  
 C - Center view on point under cursor  
 F - Search for Moon features (craters, rims)  
 Arrow keys - Navigate view  
