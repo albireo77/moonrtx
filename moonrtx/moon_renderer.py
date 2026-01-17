@@ -24,8 +24,8 @@ from plotoptix.materials import m_diffuse
 from plotoptix.materials import m_flat
 
 GRID_COLOR = [0.50, 0.50, 0.50]
-MOON_FILL_FRACTION = 0.9  # Moon fills 90% of window height (5% margins top/bottom)
-
+MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
+SUN_RADIUS = 10             # affects Moon surface illumination
 
 @dataclass
 class InitView:
@@ -230,7 +230,7 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  I - Upside down view")
-    print("  R - Reset scene to initial state and release centering on surface object if applied")
+    print("  R - Reset scene to initial state")
     print("  C - Center view on point under cursor")
     print("  F - Search for Moon features (craters, rims)")
     print("  Arrow keys - Navigate view")
@@ -644,7 +644,7 @@ class MoonRenderer:
         # Light intensity based on phase - full moon is brighter
         # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
         
-        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=light_intensity, radius=10)
+        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=light_intensity, radius=SUN_RADIUS)
         
         # Update grid orientation if visible
         if self.moon_grid_visible:
