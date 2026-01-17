@@ -233,6 +233,7 @@ def run_renderer(dt_local: datetime,
     print("  R - Reset scene to initial state")
     print("  C - Center view on point under cursor")
     print("  F - Search for Moon features (craters, rims)")
+    print("  Arrow keys - Navigate view")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
     print("  Hold shift + left mouse button and drag up/down - Zoom out/in")
@@ -260,6 +261,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.save_image_dialog()
         elif event.keysym.lower() == 'f':
             moon_renderer.search_feature_dialog()
+        elif event.keysym in ('Left', 'Right', 'Up', 'Down'):
+            moon_renderer.navigate_view(event.keysym)
         else:
             original_key_handler(event)
     moon_renderer.rt._gui_key_pressed = custom_key_handler
@@ -1410,6 +1413,79 @@ class MoonRenderer:
         
         # Update camera with new eye and target
         self.rt.setup_camera("cam1", eye=new_eye.tolist(), target=new_target.tolist())
+    
+    def navigate_view(self, direction: str, step_factor: float = 0.05):
+        """
+        Navigate the view using arrow keys.
+        
+        Rotates the camera around the Moon while keeping the same distance.
+        
+        Parameters
+        ----------
+        direction : str
+            One of 'Left', 'Right', 'Up', 'Down'
+        step_factor : float
+            Fraction of the view to move per key press (default 5%)
+        """
+        if self.rt is None:
+            return
+        
+        # Get current camera parameters
+        cam = self.rt.get_camera("cam1")
+        eye = np.array(cam["Eye"])
+        target = np.array(cam["Target"])
+        up = np.array(cam["Up"])
+        
+        # Calculate view direction and distance
+        view_dir = target - eye
+        distance = np.linalg.norm(view_dir)
+        view_dir = view_dir / distance
+        
+        # Calculate right vector (perpendicular to view and up)
+        right = np.cross(view_dir, up)
+        right = right / np.linalg.norm(right)
+        
+        # Calculate actual up vector (perpendicular to view and right)
+        actual_up = np.cross(right, view_dir)
+        actual_up = actual_up / np.linalg.norm(actual_up)
+        
+        # Calculate rotation angle based on current FOV
+        fov = self.rt._optix.get_camera_fov(0)
+        angle = np.radians(fov * step_factor)
+        
+        # Determine rotation axis and direction based on arrow key
+        if direction == 'Left':
+            axis = actual_up
+            angle = angle
+        elif direction == 'Right':
+            axis = actual_up
+            angle = -angle
+        elif direction == 'Up':
+            axis = right
+            angle = angle
+        elif direction == 'Down':
+            axis = right
+            angle = -angle
+        else:
+            return
+        
+        # Rodrigues' rotation formula to rotate eye around target
+        eye_rel = eye - target
+        cos_a = np.cos(angle)
+        sin_a = np.sin(angle)
+        new_eye_rel = (eye_rel * cos_a + 
+                       np.cross(axis, eye_rel) * sin_a + 
+                       axis * np.dot(axis, eye_rel) * (1 - cos_a))
+        new_eye = target + new_eye_rel
+        
+        # Also rotate the up vector for up/down navigation
+        if direction in ('Up', 'Down'):
+            new_up = (up * cos_a + 
+                      np.cross(axis, up) * sin_a + 
+                      axis * np.dot(axis, up) * (1 - cos_a))
+            self.rt.setup_camera("cam1", eye=new_eye.tolist(), up=new_up.tolist())
+        else:
+            self.rt.setup_camera("cam1", eye=new_eye.tolist())
     
     def hit_to_selenographic(self, hx: float, hy: float, hz: float) -> tuple:
         """
