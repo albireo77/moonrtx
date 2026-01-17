@@ -1,6 +1,8 @@
 import numpy as np
 import os
 import re
+import struct
+import base64
 from tkinter import filedialog
 from dataclasses import dataclass
 
@@ -36,11 +38,79 @@ class InitView:
     fov: float
 
 
+def encode_camera_params(eye: list, target: list, up: list, fov: float) -> str:
+    """
+    Encode camera parameters into a compact base64 string.
+    
+    Packs 10 floats (eye[3], target[3], up[3], fov) into binary and base64 encodes.
+    Uses URL-safe base64 (- and _ instead of + and /) for filename compatibility.
+    
+    Parameters
+    ----------
+    eye : list
+        Camera eye position [x, y, z]
+    target : list
+        Camera target position [x, y, z]
+    up : list
+        Camera up vector [x, y, z]
+    fov : float
+        Field of view in degrees
+        
+    Returns
+    -------
+    str
+        Base64-encoded camera parameters (URL-safe, no padding)
+    """
+    # Pack 10 floats: eye(3) + target(3) + up(3) + fov(1)
+    packed = struct.pack('<10f', 
+                         eye[0], eye[1], eye[2],
+                         target[0], target[1], target[2],
+                         up[0], up[1], up[2],
+                         fov)
+    # URL-safe base64 without padding (= chars)
+    encoded = base64.urlsafe_b64encode(packed).decode('ascii').rstrip('=')
+    return encoded
+
+
+def decode_camera_params(encoded: str) -> Optional[tuple]:
+    """
+    Decode camera parameters from a base64 string.
+    
+    Parameters
+    ----------
+    encoded : str
+        Base64-encoded camera parameters
+        
+    Returns
+    -------
+    tuple or None
+        (eye, target, up, fov) or None if decoding fails
+    """
+    try:
+        # Add padding if needed
+        padding = 4 - (len(encoded) % 4)
+        if padding != 4:
+            encoded += '=' * padding
+        
+        packed = base64.urlsafe_b64decode(encoded)
+        values = struct.unpack('<10f', packed)
+        
+        eye = [values[0], values[1], values[2]]
+        target = [values[3], values[4], values[5]]
+        up = [values[6], values[7], values[8]]
+        fov = values[9]
+        
+        return eye, target, up, fov
+    except Exception as e:
+        print(f"Error decoding camera params: {e}")
+        return None
+
+
 def parse_init_view(init_view_str: str) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
     
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_eyeX_Y_Z_tgtX_Y_Z_upX_Y_Z_fovXX.XXXXXX
+    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_cam<base64>
     
     Parameters
     ----------
@@ -53,29 +123,21 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         Parsed data or None if parsing fails
     """
     try:
-        # Pattern to match all components
-        # datetime: 2026-01-16T22.30.00+01.00 (ISO with dots instead of colons)
-        # lat: lat+52.230000 or lat-34.613100
-        # lon: lon+21.010000 or lon-58.377200
-        # eye: eye0.000000_-100.000000_0.000000
-        # tgt: tgt0.000000_0.000000_0.000000
-        # up: up0.000000_0.000000_1.000000
-        # fov: fov12.839695
-        
-        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_eye([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_tgt([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_up([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_fov([+-]?\d+\.\d+)$'
-        
+        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_cam([A-Za-z0-9_-]+)$'
         match = re.match(pattern, init_view_str)
+        
         if not match:
             return None
         
-        # Extract groups
         dt_str = match.group(1)
         lat = float(match.group(2))
         lon = float(match.group(3))
-        eye = [float(match.group(4)), float(match.group(5)), float(match.group(6))]
-        target = [float(match.group(7)), float(match.group(8)), float(match.group(9))]
-        up = [float(match.group(10)), float(match.group(11)), float(match.group(12))]
-        fov = float(match.group(13))
+        cam_encoded = match.group(4)
+        
+        decoded = decode_camera_params(cam_encoded)
+        if decoded is None:
+            return None
+        eye, target, up, fov = decoded
         
         # Parse datetime (restore colons from dots)
         dt_str = dt_str.replace('.', ':', 2)  # Replace first two dots (in time part)
@@ -634,7 +696,10 @@ class MoonRenderer:
         """
         Generate a default filename for saving screenshots.
         
-        Format: datetime_lat_lon_eyeX_eyeY_eyeZ_targetX_targetY_targetZ_upX_upY_upZ_fov
+        Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_cam<base64>
+        
+        The camera parameters (eye, target, up, fov) are encoded into a compact
+        base64 string for a shorter filename while remaining fully reversible.
         
         Returns
         -------
@@ -664,7 +729,7 @@ class MoonRenderer:
         else:
             parts.append("lonnone")
         
-        # 4. Current camera parameters (at the time of screenshot)
+        # 4. Current camera parameters (at the time of screenshot) - encoded as base64
         if self.rt is not None:
             try:
                 cam = self.rt.get_camera("cam1")
@@ -673,16 +738,11 @@ class MoonRenderer:
                     target = cam["Target"]
                     up = cam["Up"]
                     # Get FOV using the internal method (more reliable than dictionary lookup)
-                    # cam_handle 0 means current camera
                     fov = self.rt._optix.get_camera_fov(0)
-                    # Eye position
-                    parts.append(f"eye{eye[0]:.6f}_{eye[1]:.6f}_{eye[2]:.6f}")
-                    # Target position
-                    parts.append(f"tgt{target[0]:.6f}_{target[1]:.6f}_{target[2]:.6f}")
-                    # Up vector
-                    parts.append(f"up{up[0]:.6f}_{up[1]:.6f}_{up[2]:.6f}")
-                    # FOV
-                    parts.append(f"fov{fov:.6f}")
+                    
+                    # Encode camera params into compact base64 string
+                    cam_encoded = encode_camera_params(eye, target, up, fov)
+                    parts.append(f"cam{cam_encoded}")
                 else:
                     parts.append("nocam")
             except Exception as e:
