@@ -22,7 +22,22 @@ pip install -r requirements.txt
 ## Notes
 - On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
-- Available keyboard and mouse actions are displayed in program console output.
+
+## Keyboard and Mouse Actions
+G - Toggle selenographic grid  
+L - Toggle standard labels  
+S - Toggle spot labels  
+I - Upside down view  
+R - Reset view to initial state  
+V - Reset view to that calculated from ephemeris (useful after starting with --init-view parameter)  
+C - Center view on point under cursor  
+F - Search for Moon features (craters, rims)  
+Arrow keys - Navigate view  
+F12 - Save image  
+Hold and drag left mouse button - Rotate the eye around Moon  
+Hold shift + left mouse button and drag up/down - Zoom out/in  
+Hold and drag right mouse button - Rotate Moon around the eye  
+Hold shift + right mouse button and drag up/down - Move eye backward/forward  
 
 ## Screens
 ![Plato](images/plato.jpg)
