@@ -54,8 +54,8 @@ def parse_args(app_name: str):
     parser.add_argument("--light-intensity", type=int, default=200,
                         help="Light intensity")
     parser.add_argument("--init-view", type=str, default=None,
-                        help="Initialize view from a screenshot filename (without extension). "
-                             "This restores the exact camera position from time when the screenshot was taken. "
+                        help="Initialize view from a screenshot default filename (without extension). "
+                             "This restores the exact camera position from time when attempt to take a screenshot was made. "
                              "When used, --lat and --lon (both mandatory) can be set to 0.0 as they will be overridden.")
     return parser.parse_args()
 

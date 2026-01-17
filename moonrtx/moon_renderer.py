@@ -234,7 +234,7 @@ def run_renderer(dt_local: datetime,
     print("  G - Toggle selenographic grid")
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
-    print("  I - Upside down view")
+    print("  I - Toggle upside down view")
     print("  R - Reset view to initial state")
     print("  V - Reset view to that based on ephemeris (useful after starting with --init-view parameter)")
     print("  C - Center view on point under cursor")
