@@ -7,7 +7,7 @@ MoonRTX is ray-traced, ultra-realistic Moon observatory developed in Python. It 
 
 ## Install
 ```bash
-git clone https://github.com/albireo77/moonrtx.git  # or download and unpack zip
+git clone https://github.com/albireo77/moonrtx.git  # or download and unpack source code zip file
 cd moonrtx
 pip install -r requirements.txt
 ```
