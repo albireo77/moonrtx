@@ -3,6 +3,7 @@ import os
 import re
 import struct
 import base64
+import tkinter as tk
 from tkinter import filedialog
 from dataclasses import dataclass
 
@@ -231,6 +232,7 @@ def run_renderer(dt_local: datetime,
     print("  I - Upside down view")
     print("  R - Reset scene to initial state")
     print("  C - Center view on point under cursor")
+    print("  F - Search for Moon features (craters, rims)")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
     print("  Hold shift + left mouse button and drag up/down - Zoom out/in")
@@ -239,6 +241,9 @@ def run_renderer(dt_local: datetime,
     
     original_key_handler = moon_renderer.rt._gui_key_pressed
     def custom_key_handler(event):
+        # Ignore key events when search dialog is open
+        if moon_renderer.search_dialog_open:
+            return
         if event.keysym.lower() == 'g':
             moon_renderer.toggle_grid()
         elif event.keysym.lower() == 'l':
@@ -253,6 +258,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.center_view_on_cursor(event)
         elif event.keysym == 'F12':
             moon_renderer.save_image_dialog()
+        elif event.keysym.lower() == 'f':
+            moon_renderer.search_feature_dialog()
         else:
             original_key_handler(event)
     moon_renderer.rt._gui_key_pressed = custom_key_handler
@@ -501,6 +508,9 @@ class MoonRenderer:
         self.dt_local = None
         self.observer_lat = None
         self.observer_lon = None
+        
+        # Flag to track if search dialog is open
+        self.search_dialog_open = False
         
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
@@ -781,9 +791,162 @@ class MoonRenderer:
             else:
                 self.rt.save_image(filename, bps="Bps8")
             print(f"Saved: {filename}")
+    
+    def search_feature_dialog(self):
+        """
+        Open a search dialog to find Moon features by name.
+        """
+        if self.rt is None:
+            return
+        
+        # Set flag to prevent main window key handling
+        self.search_dialog_open = True
+        
+        # Create search window
+        search_win = tk.Toplevel(self.rt._root)
+        search_win.title("Search Feature")
+        search_win.geometry("400x300")
+        search_win.transient(self.rt._root)
+        search_win.grab_set()
+        
+        def on_close():
+            self.search_dialog_open = False
+            search_win.destroy()
+        
+        search_win.protocol("WM_DELETE_WINDOW", on_close)
+        
+        # Search entry
+        frame = tk.Frame(search_win)
+        frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        tk.Label(frame, text="Search:").pack(side=tk.LEFT)
+        search_var = tk.StringVar()
+        entry = tk.Entry(frame, textvariable=search_var, width=40)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        entry.focus_set()
+        
+        # Results listbox with scrollbar
+        list_frame = tk.Frame(search_win)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+        
+        # Store matching features
+        matching_features = []
+        
+        def update_results(*args):
+            nonlocal matching_features
+            query = search_var.get().lower().strip()
+            listbox.delete(0, tk.END)
+            matching_features.clear()
+            
+            if not query:
+                return
+            
+            for feature in self.moon_features:
+                if query in feature.name.lower():
+                    matching_features.append(feature)
+                    size_km = feature.angle * 30.34
+                    listbox.insert(tk.END, f"{feature.name} ({size_km:.1f} km)")
+        
+        def on_select(event=None):
+            selection = listbox.curselection()
+            if selection and matching_features:
+                feature = matching_features[selection[0]]
+                self.center_on_feature(feature)
+                on_close()
+        
+        def on_key(event):
+            if event.keysym == 'Return':
+                # If listbox has selection, use it; otherwise select first
+                if not listbox.curselection() and listbox.size() > 0:
+                    listbox.selection_set(0)
+                on_select()
+            elif event.keysym == 'Escape':
+                on_close()
+            elif event.keysym == 'Down':
+                if listbox.size() > 0:
+                    listbox.focus_set()
+                    if not listbox.curselection():
+                        listbox.selection_set(0)
+        
+        search_var.trace_add('write', update_results)
+        entry.bind('<Key>', on_key)
+        listbox.bind('<Double-Button-1>', on_select)
+        listbox.bind('<Return>', on_select)
+        
+        # Center the window
+        search_win.update_idletasks()
+        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - search_win.winfo_width()) // 2
+        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - search_win.winfo_height()) // 2
+        search_win.geometry(f"+{x}+{y}")
+    
+    def center_on_feature(self, feature: MoonFeature):
+        """
+        Center the view on a Moon feature and zoom to show it.
+        
+        Parameters
+        ----------
+        feature : MoonFeature
+            The feature to center on
+        """
+        if self.rt is None or self.moon_rotation_matrix is None:
+            return
+        
+        # Convert selenographic coordinates to 3D position
+        lat_rad = np.radians(feature.lat)
+        lon_rad = np.radians(feature.lon)
+        
+        # In original Moon coordinates:
+        # - +Z is north pole
+        # - -Y is prime meridian (lon=0)
+        # - +X is east (lon=90)
+        x = self.moon_radius * np.cos(lat_rad) * np.sin(lon_rad)
+        y = -self.moon_radius * np.cos(lat_rad) * np.cos(lon_rad)
+        z = self.moon_radius * np.sin(lat_rad)
+        
+        # Apply Moon rotation to get scene coordinates
+        original_pos = np.array([x, y, z])
+        scene_pos = self.moon_rotation_matrix @ original_pos
+        
+        # Get current camera
+        cam = self.rt.get_camera("cam1")
+        eye = np.array(cam["Eye"])
+        target = np.array(cam["Target"])
+        
+        # Calculate new camera distance based on feature size
+        # Aim to have feature fill about 30% of the view
+        feature_radius_scene = feature.angle / 2 * (self.moon_radius / 90)  # Rough conversion
+        current_fov = self.rt._optix.get_camera_fov(0)
+        
+        # Calculate distance to make feature appear at desired size
+        desired_angular_size = current_fov * 0.3  # 30% of FOV
+        new_distance = feature_radius_scene / np.tan(np.radians(desired_angular_size / 2))
+        
+        # Clamp distance to reasonable range
+        min_dist = self.moon_radius * 1.1
+        max_dist = self.moon_radius * 15
+        new_distance = np.clip(new_distance, min_dist, max_dist)
+        
+        # Direction from target to eye
+        direction = eye - target
+        direction = direction / np.linalg.norm(direction)
+        
+        # New eye position
+        new_target = scene_pos
+        new_eye = new_target + direction * new_distance
+        
+        # Update camera
+        self.rt.setup_camera("cam1", eye=new_eye.tolist(), target=new_target.tolist())
+        
+        print(f"Centered on: {feature.name} (lat={feature.lat:.2f}°, lon={feature.lon:.2f}°)")
             
     def get_info(self) -> str:
-        """Get information about current view."""
 
         if self.moon_ephem is None:
             return "No view set"
