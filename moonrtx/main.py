@@ -10,7 +10,7 @@ from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.moon_renderer import run_renderer, parse_init_view
-from moonrtx.types import CameraParams
+from moonrtx.shared_types import CameraParams
 
 BASE_PATH = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)     # frozen attribute from cx_Freeze
 DATA_DIRECTORY_PATH = os.path.join(BASE_PATH, "data")

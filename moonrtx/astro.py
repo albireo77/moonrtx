@@ -6,7 +6,7 @@ from pymeeus.Moon import Moon
 from pymeeus.Angle import Angle
 from pymeeus import Coordinates
 
-from moonrtx.types import MoonEphemeris
+from moonrtx.shared_types import MoonEphemeris
 
 EARTH_RADIUS_KM = 6378.14
 

@@ -1,8 +1,16 @@
 import numpy as np
-
-from moonrtx.types import MoonGrid
+from typing import NamedTuple
 
 LABEL_CHAR_SCALE = 0.12
+
+class MoonGrid(NamedTuple):
+    lat_lines: list
+    lon_lines: list
+    lat_labels: list
+    lat_label_values: list
+    lon_labels: list
+    lon_label_values: list
+    N: list
 
 def create_digit_segments(digit: str, scale: float = 0.1) -> list:
     """

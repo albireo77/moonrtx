@@ -5,16 +5,16 @@ import struct
 import base64
 import tkinter as tk
 from tkinter import filedialog
-from dataclasses import dataclass
+from typing import NamedTuple
+from numpy.typing import NDArray
 
 from typing import Optional
 from datetime import datetime
 from datetime import timezone
 
-from moonrtx.types import MoonEphemeris
-from moonrtx.types import MoonFeature
-from moonrtx.types import CameraParams
-from moonrtx.types import Scene
+from moonrtx.shared_types import MoonEphemeris
+from moonrtx.shared_types import MoonFeature
+from moonrtx.shared_types import CameraParams
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels
@@ -27,8 +27,7 @@ GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 SUN_RADIUS = 10             # affects Moon surface illumination
 
-@dataclass
-class InitView:
+class InitView(NamedTuple):
     """Parsed init-view data for restoring a screenshot view."""
     dt_local: datetime
     lat: float
@@ -37,6 +36,12 @@ class InitView:
     target: list
     up: list
     fov: float
+
+class Scene(NamedTuple):
+    eye: NDArray
+    target: NDArray
+    up: NDArray
+    light_pos: NDArray
 
 
 def encode_camera_params(eye: list, target: list, up: list, fov: float) -> str:

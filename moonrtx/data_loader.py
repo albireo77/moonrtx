@@ -1,11 +1,10 @@
 import os
 import cv2
-import os
 from typing import Optional
 
 import numpy as np
 
-from moonrtx.types import MoonFeature
+from moonrtx.shared_types import MoonFeature
 
 from plotoptix.utils import read_image, make_color_2d
 

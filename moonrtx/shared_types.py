@@ -1,5 +1,4 @@
 from typing import NamedTuple
-from numpy.typing import NDArray
 
 class MoonEphemeris(NamedTuple):
     az: float
@@ -24,23 +23,8 @@ class MoonFeature(NamedTuple):
     spot_label: bool
     status_bar: bool
 
-class MoonGrid(NamedTuple):
-    lat_lines: list
-    lon_lines: list
-    lat_labels: list
-    lat_label_values: list
-    lon_labels: list
-    lon_label_values: list
-    N: list
-
 class CameraParams(NamedTuple):
     eye: list
     target: list
     up: list
     fov: float
-
-class Scene(NamedTuple):
-    eye: NDArray
-    target: NDArray
-    up: NDArray
-    light_pos: NDArray
