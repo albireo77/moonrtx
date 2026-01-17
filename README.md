@@ -34,7 +34,7 @@ I - Upside down view
 R - Reset view to initial state  
 V - Reset view to that based on ephemeris (useful after starting with `--init-view` parameter)  
 C - Center view on point under cursor  
-F - Search for Moon features (craters, rims)  
+F - Search for Moon features (craters, mounts etc.)  
 Arrow keys - Navigate view  
 F12 - Save image  
 Hold and drag left mouse button - Rotate the eye around Moon  

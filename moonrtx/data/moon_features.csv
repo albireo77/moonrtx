@@ -1,5 +1,5 @@
 # Lunar Features Database
-# Format: name:latitude:longitude:angular size on Moon surface:standard label:spot label:statusbar
+# Format: name:latitude:longitude:angular size (central angle) on Moon surface:standard label:spot label:statusbar
 
 # === MARIA (Lunar Seas) ===
 Mare Tranquillitatis:8.5:31.4:28.8:true:false:false
@@ -58,6 +58,12 @@ Copernicus:9.6:-20.1:3.1:false:false:true
 Kepler:8.1:-38.0:1.1:false:false:true
 Aristarchus:23.7:-47.4:1.3:false:false:true
 Plato:51.6:-9.4:3.4:false:false:true
+Plato D:49.6:-14.5:0.33:false:false:true
+Plato E:49.7:-16.2:0.23:false:false:true
+Plato J:49.0:-4.6:0.26:false:false:true
+Plato K:46.8:-3.3:0.2:false:false:true
+Plato KA:46.8:-3.6:0.2:false:false:true
+Plato P:51.5:-15.2:0.26:false:false:true
 Archimedes:29.7:-4.0:2.7:false:false:true
 Eratosthenes:14.5:-11.3:1.9:false:false:true
 Ptolemaeus:-9.2:-1.8:5.0:false:false:true
@@ -213,15 +219,31 @@ Gay-Lussac:13.9:-20.8:0.8:false:false:true
 Draper:17.6:-21.7:0.3:false:false:true
 C. Herschel:34.5:-31.2:0.4:false:false:true
 Helicon:40.4:-23.1:0.8:false:false:true
+Helicon B:38.0:-21.3:0.2:false:false:true
 Le Verrier:40.3:-20.6:0.7:false:false:true
 Le Verrier B:40.2:-12.9:0.17:false:false:true
 Le Verrier D:39.7:-12.3:0.3:false:false:true
 Le Verrier E:42.4:-17.0:0.23:false:false:true
 Bianchini:48.7:-34.3:1.2:false:false:true
+Bliss:53.0:-13.5:0.66:false:false:true
+Carlini:33.7:-24.1:0.36:false:false:true
+Carlini A:35.4:-26.6:0.23:false:false:true
+Carlini D:33.0:-16.0:0.3:false:false:true
+Carlini S:37.9:-27.2:0.13:false:false:true
+Heis:32.4:-31.9:0.46:false:false:true
+Landsteiner:31.3:-14.8:0.2:false:false:true
+Beer:27.1:-9.1:0.33:false:false:true
+Feuillee:27.4:-9.4:0.3:false:false:true
+Timocharis B:27.9:-12.1:0.17:false:false:true
+Aristillus B:34.8:-1.9:0.26:false:false:true
+Archimedes C:31.6:-1.5:0.26:false:false:true
+McDonald:30.4:-20.9:0.26:false:false:true
 Sharp:45.7:-40.2:1.3:false:false:true
 Mairan:41.6:-43.4:1.3:false:false:true
+Mairan A:38.6:-38.8:0.53:false:false:true
 Louville:44.0:-46.0:1.2:false:false:true
 Gruithuisen:32.9:-39.7:0.5:false:false:true
+Gruithuisen B:35.6:-38.8:0.3:false:false:true
 Delisle:29.9:-34.6:0.8:false:false:true
 Diophantus:27.6:-34.3:0.6:false:false:true
 Fedorov:28.2:-37.0:0.2:false:false:true
@@ -258,6 +280,8 @@ Goldschmidt:73.2:3.8:3.9:false:false:true
 Meton:73.6:19.2:4.2:false:false:true
 Barrow:71.3:7.7:3.0:false:false:true
 W. Bond:65.4:4.2:5.2:false:false:true
+Protagoras:56.0:7.3:0.73:false:false:true
+Archytas:58.7:5.0:1.06:false:false:true
 Timaeus:62.8:-0.5:1.1:false:false:true
 Birmingham:65.1:-10.5:3.0:false:false:true
 Epigenes:67.5:-4.6:1.8:false:false:true
@@ -295,11 +319,22 @@ Atlas:46.7:44.4:2.9:false:false:true
 Hercules:46.7:39.1:2.3:false:false:true
 Bürg:45.0:28.2:1.3:false:false:true
 Eudoxus:44.3:16.3:2.2:false:false:true
+Eudoxus A:45.8:20.0:0.46:false:false:true
+Eudoxus B:45.6:17.4:0.26:false:false:true
+Lamech:42.7:13.1:0.43:false:false:true
 Aristoteles:50.2:17.4:2.9:false:false:true
 Sheepshanks:59.2:16.9:0.7:false:false:true
 Galle:55.9:-22.3:0.7:false:false:true
 Egede:48.7:-10.6:1.2:false:false:true
+Egede A:51.6:10.5:0.43:false:false:true
+Egede B:50.5:8.9:0.26:false:false:true
 Cassini:40.2:4.6:1.9:false:false:true
+Cassini A:40.5:4.8:0.5:false:false:true
+Cassini B:39.9:3.9:0.3:false:false:true
+Cassini C:41.7:7.8:0.46:false:false:true
+Cassini E:42.9:7.3:0.33:false:false:true
+Cassini F:40.9:7.3:0.23:false:false:true
+Cassini M:41.3:3.7:0.26:false:false:true
 Theaetetus:37.0:6.0:0.8:false:false:true
 Calippus:38.9:10.9:1.1:false:false:true
 Alexander:40.3:13.5:2.8:false:false:true
@@ -384,12 +419,16 @@ Conon:21.6:2.0:0.7:false:false:true
 Aratus:23.6:4.5:0.3:false:false:true
 Autolycus:30.7:1.5:1.3:false:false:true
 Aristillus:33.9:1.2:1.8:false:false:true
-Bancroft:28.0:6.4:0.4:false:false:true
+Bancroft:28.0:-6.4:0.43:false:false:true
 Kirch:39.2:-5.5:0.4:false:false:true
 Piazzi Smyth:41.9:-3.2:0.4:false:false:true
 Spitzbergen:35.0:-5.0:2.0:false:false:true
+Spitzbergen A:32.7:-7.1:0.2:false:false:true
+Spitzbergen C:32.9:-8.8:0.21:false:false:true
 Pico:45.7:-8.9:0.8:false:false:true
 Piton:40.6:-1.0:0.8:false:false:true
+Piton A:39.8:-1.0:0.2:false:false:true
+Piton B:39.3:-0.1:0.17:false:false:true
 Mons La Hire:27.8:-25.5:0.8:false:false:true
 Euler A:22.2:-31.3:0.2:false:false:true
 Lahire:27.8:-25.8:0.8:false:false:true
