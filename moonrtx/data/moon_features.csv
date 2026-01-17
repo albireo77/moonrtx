@@ -212,8 +212,10 @@ Hortensius:6.5:-28.0:0.5:false:false:true
 Milichius:10.0:-30.2:0.4:false:false:true
 Tobias Mayer:15.6:-29.1:1.1:false:false:true
 Euler:23.3:-29.2:0.9:false:false:true
+Euler E:24.7:-34.0:0.20:false:false:true
 Lambert:25.8:-21.0:1.0:false:false:true
 Timocharis:26.7:-13.1:1.1:false:false:true
+Heinrich:24.8:-15.3:0.20:false:false:true
 Pytheas:20.5:-20.6:0.7:false:false:true
 Gay-Lussac:13.9:-20.8:0.8:false:false:true
 Draper:17.6:-21.7:0.3:false:false:true
@@ -231,6 +233,7 @@ Carlini A:35.4:-26.6:0.23:false:false:true
 Carlini D:33.0:-16.0:0.3:false:false:true
 Carlini S:37.9:-27.2:0.13:false:false:true
 Heis:32.4:-31.9:0.46:false:false:true
+Heis D:31.7:-31.1:0.26:false:false:true
 Landsteiner:31.3:-14.8:0.2:false:false:true
 Beer:27.1:-9.1:0.33:false:false:true
 Feuillee:27.4:-9.4:0.3:false:false:true
