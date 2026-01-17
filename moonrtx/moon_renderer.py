@@ -230,7 +230,7 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  I - Upside down view")
-    print("  R - Reset scene to initial state")
+    print("  R - Reset scene to initial state and release centering on surface object if applied")
     print("  C - Center view on point under cursor")
     print("  F - Search for Moon features (craters, rims)")
     print("  Arrow keys - Navigate view")
