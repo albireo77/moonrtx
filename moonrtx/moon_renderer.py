@@ -230,7 +230,8 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  I - Upside down view")
-    print("  R - Reset scene to initial state")
+    print("  R - Reset view to initial state")
+    print("  V - Reset view to that calculated from ephemeris (useful after starting with --init-view parameter)")
     print("  C - Center view on point under cursor")
     print("  F - Search for Moon features (craters, rims)")
     print("  Arrow keys - Navigate view")
@@ -263,6 +264,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.search_feature_dialog()
         elif event.keysym in ('Left', 'Right', 'Up', 'Down'):
             moon_renderer.navigate_view(event.keysym)
+        elif event.keysym.lower() == 'v':
+            moon_renderer.reset_to_default_view()
         else:
             original_key_handler(event)
     moon_renderer.rt._gui_key_pressed = custom_key_handler
@@ -489,8 +492,12 @@ class MoonRenderer:
         # View inversion (upside down)
         self.inverted = False
         
-        # Initial camera parameters (for reset)
+        # Initial camera parameters (for reset with R key)
         self.initial_camera_params = None
+        
+        # Default camera parameters calculated from ephemeris (for reset with V key)
+        # This is the view without any --init-view override
+        self.default_camera_params = None
         
         # Moon rotation matrix and its inverse (for selenographic coord conversion)
         self.moon_rotation_matrix = None
@@ -640,6 +647,9 @@ class MoonRenderer:
         # Store initial camera parameters for reset functionality
         if self.initial_camera_params is None:
             self.initial_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=camera_up.tolist(), fov=fov)
+        
+        # Always store default camera params (the view calculated from ephemeris)
+        self.default_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=camera_up.tolist(), fov=fov)
         
         # Light intensity based on phase - full moon is brighter
         # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
@@ -1360,6 +1370,29 @@ class MoonRenderer:
         print("Camera reset to initial position")
         
         # Restore initial camera parameters
+        # Adjust up vector based on current inversion state
+        up = cp.up[:]
+        if self.inverted:
+            up = [u * -1 for u in up]
+        
+        self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
+    
+    def reset_to_default_view(self):
+        """
+        Reset the camera to the default view calculated from ephemeris.
+        
+        This is the view that would be shown when starting the renderer
+        without any --init-view parameter. Use this to get back to the
+        standard Moon-centered view after using --init-view.
+        """
+        cp = self.default_camera_params
+
+        if self.rt is None or cp is None:
+            return
+        
+        print("Camera reset to default view")
+        
+        # Restore default camera parameters
         # Adjust up vector based on current inversion state
         up = cp.up[:]
         if self.inverted:
