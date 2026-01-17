@@ -9,7 +9,8 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.moon_renderer import run_renderer
+from moonrtx.moon_renderer import run_renderer, parse_init_view
+from moonrtx.types import CameraParams
 
 BASE_PATH = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)     # frozen attribute from cx_Freeze
 DATA_DIRECTORY_PATH = os.path.join(BASE_PATH, "data")
@@ -51,6 +52,10 @@ def parse_args(app_name: str):
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
     parser.add_argument("--light-intensity", type=int, default=200,
                         help="Light intensity")
+    parser.add_argument("--init-view", type=str, default=None,
+                        help="Initialize view from a screenshot filename (without extension). "
+                             "This restores the exact camera position from when the screenshot was taken. "
+                             "When used, --lat and --lon can be set to 0.0 as they will be overridden.")
     return parser.parse_args()
 
 def check_elevation_file(elevation_file: str) -> bool:
@@ -118,6 +123,22 @@ def main():
 
     args = parse_args(app_name)
 
+    # Parse init-view if provided
+    init_view = None
+    init_camera_params = None
+    if args.init_view:
+        init_view = parse_init_view(args.init_view)
+        if init_view is None:
+            print(f"Error: Could not parse --init-view value: {args.init_view}")
+            sys.exit(1)
+        # Create camera params from init_view
+        init_camera_params = CameraParams(
+            eye=init_view.eye,
+            target=init_view.target,
+            up=init_view.up,
+            fov=init_view.fov
+        )
+
     if not (args.lon >= -180.0 and args.lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
         sys.exit(1)
@@ -130,11 +151,19 @@ def main():
         print("Invalid downscale factor. Must be a positive integer.")
         sys.exit(1)
 
-    time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
-    dt_local, error = get_date_time_local(time_iso)
-    if error:
-        print(f"Incorrect time: {error}")
-        sys.exit(1)    
+    # Use datetime from init_view if provided, otherwise use --time argument
+    if init_view is not None:
+        dt_local = init_view.dt_local
+        lat = init_view.lat
+        lon = init_view.lon
+    else:
+        time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
+        dt_local, error = get_date_time_local(time_iso)
+        if error:
+            print(f"Incorrect time: {error}")
+            sys.exit(1)
+        lat = args.lat
+        lon = args.lon
 
     gpu_arch = get_gpu_architecture()
     if gpu_arch is None or gpu_arch.value < GpuArchitecture.Compute_75.value:
@@ -151,22 +180,26 @@ def main():
         sys.exit(1)
 
     print(f"\nStarting renderer with parameters:")
-    print(f"  Geographical Location: Lat {args.lat}°, Lon {args.lon}°")
+    print(f"  Geographical Location: Lat {lat}°, Lon {lon}°")
     print(f"  Local Time: {dt_local}")
     print(f"  Elevation Map File: {args.elevation_file}")
     print(f"  Light Intensity: {args.light_intensity}")
-    print(f"  Downscale Factor: {args.downscale}\n")
+    print(f"  Downscale Factor: {args.downscale}")
+    if init_camera_params:
+        print(f"  Init View: Restoring camera from screenshot filename")
+    print()
 
     run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
-                 lat=args.lat,
-                 lon=args.lon,
+                 lat=lat,
+                 lon=lon,
                  downscale=args.downscale,
                  light_intensity=args.light_intensity,
                  app_name=app_name,
                  color_file=COLOR_FILE_LOCAL_PATH,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
-                 features_file=MOON_FEATURES_FILE_LOCAL_PATH)
+                 features_file=MOON_FEATURES_FILE_LOCAL_PATH,
+                 init_camera_params=init_camera_params)
 
 if __name__ == "__main__":
     main()

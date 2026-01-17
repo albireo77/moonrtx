@@ -1,4 +1,8 @@
 import numpy as np
+import os
+import re
+from tkinter import filedialog
+from dataclasses import dataclass
 
 from typing import Optional
 from datetime import datetime
@@ -19,6 +23,88 @@ from plotoptix.materials import m_flat
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9  # Moon fills 90% of window height (5% margins top/bottom)
 
+
+@dataclass
+class InitView:
+    """Parsed init-view data for restoring a screenshot view."""
+    dt_local: datetime
+    lat: float
+    lon: float
+    eye: list
+    target: list
+    up: list
+    fov: float
+
+
+def parse_init_view(init_view_str: str) -> Optional[InitView]:
+    """
+    Parse an init-view string (filename without extension) back into its components.
+    
+    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_eyeX_Y_Z_tgtX_Y_Z_upX_Y_Z_fovXX.XXXXXX
+    
+    Parameters
+    ----------
+    init_view_str : str
+        The init-view string to parse
+        
+    Returns
+    -------
+    InitView or None
+        Parsed data or None if parsing fails
+    """
+    try:
+        # Pattern to match all components
+        # datetime: 2026-01-16T22.30.00+01.00 (ISO with dots instead of colons)
+        # lat: lat+52.230000 or lat-34.613100
+        # lon: lon+21.010000 or lon-58.377200
+        # eye: eye0.000000_-100.000000_0.000000
+        # tgt: tgt0.000000_0.000000_0.000000
+        # up: up0.000000_0.000000_1.000000
+        # fov: fov12.839695
+        
+        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_eye([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_tgt([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_up([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_([+-]?\d+\.\d+)_fov([+-]?\d+\.\d+)$'
+        
+        match = re.match(pattern, init_view_str)
+        if not match:
+            return None
+        
+        # Extract groups
+        dt_str = match.group(1)
+        lat = float(match.group(2))
+        lon = float(match.group(3))
+        eye = [float(match.group(4)), float(match.group(5)), float(match.group(6))]
+        target = [float(match.group(7)), float(match.group(8)), float(match.group(9))]
+        up = [float(match.group(10)), float(match.group(11)), float(match.group(12))]
+        fov = float(match.group(13))
+        
+        # Parse datetime (restore colons from dots)
+        dt_str = dt_str.replace('.', ':', 2)  # Replace first two dots (in time part)
+        # Handle timezone part: +01.00 -> +01:00
+        if '+' in dt_str:
+            parts = dt_str.rsplit('+', 1)
+            if len(parts) == 2:
+                dt_str = parts[0] + '+' + parts[1].replace('.', ':')
+        elif dt_str.count('-') > 2:  # Has negative timezone like -05.00
+            # Find the timezone part (last - that's followed by digits)
+            idx = dt_str.rfind('-')
+            if idx > 10:  # Make sure it's not the date part
+                dt_str = dt_str[:idx] + '-' + dt_str[idx+1:].replace('.', ':')
+        
+        dt_local = datetime.fromisoformat(dt_str)
+        
+        return InitView(
+            dt_local=dt_local,
+            lat=lat,
+            lon=lon,
+            eye=eye,
+            target=target,
+            up=up,
+            fov=fov
+        )
+    except Exception as e:
+        print(f"Error parsing init-view string: {e}")
+        return None
+
 def run_renderer(dt_local: datetime,
                  lat: float,
                  lon: float,
@@ -28,7 +114,8 @@ def run_renderer(dt_local: datetime,
                  features_file: str,
                  downscale: int,
                  light_intensity: int,
-                 app_name: str) -> TkOptiX:
+                 app_name: str,
+                 init_camera_params: Optional[CameraParams] = None) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
     
@@ -46,6 +133,8 @@ def run_renderer(dt_local: datetime,
         Light intensity 
     app_name : str
         Application name
+    init_camera_params : CameraParams, optional
+        Initial camera parameters to restore a specific view
     Returns
     -------
     TkOptiX
@@ -66,6 +155,10 @@ def run_renderer(dt_local: datetime,
     
     # Set view
     moon_renderer.update_view(dt_local=dt_local, lat=lat, lon=lon, light_intensity=light_intensity)
+    
+    # Apply custom camera parameters if provided (to restore a saved view)
+    if init_camera_params is not None:
+        moon_renderer.apply_camera_params(init_camera_params)
     
     # Print info
     print("\n" + moon_renderer.get_info())
@@ -96,6 +189,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.reset_camera_position()
         elif event.keysym.lower() == 'c':
             moon_renderer.center_view_on_cursor(event)
+        elif event.keysym == 'F12':
+            moon_renderer.save_image_dialog()
         else:
             original_key_handler(event)
     moon_renderer.rt._gui_key_pressed = custom_key_handler
@@ -340,6 +435,11 @@ class MoonRenderer:
         self.spot_labels_visible = False
         self.spot_labels = None
         
+        # Store view parameters for filename generation
+        self.dt_local = None
+        self.observer_lat = None
+        self.observer_lon = None
+        
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
         if not self._window_maximized:
@@ -407,6 +507,11 @@ class MoonRenderer:
 
         dt_utc = dt_local.astimezone(timezone.utc)
         self.moon_ephem = calculate_moon_ephemeris(dt_utc, lat, lon)
+        
+        # Store view parameters for filename generation
+        self.dt_local = dt_local
+        self.observer_lat = lat
+        self.observer_lon = lon
         
         if self.moon_ephem.alt < 0:
             print(f"Warning: Moon is below horizon (altitude: {self.moon_ephem.alt:.1f}°)")
@@ -500,6 +605,121 @@ class MoonRenderer:
         """Save the current render to file."""
         if self.rt is not None:
             self.rt.save_image(filename)
+            print(f"Saved: {filename}")
+    
+    def apply_camera_params(self, params: CameraParams):
+        """
+        Apply camera parameters to restore a specific view.
+        
+        Parameters
+        ----------
+        params : CameraParams
+            Camera parameters (eye, target, up, fov)
+        """
+        if self.rt is None:
+            return
+        
+        self.rt.setup_camera("cam1",
+                             eye=params.eye,
+                             target=params.target,
+                             up=params.up,
+                             fov=params.fov)
+        
+        # Update initial camera params so reset works correctly
+        self.initial_camera_params = params
+        
+        print(f"Applied camera params: eye={params.eye}, target={params.target}, up={params.up}, fov={params.fov:.2f}")
+    
+    def get_default_filename(self) -> str:
+        """
+        Generate a default filename for saving screenshots.
+        
+        Format: datetime_lat_lon_eyeX_eyeY_eyeZ_targetX_targetY_targetZ_upX_upY_upZ_fov
+        
+        Returns
+        -------
+        str
+            Default filename (without extension)
+        """
+        parts = []
+        
+        # 1. Local time in ISO format (replace colons with dots for filename compatibility)
+        if self.dt_local is not None:
+            # Format: YYYY-MM-DDTHH.MM.SS+HH.MM (colons replaced with dots)
+            iso_str = self.dt_local.isoformat()
+            iso_str = iso_str.replace(':', '.')
+            parts.append(iso_str)
+        else:
+            parts.append("notime")
+        
+        # 2. Latitude
+        if self.observer_lat is not None:
+            parts.append(f"lat{self.observer_lat:+.6f}")
+        else:
+            parts.append("latnone")
+        
+        # 3. Longitude
+        if self.observer_lon is not None:
+            parts.append(f"lon{self.observer_lon:+.6f}")
+        else:
+            parts.append("lonnone")
+        
+        # 4. Current camera parameters (at the time of screenshot)
+        if self.rt is not None:
+            try:
+                cam = self.rt.get_camera("cam1")
+                if cam is not None:
+                    eye = cam["Eye"]
+                    target = cam["Target"]
+                    up = cam["Up"]
+                    # Get FOV using the internal method (more reliable than dictionary lookup)
+                    # cam_handle 0 means current camera
+                    fov = self.rt._optix.get_camera_fov(0)
+                    # Eye position
+                    parts.append(f"eye{eye[0]:.6f}_{eye[1]:.6f}_{eye[2]:.6f}")
+                    # Target position
+                    parts.append(f"tgt{target[0]:.6f}_{target[1]:.6f}_{target[2]:.6f}")
+                    # Up vector
+                    parts.append(f"up{up[0]:.6f}_{up[1]:.6f}_{up[2]:.6f}")
+                    # FOV
+                    parts.append(f"fov{fov:.6f}")
+                else:
+                    parts.append("nocam")
+            except Exception as e:
+                print(f"Error getting camera: {e}")
+                parts.append("nocam")
+        else:
+            parts.append("nocam")
+        
+        return "_".join(parts)
+    
+    def save_image_dialog(self):
+        """
+        Open a save dialog with a custom default filename.
+        """
+        if self.rt is None:
+            return
+        
+        default_name = self.get_default_filename()
+        
+        filename = filedialog.asksaveasfilename(
+            initialdir=".",
+            title="Save output as image",
+            initialfile=f"{default_name}.jpg",
+            defaultextension=".jpg",
+            filetypes=(
+                ("JPEG files", "*.jpg"),
+                ("PNG files", "*.png"),
+                ("TIFF 8-bit files", "*.tif"),
+                ("TIFF 16-bit files", "*.tiff")
+            )
+        )
+        if filename:
+            fname, fext = os.path.splitext(filename)
+            if fext.lower() == ".tiff":
+                self.rt.save_image(filename, bps="Bps16")
+            else:
+                self.rt.save_image(filename, bps="Bps8")
             print(f"Saved: {filename}")
             
     def get_info(self) -> str:
