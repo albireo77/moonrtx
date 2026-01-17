@@ -189,7 +189,7 @@ def main():
     print(f"  Light Intensity: {args.light_intensity}")
     print(f"  Downscale Factor: {args.downscale}")
     if init_camera_params:
-        print(f"  Init View: Restoring camera from screenshot filename")
+        print("  Init View: Restoring camera from screenshot filename")
     print()
 
     run_renderer(dt_local=dt_local,
