@@ -1587,49 +1587,27 @@ class MoonRenderer:
         if R is None:
             return
         
-        # Update latitude lines
-        for i, orig_points in enumerate(self.moon_grid.lat_lines):
-            name = f"grid_lat_{i}"
-            rotated = (R @ orig_points.T).T
-            try:
-                self.rt.update_data(name, pos=rotated)
-            except:
-                pass
-        
-        # Update longitude lines
-        for i, orig_points in enumerate(self.moon_grid.lon_lines):
-            name = f"grid_lon_{i}"
-            rotated = (R @ orig_points.T).T
-            try:
-                self.rt.update_data(name, pos=rotated)
-            except:
-                pass
-        
-        # Update latitude labels
-        for i, segments in enumerate(self.moon_grid.lat_labels):
-            for j, orig_seg in enumerate(segments):
-                name = f"grid_lat_label_{i}_{j}"
-                rotated = (R @ orig_seg.T).T
+        def update_lines(lines, prefix):
+            for i, orig_points in enumerate(lines):
+                name = f"{prefix}_{i}"
+                rotated = (R @ orig_points.T).T
                 try:
                     self.rt.update_data(name, pos=rotated)
                 except:
                     pass
         
-        # Update longitude labels
-        for i, segments in enumerate(self.moon_grid.lon_labels):
-            for j, orig_seg in enumerate(segments):
-                name = f"grid_lon_label_{i}_{j}"
-                rotated = (R @ orig_seg.T).T
-                try:
-                    self.rt.update_data(name, pos=rotated)
-                except:
-                    pass
+        def update_nested_segments(segments_list, prefix):
+            for i, segments in enumerate(segments_list):
+                for j, orig_seg in enumerate(segments):
+                    name = f"{prefix}_{i}_{j}"
+                    rotated = (R @ orig_seg.T).T
+                    try:
+                        self.rt.update_data(name, pos=rotated)
+                    except:
+                        pass
         
-        # Update north pole label
-        for j, orig_seg in enumerate(self.moon_grid.N):
-            name = f"grid_north_label_{j}"
-            rotated = (R @ orig_seg.T).T
-            try:
-                self.rt.update_data(name, pos=rotated)
-            except:
-                pass
+        update_lines(self.moon_grid.lat_lines, "grid_lat")
+        update_lines(self.moon_grid.lon_lines, "grid_lon")
+        update_nested_segments(self.moon_grid.lat_labels, "grid_lat_label")
+        update_nested_segments(self.moon_grid.lon_labels, "grid_lon_label")
+        update_lines(self.moon_grid.N, "grid_north_label")
