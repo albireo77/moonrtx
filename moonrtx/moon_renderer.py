@@ -243,7 +243,7 @@ def run_renderer(dt_local: datetime,
     print("  V - Reset view to that based on ephemeris (useful after starting with --init-view parameter)")
     print("  C - Center view on point under cursor")
     print("  F - Search for Moon features (craters, mounts etc.)")
-    print("  Arrow keys - Navigate view")
+    print("  Arrows - Navigate view")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
     print("  Hold shift + left mouse button and drag up/down - Zoom out/in")

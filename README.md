@@ -27,22 +27,22 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
 
 ## Keyboard and Mouse Actions
-G - Toggle selenographic grid  
-L - Toggle standard labels  
-S - Toggle spot labels  
-I - Toggle upside down view  
-P - Toggle pins ON/OFF  
-1-9 - Create/Remove pin (when pins are ON)  
-R - Reset view to initial state  
-V - Reset view to that based on ephemeris (useful after starting with `--init-view` parameter)  
-C - Center view on point under cursor  
-F - Search for Moon features (craters, mounts etc.)  
-Arrow keys - Navigate view  
-F12 - Save image  
-Hold and drag left mouse button - Rotate the eye around Moon  
-Hold shift + left mouse button and drag up/down - Zoom out/in  
-Hold and drag right mouse button - Rotate Moon around the eye  
-Hold shift + right mouse button and drag up/down - Move eye backward/forward  
+**G** - Toggle selenographic grid  
+**L** - Toggle standard labels  
+**S** - Toggle spot labels  
+**I** - Toggle upside down view  
+**P** - Toggle pins ON/OFF  
+**1-9** - Create/Remove pin (when pins are ON)  
+**R** - Reset view to initial state  
+**V** - Reset view to that based on ephemeris (useful after starting with `--init-view` parameter)  
+**C** - Center view on point under cursor  
+**F** - Search for Moon features (craters, mounts etc.)  
+**Arrows** - Navigate view  
+**F12** - Save image  
+**Hold and drag left mouse button** - Rotate the eye around Moon  
+**Hold shift + left mouse button and drag up/down** - Zoom out/in  
+**Hold and drag right mouse button** - Rotate Moon around the eye  
+**Hold shift + right mouse button and drag up/down** - Move eye backward/forward  
 
 ## Screens
 ![Plato](images/plato.jpg)
