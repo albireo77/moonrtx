@@ -575,6 +575,14 @@ Pico D:43.4:-11.3:0.23:false:false:true
 Pico E:43.0:-10.3:0.3:false:false:true
 Laplace A:43.7:-26.8:0.3:false:false:true
 Laplace F:45.5:-19.9:0.2:false:false:true
+Kies A:-26.0:-24.2:0.23:false:false:true
+Gassendi O:-17.0:-37.6:0.5:false:false:true
+Gassendi J:-15.5:-44.2:0.33:false:false:true
+Flamsteed:-4.5:-44.3:0.69:false:false:true
+Flamsteed A:-6.5:-49.4:0.43:false:false:true
+Wichmann:-7.5:-38.1:0.33:false:false:true
+Kepler C:10.0:-41.9:0.16:false:false:true
+Marius A:12.6:-46.0:0.5:false:false:true
 
 # === MOUNTAIN RANGES ===
 Montes Apenninus:18.9:-3.7:19.8:true:false:false
