@@ -550,6 +550,9 @@ class MoonRenderer:
             def init_window():
                 rt._root.state('zoomed')
                 rt._root.title(self.app_name)
+                # Set monospace font for status bar to prevent text shifting
+                if hasattr(rt, '_status_action'):
+                    rt._status_action.configure(font=("Consolas", 9))
             rt._root.after_idle(init_window)
         
     def setup_renderer(self):
