@@ -86,7 +86,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
         illum=illum_frac * 100,
         phase=phase_angle,
         pa=float(pa),
-        pa_axis_view=float(pa_axis_view) % 360,
+        pa_axis_view=float(pa_axis_view) % 360.0,
         q=float(q),
         libr_long=float(libr_long_tot),
         libr_lat=float(libr_lat_tot)
