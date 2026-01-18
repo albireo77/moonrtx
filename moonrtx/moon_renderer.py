@@ -26,7 +26,6 @@ from plotoptix.materials import m_flat
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 SUN_RADIUS = 10             # affects Moon surface illumination
-# PIN_COLOR = [0.85, 0.35, 0.35]  # Mild red color for pins
 PIN_COLOR = [1.0, 0.0, 0.0]  # Mild red color for pins
 
 class InitView(NamedTuple):
