@@ -301,7 +301,7 @@ def run_renderer(dt_local: datetime,
             # Column 2: Feature name (if hovering over one)
             
             coord_column = ""
-            feature_data = ""
+            feature_column = ""
             # Check if we hit something (distance > 0 means valid hit)
             if hd > 0:
                 lat, lon = moon_renderer.hit_to_selenographic(hx, hy, hz)
@@ -311,19 +311,18 @@ def run_renderer(dt_local: datetime,
                     feature_name = feature.name if feature is not None and feature.status_bar else ""
                     if feature_name:
                         feature_size_km = feature.angle * 30.34
-                        feature_data = f"{feature_name} (size = {feature_size_km:.1f} km)"
+                        feature_column = f"{feature_name} (size = {feature_size_km:.1f} km)"
                     else:
-                        feature_data = ""
-                    feature_data = feature_data.ljust(42)
+                        feature_column = ""
+                    feature_column = feature_column.ljust(42)
                     # Format: "Lat: XX.XX° N/S  Lon: XXX.XX° E/W"
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
-                    coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
-                    coord_column = coord_column.ljust(32)
+                    coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}".ljust(32)
             
-            # Build status: coordinates first (fixed width), then feature name, then pin mode
-            pin_mode = "[Pins ON]" if moon_renderer.pins_visible else "[Pins OFF]"
-            status_text = coord_column + feature_data + pin_mode
+            # Build status: coordinates first (fixed width), then feature name (fixed width), then pin mode
+            pin_mode = "ON" if moon_renderer.pins_visible else "OFF"
+            status_text = f"{coord_column}{feature_column}[Pins {pin_mode}]"
             
             moon_renderer.rt._status_action_text.set(status_text)
     
