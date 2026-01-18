@@ -296,10 +296,6 @@ def run_renderer(dt_local: datetime,
             # Get hit position using the internal method
             hx, hy, hz, hd = moon_renderer.rt._get_hit_at(x, y)
             
-            # Build status text with fixed-width columns
-            # Column 1: Coordinates (fixed width)
-            # Column 2: Feature name (if hovering over one)
-            
             coord_column = ""
             feature_column = ""
             # Check if we hit something (distance > 0 means valid hit)
@@ -533,7 +529,7 @@ class MoonRenderer:
         
         # Pins settings
         self.pins_visible = True  # Pins visible by default
-        self.pins = {}  # dict mapping digit (1-9) to pin data: {'lat': float, 'lon': float, 'segments': list}
+        self.pins = {}  # dict mapping digit (1-9) to pin segments
         
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
@@ -976,8 +972,6 @@ class MoonRenderer:
         
         # Update camera
         self.rt.setup_camera("cam1", eye=new_eye.tolist(), target=new_target.tolist())
-        
-        print(f"Centered on: {feature.name} (lat={feature.lat:.2f}°, lon={feature.lon:.2f}°)")
             
     def get_info(self) -> str:
 
@@ -1591,8 +1585,6 @@ class MoonRenderer:
 
         if self.rt is None or cp is None:
             return
-        
-        print("Camera reset to default view")
         
         # Restore default camera parameters
         # Adjust up vector based on current inversion state
