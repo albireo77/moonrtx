@@ -31,6 +31,8 @@ G - Toggle selenographic grid
 L - Toggle standard labels  
 S - Toggle spot labels  
 I - Toggle upside down view  
+P - Toggle pins ON/OFF  
+1-9 - Create/Remove pin (when pins are ON)  
 R - Reset view to initial state  
 V - Reset view to that based on ephemeris (useful after starting with `--init-view` parameter)  
 C - Center view on point under cursor  
