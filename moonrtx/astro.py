@@ -16,7 +16,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     
     Parameters
     ----------
-    dt_utc : date_time
+    dt_utc : datetime
         UTC time
     lat : float
         Observer latitude in degrees
@@ -31,9 +31,9 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
         - ra, dec: Right ascension and declination (topocentric)
         - distance: Distance to in km (topocentric)
         - illum: Illumination fraction
-        - phase: Phase angle (0 = new, 180 = full)
+        - phase: Phase angle (0 = full, 180 = new)
         - pa: Position angle of the bright limb (from celestial north)
-        - pa_axis_view
+        - pa_axis_view: Apparent tilt of Moon's rotation axis in observer's view
         - q: Parallactic angle (tilt of celestial N from zenith)
         - libr_long, libr_lat: Librations (in longitude and in latitude)
     """
@@ -86,7 +86,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
         illum=illum_frac * 100,
         phase=phase_angle,
         pa=float(pa),
-        pa_axis_view=float(pa_axis_view),
+        pa_axis_view=float(pa_axis_view) % 360,
         q=float(q),
         libr_long=float(libr_long_tot),
         libr_lat=float(libr_lat_tot)
@@ -97,7 +97,8 @@ def moon_topocentric_ra_dec(
     dec_deg: Angle,
     lat_deg: Angle,
     parallax: Angle,
-    lst_deg: float):
+    lst_deg: float
+) -> tuple[Angle, Angle]:
 
     ra = ra_deg.rad()
     dec = dec_deg.rad()
