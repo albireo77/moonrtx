@@ -1464,6 +1464,20 @@ class MoonRenderer:
                     pass
         
         self.pins_visible = visible
+        
+        # Update status bar to reflect pin mode change
+        if self.rt is not None:
+            current_status = self.rt._status_action_text.get()
+            # Replace the pin mode indicator at the end
+            if "[Pins ON]" in current_status:
+                new_status = current_status.replace("[Pins ON]", "[Pins OFF]" if not visible else "[Pins ON]")
+            elif "[Pins OFF]" in current_status:
+                new_status = current_status.replace("[Pins OFF]", "[Pins ON]" if visible else "[Pins OFF]")
+            else:
+                # Append pin mode if not present
+                pin_mode = "[Pins ON]" if visible else "[Pins OFF]"
+                new_status = f"{current_status:76}{pin_mode}"
+            self.rt._status_action_text.set(new_status)
     
     def toggle_pins(self):
         """Toggle the pins visibility."""
