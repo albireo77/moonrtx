@@ -314,14 +314,16 @@ def run_renderer(dt_local: datetime,
                         feature_data = f"{feature_name} (Size = {feature_size_km:.1f} km)"
                     else:
                         feature_data = ""
+                    feature_data = feature_data.ljust(40)
                     # Format: "Lat: XX.XX° N/S  Lon: XXX.XX° E/W"
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
                     coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
+                    coord_column = coord_column.ljust(30)
             
             # Build status: coordinates first (fixed width), then feature name, then pin mode
             pin_mode = "[Pins ON]" if moon_renderer.pins_visible else "[Pins OFF]"
-            status_text = f"{coord_column:36}{feature_data:40}{pin_mode}"
+            status_text = coord_column + feature_data + pin_mode
             
             moon_renderer.rt._status_action_text.set(status_text)
     
