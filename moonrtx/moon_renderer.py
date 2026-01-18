@@ -1338,7 +1338,7 @@ class MoonRenderer:
             return
         
         # Generate pin digit segments (left-bottom corner at cursor position)
-        segments = create_single_digit_on_sphere(
+        pin_segments = create_single_digit_on_sphere(
             digit=digit,
             lat=lat,
             lon=lon,
@@ -1347,11 +1347,7 @@ class MoonRenderer:
         )
         
         # Store pin data (original segments for rotation updates)
-        self.pins[digit] = {
-            'lat': lat,
-            'lon': lon,
-            'segments': segments
-        }
+        self.pins[digit] = pin_segments
         
         # Create material for pins if not already created
         m_pin = m_flat.copy()
@@ -1363,7 +1359,7 @@ class MoonRenderer:
         # Apply Moon rotation to segments and add to renderer
         R = self.calculate_moon_rotation()
         
-        for j, seg in enumerate(segments):
+        for j, seg in enumerate(pin_segments):
             name = f"pin_{digit}_{j}"
             if R is not None:
                 rotated = (R @ seg.T).T
@@ -1384,10 +1380,10 @@ class MoonRenderer:
         if self.rt is None or digit not in self.pins:
             return
         
-        pin_data = self.pins[digit]
+        pin_segments = self.pins[digit]
         
         # Remove all segments from renderer
-        for j in range(len(pin_data['segments'])):
+        for j in range(len(pin_segments)):
             name = f"pin_{digit}_{j}"
             try:
                 self.rt.delete_geometry(name)
@@ -1457,8 +1453,8 @@ class MoonRenderer:
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         pin_radius = 0.012 if visible else 0.0
         
-        for digit, pin_data in self.pins.items():
-            for j in range(len(pin_data['segments'])):
+        for digit, pin_segments in self.pins.items():
+            for j in range(len(pin_segments)):
                 name = f"pin_{digit}_{j}"
                 try:
                     self.rt.update_data(name, r=pin_radius)
@@ -1500,8 +1496,8 @@ class MoonRenderer:
         if R is None:
             return
         
-        for digit, pin_data in self.pins.items():
-            for j, orig_seg in enumerate(pin_data['segments']):
+        for digit, pin_segments in self.pins.items():
+            for j, orig_seg in enumerate(pin_segments):
                 name = f"pin_{digit}_{j}"
                 rotated = (R @ orig_seg.T).T
                 try:
