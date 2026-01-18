@@ -2,6 +2,7 @@ import numpy as np
 from typing import NamedTuple
 
 LABEL_CHAR_SCALE = 0.12
+PIN_DIGIT_SCALE = 0.4
 
 class MoonGrid(NamedTuple):
     lat_lines: list
@@ -106,6 +107,72 @@ def create_digit_segments(digit: str, scale: float = 0.1) -> list:
         return []
     
     return [segments[s] for s in digit_segments[digit]]
+
+
+def create_single_digit_on_sphere(digit: int,
+                                   lat: float, lon: float,
+                                   moon_radius: float,
+                                   offset: float = 0.0,
+                                   digit_scale: float = PIN_DIGIT_SCALE) -> list:
+    """
+    Create 3D line segments for a single digit (1-9) positioned on the Moon sphere.
+    
+    Parameters
+    ----------
+    digit : int
+        The digit to display (1-9)
+    lat, lon : float
+        Selenographic coordinates in degrees
+    moon_radius : float
+        Radius of the Moon
+    offset : float
+        Height above surface (fraction of radius)
+    digit_scale : float
+        Size of digit
+        
+    Returns
+    -------
+    list
+        List of numpy arrays, each containing points for one line segment
+    """
+    r = moon_radius * (1 + offset + 0.005)
+    
+    # Calculate offsets to position the left-bottom corner at the given lat/lon
+    # In create_digit_segments: w = 0.3 * scale (half width), h = 0.5 * scale (half height)
+    # Digit ranges from -w to +w horizontally and -h to +h vertically
+    # To put left-bottom corner at origin, shift by +w (right) and +h (up)
+    w = 0.3 * digit_scale  # half width
+    h = 0.5 * digit_scale  # half height
+    
+    all_segments = []
+    digit_segs = create_digit_segments(str(digit), digit_scale)
+    
+    for (p1_local, p2_local) in digit_segs:
+        points_3d = []
+        for p_local in [p1_local, p2_local]:
+            lx, lz = p_local
+            # Shift so left-bottom corner is at origin
+            lx += w
+            lz += h
+            
+            lat_offset = np.degrees(lz / r)
+            lon_offset = np.degrees(lx / (r * np.cos(np.radians(lat)))) if abs(lat) < 89 else 0
+            
+            new_lat = lat + lat_offset
+            new_lon = lon + lon_offset
+            
+            lat_rad = np.radians(new_lat)
+            lon_rad = np.radians(new_lon)
+            
+            x = r * np.cos(lat_rad) * np.sin(lon_rad)
+            y = -r * np.cos(lat_rad) * np.cos(lon_rad)
+            z = r * np.sin(lat_rad)
+            
+            points_3d.append([x, y, z])
+        
+        all_segments.append(np.array(points_3d))
+    
+    return all_segments
 
 
 def create_number_on_sphere(number: int, 

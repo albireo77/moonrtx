@@ -17,7 +17,7 @@ from moonrtx.shared_types import MoonFeature
 from moonrtx.shared_types import CameraParams
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
-from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels
+from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels, create_single_digit_on_sphere
 
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
@@ -26,6 +26,8 @@ from plotoptix.materials import m_flat
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 SUN_RADIUS = 10             # affects Moon surface illumination
+# PIN_COLOR = [0.85, 0.35, 0.35]  # Mild red color for pins
+PIN_COLOR = [1.0, 0.0, 0.0]  # Mild red color for pins
 
 class InitView(NamedTuple):
     """Parsed init-view data for restoring a screenshot view."""
@@ -234,6 +236,8 @@ def run_renderer(dt_local: datetime,
     print("  G - Toggle selenographic grid")
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
+    print("  P - Toggle pins visibility")
+    print("  1-9 - Create/remove pin at cursor position (when pins visible)")
     print("  I - Toggle upside down view")
     print("  R - Reset view to initial state")
     print("  V - Reset view to that based on ephemeris (useful after starting with --init-view parameter)")
@@ -271,6 +275,10 @@ def run_renderer(dt_local: datetime,
             moon_renderer.navigate_view(event.keysym)
         elif event.keysym.lower() == 'v':
             moon_renderer.reset_to_default_view()
+        elif event.keysym.lower() == 'p':
+            moon_renderer.toggle_pins()
+        elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
+            moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:
             original_key_handler(event)
     moon_renderer.rt._gui_key_pressed = custom_key_handler
@@ -311,8 +319,9 @@ def run_renderer(dt_local: datetime,
                     lon_dir = 'E' if lon >= 0 else 'W'
                     coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
             
-            # Build status: coordinates first (fixed width), then feature name
-            status_text = f"{coord_column:36}{feature_data}"
+            # Build status: coordinates first (fixed width), then feature name, then pin mode
+            pin_mode = "[Pins ON]" if moon_renderer.pins_visible else "[Pins OFF]"
+            status_text = f"{coord_column:36}{feature_data:40}{pin_mode}"
             
             moon_renderer.rt._status_action_text.set(status_text)
     
@@ -526,6 +535,10 @@ class MoonRenderer:
         
         # Flag to track if search dialog is open
         self.search_dialog_open = False
+        
+        # Pins settings
+        self.pins_visible = True  # Pins visible by default
+        self.pins = {}  # dict mapping digit (1-9) to pin data: {'lat': float, 'lon': float, 'segments': list}
         
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
@@ -1300,6 +1313,180 @@ class MoonRenderer:
         for i, standard_label in enumerate(self.standard_labels):
             for j, orig_seg in enumerate(standard_label):
                 name = f"standard_label_{i}_{j}"
+                rotated = (R @ orig_seg.T).T
+                try:
+                    self.rt.update_data(name, pos=rotated)
+                except:
+                    pass
+    
+    def create_pin(self, digit: int, lat: float, lon: float):
+        """
+        Create a pin with the given digit at the specified selenographic coordinates.
+        
+        Parameters
+        ----------
+        digit : int
+            The digit (1-9) for the pin
+        lat : float
+            Selenographic latitude in degrees
+        lon : float
+            Selenographic longitude in degrees
+        """
+        if self.rt is None:
+            return
+        
+        # Generate pin digit segments (left-bottom corner at cursor position)
+        segments = create_single_digit_on_sphere(
+            digit=digit,
+            lat=lat,
+            lon=lon,
+            moon_radius=self.moon_radius,
+            offset=0.0
+        )
+        
+        # Store pin data (original segments for rotation updates)
+        self.pins[digit] = {
+            'lat': lat,
+            'lon': lon,
+            'segments': segments
+        }
+        
+        # Create material for pins if not already created
+        m_pin = m_flat.copy()
+        self.rt.update_material("pin_material", m_pin)
+        
+        # Line thickness for pins
+        pin_radius = 0.012
+        
+        # Apply Moon rotation to segments and add to renderer
+        R = self.calculate_moon_rotation()
+        
+        for j, seg in enumerate(segments):
+            name = f"pin_{digit}_{j}"
+            if R is not None:
+                rotated = (R @ seg.T).T
+            else:
+                rotated = seg
+            self.rt.set_data(name, pos=rotated, r=pin_radius,
+                            c=PIN_COLOR, geom="SegmentChain", mat="pin_material")
+    
+    def remove_pin(self, digit: int):
+        """
+        Remove a pin with the given digit.
+        
+        Parameters
+        ----------
+        digit : int
+            The digit (1-9) of the pin to remove
+        """
+        if self.rt is None or digit not in self.pins:
+            return
+        
+        pin_data = self.pins[digit]
+        
+        # Remove all segments from renderer
+        for j in range(len(pin_data['segments'])):
+            name = f"pin_{digit}_{j}"
+            try:
+                self.rt.delete_geometry(name)
+            except:
+                pass
+        
+        del self.pins[digit]
+    
+    def toggle_pin_at_cursor(self, event, digit: int):
+        """
+        Toggle a pin at the cursor position.
+        
+        If pins are not visible, do nothing.
+        If a pin with this digit exists, remove it.
+        Otherwise, create a new pin at the cursor position.
+        
+        Parameters
+        ----------
+        event : tk.Event
+            The keyboard event containing mouse position
+        digit : int
+            The digit (1-9) for the pin
+        """
+        if self.rt is None:
+            return
+        
+        # Do nothing if pins are not visible
+        if not self.pins_visible:
+            return
+        
+        # If pin already exists, remove it
+        if digit in self.pins:
+            self.remove_pin(digit)
+            return
+        
+        # Get mouse position in image coordinates
+        x, y = self.rt._get_image_xy(event.x, event.y)
+        
+        # Get hit position at mouse location
+        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
+        
+        # Check if we hit something (distance > 0 means valid hit)
+        if hd <= 0:
+            return
+        
+        # Convert hit position to selenographic coordinates
+        lat, lon = self.hit_to_selenographic(hx, hy, hz)
+        
+        if lat is None or lon is None:
+            return
+        
+        # Create the pin
+        self.create_pin(digit, lat, lon)
+    
+    def show_pins(self, visible: bool = True):
+        """
+        Show or hide all pins.
+        
+        Parameters
+        ----------
+        visible : bool
+            True to show, False to hide
+        """
+        if self.rt is None:
+            return
+        
+        # Toggle visibility by setting zero radius (hide) or restoring (show)
+        pin_radius = 0.012 if visible else 0.0
+        
+        for digit, pin_data in self.pins.items():
+            for j in range(len(pin_data['segments'])):
+                name = f"pin_{digit}_{j}"
+                try:
+                    self.rt.update_data(name, r=pin_radius)
+                except:
+                    pass
+        
+        self.pins_visible = visible
+    
+    def toggle_pins(self):
+        """Toggle the pins visibility."""
+        self.show_pins(not self.pins_visible)
+    
+    def update_pins_orientation(self):
+        """
+        Update pins to match current Moon orientation.
+        
+        This should be called after update_view() to rotate the pins
+        along with the Moon surface.
+        """
+        if self.rt is None or not self.pins or not self.pins_visible:
+            return
+        
+        R = self.calculate_moon_rotation()
+        
+        if R is None:
+            return
+        
+        for digit, pin_data in self.pins.items():
+            for j, orig_seg in enumerate(pin_data['segments']):
+                name = f"pin_{digit}_{j}"
                 rotated = (R @ orig_seg.T).T
                 try:
                     self.rt.update_data(name, pos=rotated)
