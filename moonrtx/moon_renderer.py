@@ -319,7 +319,7 @@ def run_renderer(dt_local: datetime,
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
                     coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
-                    coord_column = coord_column.ljust(30)
+                    coord_column = coord_column.ljust(34)
             
             # Build status: coordinates first (fixed width), then feature name, then pin mode
             pin_mode = "[Pins ON]" if moon_renderer.pins_visible else "[Pins OFF]"
@@ -551,8 +551,12 @@ class MoonRenderer:
                 rt._root.state('zoomed')
                 rt._root.title(self.app_name)
                 # Set monospace font for status bar to prevent text shifting
+                # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9))
+                    rt._status_action.configure(font=("Consolas", 9), width=85)
+                # Hide FPS panel from status bar
+                if hasattr(rt, '_status_fps'):
+                    rt._status_fps.grid_remove()
             rt._root.after_idle(init_window)
         
     def setup_renderer(self):
