@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --light-intensity 100`
 
-`python -m moonrtx.main --lat 0 --lon 0 --init-view "2025-03-07T18.53.00+01.00_lat+50.000000_lon+20.000000_cambMOZPzVT28IXi6y_bMOZP6uZGsEXi6y_AAAAAAAAAAAAAIA_5oB3QA"`  
+`python -m moonrtx.main --init-view "2025-03-07T18.53.00+01.00_lat+50.000000_lon+20.000000_cambMOZPzVT28IXi6y_bMOZP6uZGsEXi6y_AAAAAAAAAAAAAIA_5oB3QA"`  
 where `--init-view` parameter value is taken from the screenshot default filename
 
 ## Notes

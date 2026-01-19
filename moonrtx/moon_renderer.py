@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import re
 import struct
 import base64
 import tkinter as tk
@@ -26,17 +25,7 @@ from plotoptix.materials import m_flat
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 SUN_RADIUS = 10             # affects Moon surface illumination
-PIN_COLOR = [1.0, 0.0, 0.0]  # Mild red color for pins
-
-class InitView(NamedTuple):
-    """Parsed init-view data for restoring a screenshot view."""
-    dt_local: datetime
-    lat: float
-    lon: float
-    eye: list
-    target: list
-    up: list
-    fov: float
+PIN_COLOR = [1.0, 0.0, 0.0]
 
 class Scene(NamedTuple):
     eye: NDArray
@@ -77,102 +66,6 @@ def encode_camera_params(eye: list, target: list, up: list, fov: float) -> str:
     # URL-safe base64 without padding (= chars)
     encoded = base64.urlsafe_b64encode(packed).decode('ascii').rstrip('=')
     return encoded
-
-
-def decode_camera_params(encoded: str) -> Optional[tuple]:
-    """
-    Decode camera parameters from a base64 string.
-    
-    Parameters
-    ----------
-    encoded : str
-        Base64-encoded camera parameters
-        
-    Returns
-    -------
-    tuple or None
-        (eye, target, up, fov) or None if decoding fails
-    """
-    try:
-        # Add padding if needed
-        padding = 4 - (len(encoded) % 4)
-        if padding != 4:
-            encoded += '=' * padding
-        
-        packed = base64.urlsafe_b64decode(encoded)
-        values = struct.unpack('<10f', packed)
-        
-        eye = [values[0], values[1], values[2]]
-        target = [values[3], values[4], values[5]]
-        up = [values[6], values[7], values[8]]
-        fov = values[9]
-        
-        return eye, target, up, fov
-    except Exception as e:
-        print(f"Error decoding camera params: {e}")
-        return None
-
-
-def parse_init_view(init_view_str: str) -> Optional[InitView]:
-    """
-    Parse an init-view string (filename without extension) back into its components.
-    
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_cam<base64>
-    
-    Parameters
-    ----------
-    init_view_str : str
-        The init-view string to parse
-        
-    Returns
-    -------
-    InitView or None
-        Parsed data or None if parsing fails
-    """
-    try:
-        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_cam([A-Za-z0-9_-]+)$'
-        match = re.match(pattern, init_view_str)
-        
-        if not match:
-            return None
-        
-        dt_str = match.group(1)
-        lat = float(match.group(2))
-        lon = float(match.group(3))
-        cam_encoded = match.group(4)
-        
-        decoded = decode_camera_params(cam_encoded)
-        if decoded is None:
-            return None
-        eye, target, up, fov = decoded
-        
-        # Parse datetime (restore colons from dots)
-        dt_str = dt_str.replace('.', ':', 2)  # Replace first two dots (in time part)
-        # Handle timezone part: +01.00 -> +01:00
-        if '+' in dt_str:
-            parts = dt_str.rsplit('+', 1)
-            if len(parts) == 2:
-                dt_str = parts[0] + '+' + parts[1].replace('.', ':')
-        elif dt_str.count('-') > 2:  # Has negative timezone like -05.00
-            # Find the timezone part (last - that's followed by digits)
-            idx = dt_str.rfind('-')
-            if idx > 10:  # Make sure it's not the date part
-                dt_str = dt_str[:idx] + '-' + dt_str[idx+1:].replace('.', ':')
-        
-        dt_local = datetime.fromisoformat(dt_str)
-        
-        return InitView(
-            dt_local=dt_local,
-            lat=lat,
-            lon=lon,
-            eye=eye,
-            target=target,
-            up=up,
-            fov=fov
-        )
-    except Exception as e:
-        print(f"Error parsing init-view string: {e}")
-        return None
 
 def run_renderer(dt_local: datetime,
                  lat: float,
