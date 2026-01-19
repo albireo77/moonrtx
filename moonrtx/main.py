@@ -202,7 +202,6 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         eye, target, up, fov = decoded
         
         dt_local, error = get_date_time_local(dt_str.replace('.', ':'))
-
         if error:
             print(f"Incorrect time: {error}")
             return None

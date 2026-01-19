@@ -204,7 +204,7 @@ def run_renderer(dt_local: datetime,
             
             # Build status: coordinates first (fixed width), then feature name (fixed width), then pin mode
             pin_mode = "ON" if moon_renderer.pins_visible else "OFF"
-            status_text = f"{coord_column:<32}{feature_column:<42.42}[Pins {pin_mode}]"
+            status_text = f"{coord_column:<32}{feature_column:<40.40}  [Pins {pin_mode}]"
             
             moon_renderer.rt._status_action_text.set(status_text)
     
@@ -339,10 +339,7 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) ->
     # - Most of the lunar cycle (phase > 6°) is completely unaffected
     min_phase_offset = np.radians(6.0)
     # Only apply minimum offset near full moon (phase < 6°), not near new moon
-    if phase < min_phase_offset:
-        effective_sin_phase = np.sin(min_phase_offset)
-    else:
-        effective_sin_phase = np.sin(phase)
+    effective_sin_phase = np.sin(min_phase_offset if phase < min_phase_offset else phase)
     
     light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
     light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
@@ -1376,14 +1373,14 @@ class MoonRenderer:
         if self.rt is not None:
             current_status = self.rt._status_action_text.get()
             # Replace the pin mode indicator at the end
-            if "[Pins ON]" in current_status:
-                new_status = current_status.replace("[Pins ON]", "[Pins OFF]" if not visible else "[Pins ON]")
-            elif "[Pins OFF]" in current_status:
-                new_status = current_status.replace("[Pins OFF]", "[Pins ON]" if visible else "[Pins OFF]")
+            if current_status.endswith("[Pins ON]"):
+                new_status = current_status[:-9] + ("[Pins OFF]" if not visible else "[Pins ON]")
+            elif current_status.endswith("[Pins OFF]"):
+                new_status = current_status[:-10] + ("[Pins ON]" if visible else "[Pins OFF]")
             else:
                 # Append pin mode if not present
-                pin_mode = "[Pins ON]" if visible else "[Pins OFF]"
-                new_status = f"{current_status:76}{pin_mode}"
+                pin_mode = "ON" if visible else "OFF"
+                new_status = f"{current_status:72}  [Pins {pin_mode}]"
             self.rt._status_action_text.set(new_status)
     
     def toggle_pins(self):
