@@ -321,8 +321,24 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) ->
     # But bright_limb_angle convention: 0° = up (+Z), 90° = left (-X), -90° = right (+X)
     # So: X = -sin(bright_limb_angle), Z = cos(bright_limb_angle)
     
-    light_x = -np.sin(bright_limb_angle) * np.sin(phase) * light_distance
-    light_z = np.cos(bright_limb_angle) * np.sin(phase) * light_distance
+    # When phase is very small (near full moon), sin(phase) approaches 0,
+    # which would place the light exactly behind the camera. This causes
+    # the Moon to appear completely dark in ray tracing because no light
+    # rays can illuminate the visible surface.
+    #
+    # To fix this, we ensure a minimum offset angle so the light is always
+    # slightly to the side, providing proper illumination even at full moon.
+    #
+    # Consequences of 6 degree offset:
+    # - Only affects when phase < 6° (very close to full moon)
+    # - At 6° phase, illumination = (1 + cos(6°))/2 ≈ 99.7% (vs 100% at true full)
+    # - A ~0.3% sliver at the Moon's edge would be in shadow, visually imperceptible
+    # - Most of the lunar cycle (phase > 6°) is completely unaffected
+    min_phase_offset = np.radians(6.0)
+    effective_sin_phase = max(np.sin(phase), np.sin(min_phase_offset))
+    
+    light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
+    light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
     light_y = -np.cos(phase) * light_distance
     
     light_pos = np.array([light_x, light_y, light_z])
