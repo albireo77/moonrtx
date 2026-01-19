@@ -329,13 +329,20 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) ->
     # To fix this, we ensure a minimum offset angle so the light is always
     # slightly to the side, providing proper illumination even at full moon.
     #
+    # This offset is only applied near full moon (phase < 6°), not near new moon
+    # (phase ≈ 180°) where the Moon should actually be dark.
+    #
     # Consequences of 6 degree offset:
     # - Only affects when phase < 6° (very close to full moon)
     # - At 6° phase, illumination = (1 + cos(6°))/2 ≈ 99.7% (vs 100% at true full)
     # - A ~0.3% sliver at the Moon's edge would be in shadow, visually imperceptible
     # - Most of the lunar cycle (phase > 6°) is completely unaffected
     min_phase_offset = np.radians(6.0)
-    effective_sin_phase = max(np.sin(phase), np.sin(min_phase_offset))
+    # Only apply minimum offset near full moon (phase < 6°), not near new moon
+    if phase < min_phase_offset:
+        effective_sin_phase = np.sin(min_phase_offset)
+    else:
+        effective_sin_phase = np.sin(phase)
     
     light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
     light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
