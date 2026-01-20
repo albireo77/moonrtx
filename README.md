@@ -31,6 +31,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
 **I** - Toggle upside down view  
+**U** - Toggle labels upside down  
 **P** - Toggle pins ON/OFF  
 **1-9** - Create/Remove pin (when pins are ON)  
 **R** - Reset view to initial state  

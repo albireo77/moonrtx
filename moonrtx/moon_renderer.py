@@ -129,6 +129,7 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  I - Toggle upside down view")
+    print("  U - Toggle labels upside down")
     print("  P - Toggle pins ON/OFF")
     print("  1-9 - Create/Remove pin (when pins are ON)")
     print("  R - Reset view to initial state")
@@ -153,6 +154,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_standard_labels()
         elif event.keysym.lower() == 's':
             moon_renderer.toggle_spot_labels()
+        elif event.keysym.lower() == 'u':
+            moon_renderer.toggle_labels_invert()
         elif event.keysym.lower() == 'i':
             moon_renderer.toggle_invert()
         elif event.keysym.lower() == 'r':
@@ -431,6 +434,13 @@ class MoonRenderer:
         # Spot labels settings
         self.spot_labels_visible = False
         self.spot_labels = None
+        
+        # Store features used for labels (needed for inversion anchor points)
+        self.standard_label_features = None
+        self.spot_label_features = None
+        
+        # Label inversion state (for upside down readability)
+        self.labels_inverted = False
         
         # Store view parameters for filename generation
         self.dt_local = None
@@ -1044,6 +1054,9 @@ class MoonRenderer:
         if self.rt is None:
             print("Renderer not initialized")
             return
+        
+        # Store features used for standard labels (needed for inversion anchor points)
+        self.standard_label_features = [f for f in self.moon_features if f.standard_label]
             
         self.standard_labels = create_standard_labels(
             self.moon_features,
@@ -1114,6 +1127,9 @@ class MoonRenderer:
         if self.rt is None:
             print("Renderer not initialized")
             return
+        
+        # Store features used for spot labels (needed for inversion anchor points)
+        self.spot_label_features = [f for f in self.moon_features if f.spot_label]
             
         # Generate spot labels data
         self.spot_labels = create_spot_labels(
@@ -1178,6 +1194,73 @@ class MoonRenderer:
         """Toggle the spot labels visibility."""
         self.show_spot_labels(not self.spot_labels_visible)
     
+    def invert_label_segment(self, segment: np.ndarray, anchor_lat: float, anchor_lon: float) -> np.ndarray:
+        """
+        Invert (rotate 180°) a label segment around its anchor point on the Moon surface.
+        
+        This rotates the segment 180° around the radial vector at the anchor point,
+        effectively flipping the text upside down while keeping it pointing to the
+        same location on the Moon.
+        
+        Parameters
+        ----------
+        segment : np.ndarray
+            Array of 3D points (N x 3) defining the segment
+        anchor_lat : float
+            Selenographic latitude of anchor point in degrees
+        anchor_lon : float
+            Selenographic longitude of anchor point in degrees
+            
+        Returns
+        -------
+        np.ndarray
+            Inverted segment points
+        """
+        # Calculate anchor point on Moon surface (in original Moon coordinates)
+        r = self.moon_radius * 1.005  # Same offset as labels
+        lat_rad = np.radians(anchor_lat)
+        lon_rad = np.radians(anchor_lon)
+        
+        # Anchor point in original Moon coordinates (before Moon rotation)
+        # +Z is north pole, -Y is prime meridian (lon=0), +X is east (lon=90)
+        anchor_x = r * np.cos(lat_rad) * np.sin(lon_rad)
+        anchor_y = -r * np.cos(lat_rad) * np.cos(lon_rad)
+        anchor_z = r * np.sin(lat_rad)
+        anchor = np.array([anchor_x, anchor_y, anchor_z])
+        
+        # The radial vector at anchor point (pointing outward from Moon center)
+        radial = anchor / np.linalg.norm(anchor)
+        
+        # For each point in the segment, rotate 180° around the radial axis
+        # Rotation by 180° around axis n: R = 2 * n * n^T - I
+        # This reflects through the plane containing the axis
+        inverted_points = []
+        for point in segment:
+            # Vector from anchor to point
+            v = point - anchor
+            # 180° rotation around radial axis: v' = 2*(v·n)*n - v
+            v_rotated = 2 * np.dot(v, radial) * radial - v
+            # New point position
+            new_point = anchor + v_rotated
+            inverted_points.append(new_point)
+        
+        return np.array(inverted_points)
+    
+    def toggle_labels_invert(self):
+        """
+        Toggle the inversion (upside-down flip) of all labels.
+        
+        When inverted, labels are rotated 180° around their anchor points,
+        making them readable when the view is inverted with the 'I' key.
+        """
+        self.labels_inverted = not self.labels_inverted
+        
+        # Update both label types to reflect the new inversion state
+        if self.standard_labels_visible:
+            self.update_standard_labels_orientation()
+        if self.spot_labels_visible:
+            self.update_spot_labels_orientation()
+    
     def update_spot_labels_orientation(self):
         """
         Update spot labels to match current Moon orientation.
@@ -1195,9 +1278,17 @@ class MoonRenderer:
         
         # Update spot labels
         for i, spot_label in enumerate(self.spot_labels):
+            # Get anchor point for this label (feature position - where the arrow points)
+            feature = self.spot_label_features[i] if self.spot_label_features else None
+            
             for j, orig_seg in enumerate(spot_label):
                 name = f"spot_label_{i}_{j}"
-                rotated = (R @ orig_seg.T).T
+                # Apply inversion if enabled (anchor is the spot itself, not label position)
+                if self.labels_inverted and feature is not None:
+                    seg = self.invert_label_segment(orig_seg, feature.lat, feature.lon)
+                else:
+                    seg = orig_seg
+                rotated = (R @ seg.T).T
                 try:
                     self.rt.update_data(name, pos=rotated)
                 except:
@@ -1220,9 +1311,17 @@ class MoonRenderer:
         
         # Update standard labels
         for i, standard_label in enumerate(self.standard_labels):
+            # Get anchor point for this label (feature center)
+            feature = self.standard_label_features[i] if self.standard_label_features else None
+            
             for j, orig_seg in enumerate(standard_label):
                 name = f"standard_label_{i}_{j}"
-                rotated = (R @ orig_seg.T).T
+                # Apply inversion if enabled
+                if self.labels_inverted and feature is not None:
+                    seg = self.invert_label_segment(orig_seg, feature.lat, feature.lon)
+                else:
+                    seg = orig_seg
+                rotated = (R @ seg.T).T
                 try:
                     self.rt.update_data(name, pos=rotated)
                 except:
