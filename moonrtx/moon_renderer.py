@@ -392,7 +392,8 @@ class MoonRenderer:
         # Load data
         self.elevation = load_elevation_data(elevation_file, downscale)
         self.color_data = load_color_data(color_file, self.gamma)
-        self.moon_features = load_moon_features(features_file)
+        # Sort features by half_angle (smallest first) for efficient lookup in find_feature_at()
+        self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.half_angle)
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
         self.app_name = app_name
@@ -1430,6 +1431,9 @@ class MoonRenderer:
         When multiple features overlap at the given position, returns the
         feature with the smallest angular size (most specific feature).
         
+        Since moon_features is sorted by half_angle (smallest first),
+        the first match is guaranteed to be the smallest feature.
+        
         Parameters
         ----------
         lat : float
@@ -1442,8 +1446,6 @@ class MoonRenderer:
         MoonFeature
             Moon feature if found, None otherwise
         """
-        matching_features = []
-        
         for moon_feature in self.moon_features:
             # Calculate angular distance from feature center
             dlat = lat - moon_feature.lat
@@ -1451,15 +1453,11 @@ class MoonRenderer:
             angular_dist = np.sqrt(dlat**2 + (dlon * moon_feature.cos_lat)**2)
             
             # Check if within feature's angular radius (half of angular size)
+            # First match is smallest due to sorted order - early exit
             if angular_dist <= moon_feature.half_angle:
-                matching_features.append(moon_feature)
+                return moon_feature
         
-        if not matching_features:
-            return None
-        
-        # Return the feature with the smallest angular size
-        smallest_feature = min(matching_features, key=lambda f: f.half_angle)
-        return smallest_feature
+        return None
     
     def reset_camera_position(self):
         """
