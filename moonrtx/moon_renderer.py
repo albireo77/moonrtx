@@ -1074,17 +1074,26 @@ class MoonRenderer:
         # Color for standard labels (white/light gray for visibility)
         label_color = [0.85, 0.85, 0.85]
         
-        # Add each label's segments
+        # Get Moon rotation matrix
+        R = self.calculate_moon_rotation()
+        
+        # Add each label's segments with rotation and inversion applied
         for i, standard_label in enumerate(self.standard_labels):
+            # Get anchor point for this label (feature center)
+            feature = self.standard_label_features[i] if self.standard_label_features else None
+            
             for j, seg in enumerate(standard_label):
                 name = f"standard_label_{i}_{j}"
+                # Apply inversion if enabled
+                if self.labels_inverted and feature is not None:
+                    seg = self.invert_label_segment(seg, feature.lat, feature.lon)
+                # Apply Moon rotation
+                if R is not None:
+                    seg = (R @ seg.T).T
                 self.rt.set_data(name, pos=seg, r=label_radius,
                                 c=label_color, geom="SegmentChain", mat="standard_label_material")
         
         self.standard_labels_visible = True
-        
-        # Apply current Moon orientation to the labels
-        self.update_standard_labels_orientation()
     
     def show_standard_labels(self, visible: bool = True):
         """
@@ -1148,17 +1157,26 @@ class MoonRenderer:
         # Color for spot labels (yellow/gold for visibility)
         label_color = [1.0, 0.9, 0.3]
         
-        # Add each label's segments
+        # Get Moon rotation matrix
+        R = self.calculate_moon_rotation()
+        
+        # Add each label's segments with rotation and inversion applied
         for i, spot_label in enumerate(self.spot_labels):
+            # Get anchor point for this label (feature position)
+            feature = self.spot_label_features[i] if self.spot_label_features else None
+            
             for j, seg in enumerate(spot_label):
                 name = f"spot_label_{i}_{j}"
+                # Apply inversion if enabled
+                if self.labels_inverted and feature is not None:
+                    seg = self.invert_label_segment(seg, feature.lat, feature.lon)
+                # Apply Moon rotation
+                if R is not None:
+                    seg = (R @ seg.T).T
                 self.rt.set_data(name, pos=seg, r=label_radius,
                                 c=label_color, geom="SegmentChain", mat="spot_label_material")
         
         self.spot_labels_visible = True
-        
-        # Apply current Moon orientation to the labels
-        self.update_spot_labels_orientation()
     
     def show_spot_labels(self, visible: bool = True):
         """
@@ -1256,9 +1274,10 @@ class MoonRenderer:
         self.labels_inverted = not self.labels_inverted
         
         # Update both label types to reflect the new inversion state
-        if self.standard_labels_visible:
+        # Update all existing labels regardless of visibility to keep them in sync
+        if self.standard_labels is not None:
             self.update_standard_labels_orientation()
-        if self.spot_labels_visible:
+        if self.spot_labels is not None:
             self.update_spot_labels_orientation()
     
     def update_spot_labels_orientation(self):
@@ -1268,7 +1287,7 @@ class MoonRenderer:
         This should be called after update_view() to rotate the labels
         along with the Moon surface.
         """
-        if self.rt is None or self.spot_labels is None or not self.spot_labels_visible:
+        if self.rt is None or self.spot_labels is None:
             return
         
         R = self.calculate_moon_rotation()
@@ -1301,7 +1320,7 @@ class MoonRenderer:
         This should be called after update_view() to rotate the labels
         along with the Moon surface.
         """
-        if self.rt is None or self.standard_labels is None or not self.standard_labels_visible:
+        if self.rt is None or self.standard_labels is None:
             return
         
         R = self.calculate_moon_rotation()
