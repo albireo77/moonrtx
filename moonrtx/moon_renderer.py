@@ -197,7 +197,7 @@ def run_renderer(dt_local: datetime,
                     # Check if hovering over a named feature
                     feature = moon_renderer.find_feature_at(lat, lon)
                     feature_name = feature.name if feature is not None and feature.status_bar else ""
-                    feature_column = f"{feature_name} (size = {feature.angle * 30.34:.1f} km)" if feature_name else ""
+                    feature_column = f"{feature_name} (size = {feature.size_km:.1f} km)" if feature_name else ""
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
                     coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
@@ -792,7 +792,7 @@ class MoonRenderer:
             for feature in self.moon_features:
                 if query in feature.name.lower():
                     matching_features.append(feature)
-                    size_km = feature.angle * 30.34
+                    size_km = feature.size_km
                     listbox.insert(tk.END, f"{feature.name} ({size_km:.1f} km)")
         
         def on_select(event=None):
