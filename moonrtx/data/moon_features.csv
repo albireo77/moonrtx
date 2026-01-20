@@ -288,6 +288,7 @@ Goldschmidt:73.2:3.8:3.9:false:false:true
 Meton:73.6:19.2:4.2:false:false:true
 Barrow:71.3:7.7:3.0:false:false:true
 W. Bond:65.4:4.2:5.2:false:false:true
+G. Bond:32.4:36.2:0.6:false:false:true
 Protagoras:56.0:7.3:0.73:false:false:true
 Archytas:58.7:5.0:1.06:false:false:true
 Timaeus:62.8:-0.5:1.1:false:false:true
@@ -363,8 +364,14 @@ Römer:25.4:36.4:1.3:false:false:true
 Le Monnier:26.6:30.6:2.0:false:false:true
 Chacornac:29.8:31.7:1.7:false:false:true
 Posidonius:31.8:29.9:3.3:false:false:true
-Daniell:35.0:31.1:1.0:false:false:true
+Posidonius P:33.5:27.5:0.35:false:false:true
+Luther:33.2:24.1:0.3:false:false:true
+Franck:22.6:35.5:0.35:false:false:true
+Brewster:23.3:34.7:0.3:false:false:true
+Daniell:35.5:31.1:1.0:false:false:true
 Grove:40.3:32.9:0.9:false:false:true
+Maury:37.1:39.6:0.5:false:false:true
+Maury A:36.0:41.9:0.5:false:false:true
 Williams:42.0:37.2:1.3:false:false:true
 Mason:42.6:30.5:1.1:false:false:true
 Plana:42.2:28.2:1.5:false:false:true
