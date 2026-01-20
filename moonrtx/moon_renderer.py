@@ -1448,10 +1448,7 @@ class MoonRenderer:
             # Calculate angular distance from feature center
             dlat = lat - moon_feature.lat
             dlon = lon - moon_feature.lon
-            # Simple approximation for small angles
-            # Use cos(lat) correction for longitude
-            cos_lat = np.cos(np.radians(moon_feature.lat))
-            angular_dist = np.sqrt(dlat**2 + (dlon * cos_lat)**2)
+            angular_dist = np.sqrt(dlat**2 + (dlon * moon_feature.cos_lat)**2)
             
             # Check if within feature's angular radius (half of angular size)
             if angular_dist <= moon_feature.angle / 2:

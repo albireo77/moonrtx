@@ -50,6 +50,7 @@ def load_moon_features(filepath: str) -> list:
                             lat=float(lat_str),
                             lon=float(lon_str),
                             angle=float(angle_str),
+                            cos_lat=np.cos(np.radians(float(lat_str))),
                             standard_label=standard_label,
                             spot_label=spot_label,
                             status_bar=status_bar
