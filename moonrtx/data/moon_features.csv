@@ -324,8 +324,11 @@ Strabo:61.9:54.3:1.8:false:false:true
 De La Rue:59.1:52.3:4.6:false:false:true
 Endymion:53.6:56.5:4.0:false:false:true
 Atlas:46.7:44.4:2.9:false:false:true
+Atlas A:45.3:49.6:0.73:false:false:true
+Keldysh:51.23:43.65:1.08:false:false:true
 Hercules:46.7:39.1:2.3:false:false:true
 Bürg:45.0:28.2:1.3:false:false:true
+Bürg A:46.8:33.1:0.40:false:false:true
 Eudoxus:44.3:16.3:2.2:false:false:true
 Eudoxus A:45.8:20.0:0.46:false:false:true
 Eudoxus B:45.6:17.4:0.26:false:false:true
@@ -349,6 +352,7 @@ Alexander:40.3:13.5:2.8:false:false:true
 Euctemon:76.4:-31.3:2.0:false:false:true
 Kane:63.1:26.1:1.7:false:false:true
 Baily:49.7:30.4:0.9:false:false:true
+Baily A:48.6:31.3:0.53:false:false:true
 Geminus:34.5:56.7:2.9:false:false:true
 Burckhardt:31.1:56.5:1.9:false:false:true
 Cleomedes:27.7:55.5:4.3:false:false:true
