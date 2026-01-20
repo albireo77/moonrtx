@@ -18,7 +18,7 @@ class MoonFeature(NamedTuple):
     name: str
     lat: float
     lon: float
-    angle: float
+    half_angle: float
     cos_lat: float
     size_km: float
     standard_label: bool

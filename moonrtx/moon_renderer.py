@@ -862,7 +862,7 @@ class MoonRenderer:
         
         # Calculate new camera distance based on feature size
         # Aim to have feature fill about 30% of the view
-        feature_radius_scene = feature.angle / 2 * (self.moon_radius / 90)  # Rough conversion
+        feature_radius_scene = feature.half_angle * (self.moon_radius / 90)  # Rough conversion
         current_fov = self.rt._optix.get_camera_fov(0)
         
         # Calculate distance to make feature appear at desired size
@@ -1451,14 +1451,14 @@ class MoonRenderer:
             angular_dist = np.sqrt(dlat**2 + (dlon * moon_feature.cos_lat)**2)
             
             # Check if within feature's angular radius (half of angular size)
-            if angular_dist <= moon_feature.angle / 2:
+            if angular_dist <= moon_feature.half_angle:
                 matching_features.append(moon_feature)
         
         if not matching_features:
             return None
         
         # Return the feature with the smallest angular size
-        smallest_feature = min(matching_features, key=lambda f: f.angle)
+        smallest_feature = min(matching_features, key=lambda f: f.half_angle)
         return smallest_feature
     
     def reset_camera_position(self):
