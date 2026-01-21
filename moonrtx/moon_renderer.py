@@ -1384,6 +1384,12 @@ class MoonRenderer:
         # Apply Moon rotation to segments and add to renderer
         R = self.calculate_moon_rotation()
         
+        # If view is inverted, flip the digit 180° around the radial axis at the pin position
+        # so it appears normal in the inverted view
+        if self.inverted:
+            pin_segments = [self.invert_label_segment(seg, lat, lon) for seg in pin_segments]
+            self.pins[digit] = pin_segments
+        
         for j, seg in enumerate(pin_segments):
             name = f"pin_{digit}_{j}"
             if R is not None:
