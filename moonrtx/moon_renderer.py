@@ -134,7 +134,7 @@ def run_renderer(dt_local: datetime,
     print("  1-9 - Create/Remove pin (when pins are ON)")
     print("  R - Reset view to initial state")
     print("  V - Reset view to that based on ephemeris (useful after starting with --init-view parameter)")
-    print("  C - Center view on point under cursor")
+    print("  C - Center and fix view on point under cursor")
     print("  F - Search for Moon features (craters, mounts etc.)")
     print("  Arrows - Navigate view")
     print("  F12 - Save image")
