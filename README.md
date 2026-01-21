@@ -49,6 +49,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ![Plato](images/plato.jpg)
 ![Grid](images/grid.jpg)
 ![Timocharis](images/timocharis.jpg)
+![Rima Hesiodus](images/rima_hesiodus.jpg)
 
 
 
