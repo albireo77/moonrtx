@@ -1767,9 +1767,12 @@ class MoonRenderer:
         # where north pole is +Z and prime meridian faces -Y
         hit_pos = np.array([hx, hy, hz])
         
-        # Normalize to unit sphere (Moon surface)
+        # Check if hit is on the Moon surface
+        # Moon radius is 10, with displacement it can vary slightly
+        # Accept hits within a reasonable range around the Moon radius
         r = np.linalg.norm(hit_pos)
-        if r < 0.1:  # Too close to origin, not a valid hit
+        if r < self.moon_radius * 0.9 or r > self.moon_radius * 1.15:
+            # Hit is not on Moon surface (too close to origin or too far - e.g., background)
             return None, None
         
         hit_normalized = hit_pos / r
