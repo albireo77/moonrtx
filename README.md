@@ -48,6 +48,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ## Screens
 ![Plato](images/plato.jpg)
 ![Grid](images/grid.jpg)
+![Mare Imbrium](images/mare_imbrium.jpg)
 
 
 
