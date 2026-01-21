@@ -395,8 +395,8 @@ class MoonRenderer:
         # Load data
         self.elevation = load_elevation_data(elevation_file, downscale)
         self.color_data = load_color_data(color_file, self.gamma)
-        # Sort features by half_angle (smallest first) for efficient lookup in find_feature_at()
-        self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.half_angle)
+        # Sort features by angular_radius (smallest first) for efficient lookup in find_feature_at()
+        self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
         self.app_name = app_name
@@ -873,7 +873,7 @@ class MoonRenderer:
         
         # Calculate new camera distance based on feature size
         # Aim to have feature fill about 30% of the view
-        feature_radius_scene = feature.half_angle * (self.moon_radius / 90)  # Rough conversion
+        feature_radius_scene = feature.angular_radius * (self.moon_radius / 90)  # Rough conversion
         current_fov = self.rt._optix.get_camera_fov(0)
         
         # Calculate distance to make feature appear at desired size
@@ -1549,7 +1549,7 @@ class MoonRenderer:
         When multiple features overlap at the given position, returns the
         feature with the smallest angular size (most specific feature).
         
-        Since moon_features is sorted by half_angle (smallest first),
+        Since moon_features is sorted by angular_radius (smallest first),
         the first match is guaranteed to be the smallest feature.
         
         Parameters
@@ -1570,9 +1570,9 @@ class MoonRenderer:
             dlon = lon - moon_feature.lon
             angular_dist = np.sqrt(dlat**2 + (dlon * moon_feature.cos_lat)**2)
             
-            # Check if within feature's angular radius (half of angular size)
+            # Check if within feature's angular radius (half of angular diameter)
             # First match is smallest due to sorted order - early exit
-            if angular_dist <= moon_feature.half_angle:
+            if angular_dist <= moon_feature.angular_radius:
                 return moon_feature
         
         return None

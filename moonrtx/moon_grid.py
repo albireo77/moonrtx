@@ -454,7 +454,7 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
             continue
         
         label_text = "< " + moon_feature.name
-        label_lon = moon_feature.lon + moon_feature.half_angle * 2
+        label_lon = moon_feature.lon + moon_feature.angular_radius * 2
         label_lat = moon_feature.lat
         
         label_segments = create_text_on_sphere(

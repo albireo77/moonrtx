@@ -1,5 +1,5 @@
 # Lunar Features Database
-# Format: name:latitude:longitude:angular size (central angle) on Moon surface:standard label:spot label:statusbar
+# Format: name:latitude:longitude:angular diameter on Moon surface:standard label:spot label:statusbar
 
 # === MARIA (Lunar Seas) ===
 Mare Tranquillitatis:8.5:31.4:28.8:true:false:false
