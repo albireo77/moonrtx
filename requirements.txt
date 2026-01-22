@@ -1,4 +1,4 @@
 numpy
 opencv_python_headless
-plotoptix==0.18.4
-pymeeus==0.5.12
+plotoptix>=0.18.4
+pymeeus>=0.5.12

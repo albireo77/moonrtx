@@ -123,6 +123,14 @@ def check_color_file() -> bool:
             return False
     return True
 
+def check_gpu_architecture() -> bool:
+    try:
+        gpu_arch = get_gpu_architecture()
+        return gpu_arch is not None and gpu_arch.value >= GpuArchitecture.Compute_75.value
+    except ValueError:
+        print("WARNING: Unrecognized GPU RTX architecture")
+        return True
+    
 def get_date_time_local(time_iso: str):
     if time_iso.endswith("Z"):
         time_iso = time_iso.replace("Z", "+00:00")
@@ -271,8 +279,7 @@ def main():
         print("Invalid downscale factor. Must be a positive integer.")
         sys.exit(1)
 
-    gpu_arch = get_gpu_architecture()
-    if gpu_arch is None or gpu_arch.value < GpuArchitecture.Compute_75.value:
+    if not check_gpu_architecture():
         print("No RTX GPU found.")
         sys.exit(1)
 
