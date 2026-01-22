@@ -3,7 +3,8 @@ MoonRTX is ray-traced, ultra-realistic Moon observatory developed in Python. It 
 
 ## Requirements
 - Python
-- NVIDIA RTX graphics card
+- pip (Python package manager)
+- NVIDIA RTX graphics card with installed NVIDIA drivers
 
 ## Install
 ```bash
