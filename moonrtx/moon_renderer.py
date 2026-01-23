@@ -139,8 +139,8 @@ def run_renderer(dt_local: datetime,
     print("  Arrows - Navigate view")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
-    print("  Hold shift + left mouse button and drag up/down - Zoom out/in")
-    print("  Mouse wheel up/down - Zoom in/out")
+    print("  Hold shift + left mouse button and drag up/down - Zoom out/in (more reliable)")
+    print("  Mouse wheel up/down - Zoom in/out (less reliable)")
     print("  Hold and drag right mouse button - Rotate Moon around the eye")
     print("  Hold shift + right mouse button and drag up/down - Move eye backward/forward")
     
