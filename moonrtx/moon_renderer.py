@@ -198,9 +198,8 @@ def run_renderer(dt_local: datetime,
                 lat, lon = moon_renderer.hit_to_selenographic(hx, hy, hz)
                 if lat is not None and lon is not None:
                     # Check if hovering over a named feature
-                    feature = moon_renderer.find_feature_at(lat, lon)
-                    feature_name = feature.name if feature is not None and feature.status_bar else ""
-                    feature_column = f"{feature_name} (size = {feature.size_km:.1f} km)" if feature_name else ""
+                    feature = moon_renderer.find_feature_for_status_bar(lat, lon)
+                    feature_column = f"{feature.name} (size = {feature.size_km:.1f} km)" if feature is not None else ""
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
                     coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
@@ -395,7 +394,7 @@ class MoonRenderer:
         # Load data
         self.elevation = load_elevation_data(elevation_file, downscale)
         self.color_data = load_color_data(color_file, self.gamma)
-        # Sort features by angular_radius (smallest first) for efficient lookup in find_feature_at()
+        # Sort features by angular_radius (smallest first) for efficient lookup in find_feature_for_status_bar()
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
@@ -1548,9 +1547,9 @@ class MoonRenderer:
         new_up = [0, 0, -1] if self.inverted else [0, 0, 1]
         self.rt.setup_camera("cam1", up=new_up)
     
-    def find_feature_at(self, lat: float, lon: float) -> Optional[MoonFeature]:
+    def find_feature_for_status_bar(self, lat: float, lon: float) -> Optional[MoonFeature]:
         """
-        Find a Moon feature at the given selenographic coordinates.
+        Find a Moon feature by the given selenographic coordinates to be displayed on status bar.
         
         When multiple features overlap at the given position, returns the
         feature with the smallest angular size (most specific feature).
@@ -1571,6 +1570,8 @@ class MoonRenderer:
             Moon feature if found, None otherwise
         """
         for moon_feature in self.moon_features:
+            if not moon_feature.status_bar:
+                continue
             # Calculate angular distance from feature center
             dlat = lat - moon_feature.lat
             dlon = lon - moon_feature.lon
