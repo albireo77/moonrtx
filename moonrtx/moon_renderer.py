@@ -4,23 +4,17 @@ import struct
 import base64
 import tkinter as tk
 from tkinter import filedialog
-from typing import NamedTuple
+from typing import NamedTuple, Optional
+from datetime import datetime, timezone
 from numpy.typing import NDArray
 
-from typing import Optional
-from datetime import datetime
-from datetime import timezone
-
-from moonrtx.shared_types import MoonEphemeris
-from moonrtx.shared_types import MoonFeature
-from moonrtx.shared_types import CameraParams
+from moonrtx.shared_types import MoonEphemeris, MoonFeature, CameraParams
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels, create_single_digit_on_sphere
 
 from plotoptix import TkOptiX
-from plotoptix.materials import m_diffuse
-from plotoptix.materials import m_flat
+from plotoptix.materials import m_diffuse, m_flat
 
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)

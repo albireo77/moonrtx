@@ -8,8 +8,7 @@ import base64
 import urllib.request
 import plotoptix
 from datetime import datetime
-from typing import NamedTuple
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
