@@ -33,6 +33,25 @@ class Scene(NamedTuple):
     up: NDArray
     light_pos: NDArray
 
+def _rot_x(angle_deg: float) -> NDArray:
+    """Rotation matrix around X axis."""
+    a = np.radians(angle_deg)
+    c, s = np.cos(a), np.sin(a)
+    return np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
+
+
+def _rot_y(angle_deg: float) -> NDArray:
+    """Rotation matrix around Y axis."""
+    a = np.radians(angle_deg)
+    c, s = np.cos(a), np.sin(a)
+    return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+
+
+def _rot_z(angle_deg: float) -> NDArray:
+    """Rotation matrix around Z axis."""
+    a = np.radians(angle_deg)
+    c, s = np.cos(a), np.sin(a)
+    return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
 
 def encode_camera_params(eye: list, target: list, up: list, fov: float) -> str:
     """
@@ -217,19 +236,19 @@ def run_renderer(dt_local: datetime,
     return moon_renderer.rt
 
 def calculate_rotation(z: float, x: float, y: float):
-    def rot_x(angle_deg):
-        a = np.radians(angle_deg)
-        c, s = np.cos(a), np.sin(a)
-        return np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
-    def rot_y(angle_deg):
-        a = np.radians(angle_deg)
-        c, s = np.cos(a), np.sin(a)
-        return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
-    def rot_z(angle_deg):
-        a = np.radians(angle_deg)
-        c, s = np.cos(a), np.sin(a)
-        return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
-    return rot_y(y) @ rot_x(x) @ rot_z(z)
+    """Calculate combined rotation matrix by applying rotations in order: Z, X, Y.
+    
+    Parameters
+    ----------
+    z, x, y : float
+        Rotation angles in degrees
+        
+    Returns
+    -------
+    NDArray
+        Combined rotation matrix
+    """
+    return _rot_y(y) @ _rot_x(x) @ _rot_z(z)
 
 def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) -> dict:
     """
