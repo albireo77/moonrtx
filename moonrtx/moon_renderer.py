@@ -140,6 +140,7 @@ def run_renderer(dt_local: datetime,
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
     print("  Hold shift + left mouse button and drag up/down - Zoom out/in")
+    print("  Mouse wheel up/down - Zoom in/out")
     print("  Hold and drag right mouse button - Rotate Moon around the eye")
     print("  Hold shift + right mouse button and drag up/down - Move eye backward/forward")
     
@@ -211,6 +212,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.rt._status_action_text.set(status_text)
     
     moon_renderer.rt._gui_motion = custom_motion_handler
+    
     moon_renderer.start()
     return moon_renderer.rt
 
@@ -468,7 +470,14 @@ class MoonRenderer:
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
+                # Bind mouse wheel for zoom
+                if hasattr(rt, '_canvas'):
+                    rt._canvas.bind('<MouseWheel>', self._mouse_wheel_handler)
             rt._root.after_idle(init_window)
+    
+    def _mouse_wheel_handler(self, event):
+        """Handle mouse wheel events for zooming."""
+        self.zoom_with_wheel(event)
         
     def setup_renderer(self):
         """Initialize the PlotOptiX renderer."""
@@ -1837,3 +1846,33 @@ class MoonRenderer:
         update_nested_segments(self.moon_grid.lat_labels, "grid_lat_label")
         update_nested_segments(self.moon_grid.lon_labels, "grid_lon_label")
         update_lines(self.moon_grid.N, "grid_north_label")
+    
+    def zoom_with_wheel(self, event):
+        """
+        Zoom in/out using mouse wheel.
+        
+        Parameters
+        ----------
+        event : tk.Event
+            Mouse wheel event. event.delta indicates scroll direction:
+            positive = scroll up = zoom in, negative = scroll down = zoom out
+        """
+        if self.rt is None:
+            return
+        
+        # Get current FOV
+        current_fov = self.rt._optix.get_camera_fov(0)  # 0 is current camera
+        
+        # Calculate zoom factor based on wheel delta
+        # On Windows, delta is typically ±120 per notch
+        # Positive delta = scroll up = zoom in = decrease FOV
+        # Negative delta = scroll down = zoom out = increase FOV
+        zoom_factor = 1 - (event.delta / 120) * 0.05  # 5% per notch
+        
+        # Apply zoom by changing FOV
+        new_fov = current_fov * zoom_factor
+        
+        # Clamp FOV to reasonable range
+        new_fov = max(1, min(90, new_fov))
+        
+        self.rt._optix.set_camera_fov(new_fov)

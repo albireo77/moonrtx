@@ -43,6 +43,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **F12** - Save image  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
 **Hold shift + left mouse button and drag up/down** - Zoom out/in  
+**Mouse wheel up/down** - Zoom in/out  
 **Hold and drag right mouse button** - Rotate Moon around the eye  
 **Hold shift + right mouse button and drag up/down** - Move eye backward/forward  
 
