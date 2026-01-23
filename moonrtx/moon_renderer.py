@@ -19,7 +19,13 @@ from plotoptix.materials import m_diffuse, m_flat
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 SUN_RADIUS = 10             # affects Moon surface illumination
+MOON_RADIUS = 10
 PIN_COLOR = [1.0, 0.0, 0.0]
+GRID_LINE_RADIUS = 0.006    # Thin lines for grid
+GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
+STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
+SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
+PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
 
 class Scene(NamedTuple):
     eye: NDArray
@@ -266,8 +272,7 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) ->
     dict
         Camera eye position, target, up vector, and light position
     """
-    moon_radius = 10
-    camera_distance = moon_radius * (zoom / 100)
+    camera_distance = MOON_RADIUS * (zoom / 100)
     
     # Camera setup - looking along +Y axis toward Moon at origin
     camera_eye = np.array([0, -camera_distance, 0])
@@ -584,9 +589,8 @@ class MoonRenderer:
         # Calculate FOV so moon fills MOON_FILL_FRACTION (90%) of window height
         # Moon diameter = 2 * moon_radius, visible_height = diameter / fill_fraction
         # FOV = 2 * atan(visible_height / (2 * camera_distance))
-        moon_radius = 10  # Same as in set_data("moon", ...)
-        camera_distance = moon_radius * (zoom / 100)
-        moon_diameter = 2 * moon_radius
+        camera_distance = MOON_RADIUS * (zoom / 100)
+        moon_diameter = 2 * MOON_RADIUS
         visible_height = moon_diameter / MOON_FILL_FRACTION
         fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
         fov = max(1, min(90, fov))  # Clamp to valid range
@@ -961,40 +965,36 @@ class MoonRenderer:
         m_grid = m_flat.copy()
         self.rt.update_material("grid_material", m_grid)
         
-        # Line thickness (thin lines)
-        line_radius = 0.006
-        
         # Add latitude lines
         for i, points in enumerate(self.moon_grid.lat_lines):
             name = f"grid_lat_{i}"
-            self.rt.set_data(name, pos=points, r=line_radius, 
+            self.rt.set_data(name, pos=points, r=GRID_LINE_RADIUS, 
                             c=GRID_COLOR, geom="BezierChain", mat="grid_material")
         
         # Add longitude lines
         for i, points in enumerate(self.moon_grid.lon_lines):
             name = f"grid_lon_{i}"
-            self.rt.set_data(name, pos=points, r=line_radius,
+            self.rt.set_data(name, pos=points, r=GRID_LINE_RADIUS,
                             c=GRID_COLOR, geom="BezierChain", mat="grid_material")
         
         # Add latitude labels
-        label_radius = 0.012
         for i, segments in enumerate(self.moon_grid.lat_labels):
             for j, seg in enumerate(segments):
                 name = f"grid_lat_label_{i}_{j}"
-                self.rt.set_data(name, pos=seg, r=label_radius,
+                self.rt.set_data(name, pos=seg, r=GRID_LABEL_RADIUS,
                                 c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         # Add longitude labels
         for i, segments in enumerate(self.moon_grid.lon_labels):
             for j, seg in enumerate(segments):
                 name = f"grid_lon_label_{i}_{j}"
-                self.rt.set_data(name, pos=seg, r=label_radius,
+                self.rt.set_data(name, pos=seg, r=GRID_LABEL_RADIUS,
                                 c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         # Add north pole "N" label
         for j, seg in enumerate(self.moon_grid.N):
             name = f"grid_north_label_{j}"
-            self.rt.set_data(name, pos=seg, r=label_radius,
+            self.rt.set_data(name, pos=seg, r=GRID_LABEL_RADIUS,
                             c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         self.moon_grid_visible = True
@@ -1019,7 +1019,7 @@ class MoonRenderer:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        line_radius = 0.015 if visible else 0.0
+        line_radius = GRID_LINE_RADIUS if visible else 0.0
         
         for i in range(len(self.moon_grid.lat_lines)):
             name = f"grid_lat_{i}"
@@ -1036,7 +1036,7 @@ class MoonRenderer:
                 pass
         
         # Toggle label visibility
-        label_radius = 0.012 if visible else 0.0
+        label_radius = GRID_LABEL_RADIUS if visible else 0.0
         
         for i, segments in enumerate(self.moon_grid.lat_labels):
             for j in range(len(segments)):
@@ -1090,7 +1090,7 @@ class MoonRenderer:
         self.rt.update_material("standard_label_material", m_label)
         
         # Line thickness for labels
-        label_radius = 0.008
+        label_radius = STANDARD_LABEL_RADIUS
         
         # Color for standard labels (white/light gray for visibility)
         label_color = [0.85, 0.85, 0.85]
@@ -1134,7 +1134,7 @@ class MoonRenderer:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        label_radius = 0.008 if visible else 0.0
+        label_radius = STANDARD_LABEL_RADIUS if visible else 0.0
         
         for i, standard_label in enumerate(self.standard_labels):
             for j in range(len(standard_label)):
@@ -1173,7 +1173,7 @@ class MoonRenderer:
         self.rt.update_material("spot_label_material", m_label)
         
         # Line thickness for labels
-        label_radius = 0.008
+        label_radius = SPOT_LABEL_RADIUS
         
         # Color for spot labels (yellow/gold for visibility)
         label_color = [1.0, 0.9, 0.3]
@@ -1217,7 +1217,7 @@ class MoonRenderer:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        label_radius = 0.008 if visible else 0.0
+        label_radius = SPOT_LABEL_RADIUS if visible else 0.0
         
         for i, spot_label in enumerate(self.spot_labels):
             for j in range(len(spot_label)):
@@ -1400,7 +1400,7 @@ class MoonRenderer:
         self.rt.update_material("pin_material", m_pin)
         
         # Line thickness for pins
-        pin_radius = 0.012
+        pin_radius = PIN_LABEL_RADIUS
         
         # Apply Moon rotation to segments and add to renderer
         R = self.calculate_moon_rotation()
@@ -1503,7 +1503,7 @@ class MoonRenderer:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        pin_radius = 0.012 if visible else 0.0
+        pin_radius = PIN_LABEL_RADIUS if visible else 0.0
         
         for digit, pin_segments in self.pins.items():
             for j in range(len(pin_segments)):
