@@ -1820,6 +1820,51 @@ class MoonRenderer:
         
         return lat, lon
     
+    def _update_grid_lines(self, rt: TkOptiX, R: NDArray, lines, prefix: str):
+        """Update grid lines to match current Moon orientation.
+        
+        Parameters
+        ----------
+        rt : TkOptiX
+            Renderer instance
+        R : NDArray
+            Rotation matrix
+        lines : list
+            List of line point arrays
+        prefix : str
+            Name prefix for the geometry objects
+        """
+        for i, orig_points in enumerate(lines):
+            name = f"{prefix}_{i}"
+            rotated = (R @ orig_points.T).T
+            try:
+                rt.update_data(name, pos=rotated)
+            except:
+                pass
+    
+    def _update_grid_nested_segments(self, rt: TkOptiX, R: NDArray, segments_list, prefix: str):
+        """Update nested grid segments to match current Moon orientation.
+        
+        Parameters
+        ----------
+        rt : TkOptiX
+            Renderer instance
+        R : NDArray
+            Rotation matrix
+        segments_list : list
+            List of segment lists
+        prefix : str
+            Name prefix for the geometry objects
+        """
+        for i, segments in enumerate(segments_list):
+            for j, orig_seg in enumerate(segments):
+                name = f"{prefix}_{i}_{j}"
+                rotated = (R @ orig_seg.T).T
+                try:
+                    rt.update_data(name, pos=rotated)
+                except:
+                    pass
+    
     def update_moon_grid_orientation(self):
         """
         Update grid lines to match current Moon orientation.
@@ -1835,30 +1880,11 @@ class MoonRenderer:
         if R is None:
             return
         
-        def update_lines(lines, prefix):
-            for i, orig_points in enumerate(lines):
-                name = f"{prefix}_{i}"
-                rotated = (R @ orig_points.T).T
-                try:
-                    self.rt.update_data(name, pos=rotated)
-                except:
-                    pass
-        
-        def update_nested_segments(segments_list, prefix):
-            for i, segments in enumerate(segments_list):
-                for j, orig_seg in enumerate(segments):
-                    name = f"{prefix}_{i}_{j}"
-                    rotated = (R @ orig_seg.T).T
-                    try:
-                        self.rt.update_data(name, pos=rotated)
-                    except:
-                        pass
-        
-        update_lines(self.moon_grid.lat_lines, "grid_lat")
-        update_lines(self.moon_grid.lon_lines, "grid_lon")
-        update_nested_segments(self.moon_grid.lat_labels, "grid_lat_label")
-        update_nested_segments(self.moon_grid.lon_labels, "grid_lon_label")
-        update_lines(self.moon_grid.N, "grid_north_label")
+        self._update_grid_lines(self.rt, R, self.moon_grid.lat_lines, "grid_lat")
+        self._update_grid_lines(self.rt, R, self.moon_grid.lon_lines, "grid_lon")
+        self._update_grid_nested_segments(self.rt, R, self.moon_grid.lat_labels, "grid_lat_label")
+        self._update_grid_nested_segments(self.rt, R, self.moon_grid.lon_labels, "grid_lon_label")
+        self._update_grid_lines(self.rt, R, self.moon_grid.N, "grid_north_label")
     
     def zoom_with_wheel(self, event):
         """
