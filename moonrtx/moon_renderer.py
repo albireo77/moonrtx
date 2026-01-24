@@ -227,8 +227,13 @@ def run_renderer(dt_local: datetime,
             
             # Build status: coordinates first (fixed width), then feature name (fixed width), then pin mode
             pin_mode = "ON" if moon_renderer.pins_visible else "OFF"
-            status_text = f"{coord_column:<32}{feature_column:<40.40}  [Pins {pin_mode}]"
             
+            # Add warning if Moon is below horizon
+            horizon_warning = ""
+            if moon_renderer.moon_ephem is not None and moon_renderer.moon_ephem.alt < 0:
+                horizon_warning = "⚠ MOON BELOW HORIZON"
+            
+            status_text = f"{horizon_warning:<25}{coord_column:<32}{feature_column:<40.40}  [Pins {pin_mode}]"
             moon_renderer.rt._status_action_text.set(status_text)
     
     moon_renderer.rt._gui_motion = custom_motion_handler
@@ -485,7 +490,7 @@ class MoonRenderer:
                 # Set monospace font for status bar to prevent text shifting
                 # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=85)
+                    rt._status_action.configure(font=("Consolas", 9), width=110)
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
@@ -1524,7 +1529,7 @@ class MoonRenderer:
             else:
                 # Append pin mode if not present
                 pin_mode = "ON" if visible else "OFF"
-                new_status = f"{current_status:72}  [Pins {pin_mode}]"
+                new_status = f"{current_status:<97.97}  [Pins {pin_mode}]"
             self.rt._status_action_text.set(new_status)
     
     def toggle_pins(self):
