@@ -292,7 +292,7 @@ def main():
         sys.exit(1)
 
     print()
-    print("Using PlotOptiX version:", plotoptix.__version__)
+    print("Used PlotOptiX version:", plotoptix.__version__)
     print("Starting renderer with parameters:")
     print(f"  Geographical Location: Lat {lat}°, Lon {lon}°")
     print(f"  Local Time: {dt_local}")
