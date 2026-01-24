@@ -1529,7 +1529,7 @@ class MoonRenderer:
             else:
                 # Append pin mode if not present
                 pin_mode = "ON" if visible else "OFF"
-                new_status = f"{current_status:<97.97}  [Pins {pin_mode}]"
+                new_status = f"{current_status}  [Pins {pin_mode}]"
             self.rt._status_action_text.set(new_status)
     
     def toggle_pins(self):
