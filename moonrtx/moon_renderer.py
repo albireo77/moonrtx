@@ -561,9 +561,6 @@ class MoonRenderer:
         self.observer_lat = lat
         self.observer_lon = lon
         
-        if self.moon_ephem.alt < 0:
-            print(f"Warning: Moon is below horizon (altitude: {self.moon_ephem.alt:.1f}°)")
-        
         scene = calculate_camera_and_light(self.moon_ephem, zoom)
 
         R = self.calculate_moon_rotation()
@@ -929,7 +926,7 @@ class MoonRenderer:
         
         eph = self.moon_ephem
         return (f"Moon topocentric ephemeris:\n"
-                f"  Altitude: {eph.alt:.2f}°\n"
+                f"  Altitude: {eph.alt:.2f}° {'(below horizon)' if eph.alt < 0 else ''}\n"
                 f"  Azimuth: {eph.az:.2f}°\n"
                 f"  RA: {eph.ra:.2f}°\n"
                 f"  DEC: {eph.dec:.2f}°\n"
