@@ -606,12 +606,12 @@ class MoonRenderer:
                              focal_scale=0.7,
                              fov=fov)
         
-        # Store initial camera parameters for reset functionality
-        if self.initial_camera_params is None:
-            self.initial_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=camera_up.tolist(), fov=fov)
-        
         # Always store default camera params (the view calculated from ephemeris)
         self.default_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=camera_up.tolist(), fov=fov)
+
+        # Store initial camera parameters for reset functionality
+        if self.initial_camera_params is None:
+            self.initial_camera_params = self.default_camera_params
         
         # Light intensity based on phase - full moon is brighter
         # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
