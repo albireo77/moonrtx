@@ -26,6 +26,7 @@ GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
 STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
 SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
 PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
+CAMERA_TYPE = "Pinhole"
 
 class Scene(NamedTuple):
     eye: NDArray
@@ -599,7 +600,7 @@ class MoonRenderer:
         camera_up = scene.up if not self.inverted else -scene.up
         
         self.rt.setup_camera("cam1",
-                             cam_type="Pinhole",
+                             cam_type=CAMERA_TYPE,
                              eye=scene.eye.tolist(),
                              target=scene.target.tolist(),
                              up=camera_up.tolist(),
@@ -1597,6 +1598,8 @@ class MoonRenderer:
             # Calculate angular distance from feature center
             dlat = lat - moon_feature.lat
             dlon = lon - moon_feature.lon
+            # Simple approximation for small angles
+            # Use cos_lat correction for longitude
             angular_dist2 = dlat**2 + (dlon * moon_feature.cos_lat)**2
             
             # Check if within feature's angular radius (half of angular diameter)
