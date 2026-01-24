@@ -430,6 +430,7 @@ class MoonRenderer:
         self.rt = None
         self.moon_ephem = None
         self.moon_rotation = None
+        self.moon_rotation_inv = None
         
         # Grid settings
         self.moon_grid_visible = False
@@ -445,10 +446,6 @@ class MoonRenderer:
         # Default camera parameters calculated from ephemeris (for reset with V key)
         # This is the view without any --init-view override
         self.default_camera_params = None
-        
-        # Moon rotation matrix and its inverse (for selenographic coord conversion)
-        self.moon_rotation_matrix = None
-        self.moon_rotation_matrix_inv = None
         
         # Flag to track if window has been maximized
         self._window_maximized = False
@@ -562,6 +559,7 @@ class MoonRenderer:
         dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(dt_utc, lat, lon)
         self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
+        self.moon_rotation_inv = self.moon_rotation.T  # For orthogonal matrices, inverse = transpose
         self.moon_ephem = eph
         
         # Store view parameters for filename generation
@@ -571,12 +569,6 @@ class MoonRenderer:
         
         scene = calculate_camera_and_light(self.moon_ephem, zoom)
 
-        R = self.moon_rotation
-        
-        # Store rotation matrix and its inverse for selenographic coordinate conversion
-        self.moon_rotation_matrix = R
-        self.moon_rotation_matrix_inv = R.T  # For orthogonal matrices, inverse = transpose
-
         # The u,v vectors define how the texture is mapped onto the sphere
         # u = north pole direction
         # v = longitude 0° direction (orthogonalized to u)
@@ -585,8 +577,8 @@ class MoonRenderer:
         # - Moon's prime meridian (lon=0) faces toward -Y (toward camera)
         # - u = [0, 0, 1] (north pole)
         # - v = [0, -1, 0] (prime meridian faces -Y)
-        u_new = R @ np.array([0.0, 0.0, 1.0])
-        v_new = R @ np.array([0.0, -1.0, 0.0])
+        u_new = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
+        v_new = self.moon_rotation @ np.array([0.0, -1.0, 0.0])
 
         # Update Moon geometry with new orientation
         self.rt.update_data("moon", u=u_new.tolist(), v=v_new.tolist())
@@ -867,7 +859,7 @@ class MoonRenderer:
         feature : MoonFeature
             The feature to center on
         """
-        if self.rt is None or self.moon_rotation_matrix is None:
+        if self.rt is None or self.moon_rotation is None:
             return
         
         # Convert selenographic coordinates to 3D position
@@ -884,7 +876,7 @@ class MoonRenderer:
         
         # Apply Moon rotation to get scene coordinates
         original_pos = np.array([x, y, z])
-        scene_pos = self.moon_rotation_matrix @ original_pos
+        scene_pos = self.moon_rotation @ original_pos
         
         # Get current camera
         cam = self.rt.get_camera("cam1")
@@ -1779,7 +1771,7 @@ class MoonRenderer:
         tuple
             (latitude, longitude) in degrees, or (None, None) if not on Moon
         """
-        if self.moon_rotation_matrix_inv is None:
+        if self.moon_rotation_inv is None:
             return None, None
         
         # The hit position is on the rotated Moon surface
@@ -1798,7 +1790,7 @@ class MoonRenderer:
         hit_normalized = hit_pos / r
         
         # Transform back to original Moon coordinates
-        original_pos = self.moon_rotation_matrix_inv @ hit_normalized
+        original_pos = self.moon_rotation_inv @ hit_normalized
         
         # Convert to selenographic coordinates
         # In original coordinates:
