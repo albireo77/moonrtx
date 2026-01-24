@@ -241,7 +241,7 @@ def run_renderer(dt_local: datetime,
     moon_renderer.start()
     return moon_renderer.rt
 
-def calculate_rotation(z: float, x: float, y: float):
+def calculate_rotation(z: float, x: float, y: float) -> NDArray:
     """Calculate combined rotation matrix by applying rotations in order: Z, X, Y.
     
     Parameters
@@ -429,6 +429,7 @@ class MoonRenderer:
         # Renderer
         self.rt = None
         self.moon_ephem = None
+        self.moon_rotation = None
         
         # Grid settings
         self.moon_grid_visible = False
@@ -559,7 +560,9 @@ class MoonRenderer:
         """
 
         dt_utc = dt_local.astimezone(timezone.utc)
-        self.moon_ephem = calculate_moon_ephemeris(dt_utc, lat, lon)
+        eph = calculate_moon_ephemeris(dt_utc, lat, lon)
+        self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
+        self.moon_ephem = eph
         
         # Store view parameters for filename generation
         self.dt_local = dt_local
@@ -568,7 +571,7 @@ class MoonRenderer:
         
         scene = calculate_camera_and_light(self.moon_ephem, zoom)
 
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
         
         # Store rotation matrix and its inverse for selenographic coordinate conversion
         self.moon_rotation_matrix = R
@@ -630,17 +633,6 @@ class MoonRenderer:
         # Update standard labels orientation if visible
         if self.standard_labels_visible:
             self.update_standard_labels_orientation()
-
-    def calculate_moon_rotation(self):
-        if self.moon_ephem is None:
-            return None
-        # Apply rotations in order: first -longitude (Z), then latitude (X), finally pa_view (Y)
-        # Matrix multiplication is right-to-left, so rightmost is applied first
-        return calculate_rotation(
-            -self.moon_ephem.libr_long,
-            self.moon_ephem.libr_lat,
-            self.moon_ephem.pa_axis_view
-        )
         
     def start(self):
         """Start the renderer."""
@@ -1099,7 +1091,7 @@ class MoonRenderer:
         label_color = [0.85, 0.85, 0.85]
         
         # Get Moon rotation matrix
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
         
         # Add each label's segments with rotation and inversion applied
         for i, standard_label in enumerate(self.standard_labels):
@@ -1182,7 +1174,7 @@ class MoonRenderer:
         label_color = [1.0, 0.9, 0.3]
         
         # Get Moon rotation matrix
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
         
         # Add each label's segments with rotation and inversion applied
         for i, spot_label in enumerate(self.spot_labels):
@@ -1314,7 +1306,7 @@ class MoonRenderer:
         if self.rt is None or self.spot_labels is None:
             return
         
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
 
         if R is None:
             return
@@ -1347,7 +1339,7 @@ class MoonRenderer:
         if self.rt is None or self.standard_labels is None:
             return
         
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
 
         if R is None:
             return
@@ -1406,7 +1398,7 @@ class MoonRenderer:
         pin_radius = PIN_LABEL_RADIUS
         
         # Apply Moon rotation to segments and add to renderer
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
         
         # If view is inverted, flip the digit 180° around the radial axis at the pin position
         # so it appears normal in the inverted view
@@ -1546,7 +1538,7 @@ class MoonRenderer:
         if self.rt is None or not self.pins or not self.pins_visible:
             return
         
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
         
         if R is None:
             return
@@ -1880,7 +1872,7 @@ class MoonRenderer:
         if self.rt is None or self.moon_grid is None or not self.moon_grid_visible:
             return
         
-        R = self.calculate_moon_rotation()
+        R = self.moon_rotation
 
         if R is None:
             return
