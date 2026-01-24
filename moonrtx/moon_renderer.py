@@ -1609,11 +1609,10 @@ class MoonRenderer:
             return
         
         # Restore initial camera parameters
-        # Adjust up vector based on current inversion state
+        # Clear inversion so reset always returns to the original saved view
+        self.inverted = False
         up = cp.up[:]
-        if self.inverted:
-            up = [u * -1 for u in up]
-        
+
         self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
     
     def reset_to_default_view(self):
@@ -1630,11 +1629,10 @@ class MoonRenderer:
             return
         
         # Restore default camera parameters
-        # Adjust up vector based on current inversion state
+        # Clear inversion so reset always returns to the ephemeris-defined view
+        self.inverted = False
         up = cp.up[:]
-        if self.inverted:
-            up = [u * -1 for u in up]
-        
+
         self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
     
     def center_view_on_cursor(self, event):
