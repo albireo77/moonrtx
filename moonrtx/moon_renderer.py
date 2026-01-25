@@ -462,8 +462,6 @@ class MoonRenderer:
         self.labels_inverted = False
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
-        self.illuminated_standard_labels = None
-        self.illuminated_spot_labels = None
         
         # Store view parameters for filename generation
         self.dt_local = None
@@ -627,13 +625,6 @@ class MoonRenderer:
         # Update standard labels orientation if visible
         if self.standard_labels_visible:
             self.update_standard_labels_orientation()
-
-        # Determine illuminated standard features
-        candidates = [f for f in self.moon_features if f.standard_label]
-        self.illuminated_standard_labels = [f for f in candidates if self._is_feature_illuminated(f)]
-        # Determine illuminated spot features
-        candidates_spot = [f for f in self.moon_features if f.spot_label]
-        self.illuminated_spot_labels = [f for f in candidates_spot if self._is_feature_illuminated(f)]
         
     def start(self):
         """Start the renderer."""
@@ -1073,8 +1064,9 @@ class MoonRenderer:
             return
 
         # Create label geometry only for illuminated labels
+        illuminated_standard_labels = [f for f in self.moon_features if f.standard_label and self._is_feature_illuminated(f)]
         self.standard_labels = create_standard_labels(
-            self.illuminated_standard_labels,
+            illuminated_standard_labels,
             moon_radius=self.moon_radius,
             offset=0.0
         )
@@ -1151,8 +1143,9 @@ class MoonRenderer:
             return
 
         # Generate spot labels data only for illuminated labels
+        illuminated_spot_labels = [f for f in self.moon_features if f.spot_label and self._is_feature_illuminated(f)]
         self.spot_labels = create_spot_labels(
-            self.illuminated_spot_labels,
+            illuminated_spot_labels,
             moon_radius=self.moon_radius,
             offset=0.0
         )
