@@ -233,7 +233,7 @@ def run_renderer(dt_local: datetime,
             if moon_renderer.moon_ephem is not None and moon_renderer.moon_ephem.alt < 0:
                 horizon_warning = "⚠ MOON BELOW HORIZON"
             
-            status_text = f"{horizon_warning:<25}{coord_column:<32}{feature_column:<40.40}  [Pins {pin_mode}]"
+            status_text = f"{horizon_warning:<20}    {coord_column:<29}    {feature_column:<39.39}  [Pins {pin_mode}]"
             moon_renderer.rt._status_action_text.set(status_text)
     
     moon_renderer.rt._gui_motion = custom_motion_handler
