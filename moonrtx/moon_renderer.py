@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from moonrtx.shared_types import MoonEphemeris, MoonFeature, CameraParams
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
-from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels, create_single_digit_on_sphere
+from moonrtx.moon_grid import create_moon_grid, create_standard_labels_segments, create_spot_labels_segments, create_single_digit_on_sphere
 
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse, m_flat
@@ -452,18 +452,18 @@ class MoonRenderer:
         
         # Standard labels settings
         self.standard_labels_visible = False
-        self.standard_labels = None
+        self.standard_labels_segments = None
         
         # Spot labels settings
         self.spot_labels_visible = False
-        self.spot_labels = None
-        
-        # Store features used for labels (needed for inversion anchor points)
-        self.standard_label_features = None
-        self.spot_label_features = None
+        self.spot_labels_segments = None
         
         # Label inversion state (for upside down readability)
         self.labels_inverted = False
+        # Light position in scene coordinates (set on first update_view)
+        self.light_pos = None
+        self.illuminated_standard_labels = None
+        self.illuminated_spot_labels = None
         
         # Store view parameters for filename generation
         self.dt_local = None
@@ -568,6 +568,8 @@ class MoonRenderer:
         self.observer_lon = lon
         
         scene = calculate_camera_and_light(self.moon_ephem, zoom)
+        # Cache light position for label illumination decisions
+        self.light_pos = scene.light_pos
 
         # The u,v vectors define how the texture is mapped onto the sphere
         # u = north pole direction
@@ -625,6 +627,13 @@ class MoonRenderer:
         # Update standard labels orientation if visible
         if self.standard_labels_visible:
             self.update_standard_labels_orientation()
+
+        # Determine illuminated standard features
+        candidates = [f for f in self.moon_features if f.standard_label]
+        self.illuminated_standard_labels = [f for f in candidates if self._is_feature_illuminated(f)]
+        # Determine illuminated spot features
+        candidates_spot = [f for f in self.moon_features if f.spot_label]
+        self.illuminated_spot_labels = [f for f in candidates_spot if self._is_feature_illuminated(f)]
         
     def start(self):
         """Start the renderer."""
@@ -1062,12 +1071,10 @@ class MoonRenderer:
         if self.rt is None:
             print("Renderer not initialized")
             return
-        
-        # Store features used for standard labels (needed for inversion anchor points)
-        self.standard_label_features = [f for f in self.moon_features if f.standard_label]
-            
-        self.standard_labels = create_standard_labels(
-            self.moon_features,
+
+        # Create label geometry only for illuminated labels
+        self.standard_labels_segments = create_standard_labels_segments(
+            self.illuminated_standard_labels,
             moon_radius=self.moon_radius,
             offset=0.0
         )
@@ -1086,11 +1093,11 @@ class MoonRenderer:
         R = self.moon_rotation
         
         # Add each label's segments with rotation and inversion applied
-        for i, standard_label in enumerate(self.standard_labels):
+        for i, label_segments in enumerate(self.standard_labels_segments):
             # Get anchor point for this label (feature center)
-            feature = self.standard_label_features[i] if self.standard_label_features else None
+            feature = self.illuminated_standard_labels[i] if self.illuminated_standard_labels else None
             
-            for j, seg in enumerate(standard_label):
+            for j, seg in enumerate(label_segments):
                 name = f"standard_label_{i}_{j}"
                 # Apply inversion if enabled
                 if self.labels_inverted and feature is not None:
@@ -1115,7 +1122,7 @@ class MoonRenderer:
         if self.rt is None:
             return
         
-        if self.standard_labels is None:
+        if self.standard_labels_segments is None:
             if visible:
                 self.setup_standard_labels()
             return
@@ -1123,8 +1130,8 @@ class MoonRenderer:
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         label_radius = STANDARD_LABEL_RADIUS if visible else 0.0
         
-        for i, standard_label in enumerate(self.standard_labels):
-            for j in range(len(standard_label)):
+        for i, label_segments in enumerate(self.standard_labels_segments):
+            for j in range(len(label_segments)):
                 name = f"standard_label_{i}_{j}"
                 try:
                     self.rt.update_data(name, r=label_radius)
@@ -1144,13 +1151,10 @@ class MoonRenderer:
         if self.rt is None:
             print("Renderer not initialized")
             return
-        
-        # Store features used for spot labels (needed for inversion anchor points)
-        self.spot_label_features = [f for f in self.moon_features if f.spot_label]
-            
-        # Generate spot labels data
-        self.spot_labels = create_spot_labels(
-            self.moon_features,
+
+        # Generate spot labels data only for illuminated labels
+        self.spot_labels_segments = create_spot_labels_segments(
+            self.illuminated_spot_labels,
             moon_radius=self.moon_radius,
             offset=0.0
         )
@@ -1169,11 +1173,11 @@ class MoonRenderer:
         R = self.moon_rotation
         
         # Add each label's segments with rotation and inversion applied
-        for i, spot_label in enumerate(self.spot_labels):
+        for i, label_segments in enumerate(self.spot_labels_segments):
             # Get anchor point for this label (feature position)
-            feature = self.spot_label_features[i] if self.spot_label_features else None
+            feature = self.illuminated_spot_labels[i] if self.illuminated_spot_labels else None
             
-            for j, seg in enumerate(spot_label):
+            for j, seg in enumerate(label_segments):
                 name = f"spot_label_{i}_{j}"
                 # Apply inversion if enabled
                 if self.labels_inverted and feature is not None:
@@ -1198,7 +1202,7 @@ class MoonRenderer:
         if self.rt is None:
             return
         
-        if self.spot_labels is None:
+        if self.spot_labels_segments is None:
             if visible:
                 self.setup_spot_labels()
             return
@@ -1206,8 +1210,8 @@ class MoonRenderer:
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         label_radius = SPOT_LABEL_RADIUS if visible else 0.0
         
-        for i, spot_label in enumerate(self.spot_labels):
-            for j in range(len(spot_label)):
+        for i, label_segments in enumerate(self.spot_labels_segments):
+            for j in range(len(label_segments)):
                 name = f"spot_label_{i}_{j}"
                 try:
                     self.rt.update_data(name, r=label_radius)
@@ -1283,9 +1287,9 @@ class MoonRenderer:
         
         # Update both label types to reflect the new inversion state
         # Update all existing labels regardless of visibility to keep them in sync
-        if self.standard_labels is not None:
+        if self.standard_labels_segments is not None:
             self.update_standard_labels_orientation()
-        if self.spot_labels is not None:
+        if self.spot_labels_segments is not None:
             self.update_spot_labels_orientation()
     
     def update_spot_labels_orientation(self):
@@ -1295,7 +1299,7 @@ class MoonRenderer:
         This should be called after update_view() to rotate the labels
         along with the Moon surface.
         """
-        if self.rt is None or self.spot_labels is None:
+        if self.rt is None or self.spot_labels_segments is None:
             return
         
         R = self.moon_rotation
@@ -1304,11 +1308,11 @@ class MoonRenderer:
             return
         
         # Update spot labels
-        for i, spot_label in enumerate(self.spot_labels):
+        for i, label_segments in enumerate(self.spot_labels_segments):
             # Get anchor point for this label (feature position - where the arrow points)
-            feature = self.spot_label_features[i] if self.spot_label_features else None
+            feature = self.illuminated_spot_labels[i] if self.illuminated_spot_labels else None
             
-            for j, orig_seg in enumerate(spot_label):
+            for j, orig_seg in enumerate(label_segments):
                 name = f"spot_label_{i}_{j}"
                 # Apply inversion if enabled (anchor is the spot itself, not label position)
                 if self.labels_inverted and feature is not None:
@@ -1328,7 +1332,7 @@ class MoonRenderer:
         This should be called after update_view() to rotate the labels
         along with the Moon surface.
         """
-        if self.rt is None or self.standard_labels is None:
+        if self.rt is None or self.standard_labels_segments is None:
             return
         
         R = self.moon_rotation
@@ -1337,11 +1341,11 @@ class MoonRenderer:
             return
         
         # Update standard labels
-        for i, standard_label in enumerate(self.standard_labels):
+        for i, label_segments in enumerate(self.standard_labels_segments):
             # Get anchor point for this label (feature center)
-            feature = self.standard_label_features[i] if self.standard_label_features else None
+            feature = self.illuminated_standard_labels[i] if self.illuminated_standard_labels else None
             
-            for j, orig_seg in enumerate(standard_label):
+            for j, orig_seg in enumerate(label_segments):
                 name = f"standard_label_{i}_{j}"
                 # Apply inversion if enabled
                 if self.labels_inverted and feature is not None:
@@ -1806,6 +1810,54 @@ class MoonRenderer:
         lon = np.degrees(np.arctan2(x, -y))
         
         return lat, lon
+
+    def _feature_scene_position(self, feature: MoonFeature, radius: Optional[float] = None) -> np.ndarray:
+        """
+        Get the 3D scene coordinates of a feature given its selenographic coords.
+        Applies Moon rotation so result is in scene coordinates.
+        """
+        if radius is None:
+            r = self.moon_radius
+        else:
+            r = radius
+
+        lat_rad = np.radians(feature.lat)
+        lon_rad = np.radians(feature.lon)
+        x = r * np.cos(lat_rad) * np.sin(lon_rad)
+        y = -r * np.cos(lat_rad) * np.cos(lon_rad)
+        z = r * np.sin(lat_rad)
+        original_pos = np.array([x, y, z])
+        if self.moon_rotation is None:
+            return original_pos
+        return (self.moon_rotation @ original_pos)
+
+    def _is_feature_illuminated(self, feature: MoonFeature) -> bool:
+        """
+        Determine whether a feature is on the illuminated hemisphere given
+        the cached light position and current Moon rotation.
+
+        Returns True if the surface normal at the feature has positive dot
+        product with the light direction (i.e., lit by the Sun in scene coords).
+        """
+        if self.light_pos is None or self.moon_rotation is None:
+            # If we don't have light or rotation info, assume visible to avoid hiding labels
+            return True
+
+        # Position of feature on unit sphere in scene coordinates
+        pos = self._feature_scene_position(feature, radius=self.moon_radius)
+        norm = np.linalg.norm(pos)
+        if norm == 0:
+            return True
+        pos_unit = pos / norm
+
+        light = np.array(self.light_pos)
+        light_norm = np.linalg.norm(light)
+        if light_norm == 0:
+            return True
+        light_unit = light / light_norm
+
+        # If dot > 0 => angle < 90° between normal and light direction => illuminated
+        return float(np.dot(pos_unit, light_unit)) > 0.0
     
     def _update_grid_lines(self, rt: TkOptiX, R: NDArray, lines, prefix: str):
         """Update grid lines to match current Moon orientation.

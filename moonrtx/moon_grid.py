@@ -388,16 +388,16 @@ def create_centered_text_on_sphere(text: str,
     return all_segments
 
 
-def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
+def create_standard_labels_segments(standard_labels: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
     """
-    Create labels for Moon features marked with standard label
+    Create standard labels
     
     The label is centered at the feature's (latitude, longitude) position.
     
     Parameters
     ----------
-    moon_features : list
-        List of Moon features
+    standard_labels : list
+        List of standard labels
     moon_radius : float
         Radius of the Moon sphere
     offset : float
@@ -406,36 +406,33 @@ def create_standard_labels(moon_features: list, moon_radius: float = 10.0, offse
     Returns
     -------
     list
-        List of standard labels
+        List of standard labels segments.
     """
-    standard_labels = []
+    standard_labels_segments = []
     
-    for moon_feature in moon_features:
-
-        if not moon_feature.standard_label:
-            continue
+    for standard_label in standard_labels:
         
-        label_segments = create_centered_text_on_sphere(
-            text=moon_feature.name,
-            lat=moon_feature.lat, 
-            lon=moon_feature.lon,
+        standard_label_segments = create_centered_text_on_sphere(
+            text=standard_label.name,
+            lat=standard_label.lat, 
+            lon=standard_label.lon,
             moon_radius=moon_radius,
             offset=offset,
             char_scale=LABEL_CHAR_SCALE,
             spacing=0.1
         )
-        standard_labels.append(label_segments)
+        standard_labels_segments.append(standard_label_segments)
     
-    return standard_labels
+    return standard_labels_segments
 
-def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
+def create_spot_labels_segments(spot_labels: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
     """
-    Create labels for Moon features marked as spot label
+    Create spot labels
     
     Parameters
     ----------
-    moon_features : list
-        List of Moon features
+    spot_labels : list
+        List of spot labels
     moon_radius : float
         Radius of the Moon sphere
     offset : float
@@ -444,20 +441,17 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
     Returns
     -------
     list
-        List of spot labels.
+        List of spot labels segments.
     """
-    spot_labels = []
+    spot_labels_segments = []
     
-    for moon_feature in moon_features:
-
-        if not moon_feature.spot_label:
-            continue
+    for spot_label in spot_labels:
         
-        label_text = "< " + moon_feature.name
-        label_lon = moon_feature.lon + moon_feature.angular_radius * 2
-        label_lat = moon_feature.lat
+        label_text = "< " + spot_label.name
+        label_lon = spot_label.lon + spot_label.angular_radius * 2
+        label_lat = spot_label.lat
         
-        label_segments = create_text_on_sphere(
+        spot_label_segments = create_text_on_sphere(
             label_text, 
             lat=label_lat, 
             lon=label_lon,
@@ -466,9 +460,9 @@ def create_spot_labels(moon_features: list, moon_radius: float = 10.0, offset: f
             char_scale=LABEL_CHAR_SCALE,
             spacing=0.1
         )
-        spot_labels.append(label_segments)
+        spot_labels_segments.append(spot_label_segments)
     
-    return spot_labels
+    return spot_labels_segments
 
 
 def create_moon_grid(moon_radius: float = 10.0,
