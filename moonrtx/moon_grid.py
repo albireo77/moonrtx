@@ -1,6 +1,8 @@
 import numpy as np
 from typing import NamedTuple
 
+from moonrtx.shared_types import MoonLabel
+
 LABEL_CHAR_SCALE = 0.12
 PIN_DIGIT_SCALE = 0.4
 
@@ -388,7 +390,7 @@ def create_centered_text_on_sphere(text: str,
     return all_segments
 
 
-def create_standard_labels_segments(standard_labels: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
+def create_standard_labels(standard_labels: list, moon_radius: float = 10.0, offset: float = 0.0) -> list[MoonLabel]:
     """
     Create standard labels
     
@@ -406,7 +408,7 @@ def create_standard_labels_segments(standard_labels: list, moon_radius: float = 
     Returns
     -------
     list
-        List of standard labels segments.
+        List of MoonLabel objects.
     """
     standard_labels_segments = []
     
@@ -421,11 +423,12 @@ def create_standard_labels_segments(standard_labels: list, moon_radius: float = 
             char_scale=LABEL_CHAR_SCALE,
             spacing=0.1
         )
-        standard_labels_segments.append(standard_label_segments)
+        label = MoonLabel(segments=standard_label_segments, anchor_point=(standard_label.lat, standard_label.lon))
+        standard_labels_segments.append(label)
     
     return standard_labels_segments
 
-def create_spot_labels_segments(spot_labels: list, moon_radius: float = 10.0, offset: float = 0.0) -> list:
+def create_spot_labels(spot_labels: list, moon_radius: float = 10.0, offset: float = 0.0) -> list[MoonLabel]:
     """
     Create spot labels
     
@@ -441,7 +444,7 @@ def create_spot_labels_segments(spot_labels: list, moon_radius: float = 10.0, of
     Returns
     -------
     list
-        List of spot labels segments.
+        List of MoonLabel objects.
     """
     spot_labels_segments = []
     
@@ -460,7 +463,8 @@ def create_spot_labels_segments(spot_labels: list, moon_radius: float = 10.0, of
             char_scale=LABEL_CHAR_SCALE,
             spacing=0.1
         )
-        spot_labels_segments.append(spot_label_segments)
+        label = MoonLabel(segments=spot_label_segments, anchor_point=(spot_label.lat, spot_label.lon))
+        spot_labels_segments.append(label)
     
     return spot_labels_segments
 

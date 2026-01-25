@@ -30,3 +30,7 @@ class CameraParams(NamedTuple):
     target: list
     up: list
     fov: float
+
+class MoonLabel(NamedTuple):
+    segments: list[list]
+    anchor_point: tuple[float, float]
