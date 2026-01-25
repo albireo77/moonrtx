@@ -1064,9 +1064,9 @@ class MoonRenderer:
             return
 
         # Create label geometry only for illuminated labels
-        illuminated_standard_labels = [f for f in self.moon_features if f.standard_label and self._is_feature_illuminated(f)]
+        illuminated_standard_label_features = [f for f in self.moon_features if f.standard_label and self._is_feature_illuminated(f)]
         self.standard_labels = create_standard_labels(
-            illuminated_standard_labels,
+            illuminated_standard_label_features,
             moon_radius=self.moon_radius,
             offset=0.0
         )
@@ -1143,9 +1143,9 @@ class MoonRenderer:
             return
 
         # Generate spot labels data only for illuminated labels
-        illuminated_spot_labels = [f for f in self.moon_features if f.spot_label and self._is_feature_illuminated(f)]
+        illuminated_spot_label_features = [f for f in self.moon_features if f.spot_label and self._is_feature_illuminated(f)]
         self.spot_labels = create_spot_labels(
-            illuminated_spot_labels,
+            illuminated_spot_label_features,
             moon_radius=self.moon_radius,
             offset=0.0
         )
