@@ -19,7 +19,7 @@ from plotoptix.materials import m_diffuse, m_flat
 GRID_COLOR = [0.50, 0.50, 0.50]
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 SUN_RADIUS = 10             # affects Moon surface illumination
-MOON_RADIUS = 10
+MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
 PIN_COLOR = [1.0, 0.0, 0.0]
 GRID_LINE_RADIUS = 0.006    # Thin lines for grid
 GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
@@ -256,7 +256,7 @@ def calculate_rotation(z: float, x: float, y: float) -> NDArray:
     """
     return _rot_y(y) @ _rot_x(x) @ _rot_z(z)
 
-def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) -> dict:
+def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float, moon_radius: float) -> dict:
     """
     Calculate camera position and light direction for the renderer.
     
@@ -272,13 +272,15 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float = 1000) ->
         Moon ephemeris
     zoom : float
         Camera zoom factor (distance multiplier)
+    moon_radius : float
+        Radius of the Moon
         
     Returns
     -------
     dict
         Camera eye position, target, up vector, and light position
     """
-    camera_distance = MOON_RADIUS * (zoom / 100)
+    camera_distance = moon_radius * (zoom / 100)
     
     # Camera setup - looking along +Y axis toward Moon at origin
     camera_eye = np.array([0, -camera_distance, 0])
@@ -435,7 +437,7 @@ class MoonRenderer:
         # Grid settings
         self.moon_grid_visible = False
         self.moon_grid = None
-        self.moon_radius = 10.0  # Same as in set_data("moon", ...)
+        self.moon_radius = MOON_RADIUS
         
         # View inversion (upside down)
         self.inverted = False
@@ -565,7 +567,7 @@ class MoonRenderer:
         self.observer_lat = lat
         self.observer_lon = lon
         
-        scene = calculate_camera_and_light(self.moon_ephem, zoom)
+        scene = calculate_camera_and_light(self.moon_ephem, zoom, self.moon_radius)
         # Cache light position for label illumination decisions
         self.light_pos = scene.light_pos
 
@@ -587,8 +589,8 @@ class MoonRenderer:
         # Calculate FOV so moon fills MOON_FILL_FRACTION (90%) of window height
         # Moon diameter = 2 * moon_radius, visible_height = diameter / fill_fraction
         # FOV = 2 * atan(visible_height / (2 * camera_distance))
-        camera_distance = MOON_RADIUS * (zoom / 100)
-        moon_diameter = 2 * MOON_RADIUS
+        camera_distance = self.moon_radius * (zoom / 100)
+        moon_diameter = 2 * self.moon_radius
         visible_height = moon_diameter / MOON_FILL_FRACTION
         fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
         fov = max(1, min(90, fov))  # Clamp to valid range
