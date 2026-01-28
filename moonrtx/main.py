@@ -209,7 +209,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         eye, target, up, fov = decoded
         
         dt_local, error = get_date_time_local(dt_str.replace('.', ':'))
-        if error:
+        if error is not None:
             print(f"Incorrect time: {error}")
             return None
         
@@ -254,7 +254,7 @@ def main():
     else:
         time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
         dt_local, error = get_date_time_local(time_iso)
-        if error:
+        if error is not None:
             print(f"Incorrect time: {error}")
             sys.exit(1)
         if args.lat is None:
