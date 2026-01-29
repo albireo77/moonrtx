@@ -16,6 +16,8 @@ from plotoptix.install import download_file_from_google_drive
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.shared_types import CameraParams
 
+APP_NAME = "MoonRTX"
+
 BASE_PATH = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__)     # frozen attribute from cx_Freeze
 DATA_DIRECTORY_PATH = os.path.join(BASE_PATH, "data")
 
@@ -47,10 +49,10 @@ class InitView(NamedTuple):
     up: list
     fov: float
 
-def parse_args(app_name: str):
+def parse_args():
 
     parser = argparse.ArgumentParser(
-        description=f"{app_name} - ray-traced Moon observatory",
+        description=f"{APP_NAME} - ray-traced Moon observatory",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
@@ -227,9 +229,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
 
 def main():
 
-    app_name = "MoonRTX"
-
-    args = parse_args(app_name)
+    args = parse_args()
 
     init_view = None
     init_camera_params = None
@@ -296,7 +296,7 @@ def main():
                  lon=lon,
                  downscale=args.downscale,
                  light_intensity=args.light_intensity,
-                 app_name=app_name,
+                 app_name=APP_NAME,
                  color_file=COLOR_FILE_LOCAL_PATH,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
