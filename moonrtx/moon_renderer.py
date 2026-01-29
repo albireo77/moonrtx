@@ -13,6 +13,7 @@ from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels, create_single_digit_on_sphere
 
+import plotoptix
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse, m_flat
 
@@ -122,6 +123,18 @@ def run_renderer(dt_local: datetime,
     TkOptiX
         The renderer instance
     """
+
+    print()
+    print("Used PlotOptiX version:", plotoptix.__version__)
+    print("Renderer started with parameters:")
+    print(f"  Geographical Location: Lat {lat}°, Lon {lon}°")
+    print(f"  Local Time: {dt_local}")
+    print(f"  Elevation Map File: {elevation_file}")
+    print(f"  Light Intensity: {light_intensity}")
+    print(f"  Downscale Factor: {downscale}")
+    if init_camera_params:
+        print("  Init View: Restoring camera from screenshot filename")
+    print()
 
     moon_renderer = MoonRenderer(
         app_name=app_name,

@@ -6,7 +6,6 @@ import shutil
 import struct
 import base64
 import urllib.request
-import plotoptix
 from datetime import datetime
 from typing import NamedTuple, Optional
 
@@ -290,18 +289,6 @@ def main():
 
     if not check_starmap_file():
         sys.exit(1)
-
-    print()
-    print("Used PlotOptiX version:", plotoptix.__version__)
-    print("Starting renderer with parameters:")
-    print(f"  Geographical Location: Lat {lat}°, Lon {lon}°")
-    print(f"  Local Time: {dt_local}")
-    print(f"  Elevation Map File: {args.elevation_file}")
-    print(f"  Light Intensity: {args.light_intensity}")
-    print(f"  Downscale Factor: {args.downscale}")
-    if init_camera_params:
-        print("  Init View: Restoring camera from screenshot filename")
-    print()
 
     run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
