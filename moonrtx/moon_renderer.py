@@ -507,9 +507,12 @@ class MoonRenderer:
         return f"{horizon_warning:<20}    {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
 
     def change_brightness(self, delta: int):
+        old_brightness = self.brightness
         self.brightness += delta
-        self.rt.setup_light("sun", color=self.brightness)
-        self.rt._status_action_text.set(self.get_status_text())
+        self.brightness = max(0, self.brightness)
+        if self.brightness != old_brightness:
+            self.rt.setup_light("sun", color=self.brightness)
+            self.rt._status_action_text.set(self.get_status_text())
         
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
