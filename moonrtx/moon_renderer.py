@@ -97,7 +97,7 @@ def run_renderer(dt_local: datetime,
                  starmap_file: str,
                  features_file: str,
                  downscale: int,
-                 light_intensity: int,
+                 brightness: int,
                  app_name: str,
                  init_camera_params: Optional[CameraParams] = None) -> TkOptiX:
     """
@@ -113,8 +113,8 @@ def run_renderer(dt_local: datetime,
         Paths to data files
     downscale : int
         Elevation downscale factor
-    light_intensity : int
-        Light intensity 
+    brightness : int
+        Brightness 
     app_name : str
         Application name
     init_camera_params : CameraParams, optional
@@ -131,7 +131,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Geographical Location: Lat {lat}°, Lon {lon}°")
     print(f"  Local Time: {dt_local}")
     print(f"  Elevation Map File: {elevation_file}")
-    print(f"  Light Intensity: {light_intensity}")
+    print(f"  Brightness: {brightness}")
     print(f"  Downscale Factor: {downscale}")
     if init_camera_params:
         print("  Init View: Restoring camera from screenshot filename")
@@ -144,7 +144,7 @@ def run_renderer(dt_local: datetime,
         starmap_file=starmap_file,
         downscale=downscale,
         features_file=features_file,
-        light_intensity=light_intensity
+        brightness=brightness
     )
     
     # Setup renderer
@@ -171,7 +171,7 @@ def run_renderer(dt_local: datetime,
     print("  V - Reset view to that based on ephemeris (useful after starting with --init-view parameter)")
     print("  C - Center and fix view on point under cursor")
     print("  F - Search for Moon features (craters, mounts etc.)")
-    print("  A/Z - Increase/Decrease light intensity")
+    print("  A/Z - Increase/Decrease brightness")
     print("  Arrows - Navigate view")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
@@ -208,9 +208,9 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'v':
             moon_renderer.reset_to_default_view()
         elif event.keysym.lower() == 'a':
-            moon_renderer.change_light_intensity(10)
+            moon_renderer.change_brightness(10)
         elif event.keysym.lower() == 'z':
-            moon_renderer.change_light_intensity(-10)
+            moon_renderer.change_brightness(-10)
         elif event.keysym.lower() == 'p':
             moon_renderer.toggle_pins()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
@@ -232,15 +232,16 @@ def run_renderer(dt_local: datetime,
             # Get hit position using the internal method
             hx, hy, hz, hd = moon_renderer.rt._get_hit_at(x, y)
             
-            coord_data = ""
-            feature_data = ""
+            coord_data = None
+            feature_data = None
             # Check if we hit something (distance > 0 means valid hit)
             if hd > 0:
                 lat, lon = moon_renderer.hit_to_selenographic(hx, hy, hz)
                 if lat is not None and lon is not None:
                     # Check if hovering over a named feature
                     feature = moon_renderer.find_feature_for_status_bar(lat, lon)
-                    feature_data = f"{feature.name} (size = {feature.size_km:.1f} km)" if feature is not None else ""
+                    if feature is not None:
+                        feature_data = f"{feature.name} (size = {feature.size_km:.1f} km)"
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
                     coord_data = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
@@ -399,7 +400,7 @@ class MoonRenderer:
                  elevation_file: str,
                  color_file: str,
                  features_file: str,
-                 light_intensity: int,
+                 brightness: int,
                  starmap_file: Optional[str] = None,
                  downscale: int = 3,
                  width: int = 1400,
@@ -417,6 +418,8 @@ class MoonRenderer:
             Path to Moon color data TIFF
         features_file : str
             Moon features CSV file with craters, mounts etc.
+        brightness : int
+            Brightness    
         starmap_file : str, optional
             Path to star map TIFF for background
         downscale : int
@@ -437,7 +440,7 @@ class MoonRenderer:
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
         self.app_name = app_name
-        self.light_intensity = light_intensity
+        self.brightness = brightness
         
         # Renderer
         self.rt = None
@@ -490,18 +493,22 @@ class MoonRenderer:
 
     def get_status_text(self, coord_data: str = "", feature_data: str = "") -> str:
         horizon_warning = "⚠ MOON BELOW HORIZON" if self.moon_ephem.alt < 0 else ""
-        light_intensity_column = f"Light Intensity: {self.light_intensity}"
+        brightness_column = f"Brightness: {self.brightness}"
         pins_column = f"[Pins {'ON' if self.pins_visible else 'OFF'}]"
         current_status = self.rt._status_action_text.get()
-        if not coord_data:
-            coord_data = current_status[48:48+29]
-        if not feature_data:
-            feature_data = current_status[81:81+40]
-        return f"{horizon_warning:<20}    {light_intensity_column:<20}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
+        if coord_data is None:
+            coord_data = " " * 29
+        elif not coord_data:
+            coord_data = current_status[43:43+29]
+        if feature_data is None:
+            feature_data = " " * 40
+        elif not feature_data:
+            feature_data = current_status[76:76+40]
+        return f"{horizon_warning:<20}    {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
 
-    def change_light_intensity(self, delta: int):
-        self.light_intensity += delta
-        self.rt.setup_light("sun", color=self.light_intensity)
+    def change_brightness(self, delta: int):
+        self.brightness += delta
+        self.rt.setup_light("sun", color=self.brightness)
         self.rt._status_action_text.set(self.get_status_text())
         
     def _on_launch_finished(self, rt):
@@ -515,7 +522,7 @@ class MoonRenderer:
                 # Set monospace font for status bar to prevent text shifting
                 # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=135)
+                    rt._status_action.configure(font=("Consolas", 9), width=130)
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
@@ -641,10 +648,10 @@ class MoonRenderer:
         if self.initial_camera_params is None:
             self.initial_camera_params = self.default_camera_params
         
-        # Light intensity based on phase - full moon is brighter
-        # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
+        # Brightness based on phase - full moon is brighter
+        # brightness = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
         
-        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=self.light_intensity, radius=SUN_RADIUS)
+        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=self.brightness, radius=SUN_RADIUS)
         
         # Update grid orientation if visible
         if self.moon_grid_visible:

@@ -68,8 +68,8 @@ def parse_args():
                         help="Path to Moon elevation map file")
     parser.add_argument("--downscale", type=int, default=3,
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
-    parser.add_argument("--light-intensity", type=int, default=120,
-                        help="Light intensity")
+    parser.add_argument("--brightness", type=int, default=120,
+                        help="Brightness")
     parser.add_argument("--init-view", type=str, default=None,
                         help="Initialize view from a screenshot default filename (without extension). "
                              "This restores the exact camera position from time when attempt to take a screenshot was made. ")
@@ -295,7 +295,7 @@ def main():
                  lat=lat,
                  lon=lon,
                  downscale=args.downscale,
-                 light_intensity=args.light_intensity,
+                 brightness=args.brightness,
                  app_name=APP_NAME,
                  color_file=COLOR_FILE_LOCAL_PATH,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
