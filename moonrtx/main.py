@@ -68,7 +68,7 @@ def parse_args():
                         help="Path to Moon elevation map file")
     parser.add_argument("--downscale", type=int, default=3,
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
-    parser.add_argument("--light-intensity", type=int, default=200,
+    parser.add_argument("--light-intensity", type=int, default=120,
                         help="Light intensity")
     parser.add_argument("--init-view", type=str, default=None,
                         help="Initialize view from a screenshot default filename (without extension). "
