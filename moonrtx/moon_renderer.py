@@ -175,10 +175,10 @@ def run_renderer(dt_local: datetime,
     print("  Arrows - Navigate view")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
-    print("  Hold shift + left mouse button and drag up/down - Zoom out/in (more reliable)")
-    print("  Mouse wheel up/down - Zoom in/out (less reliable)")
     print("  Hold and drag right mouse button - Rotate Moon around the eye")
     print("  Hold shift + right mouse button and drag up/down - Move eye backward/forward")
+    print("  Hold shift + left mouse button and drag up/down - Zoom out/in (more reliable)")
+    print("  Mouse wheel up/down - Zoom in/out (less reliable)")
     
     original_key_handler = moon_renderer.rt._gui_key_pressed
     def custom_key_handler(event):
