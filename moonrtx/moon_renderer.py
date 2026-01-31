@@ -1,3 +1,4 @@
+from turtle import rt
 import numpy as np
 import os
 import struct
@@ -142,14 +143,15 @@ def run_renderer(dt_local: datetime,
         color_file=color_file,
         starmap_file=starmap_file,
         downscale=downscale,
-        features_file=features_file
+        features_file=features_file,
+        light_intensity=light_intensity
     )
     
     # Setup renderer
     moon_renderer.setup_renderer()
     
     # Set view
-    moon_renderer.update_view(dt_local=dt_local, lat=lat, lon=lon, light_intensity=light_intensity)
+    moon_renderer.update_view(dt_local=dt_local, lat=lat, lon=lon)
     
     # Apply custom camera parameters if provided (to restore a saved view)
     if init_camera_params is not None:
@@ -169,6 +171,7 @@ def run_renderer(dt_local: datetime,
     print("  V - Reset view to that based on ephemeris (useful after starting with --init-view parameter)")
     print("  C - Center and fix view on point under cursor")
     print("  F - Search for Moon features (craters, mounts etc.)")
+    print("  A/Z - Increase/Decrease light intensity")
     print("  Arrows - Navigate view")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
@@ -204,6 +207,10 @@ def run_renderer(dt_local: datetime,
             moon_renderer.navigate_view(event.keysym)
         elif event.keysym.lower() == 'v':
             moon_renderer.reset_to_default_view()
+        elif event.keysym.lower() == 'a':
+            moon_renderer.change_light_intensity(10)
+        elif event.keysym.lower() == 'z':
+            moon_renderer.change_light_intensity(-10)
         elif event.keysym.lower() == 'p':
             moon_renderer.toggle_pins()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
@@ -225,32 +232,21 @@ def run_renderer(dt_local: datetime,
             # Get hit position using the internal method
             hx, hy, hz, hd = moon_renderer.rt._get_hit_at(x, y)
             
-            coord_column = ""
-            feature_column = ""
+            coord_data = ""
+            feature_data = ""
             # Check if we hit something (distance > 0 means valid hit)
             if hd > 0:
                 lat, lon = moon_renderer.hit_to_selenographic(hx, hy, hz)
                 if lat is not None and lon is not None:
                     # Check if hovering over a named feature
                     feature = moon_renderer.find_feature_for_status_bar(lat, lon)
-                    feature_column = f"{feature.name} (size = {feature.size_km:.1f} km)" if feature is not None else ""
+                    feature_data = f"{feature.name} (size = {feature.size_km:.1f} km)" if feature is not None else ""
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
-                    coord_column = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
-            
-            # Build status: coordinates first (fixed width), then feature name (fixed width), then pin mode
-            pin_mode = "ON" if moon_renderer.pins_visible else "OFF"
-            
-            # Add warning if Moon is below horizon
-            horizon_warning = ""
-            if moon_renderer.moon_ephem is not None and moon_renderer.moon_ephem.alt < 0:
-                horizon_warning = "⚠ MOON BELOW HORIZON"
-            
-            status_text = f"{horizon_warning:<20}    {coord_column:<29}    {feature_column:<40.40}  [Pins {pin_mode}]"
-            moon_renderer.rt._status_action_text.set(status_text)
+                    coord_data = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
+            moon_renderer.rt._status_action_text.set(moon_renderer.get_status_text(coord_data, feature_data))
     
     moon_renderer.rt._gui_motion = custom_motion_handler
-    
     moon_renderer.start()
     return moon_renderer.rt
 
@@ -403,6 +399,7 @@ class MoonRenderer:
                  elevation_file: str,
                  color_file: str,
                  features_file: str,
+                 light_intensity: int,
                  starmap_file: Optional[str] = None,
                  downscale: int = 3,
                  width: int = 1400,
@@ -440,6 +437,7 @@ class MoonRenderer:
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
         self.app_name = app_name
+        self.light_intensity = light_intensity
         
         # Renderer
         self.rt = None
@@ -489,6 +487,22 @@ class MoonRenderer:
         # Pins settings
         self.pins_visible = True  # Pins visible by default
         self.pins = {}  # dict mapping digit (1-9) to pin segments
+
+    def get_status_text(self, coord_data: str = "", feature_data: str = "") -> str:
+        horizon_warning = "⚠ MOON BELOW HORIZON" if self.moon_ephem.alt < 0 else ""
+        light_intensity_column = f"Light Intensity: {self.light_intensity}"
+        pins_column = f"[Pins {'ON' if self.pins_visible else 'OFF'}]"
+        current_status = self.rt._status_action_text.get()
+        if not coord_data:
+            coord_data = current_status[48:48+29]
+        if not feature_data:
+            feature_data = current_status[81:81+40]
+        return f"{horizon_warning:<20}    {light_intensity_column:<20}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
+
+    def change_light_intensity(self, delta: int):
+        self.light_intensity += delta
+        self.rt.setup_light("sun", color=self.light_intensity)
+        self.rt._status_action_text.set(self.get_status_text())
         
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
@@ -501,13 +515,14 @@ class MoonRenderer:
                 # Set monospace font for status bar to prevent text shifting
                 # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=111)
+                    rt._status_action.configure(font=("Consolas", 9), width=135)
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
                 # Bind mouse wheel for zoom
                 if hasattr(rt, '_canvas'):
                     rt._canvas.bind('<MouseWheel>', self._mouse_wheel_handler)
+                rt._status_action_text.set(self.get_status_text())
             rt._root.after_idle(init_window)
     
     def _mouse_wheel_handler(self, event):
@@ -553,7 +568,7 @@ class MoonRenderer:
         # Apply displacement map
         self.rt.set_displacement("moon", self.elevation, refresh=True)
 
-    def update_view(self, dt_local: datetime, lat: float, lon: float, zoom: float = 1000, light_intensity: int = 180):
+    def update_view(self, dt_local: datetime, lat: float, lon: float, zoom: float = 1000):
         """
         Update the view for a specific time and location.
         
@@ -565,8 +580,6 @@ class MoonRenderer:
             Observer latitude and longitude in degrees
         zoom : float
             Camera zoom factor
-        light_intensity : float
-            Light intensity
         """
 
         dt_utc = dt_local.astimezone(timezone.utc)
@@ -631,7 +644,7 @@ class MoonRenderer:
         # Light intensity based on phase - full moon is brighter
         # light_intensity = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
         
-        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=light_intensity, radius=SUN_RADIUS)
+        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=self.light_intensity, radius=SUN_RADIUS)
         
         # Update grid orientation if visible
         if self.moon_grid_visible:
@@ -1499,26 +1512,10 @@ class MoonRenderer:
         for digit, pin_segments in self.pins.items():
             for j in range(len(pin_segments)):
                 name = f"pin_{digit}_{j}"
-                try:
-                    self.rt.update_data(name, r=pin_radius)
-                except:
-                    pass
+                self.rt.update_data(name, r=pin_radius)
         
         self.pins_visible = visible
-        
-        # Update status bar to reflect pin mode change
-        if self.rt is not None:
-            current_status = self.rt._status_action_text.get()
-            # Replace the pin mode indicator at the end
-            if current_status.endswith("[Pins ON]"):
-                new_status = current_status[:-9] + ("[Pins OFF]" if not visible else "[Pins ON]")
-            elif current_status.endswith("[Pins OFF]"):
-                new_status = current_status[:-10] + ("[Pins ON]" if visible else "[Pins OFF]")
-            else:
-                # Append pin mode if not present
-                pin_mode = "ON" if visible else "OFF"
-                new_status = f"{current_status}  [Pins {pin_mode}]"
-            self.rt._status_action_text.set(new_status)
+        self.rt._status_action_text.set(self.get_status_text())
     
     def toggle_pins(self):
         """Toggle the pins visibility."""
