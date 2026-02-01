@@ -42,8 +42,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **U** - Toggle labels upside down  
 **P** - Toggle pins ON/OFF  
 **1-9** - Create/Remove pin (when pins are ON)  
-**R** - Reset view to initial state  
-**V** - Reset view to that based on ephemeris (useful after starting with `--init-view` parameter)  
+**R** - Reset view and time to initial state  
+**V** - Reset view to that based on current time ephemeris (useful after starting with `--init-view` parameter)  
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
 **A/Z** - Increase/Decrease brightness  
