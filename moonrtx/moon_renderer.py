@@ -531,7 +531,7 @@ class MoonRenderer:
         utc_time = f"Time: {dt_utc.strftime('%Y-%m-%d %H:%M:%S UTC')} (step {self.time_step_minutes} minutes)" if dt_utc else ""
         
         # Moon position info
-        moon_pos = f"Moon pos: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
+        moon_pos = f"Moon: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
         
         # Phase angle info (0° = Full Moon, 180° = New Moon)
         phase_info = f"Phase angle: {self.moon_ephem.phase:6.2f}°" if self.moon_ephem else ""
@@ -542,12 +542,12 @@ class MoonRenderer:
         if coord_data is None:
             coord_data = " " * 29
         elif not coord_data:
-            coord_data = current_status[164:164+29]
+            coord_data = current_status[117:117+29]
         if feature_data is None:
             feature_data = " " * 40
         elif not feature_data:
-            feature_data = current_status[197:197+40]
-        return f"{observer_info:<27}  {utc_time:<50}    {moon_pos:<36}  {phase_info:<20}    {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
+            feature_data = current_status[172:172+40]
+        return f"{observer_info:<27}  {utc_time:<50}    {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
 
     def change_brightness(self, delta: int):
         if delta == 0:
@@ -621,7 +621,7 @@ class MoonRenderer:
                 # Set monospace font for status bar to prevent text shifting
                 # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=258)
+                    rt._status_action.configure(font=("Consolas", 9), width=245)
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
