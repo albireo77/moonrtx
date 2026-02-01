@@ -13,10 +13,10 @@ git clone https://github.com/albireo77/moonrtx.git  # or download and unpack sou
 cd moonrtx
 pip install -r requirements.txt
 ```
-## Run (examples)
+## Run
 
 MoonRTX can be run in 2 ways:
-- Command line:
+- Command line (examples):
 
 `python -m moonrtx.main --help`
 
