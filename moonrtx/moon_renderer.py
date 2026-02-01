@@ -543,12 +543,12 @@ class MoonRenderer:
         if coord_data is None:
             coord_data = " " * 29
         elif not coord_data:
-            coord_data = current_status[166:166+29]
+            coord_data = current_status[168:168+29]
         if feature_data is None:
             feature_data = " " * 40
         elif not feature_data:
-            feature_data = current_status[199:199+40]
-        return f"{observer_info:<27}  {utc_time:<29}    {moon_pos:<36}  {time_step_info:<23}  {phase_info:<20}  {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
+            feature_data = current_status[201:201+40]
+        return f"{observer_info:<27}  {utc_time:<29}    {moon_pos:<36}  {time_step_info:<23}  {phase_info:<20}    {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
 
     def change_brightness(self, delta: int):
         if delta == 0:
