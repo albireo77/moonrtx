@@ -15,6 +15,9 @@ pip install -r requirements.txt
 ```
 ## Run (examples)
 
+MoonRTX can run in 2 ways: from command line or using GUI launcher.
+- Command line:
+
 `python -m moonrtx.main --help`
 
 `python -m moonrtx.main --time "2023-05-28T19:39:00+01:00" --lat 50.1 --lon 20.0`
@@ -23,6 +26,9 @@ pip install -r requirements.txt
 
 `python -m moonrtx.main --init-view "2025-03-07T18.53.00+01.00_lat+50.000000_lon+20.000000_cambMOZPzVT28IXi6y_bMOZP6uZGsEXi6y_AAAAAAAAAAAAAIA_5oB3QA"`  
 where `--init-view` parameter value is taken from the screenshot default filename
+- GUI launcher:
+
+`python -m moonrtx.main_gui_launcher`
 
 ## Notes
 - On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
