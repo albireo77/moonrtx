@@ -1774,7 +1774,7 @@ class MoonRenderer:
         else:
             self.rt.setup_camera("cam1", eye=new_eye.tolist())
     
-    def rotate_around_moon_axis(self, direction: str, step_deg: float = 5.0):
+    def rotate_around_moon_axis(self, direction: str, step_deg: float = 1.0):
         """
         Rotate the camera around the Moon's polar axis.
         
@@ -1786,7 +1786,7 @@ class MoonRenderer:
         direction : str
             'Left' or 'Right'
         step_deg : float
-            Rotation step in degrees (default 5°)
+            Rotation step in degrees (default 1°)
         """
         if self.rt is None or self.moon_rotation is None:
             return
