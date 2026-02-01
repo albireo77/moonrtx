@@ -136,6 +136,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Elevation Map File: {elevation_file}")
     print(f"  Brightness: {brightness}")
     print(f"  Downscale Factor: {downscale}")
+    print(f"  Time Step (minutes): {time_step_minutes}")
     if init_camera_params:
         print("  Init View: Restoring camera from screenshot filename")
     print()
