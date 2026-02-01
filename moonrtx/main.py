@@ -70,6 +70,8 @@ def parse_args():
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
     parser.add_argument("--brightness", type=int, default=120,
                         help="Brightness")
+    parser.add_argument("--time-step-minutes", type=int, default=15,
+                        help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
                         help="Initialize view from a screenshot default filename (without extension). "
                              "This restores the exact camera position from time when attempt to take a screenshot was made. ")
@@ -281,6 +283,10 @@ def main():
         print("Invalid brightness. Must be between 0 and 500.")
         sys.exit(1)
 
+    if not (args.time_step_minutes > 0 and args.time_step_minutes <= 1440):
+        print("Invalid time step. Must be between 1 and 1440 minutes.")
+        sys.exit(1)
+
     if not check_gpu_architecture():
         print("No RTX GPU found.")
         sys.exit(1)
@@ -304,7 +310,8 @@ def main():
                  color_file=COLOR_FILE_LOCAL_PATH,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
-                 init_camera_params=init_camera_params)
+                 init_camera_params=init_camera_params,
+                 time_step_minutes=args.time_step_minutes)
 
 if __name__ == "__main__":
     main()

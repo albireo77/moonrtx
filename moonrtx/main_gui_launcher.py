@@ -42,7 +42,8 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Elevation file:").grid(row=3, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Downscale:").grid(row=4, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Brightness:").grid(row=5, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view:").grid(row=6, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=6, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view:").grid(row=7, column=0, sticky=tk.E, pady=2)
 
         self.lat_decimal = tk.Entry(frm, width=60)
         self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
@@ -65,9 +66,13 @@ class MainWindow(tk.Tk):
         self.brightness = tk.Entry(frm, width=60)
         self.brightness.grid(row=5, column=1, sticky=tk.W, pady=2)
         self.brightness.insert(0, 120)
+
+        self.time_step_minutes = tk.Entry(frm, width=60)
+        self.time_step_minutes.grid(row=6, column=1, sticky=tk.W, pady=2)
+        self.time_step_minutes.insert(0, 15)
         
         self.init_view = tk.Entry(frm, width=60)
-        self.init_view.grid(row=6, column=1, sticky=tk.W, pady=2)
+        self.init_view.grid(row=7, column=1, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W)
@@ -104,11 +109,11 @@ class MainWindow(tk.Tk):
 
         # Run button and status
         self.run_btn = tk.Button(frm, text=f"Run {APP_NAME}", command=self.on_run)
-        self.run_btn.grid(row=7, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.run_btn.grid(row=8, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
 
-        # Preset controls (row 8)
+        # Preset controls (row 9)
         preset_frame = tk.Frame(frm)
-        preset_frame.grid(row=8, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
+        preset_frame.grid(row=9, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
 
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
         self.preset_name_entry = tk.Entry(preset_frame, width=15)
@@ -185,6 +190,7 @@ class MainWindow(tk.Tk):
             "elevation_file": self.elevation_file.get(),
             "downscale": self.downscale.get(),
             "brightness": self.brightness.get(),
+            "time_step_minutes": self.time_step_minutes.get(),
             "init_view": self.init_view.get(),
         }
 
@@ -257,6 +263,9 @@ class MainWindow(tk.Tk):
 
             self.brightness.delete(0, tk.END)
             self.brightness.insert(0, settings.get("brightness", "120"))
+
+            self.time_step_minutes.delete(0, tk.END)
+            self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))
 
             self.init_view.delete(0, tk.END)
             self.init_view.insert(0, settings.get("init_view", ""))
@@ -376,6 +385,15 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "Invalid brightness. Must be between 0 and 500.")
             return
 
+        try:
+            time_step_minutes = int(self.time_step_minutes.get().strip())
+        except ValueError:
+            messagebox.showerror("Error", "Time step must be a positive integer.")
+            return
+        if not (time_step_minutes >= 1 and time_step_minutes <= 1440):
+            messagebox.showerror("Error", "Invalid time step. Must be between 1 and 1440 minutes.")
+            return
+
         if not check_gpu_architecture():
             messagebox.showerror("Error", "No compatible RTX GPU found.")
             return
@@ -409,7 +427,8 @@ class MainWindow(tk.Tk):
                 downscale,
                 brightness,
                 APP_NAME,
-                init_camera_params)
+                init_camera_params,
+                time_step_minutes)
         )
         p.start()
         

@@ -6,7 +6,7 @@ import base64
 import tkinter as tk
 from tkinter import filedialog
 from typing import NamedTuple, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from numpy.typing import NDArray
 
 from moonrtx.shared_types import MoonEphemeris, MoonFeature, CameraParams
@@ -99,7 +99,8 @@ def run_renderer(dt_local: datetime,
                  downscale: int,
                  brightness: int,
                  app_name: str,
-                 init_camera_params: Optional[CameraParams] = None) -> TkOptiX:
+                 init_camera_params: Optional[CameraParams] = None,
+                 time_step_minutes: int = 15) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
     
@@ -119,6 +120,8 @@ def run_renderer(dt_local: datetime,
         Application name
     init_camera_params : CameraParams, optional
         Initial camera parameters to restore a specific view
+    time_step_minutes : int
+        Time step in minutes for Q/W keys (default 15)
     Returns
     -------
     TkOptiX
@@ -144,7 +147,8 @@ def run_renderer(dt_local: datetime,
         starmap_file=starmap_file,
         downscale=downscale,
         features_file=features_file,
-        brightness=brightness
+        brightness=brightness,
+        time_step_minutes=time_step_minutes
     )
     
     # Setup renderer
@@ -172,6 +176,8 @@ def run_renderer(dt_local: datetime,
     print("  C - Center and fix view on point under cursor")
     print("  F - Search for Moon features (craters, mounts etc.)")
     print("  A/Z - Increase/Decrease brightness")
+    print("  Q/W - Go back/forward in time by step minutes")
+    print("  M/N - Increase/Decrease time step minutes by 1")
     print("  Arrows - Navigate view")
     print("  Ctrl + Left/Right - Rotate view around Moon's polar axis")
     print("  Ctrl + Up/Down - Rotate view around Moon's equatorial axis")
@@ -216,8 +222,16 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_brightness(10)
         elif event.keysym.lower() == 'z':
             moon_renderer.change_brightness(-10)
+        elif event.keysym.lower() == 'm':
+            moon_renderer.change_time_step(1)
+        elif event.keysym.lower() == 'n':
+            moon_renderer.change_time_step(-1)
         elif event.keysym.lower() == 'p':
             moon_renderer.toggle_pins()
+        elif event.keysym.lower() == 'q':
+            moon_renderer.change_time(-moon_renderer.time_step_minutes)
+        elif event.keysym.lower() == 'w':
+            moon_renderer.change_time(moon_renderer.time_step_minutes)
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:
@@ -409,7 +423,8 @@ class MoonRenderer:
                  starmap_file: Optional[str] = None,
                  downscale: int = 3,
                  width: int = 1400,
-                 height: int = 900):
+                 height: int = 900,
+                 time_step_minutes: int = 15):
         """
         Initialize the planetarium.
         
@@ -431,11 +446,14 @@ class MoonRenderer:
             Elevation downscale factor
         width, height : int
             Render window size
+        time_step_minutes : int
+            Time step in minutes for Q/W keys
         """
         self.width = width
         self.height = height
         self.downscale = downscale
         self.gamma = 2.2
+        self.time_step_minutes = time_step_minutes
         
         # Load data
         self.elevation = load_elevation_data(elevation_file, downscale)
@@ -463,6 +481,9 @@ class MoonRenderer:
         
         # Initial camera parameters (for reset with R key)
         self.initial_camera_params = None
+        
+        # Initial time for reset with R key
+        self.initial_dt_local = None
         
         # Default camera parameters calculated from ephemeris (for reset with V key)
         # This is the view without any --init-view override
@@ -497,19 +518,36 @@ class MoonRenderer:
         self.pins = {}  # dict mapping digit (1-9) to pin segments
 
     def get_status_text(self, coord_data: str = "", feature_data: str = "") -> str:
-        horizon_warning = "⚠ MOON BELOW HORIZON" if self.moon_ephem.alt < 0 else ""
+        # Observer location
+        lat_dir = 'N' if self.observer_lat >= 0 else 'S'
+        lon_dir = 'E' if self.observer_lon >= 0 else 'W'
+        observer_info = f"Observer: {abs(self.observer_lat):5.2f}°{lat_dir} {abs(self.observer_lon):6.2f}°{lon_dir}" if self.observer_lat is not None else ""
+        
+        # UTC time info
+        dt_utc = self.dt_local.astimezone(timezone.utc) if self.dt_local else None
+        utc_time = f"Time: {dt_utc.strftime('%Y-%m-%d %H:%M:%S UTC')}" if dt_utc else ""
+        
+        # Moon position info
+        moon_pos = f"Moon pos: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
+        
+        # Time step info
+        time_step_info = f"Time step: {self.time_step_minutes} minutes"
+        
+        # Phase angle info (0° = Full Moon, 180° = New Moon)
+        phase_info = f"Phase angle: {self.moon_ephem.phase:6.2f}°" if self.moon_ephem else ""
+        
         brightness_column = f"Brightness: {self.brightness}"
         pins_column = f"[Pins {'ON' if self.pins_visible else 'OFF'}]"
         current_status = self.rt._status_action_text.get()
         if coord_data is None:
             coord_data = " " * 29
         elif not coord_data:
-            coord_data = current_status[43:43+29]
+            coord_data = current_status[166:166+29]
         if feature_data is None:
             feature_data = " " * 40
         elif not feature_data:
-            feature_data = current_status[76:76+40]
-        return f"{horizon_warning:<20}    {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
+            feature_data = current_status[199:199+40]
+        return f"{observer_info:<27}  {utc_time:<29}    {moon_pos:<36}  {time_step_info:<23}  {phase_info:<20}  {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
 
     def change_brightness(self, delta: int):
         if delta == 0:
@@ -520,6 +558,56 @@ class MoonRenderer:
             return
         self.brightness += delta
         self.rt.setup_light("sun", color=self.brightness)
+        self.rt._status_action_text.set(self.get_status_text())
+
+    def change_time_step(self, delta: int):
+        """
+        Change the time step value by a given amount.
+        
+        Parameters
+        ----------
+        delta : int
+            Amount to add (positive) or subtract (negative) from time_step_minutes
+        """
+        if delta == 0:
+            return
+        if self.time_step_minutes <= 1 and delta < 0:
+            return
+        if self.time_step_minutes >= 1440 and delta > 0:
+            return
+        self.time_step_minutes += delta
+        self.rt._status_action_text.set(self.get_status_text())
+
+    def change_time(self, delta_minutes: int):
+        """
+        Change the observation time by a given number of minutes.
+        
+        Parameters
+        ----------
+        delta_minutes : int
+            Number of minutes to add (positive) or subtract (negative)
+        """
+        if delta_minutes == 0:
+            return
+        
+        # Calculate new time
+        new_dt_local = self.dt_local + timedelta(minutes=delta_minutes)
+        
+        # Update Moon orientation and lighting for new time (without moving camera)
+        self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon)
+        
+        # Regenerate grid and labels with new orientation
+        if self.moon_grid_visible:
+            self.update_moon_grid_orientation()
+        if self.standard_labels_visible:
+            self.update_standard_labels_orientation()
+        if self.spot_labels_visible:
+            self.update_spot_labels_orientation()
+        
+        # Update pins positions
+        self.update_pins_orientation()
+        
+        # Update status bar
         self.rt._status_action_text.set(self.get_status_text())
         
     def _on_launch_finished(self, rt):
@@ -533,7 +621,7 @@ class MoonRenderer:
                 # Set monospace font for status bar to prevent text shifting
                 # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=130)
+                    rt._status_action.configure(font=("Consolas", 9), width=258)
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
@@ -655,9 +743,10 @@ class MoonRenderer:
         # Always store default camera params (the view calculated from ephemeris)
         self.default_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=camera_up.tolist(), fov=fov)
 
-        # Store initial camera parameters for reset functionality
+        # Store initial camera parameters and time for reset functionality
         if self.initial_camera_params is None:
             self.initial_camera_params = self.default_camera_params
+            self.initial_dt_local = dt_local
         
         # Brightness based on phase - full moon is brighter
         # brightness = 40 + 20 * np.cos(np.radians(self.moon_ephem.phase))
@@ -671,6 +760,53 @@ class MoonRenderer:
         # Update standard labels orientation if visible
         if self.standard_labels_visible:
             self.update_standard_labels_orientation()
+
+    def update_moon_for_time(self, dt_local: datetime, lat: float, lon: float):
+        """
+        Update Moon orientation and lighting for a new time without changing camera.
+        
+        This method updates the Moon's libration, position angle, and Sun illumination
+        for a new observation time, but preserves the current camera position/orientation.
+        
+        Parameters
+        ----------
+        dt_local : datetime
+            Local time
+        lat, lon : float
+            Observer latitude and longitude in degrees
+        """
+        dt_utc = dt_local.astimezone(timezone.utc)
+        eph = calculate_moon_ephemeris(dt_utc, lat, lon)
+        self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
+        self.moon_rotation_inv = self.moon_rotation.T
+        self.moon_ephem = eph
+        
+        # Store view parameters for filename generation
+        self.dt_local = dt_local
+        self.observer_lat = lat
+        self.observer_lon = lon
+        
+        # Calculate new light position based on current ephemeris
+        scene = calculate_camera_and_light(self.moon_ephem, 1000, self.moon_radius)
+        self.light_pos = scene.light_pos
+        
+        # Update default camera params for V key reset
+        # Use previously stored FOV (from initial setup or last update_view)
+        current_fov = self.default_camera_params.fov if self.default_camera_params else 45.0
+        self.default_camera_params = CameraParams(
+            eye=scene.eye.tolist(), 
+            target=scene.target.tolist(), 
+            up=scene.up.tolist() if not self.inverted else (-scene.up).tolist(), 
+            fov=current_fov
+        )
+        
+        # Update Moon orientation (u,v vectors)
+        u_new = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
+        v_new = self.moon_rotation @ np.array([0.0, -1.0, 0.0])
+        self.rt.update_data("moon", u=u_new.tolist(), v=v_new.tolist())
+        
+        # Update light position
+        self.rt.setup_light("sun", pos=scene.light_pos.tolist(), color=self.brightness, radius=SUN_RADIUS)
         
     def start(self):
         """Start the renderer."""
@@ -1096,6 +1232,11 @@ class MoonRenderer:
                 pass
         
         self.moon_grid_visible = visible
+        
+        # When showing the grid, update its orientation to match current Moon position
+        # This is needed in case time changed while the grid was hidden
+        if visible:
+            self.update_moon_grid_orientation()
     
     def toggle_grid(self):
         """Toggle the selenographic grid visibility."""
@@ -1175,6 +1316,11 @@ class MoonRenderer:
                     pass
         
         self.standard_labels_visible = visible
+        
+        # When showing labels, update their orientation to match current Moon position
+        # This is needed in case time changed while labels were hidden
+        if visible:
+            self.update_standard_labels_orientation()
     
     def toggle_standard_labels(self):
         """Toggle the feature standard labels visibility."""
@@ -1254,6 +1400,11 @@ class MoonRenderer:
                     pass
         
         self.spot_labels_visible = visible
+        
+        # When showing labels, update their orientation to match current Moon position
+        # This is needed in case time changed while labels were hidden
+        if visible:
+            self.update_spot_labels_orientation()
     
     def toggle_spot_labels(self):
         """Toggle the spot labels visibility."""
@@ -1533,6 +1684,12 @@ class MoonRenderer:
                 self.rt.update_data(name, r=pin_radius)
         
         self.pins_visible = visible
+        
+        # When showing pins, update their orientation to match current Moon position
+        # This is needed in case time changed while pins were hidden
+        if visible:
+            self.update_pins_orientation()
+        
         self.rt._status_action_text.set(self.get_status_text())
     
     def toggle_pins(self):
@@ -1620,6 +1777,7 @@ class MoonRenderer:
         
         Restores the camera to the position it had when the view was first set up,
         undoing any mouse rotation/panning performed by the user.
+        Also resets the time back to the initial time.
         """
 
         cp = self.initial_camera_params
@@ -1627,12 +1785,31 @@ class MoonRenderer:
         if self.rt is None or cp is None:
             return
         
+        # Reset time back to initial time if it was changed
+        if self.initial_dt_local is not None and self.dt_local != self.initial_dt_local:
+            # Reset to initial time - this will restore Moon orientation and lighting
+            self.update_moon_for_time(self.initial_dt_local, self.observer_lat, self.observer_lon)
+            
+            # Update grid and labels with restored orientation
+            if self.moon_grid_visible:
+                self.update_moon_grid_orientation()
+            if self.standard_labels_visible:
+                self.update_standard_labels_orientation()
+            if self.spot_labels_visible:
+                self.update_spot_labels_orientation()
+            
+            # Update pins positions
+            self.update_pins_orientation()
+        
         # Restore initial camera parameters
         # Clear inversion so reset always returns to the original saved view
         self.inverted = False
         up = cp.up[:]
 
         self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
+        
+        # Update status bar
+        self.rt._status_action_text.set(self.get_status_text())
     
     def reset_to_default_view(self):
         """

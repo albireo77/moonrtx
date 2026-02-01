@@ -47,6 +47,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
 **A/Z** - Increase/Decrease brightness  
+**Q/W** - Go back/forward in time by step minutes  
+**M/N** - Increase/Decrease time step minutes by 1  
 **Arrows** - Navigate view  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
