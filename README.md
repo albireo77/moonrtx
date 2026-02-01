@@ -15,7 +15,7 @@ pip install -r requirements.txt
 ```
 ## Run (examples)
 
-MoonRTX can run in 2 ways: from command line or using GUI launcher.
+MoonRTX can run in 2 ways:
 - Command line:
 
 `python -m moonrtx.main --help`
