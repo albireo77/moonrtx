@@ -49,6 +49,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **A/Z** - Increase/Decrease brightness  
 **Arrows** - Navigate view  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
+**Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
 **F12** - Save image  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
 **Hold and drag right mouse button** - Rotate Moon around the eye  
