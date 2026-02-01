@@ -64,7 +64,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ![Plato](images/plato.jpg)
 **Selenographic grid and labels**
 ![Grid](images/grid.jpg)
-**Loneliness of Timocharis**
+**Lonely Timocharis**
 ![Timocharis](images/timocharis.jpg)
 **Rima Hesiodus and the distant Rupes Recta**
 ![Rima Hesiodus](images/rima_hesiodus.jpg)
