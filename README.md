@@ -46,8 +46,9 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **V** - Reset view to that based on ephemeris (useful after starting with `--init-view` parameter)  
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
-**A/Z** - Increase/Decrease brightness    
+**A/Z** - Increase/Decrease brightness  
 **Arrows** - Navigate view  
+**Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **F12** - Save image  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
 **Hold and drag right mouse button** - Rotate Moon around the eye  

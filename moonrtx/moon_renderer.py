@@ -173,6 +173,7 @@ def run_renderer(dt_local: datetime,
     print("  F - Search for Moon features (craters, mounts etc.)")
     print("  A/Z - Increase/Decrease brightness")
     print("  Arrows - Navigate view")
+    print("  Ctrl + Left/Right - Rotate view around Moon's polar axis")
     print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
     print("  Hold and drag right mouse button - Rotate Moon around the eye")
@@ -204,7 +205,11 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'f':
             moon_renderer.search_feature_dialog()
         elif event.keysym in ('Left', 'Right', 'Up', 'Down'):
-            moon_renderer.navigate_view(event.keysym)
+            if event.state & 0x4:  # Ctrl key pressed
+                if event.keysym in ('Left', 'Right'):
+                    moon_renderer.rotate_around_moon_axis(event.keysym)
+            else:
+                moon_renderer.navigate_view(event.keysym)
         elif event.keysym.lower() == 'v':
             moon_renderer.reset_to_default_view()
         elif event.keysym.lower() == 'a':
@@ -1768,6 +1773,58 @@ class MoonRenderer:
             self.rt.setup_camera("cam1", eye=new_eye.tolist(), up=new_up.tolist())
         else:
             self.rt.setup_camera("cam1", eye=new_eye.tolist())
+    
+    def rotate_around_moon_axis(self, direction: str, step_deg: float = 5.0):
+        """
+        Rotate the camera around the Moon's polar axis.
+        
+        This rotates the view around the Moon's north-south axis,
+        keeping the same distance and maintaining alignment with the Moon's axis.
+        
+        Parameters
+        ----------
+        direction : str
+            'Left' or 'Right'
+        step_deg : float
+            Rotation step in degrees (default 5°)
+        """
+        if self.rt is None or self.moon_rotation is None:
+            return
+        
+        # Get the Moon's polar axis in scene coordinates
+        # This is the direction of the Moon's north pole after applying rotation
+        moon_axis = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
+        moon_axis = moon_axis / np.linalg.norm(moon_axis)
+        
+        # Get current camera parameters
+        cam = self.rt.get_camera("cam1")
+        eye = np.array(cam["Eye"])
+        target = np.array(cam["Target"])
+        up = np.array(cam["Up"])
+        
+        # Determine rotation angle based on direction
+        if direction == 'Left':
+            angle = np.radians(step_deg)
+        elif direction == 'Right':
+            angle = np.radians(-step_deg)
+        else:
+            return
+        
+        # Rodrigues' rotation formula to rotate eye around target along Moon's axis
+        eye_rel = eye - target
+        cos_a = np.cos(angle)
+        sin_a = np.sin(angle)
+        new_eye_rel = (eye_rel * cos_a + 
+                       np.cross(moon_axis, eye_rel) * sin_a + 
+                       moon_axis * np.dot(moon_axis, eye_rel) * (1 - cos_a))
+        new_eye = target + new_eye_rel
+        
+        # Also rotate the up vector to maintain proper orientation
+        new_up = (up * cos_a + 
+                  np.cross(moon_axis, up) * sin_a + 
+                  moon_axis * np.dot(moon_axis, up) * (1 - cos_a))
+        
+        self.rt.setup_camera("cam1", eye=new_eye.tolist(), up=new_up.tolist())
     
     def hit_to_selenographic(self, hx: float, hy: float, hz: float) -> tuple:
         """
