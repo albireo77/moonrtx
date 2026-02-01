@@ -526,15 +526,12 @@ class MoonRenderer:
         lon_dir = 'E' if self.observer_lon >= 0 else 'W'
         observer_info = f"Observer: {abs(self.observer_lat):5.2f}°{lat_dir} {abs(self.observer_lon):6.2f}°{lon_dir}" if self.observer_lat is not None else ""
         
-        # UTC time info
+        # UTC time info with time step
         dt_utc = self.dt_local.astimezone(timezone.utc) if self.dt_local else None
-        utc_time = f"Time: {dt_utc.strftime('%Y-%m-%d %H:%M:%S UTC')}" if dt_utc else ""
+        utc_time = f"Time: {dt_utc.strftime('%Y-%m-%d %H:%M:%S UTC')} (step {self.time_step_minutes} minutes)" if dt_utc else ""
         
         # Moon position info
         moon_pos = f"Moon pos: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
-        
-        # Time step info
-        time_step_info = f"Time step: {self.time_step_minutes} minutes"
         
         # Phase angle info (0° = Full Moon, 180° = New Moon)
         phase_info = f"Phase angle: {self.moon_ephem.phase:6.2f}°" if self.moon_ephem else ""
@@ -545,12 +542,12 @@ class MoonRenderer:
         if coord_data is None:
             coord_data = " " * 29
         elif not coord_data:
-            coord_data = current_status[168:168+29]
+            coord_data = current_status[164:164+29]
         if feature_data is None:
             feature_data = " " * 40
         elif not feature_data:
-            feature_data = current_status[201:201+40]
-        return f"{observer_info:<27}  {utc_time:<29}    {moon_pos:<36}  {time_step_info:<23}  {phase_info:<20}    {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
+            feature_data = current_status[197:197+40]
+        return f"{observer_info:<27}  {utc_time:<50}    {moon_pos:<36}  {phase_info:<20}    {brightness_column:<15}    {coord_data:<29}    {feature_data:<40.40}  {pins_column}"
 
     def change_brightness(self, delta: int):
         if delta == 0:
