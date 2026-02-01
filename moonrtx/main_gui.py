@@ -1,4 +1,5 @@
 from multiprocessing import Process
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from datetime import datetime
@@ -392,6 +393,9 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "Starmap file is not present and download failed.")
             return
         
+        # Disable the Run button while renderer is running
+        self.run_btn.config(state=tk.DISABLED)
+        
         p = Process(
             target=run_renderer,
             args=(
@@ -408,6 +412,16 @@ class MainWindow(tk.Tk):
                 init_camera_params)
         )
         p.start()
+        
+        # Start a thread to monitor when the renderer process ends
+        def monitor_process(process):
+            process.join()  # Wait for process to finish
+            print(f"Renderer process ended with exit code: {process.exitcode}")
+            # Re-enable the Run button (must use after() for thread-safe UI update)
+            self.after(0, lambda: self.run_btn.config(state=tk.NORMAL))
+        
+        monitor_thread = threading.Thread(target=monitor_process, args=(p,), daemon=True)
+        monitor_thread.start()
 
 def main():
     app = MainWindow()
