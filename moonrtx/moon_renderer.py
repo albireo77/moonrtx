@@ -496,10 +496,12 @@ class MoonRenderer:
         # Standard labels settings
         self.standard_labels_visible = False
         self.standard_labels = None
+        self.standard_label_features = []
         
         # Spot labels settings
         self.spot_labels_visible = False
         self.spot_labels = None
+        self.spot_label_features = []
         
         # Label inversion state (for upside down readability)
         self.labels_inverted = False
@@ -1251,10 +1253,10 @@ class MoonRenderer:
             print("Renderer not initialized")
             return
 
-        # Create label geometry only for illuminated labels
-        illuminated_standard_label_features = [f for f in self.moon_features if f.standard_label and self._is_feature_illuminated(f)]
+        # Get ALL features with standard_label=True (illumination checked during rendering)
+        self.standard_label_features = [f for f in self.moon_features if f.standard_label]
         self.standard_labels = create_standard_labels(
-            illuminated_standard_label_features,
+            self.standard_label_features,
             moon_radius=self.moon_radius,
             offset=0.0
         )
@@ -1274,6 +1276,9 @@ class MoonRenderer:
         
         # Add each label's segments with rotation and inversion applied
         for i, label in enumerate(self.standard_labels):
+            # Check if this label's feature is illuminated
+            feature = self.standard_label_features[i]
+            current_radius = label_radius if self._is_feature_illuminated(feature) else 0.0
             for j, seg in enumerate(label.segments):
                 name = f"standard_label_{i}_{j}"
                 # Apply inversion if enabled
@@ -1283,7 +1288,7 @@ class MoonRenderer:
                 # Apply Moon rotation
                 if R is not None:
                     seg = (R @ seg.T).T
-                self.rt.set_data(name, pos=seg, r=label_radius,
+                self.rt.set_data(name, pos=seg, r=current_radius,
                                 c=label_color, geom="SegmentChain", mat="standard_label_material")
         
         self.standard_labels_visible = True
@@ -1335,10 +1340,10 @@ class MoonRenderer:
             print("Renderer not initialized")
             return
 
-        # Generate spot labels data only for illuminated labels
-        illuminated_spot_label_features = [f for f in self.moon_features if f.spot_label and self._is_feature_illuminated(f)]
+        # Get ALL features with spot_label=True (illumination checked during rendering)
+        self.spot_label_features = [f for f in self.moon_features if f.spot_label]
         self.spot_labels = create_spot_labels(
-            illuminated_spot_label_features,
+            self.spot_label_features,
             moon_radius=self.moon_radius,
             offset=0.0
         )
@@ -1358,6 +1363,9 @@ class MoonRenderer:
         
         # Add each label's segments with rotation and inversion applied
         for i, label in enumerate(self.spot_labels):
+            # Check if this label's feature is illuminated
+            feature = self.spot_label_features[i]
+            current_radius = label_radius if self._is_feature_illuminated(feature) else 0.0
             for j, seg in enumerate(label.segments):
                 name = f"spot_label_{i}_{j}"
                 # Apply inversion if enabled
@@ -1367,7 +1375,7 @@ class MoonRenderer:
                 # Apply Moon rotation
                 if R is not None:
                     seg = (R @ seg.T).T
-                self.rt.set_data(name, pos=seg, r=label_radius,
+                self.rt.set_data(name, pos=seg, r=current_radius,
                                 c=label_color, geom="SegmentChain", mat="spot_label_material")
         
         self.spot_labels_visible = True
@@ -1495,7 +1503,10 @@ class MoonRenderer:
             return
         
         # Update spot labels
-        for i, label in enumerate(self.spot_labels):    
+        for i, label in enumerate(self.spot_labels):
+            # Check if this label's feature is illuminated
+            feature = self.spot_label_features[i]
+            label_radius = SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, orig_seg in enumerate(label.segments):
                 name = f"spot_label_{i}_{j}"
                 # Apply inversion if enabled (anchor is the spot itself, not label position)
@@ -1506,7 +1517,7 @@ class MoonRenderer:
                     seg = orig_seg
                 rotated = (R @ seg.T).T
                 try:
-                    self.rt.update_data(name, pos=rotated)
+                    self.rt.update_data(name, pos=rotated, r=label_radius)
                 except:
                     pass
     
@@ -1527,6 +1538,9 @@ class MoonRenderer:
         
         # Update standard labels
         for i, label in enumerate(self.standard_labels):
+            # Check if this label's feature is illuminated
+            feature = self.standard_label_features[i]
+            label_radius = STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, orig_seg in enumerate(label.segments):
                 name = f"standard_label_{i}_{j}"
                 # Apply inversion if enabled
@@ -1537,7 +1551,7 @@ class MoonRenderer:
                     seg = orig_seg
                 rotated = (R @ seg.T).T
                 try:
-                    self.rt.update_data(name, pos=rotated)
+                    self.rt.update_data(name, pos=rotated, r=label_radius)
                 except:
                     pass
     
