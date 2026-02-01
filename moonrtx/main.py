@@ -277,6 +277,10 @@ def main():
         print("Invalid downscale factor. Must be a positive integer.")
         sys.exit(1)
 
+    if not (args.brightness >= 0 and args.brightness <= 500):
+        print("Invalid brightness. Must be between 0 and 500.")
+        sys.exit(1)
+
     if not check_gpu_architecture():
         print("No RTX GPU found.")
         sys.exit(1)
