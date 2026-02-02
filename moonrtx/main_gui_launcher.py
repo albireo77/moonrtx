@@ -124,6 +124,10 @@ class MainWindow(tk.Tk):
         self.preset_combobox.pack(side=tk.LEFT, padx=(10, 4))
         tk.Button(preset_frame, text="Load", width=6, command=self._load_preset).pack(side=tk.LEFT, padx=2)
 
+        # Status label for progress messages
+        self.status_label = tk.Label(preset_frame, text="", fg="blue", width=30, anchor=tk.W)
+        self.status_label.pack(side=tk.LEFT, padx=(20, 0))
+
         self._refresh_preset_list()
 
         # start with decimal visible; sexagesimal frames are not gridded
@@ -394,22 +398,37 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "Invalid time step. Must be between 1 and 1440 minutes.")
             return
 
+        self._set_status("Checking GPU architecture...")
+        self.update_idletasks()
         if not check_gpu_architecture():
+            self._set_status("")
             messagebox.showerror("Error", "No compatible RTX GPU found.")
             return
 
         elevation_file = self.elevation_file.get().strip()
+        self._set_status("Checking elevation file...")
+        self.update_idletasks()
         if not check_elevation_file(elevation_file):
+            self._set_status("")
             messagebox.showerror("Error", "Elevation file is not present or downloading default file failed.")
             return
 
+        self._set_status("Checking color file...")
+        self.update_idletasks()
         if not check_color_file():
+            self._set_status("")
             messagebox.showerror("Error", "Surface color file is not present and download failed.")
             return
         
+        self._set_status("Checking starmap file...")
+        self.update_idletasks()
         if not check_starmap_file():
+            self._set_status("")
             messagebox.showerror("Error", "Starmap file is not present and download failed.")
             return
+        
+        self._set_status("Starting renderer...")
+        self.update_idletasks()
         
         # Disable the Run button while renderer is running
         self.run_btn.config(state=tk.DISABLED)
@@ -436,11 +455,20 @@ class MainWindow(tk.Tk):
         def monitor_process(process):
             process.join()  # Wait for process to finish
             print(f"Renderer process ended with exit code: {process.exitcode}")
-            # Re-enable the Run button (must use after() for thread-safe UI update)
-            self.after(0, lambda: self.run_btn.config(state=tk.NORMAL))
+            # Re-enable the Run button and clear status (must use after() for thread-safe UI update)
+            def on_process_end():
+                self.run_btn.config(state=tk.NORMAL)
+                self._set_status("")
+            self.after(0, on_process_end)
         
         monitor_thread = threading.Thread(target=monitor_process, args=(p,), daemon=True)
         monitor_thread.start()
+        
+        self._set_status("Renderer running...")
+
+    def _set_status(self, text):
+        """Update the status label with the given text."""
+        self.status_label.config(text=text)
 
 def main():
     app = MainWindow()
