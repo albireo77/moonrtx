@@ -46,13 +46,14 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **V** - Reset view to that based on current time (useful after starting with `--init-view` parameter)  
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
+**F12** - Save image  
+**Arrows** - Navigate view  
 **A/Z** - Increase/Decrease brightness  
 **Q/W** - Go back/forward in time by step minutes  
-**M/N** - Increase/Decrease time step minutes by 1  
-**Arrows** - Navigate view  
+**M/N** - Increase/Decrease time step by 1 minute  
+**Shift + M/N** - Increase/Decrease time step by 60 minutes  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
-**F12** - Save image  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
 **Hold and drag right mouse button** - Rotate Moon around the eye  
 **Hold shift + right mouse button and drag up/down** - Move eye backward/forward  

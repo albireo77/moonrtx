@@ -176,13 +176,14 @@ def run_renderer(dt_local: datetime,
     print("  V - Reset view to that based on current time (useful after starting with --init-view parameter)")
     print("  C - Center and fix view on point under cursor")
     print("  F - Search for Moon features (craters, mounts etc.)")
+    print("  F12 - Save image")
+    print("  Arrows - Navigate view")
     print("  A/Z - Increase/Decrease brightness")
     print("  Q/W - Go back/forward in time by step minutes")
-    print("  M/N - Increase/Decrease time step minutes by 1")
-    print("  Arrows - Navigate view")
+    print("  M/N - Increase/Decrease time step by 1 minute")
+    print("  Shift + M/N - Increase/Decrease time step by 60 minutes")
     print("  Ctrl + Left/Right - Rotate view around Moon's polar axis")
     print("  Ctrl + Up/Down - Rotate view around Moon's equatorial axis")
-    print("  F12 - Save image")
     print("  Hold and drag left mouse button - Rotate the eye around Moon")
     print("  Hold and drag right mouse button - Rotate Moon around the eye")
     print("  Hold shift + right mouse button and drag up/down - Move eye backward/forward")
@@ -224,9 +225,11 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'z':
             moon_renderer.change_brightness(-10)
         elif event.keysym.lower() == 'm':
-            moon_renderer.change_time_step(1)
+            step = 60 if event.state & 0x1 else 1  # Shift key pressed
+            moon_renderer.change_time_step(step)
         elif event.keysym.lower() == 'n':
-            moon_renderer.change_time_step(-1)
+            step = 60 if event.state & 0x1 else 1  # Shift key pressed
+            moon_renderer.change_time_step(-step)
         elif event.keysym.lower() == 'p':
             moon_renderer.toggle_pins()
         elif event.keysym.lower() == 'q':
