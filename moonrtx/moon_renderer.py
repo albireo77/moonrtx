@@ -560,6 +560,7 @@ class MoonRenderer:
         if self.brightness >= 500 and delta > 0:
             return
         self.brightness += delta
+        self.brightness = max(0, min(500, self.brightness))
         self.rt.setup_light("sun", color=self.brightness)
         self.rt._status_action_text.set(self.get_status_text())
 
@@ -579,6 +580,7 @@ class MoonRenderer:
         if self.time_step_minutes >= 1440 and delta > 0:
             return
         self.time_step_minutes += delta
+        self.time_step_minutes = max(1, min(1440, self.time_step_minutes))
         self.rt._status_action_text.set(self.get_status_text())
 
     def change_time(self, delta_minutes: int):
