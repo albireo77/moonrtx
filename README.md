@@ -46,6 +46,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **V** - Reset view to that based on current time (useful after starting with `--init-view` parameter)  
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
+**T** - Open date/time window  
 **F12** - Save image  
 **Arrows** - Navigate view  
 **A/Z** - Increase/Decrease brightness  

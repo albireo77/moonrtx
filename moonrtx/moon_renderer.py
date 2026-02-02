@@ -176,6 +176,7 @@ def run_renderer(dt_local: datetime,
     print("  V - Reset view to that based on current time (useful after starting with --init-view parameter)")
     print("  C - Center and fix view on point under cursor")
     print("  F - Search for Moon features (craters, mounts etc.)")
+    print("  T - Open date/time window")
     print("  F12 - Save image")
     print("  Arrows - Navigate view")
     print("  A/Z - Increase/Decrease brightness")
@@ -192,8 +193,10 @@ def run_renderer(dt_local: datetime,
     
     original_key_handler = moon_renderer.rt._gui_key_pressed
     def custom_key_handler(event):
-        # Ignore key events when search dialog is open
+        # Ignore key events when search dialog or datetime dialog is focused
         if moon_renderer.search_dialog_open:
+            return
+        if moon_renderer.datetime_dialog_focused:
             return
         if event.keysym.lower() == 'g':
             moon_renderer.toggle_grid()
@@ -236,6 +239,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_time(-moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 'w':
             moon_renderer.change_time(moon_renderer.time_step_minutes)
+        elif event.keysym.lower() == 't':
+            moon_renderer.open_datetime_dialog()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:
@@ -518,6 +523,10 @@ class MoonRenderer:
         
         # Flag to track if search dialog is open
         self.search_dialog_open = False
+        
+        # Datetime dialog tracking
+        self.datetime_dialog = None
+        self.datetime_dialog_focused = False
         
         # Pins settings
         self.pins_visible = True  # Pins visible by default
@@ -1037,6 +1046,142 @@ class MoonRenderer:
         y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - search_win.winfo_height()) // 2
         search_win.geometry(f"+{x}+{y}")
     
+    def open_datetime_dialog(self):
+        """
+        Open a dialog to set date, time, and timezone.
+        The dialog stays open and syncs with Q/W key time changes.
+        """
+        if self.rt is None:
+            return
+        
+        # If already open, just bring it to front
+        if self.datetime_dialog is not None and self.datetime_dialog.winfo_exists():
+            self.datetime_dialog.lift()
+            self.datetime_dialog.focus_set()
+            return
+        
+        # Create datetime window (non-modal, stays open)
+        dt_win = tk.Toplevel(self.rt._root)
+        dt_win.title("Date/Time")
+        dt_win.geometry("320x130")
+        dt_win.transient(self.rt._root)
+        dt_win.resizable(False, False)
+        
+        self.datetime_dialog = dt_win
+        
+        def on_close():
+            self.datetime_dialog = None
+            self.datetime_dialog_focused = False
+            dt_win.destroy()
+        
+        def on_focus_in(event):
+            self.datetime_dialog_focused = True
+        
+        def on_focus_out(event):
+            self.datetime_dialog_focused = False
+        
+        dt_win.protocol("WM_DELETE_WINDOW", on_close)
+        dt_win.bind("<FocusIn>", on_focus_in)
+        dt_win.bind("<FocusOut>", on_focus_out)
+        
+        # Main frame with padding
+        main_frame = tk.Frame(dt_win, padx=15, pady=5)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Get current time in UTC
+        current_dt_utc = self.dt_local.astimezone(timezone.utc)
+        
+        # Date row
+        date_frame = tk.Frame(main_frame)
+        date_frame.pack(fill=tk.X, pady=3)
+        tk.Label(date_frame, text="Date:", width=12, anchor='w').pack(side=tk.LEFT)
+        date_var = tk.StringVar(value=current_dt_utc.strftime('%Y-%m-%d'))
+        date_entry = tk.Entry(date_frame, textvariable=date_var, width=15)
+        date_entry.pack(side=tk.LEFT, padx=5)
+        tk.Label(date_frame, text="(YYYY-MM-DD)", fg='gray').pack(side=tk.LEFT)
+        
+        # Time row
+        time_frame = tk.Frame(main_frame)
+        time_frame.pack(fill=tk.X, pady=3)
+        tk.Label(time_frame, text="Time (UTC):", width=12, anchor='w').pack(side=tk.LEFT)
+        time_var = tk.StringVar(value=current_dt_utc.strftime('%H:%M:%S'))
+        time_entry = tk.Entry(time_frame, textvariable=time_var, width=15)
+        time_entry.pack(side=tk.LEFT, padx=5)
+        tk.Label(time_frame, text="(HH:MM:SS)", fg='gray').pack(side=tk.LEFT)
+        
+        # Error label
+        error_var = tk.StringVar()
+        error_label = tk.Label(main_frame, textvariable=error_var, fg='red')
+        error_label.pack(fill=tk.X, pady=2)
+        
+        # Button frame
+        btn_frame = tk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        def go_to_time():
+            """Apply the selected date/time in UTC."""
+            try:
+                date_str = date_var.get().strip()
+                time_str = time_var.get().strip()
+                
+                # Parse date and time
+                dt_str = f"{date_str} {time_str}"
+                try:
+                    new_dt_naive = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    # Try without seconds
+                    new_dt_naive = datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
+                
+                new_dt_utc = new_dt_naive.replace(tzinfo=timezone.utc)
+                
+                # Update the view
+                self.update_moon_for_time(new_dt_utc, self.observer_lat, self.observer_lon)
+                
+                # Regenerate grid and labels with new orientation
+                if self.moon_grid_visible:
+                    self.update_moon_grid_orientation()
+                if self.standard_labels_visible:
+                    self.update_standard_labels_orientation()
+                if self.spot_labels_visible:
+                    self.update_spot_labels_orientation()
+                
+                # Update pins positions
+                self.update_pins_orientation()
+                
+                # Update status bar
+                self.rt._status_action_text.set(self.get_status_text())
+                
+                error_var.set("")
+                
+            except Exception as e:
+                error_var.set(f"Error: {str(e)}")
+        
+        def set_now():
+            """Set to current UTC time."""
+            now_utc = datetime.now(timezone.utc)
+            date_var.set(now_utc.strftime('%Y-%m-%d'))
+            time_var.set(now_utc.strftime('%H:%M:%S'))
+        
+        def sync_from_renderer():
+            """Sync dialog fields with current renderer time."""
+            current_dt_utc = self.dt_local.astimezone(timezone.utc)
+            date_var.set(current_dt_utc.strftime('%Y-%m-%d'))
+            time_var.set(current_dt_utc.strftime('%H:%M:%S'))
+        
+        tk.Button(btn_frame, text="Now", command=set_now, width=8).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Sync with Moon", command=sync_from_renderer, width=16).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Set", command=go_to_time, width=10).pack(side=tk.RIGHT, padx=5)
+        
+        # Position near the top-right of the main window
+        dt_win.update_idletasks()
+        x = self.rt._root.winfo_x() + self.rt._root.winfo_width() - dt_win.winfo_width() - 50
+        y = self.rt._root.winfo_y() + 100
+        dt_win.geometry(f"+{x}+{y}")
+        
+        # Focus on time entry for quick editing
+        time_entry.focus_set()
+        time_entry.select_range(0, tk.END)
+
     def center_on_feature(self, feature: MoonFeature):
         """
         Center the view on a Moon feature and zoom to show it.
