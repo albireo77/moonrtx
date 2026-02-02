@@ -538,9 +538,14 @@ class MoonRenderer:
         lon_dir = 'E' if self.observer_lon >= 0 else 'W'
         observer_info = f"Observer: {abs(self.observer_lat):5.2f}°{lat_dir} {abs(self.observer_lon):6.2f}°{lon_dir}" if self.observer_lat is not None else ""
         
-        # UTC time info with time step
-        dt_utc = self.dt_local.astimezone(timezone.utc) if self.dt_local else None
-        utc_time = f"Time: {dt_utc.strftime('%Y-%m-%d %H:%M:%S UTC')} (step {self.time_step_minutes} minutes)" if dt_utc else ""
+        # Local time info with timezone offset and time step
+        if self.dt_local:
+            # Format timezone offset as +HH:MM or -HH:MM
+            offset = self.dt_local.strftime('%z')  # e.g., +0100
+            offset_formatted = f"{offset[:3]}:{offset[3:]}" if offset else ""  # e.g., +01:00
+            local_time = f"Time: {self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_formatted} (step {self.time_step_minutes} minutes)"
+        else:
+            local_time = ""
         
         # Moon position info
         moon_pos = f"Moon: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
@@ -554,12 +559,12 @@ class MoonRenderer:
         if coord_data is None:
             coord_data = " " * 29
         elif not coord_data:
-            coord_data = current_status[117:117+29]
+            coord_data = current_status[119:119+29]
         if feature_data is None:
             feature_data = " " * 40
         elif not feature_data:
-            feature_data = current_status[172:172+40]
-        return f"{observer_info:<27}  {utc_time:<50}    {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
+            feature_data = current_status[174:174+40]
+        return f"{observer_info:<27}  {local_time:<52}    {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
 
     def change_brightness(self, delta: int):
         if delta == 0:
@@ -1063,7 +1068,7 @@ class MoonRenderer:
         # Create datetime window (non-modal, stays open)
         dt_win = tk.Toplevel(self.rt._root)
         dt_win.title("Date/Time")
-        dt_win.geometry("320x130")
+        dt_win.geometry("360x130")
         dt_win.transient(self.rt._root)
         dt_win.resizable(False, False)
         
@@ -1088,26 +1093,31 @@ class MoonRenderer:
         main_frame = tk.Frame(dt_win, padx=15, pady=5)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Get current time in UTC
-        current_dt_utc = self.dt_local.astimezone(timezone.utc)
+        # Get current local time and its timezone for later use
+        current_dt_local = self.dt_local
+        local_tz = current_dt_local.tzinfo
+        
+        # Date and Time rows using grid for proper alignment
+        grid_frame = tk.Frame(main_frame)
+        grid_frame.pack(fill=tk.X, pady=3)
+        
+        # Format timezone offset as +HH:MM or -HH:MM
+        offset = current_dt_local.strftime('%z')  # e.g., +0100
+        offset_formatted = f"{offset[:3]}:{offset[3:]}" if offset else ""  # e.g., +01:00
         
         # Date row
-        date_frame = tk.Frame(main_frame)
-        date_frame.pack(fill=tk.X, pady=3)
-        tk.Label(date_frame, text="Date:", width=12, anchor='w').pack(side=tk.LEFT)
-        date_var = tk.StringVar(value=current_dt_utc.strftime('%Y-%m-%d'))
-        date_entry = tk.Entry(date_frame, textvariable=date_var, width=15)
-        date_entry.pack(side=tk.LEFT, padx=5)
-        tk.Label(date_frame, text="(YYYY-MM-DD)", fg='gray').pack(side=tk.LEFT)
+        tk.Label(grid_frame, text="Date:", anchor='w').grid(row=0, column=0, sticky='e', pady=2)
+        date_var = tk.StringVar(value=current_dt_local.strftime('%Y-%m-%d'))
+        date_entry = tk.Entry(grid_frame, textvariable=date_var, width=15)
+        date_entry.grid(row=0, column=1, padx=5, pady=2)
+        tk.Label(grid_frame, text="(YYYY-MM-DD)", fg='gray').grid(row=0, column=2, sticky='w', pady=2)
         
         # Time row
-        time_frame = tk.Frame(main_frame)
-        time_frame.pack(fill=tk.X, pady=3)
-        tk.Label(time_frame, text="Time (UTC):", width=12, anchor='w').pack(side=tk.LEFT)
-        time_var = tk.StringVar(value=current_dt_utc.strftime('%H:%M:%S'))
-        time_entry = tk.Entry(time_frame, textvariable=time_var, width=15)
-        time_entry.pack(side=tk.LEFT, padx=5)
-        tk.Label(time_frame, text="(HH:MM:SS)", fg='gray').pack(side=tk.LEFT)
+        tk.Label(grid_frame, text=f"Local Time (UTC{offset_formatted}):", anchor='e').grid(row=1, column=0, sticky='w', pady=2)
+        time_var = tk.StringVar(value=current_dt_local.strftime('%H:%M:%S'))
+        time_entry = tk.Entry(grid_frame, textvariable=time_var, width=15)
+        time_entry.grid(row=1, column=1, padx=5, pady=2)
+        tk.Label(grid_frame, text="(HH:MM:SS)", fg='gray').grid(row=1, column=2, sticky='w', pady=2)
         
         # Error label
         error_var = tk.StringVar()
@@ -1119,7 +1129,7 @@ class MoonRenderer:
         btn_frame.pack(fill=tk.X, pady=5)
         
         def go_to_time():
-            """Apply the selected date/time in UTC."""
+            """Apply the selected date/time in local timezone."""
             try:
                 date_str = date_var.get().strip()
                 time_str = time_var.get().strip()
@@ -1132,10 +1142,11 @@ class MoonRenderer:
                     # Try without seconds
                     new_dt_naive = datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
                 
-                new_dt_utc = new_dt_naive.replace(tzinfo=timezone.utc)
+                # Apply the fixed local timezone
+                new_dt_local = new_dt_naive.replace(tzinfo=local_tz)
                 
                 # Update the view
-                self.update_moon_for_time(new_dt_utc, self.observer_lat, self.observer_lon)
+                self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon)
                 
                 # Regenerate grid and labels with new orientation
                 if self.moon_grid_visible:
@@ -1157,16 +1168,16 @@ class MoonRenderer:
                 error_var.set(f"Error: {str(e)}")
         
         def set_now():
-            """Set to current UTC time."""
-            now_utc = datetime.now(timezone.utc)
-            date_var.set(now_utc.strftime('%Y-%m-%d'))
-            time_var.set(now_utc.strftime('%H:%M:%S'))
+            """Set to current local time."""
+            now_local = datetime.now(local_tz)
+            date_var.set(now_local.strftime('%Y-%m-%d'))
+            time_var.set(now_local.strftime('%H:%M:%S'))
         
         def sync_from_renderer():
             """Sync dialog fields with current renderer time."""
-            current_dt_utc = self.dt_local.astimezone(timezone.utc)
-            date_var.set(current_dt_utc.strftime('%Y-%m-%d'))
-            time_var.set(current_dt_utc.strftime('%H:%M:%S'))
+            current_dt_local = self.dt_local
+            date_var.set(current_dt_local.strftime('%Y-%m-%d'))
+            time_var.set(current_dt_local.strftime('%H:%M:%S'))
         
         tk.Button(btn_frame, text="Now", command=set_now, width=8).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Sync with Moon", command=sync_from_renderer, width=16).pack(side=tk.LEFT, padx=5)
