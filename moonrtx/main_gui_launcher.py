@@ -21,7 +21,8 @@ from moonrtx.main import (
     COLOR_FILE_LOCAL_PATH,
     STARMAP_FILE_LOCAL_PATH,
     MOON_FEATURES_FILE_LOCAL_PATH,
-    DATA_DIRECTORY_PATH
+    DATA_DIRECTORY_PATH,
+    BASE_PATH
 )
 
 class MainWindow(tk.Tk):
@@ -153,7 +154,7 @@ class MainWindow(tk.Tk):
 
     def _get_presets_dir(self):
         """Get the presets directory path, creating it if it doesn't exist."""
-        presets_dir = os.path.join(os.path.dirname(__file__), "presets")
+        presets_dir = os.path.join(BASE_PATH, "presets")
         if not os.path.exists(presets_dir):
             os.makedirs(presets_dir)
         return presets_dir
