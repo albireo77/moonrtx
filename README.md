@@ -50,8 +50,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Arrows** - Navigate view  
 **A/Z** - Increase/Decrease brightness  
 **Q/W** - Go back/forward in time by step minutes  
-**M/N** - Increase/Decrease time step by 1 minute  
-**Shift + M/N** - Increase/Decrease time step by 60 minutes  
+**M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
+**Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
