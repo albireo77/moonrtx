@@ -1,4 +1,3 @@
-from turtle import rt
 import numpy as np
 import os
 import struct
