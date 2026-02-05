@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from moonrtx.shared_types import MoonEphemeris, MoonFeature, CameraParams
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
-from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels, create_single_digit_on_sphere
+from moonrtx.moon_grid import create_moon_grid, create_standard_labels, create_spot_labels, create_single_digit_on_sphere, create_grid_labels_for_orientation
 
 import plotoptix
 from plotoptix import TkOptiX
@@ -28,6 +28,15 @@ STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
 SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
 PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
 CAMERA_TYPE = "Pinhole"
+
+# View orientation modes for different telescope configurations
+# Each mode specifies: (vertical_flip, horizontal_flip)
+# vertical_flip=True means S is up (N is down)
+# horizontal_flip=True means E is left (W is right)
+ORIENTATION_NSWE = "NSWE"  # Default: N up, S down, W left, E right
+ORIENTATION_NSEW = "NSEW"  # N up, S down, E left, W right (horizontal flip)
+ORIENTATION_SNEW = "SNEW"  # S up, N down, E left, W right (both flips so same as 180° rotation)
+ORIENTATION_SNWE = "SNWE"  # S up, N down, W left, E right (vertical flip)
 
 class Scene(NamedTuple):
     eye: NDArray
@@ -99,7 +108,8 @@ def run_renderer(dt_local: datetime,
                  brightness: int,
                  app_name: str,
                  init_camera_params: Optional[CameraParams] = None,
-                 time_step_minutes: int = 15) -> TkOptiX:
+                 time_step_minutes: int = 15,
+                 init_view_orientation: str = ORIENTATION_NSWE) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
     
@@ -121,6 +131,9 @@ def run_renderer(dt_local: datetime,
         Initial camera parameters to restore a specific view
     time_step_minutes : int
         Time step in minutes for Q/W keys (default 15)
+    init_view_orientation : str
+        Initial view orientation mode. One of:
+        ORIENTATION_NSWE (default), ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
     Returns
     -------
     TkOptiX
@@ -136,6 +149,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Brightness: {brightness}")
     print(f"  Downscale Factor: {downscale}")
     print(f"  Time Step (minutes): {time_step_minutes}")
+    print(f"  Initial View Orientation: {init_view_orientation}")
     if init_camera_params:
         print("  Init View: Restoring camera from screenshot filename")
     print()
@@ -148,7 +162,8 @@ def run_renderer(dt_local: datetime,
         downscale=downscale,
         features_file=features_file,
         brightness=brightness,
-        time_step_minutes=time_step_minutes
+        time_step_minutes=time_step_minutes,
+        init_view_orientation=init_view_orientation
     )
     
     # Setup renderer
@@ -167,9 +182,8 @@ def run_renderer(dt_local: datetime,
     print("  G - Toggle selenographic grid")
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
-    print("  I - Toggle upside down view")
-    print("  U - Toggle labels upside down")
     print("  P - Toggle pins ON/OFF")
+    print("  F1-F4 - Switch view orientation (NSWE, NSEW, SNEW, SNWE)")
     print("  1-9 - Create/Remove pin (when pins are ON)")
     print("  R - Reset view and time to initial state")
     print("  V - Reset view to that based on current time (useful after starting with --init-view parameter)")
@@ -203,10 +217,18 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_standard_labels()
         elif event.keysym.lower() == 's':
             moon_renderer.toggle_spot_labels()
-        elif event.keysym.lower() == 'u':
-            moon_renderer.toggle_labels_invert()
-        elif event.keysym.lower() == 'i':
-            moon_renderer.toggle_invert()
+        elif event.keysym == 'F1':
+            moon_renderer.set_orientation(ORIENTATION_NSWE)
+            original_key_handler(event)
+        elif event.keysym == 'F2':
+            moon_renderer.set_orientation(ORIENTATION_NSEW)
+            original_key_handler(event)
+        elif event.keysym == 'F3':
+            moon_renderer.set_orientation(ORIENTATION_SNEW)
+            original_key_handler(event)
+        elif event.keysym == 'F4':
+            moon_renderer.set_orientation(ORIENTATION_SNWE)
+            original_key_handler(event)
         elif event.keysym.lower() == 'r':
             moon_renderer.reset_camera_position()
         elif event.keysym.lower() == 'c':
@@ -432,7 +454,8 @@ class MoonRenderer:
                  downscale: int = 3,
                  width: int = 1400,
                  height: int = 900,
-                 time_step_minutes: int = 15):
+                 time_step_minutes: int = 15,
+                 init_view_orientation: str = ORIENTATION_NSWE):
         """
         Initialize the planetarium.
         
@@ -456,6 +479,8 @@ class MoonRenderer:
             Render window size
         time_step_minutes : int
             Time step in minutes for Q/W keys
+        init_view_orientation : str
+            Initial view orientation (ORIENTATION_NSWE, ORIENTATION_NSEW, etc.)
         """
         self.width = width
         self.height = height
@@ -483,9 +508,9 @@ class MoonRenderer:
         self.moon_grid_visible = False
         self.moon_grid = None
         self.moon_radius = MOON_RADIUS
-        
-        # View inversion (upside down)
-        self.inverted = False
+
+        self.orientation_mode = init_view_orientation
+        self.initial_orientation_mode = init_view_orientation  # For reset with R/V keys
         
         # Initial camera parameters (for reset with R key)
         self.initial_camera_params = None
@@ -510,8 +535,6 @@ class MoonRenderer:
         self.spot_labels = None
         self.spot_label_features = []
         
-        # Label inversion state (for upside down readability)
-        self.labels_inverted = False
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
         
@@ -546,8 +569,11 @@ class MoonRenderer:
         else:
             local_time = ""
         
-        # Moon position info
-        moon_pos = f"Moon: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
+        # Moon position info with view orientation
+        if self.moon_ephem:
+            moon_pos = f"Moon: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°  View: {self.orientation_mode}"
+        else:
+            moon_pos = ""
         
         # Phase angle info (0° = Full Moon, 180° = New Moon)
         phase_info = f"Phase angle: {self.moon_ephem.phase:6.2f}°" if self.moon_ephem else ""
@@ -555,15 +581,193 @@ class MoonRenderer:
         brightness_column = f"Brightness: {self.brightness}"
         pins_column = f"[Pins {'ON' if self.pins_visible else 'OFF'}]"
         current_status = self.rt._status_action_text.get()
+        # Status bar layout (character positions):
+        # observer_info(27) + 2sp + local_time(52) + 4sp + moon_pos(44) + 2sp + phase_info(20) + 2sp + coord_data(29) + 4sp + feature_data(40) + 4sp + brightness(15) + 2sp + pins
+        # coord_data starts at: 27+2+52+4+44+2+20+2 = 153
+        # feature_data starts at: 153+29+4 = 186
         if coord_data is None:
             coord_data = " " * 29
         elif not coord_data:
-            coord_data = current_status[119:119+29]
+            coord_data = current_status[153:153+29]
         if feature_data is None:
             feature_data = " " * 40
         elif not feature_data:
-            feature_data = current_status[174:174+40]
-        return f"{observer_info:<27}  {local_time:<52}    {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
+            feature_data = current_status[186:186+40]
+        return f"{observer_info:<27}  {local_time:<52}    {moon_pos:<44}  {phase_info:<20}  {coord_data:<29}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
+
+    def set_orientation(self, orientation: str):
+        """
+        Set the view orientation mode and update the status bar.
+        
+        Called when F1-F4 keys are pressed to match plotoptix internal orientation change.
+        
+        Parameters
+        ----------
+        orientation : str
+            One of ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
+        """
+        self.orientation_mode = orientation
+        
+        # Update grid labels if grid is visible
+        if self.moon_grid is not None and self.moon_grid_visible:
+            self.update_grid_labels_for_orientation()
+        
+        # Update standard labels if visible
+        if self.standard_labels is not None and self.standard_labels_visible:
+            self.update_standard_labels_for_view_orientation()
+        
+        # Update spot labels if visible
+        if self.spot_labels is not None and self.spot_labels_visible:
+            self.update_spot_labels_for_view_orientation()
+        
+        self.rt._status_action_text.set(self.get_status_text())
+
+    def update_grid_labels_for_orientation(self):
+        """
+        Update grid number labels to match current view orientation.
+        
+        Regenerates latitude and longitude number labels so they are
+        always readable (not upside down) in the current view orientation.
+        """
+        if self.rt is None or self.moon_grid is None:
+            return
+        
+        # Determine flip flags based on orientation
+        # NSWE (default): N up, W left - no flips
+        # NSEW: N up, E left - horizontal flip
+        # SNEW: S up, E left - both flips (180° rotation)
+        # SNWE: S up, W left - vertical flip
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        
+        # Generate new labels with proper orientation
+        lat_labels, lat_label_values, lon_labels, lon_label_values = create_grid_labels_for_orientation(
+            moon_radius=self.moon_radius,
+            lat_step=15.0,
+            lon_step=15.0,
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
+        )
+        
+        # Update the moon_grid with new labels
+        self.moon_grid = self.moon_grid._replace(
+            lat_labels=lat_labels,
+            lat_label_values=lat_label_values,
+            lon_labels=lon_labels,
+            lon_label_values=lon_label_values
+        )
+        
+        # Get rotation matrix
+        R = self.moon_rotation
+        
+        # Update latitude labels in renderer
+        for i, segments in enumerate(self.moon_grid.lat_labels):
+            for j, seg in enumerate(segments):
+                name = f"grid_lat_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated)
+                except:
+                    pass
+        
+        # Update longitude labels in renderer
+        for i, segments in enumerate(self.moon_grid.lon_labels):
+            for j, seg in enumerate(segments):
+                name = f"grid_lon_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated)
+                except:
+                    pass
+
+    def update_standard_labels_for_view_orientation(self):
+        """
+        Update standard labels to match current view orientation.
+        
+        Regenerates standard labels so they are always readable
+        (not upside down) in the current view orientation.
+        """
+        if self.rt is None or self.standard_labels is None or self.standard_label_features is None:
+            return
+        
+        # Determine flip flags based on orientation
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        
+        # Regenerate labels with proper orientation
+        self.standard_labels = create_standard_labels(
+            self.standard_label_features,
+            moon_radius=self.moon_radius,
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
+        )
+        
+        # Get rotation matrix
+        R = self.moon_rotation
+        
+        # Update labels in renderer
+        for i, label in enumerate(self.standard_labels):
+            feature = self.standard_label_features[i]
+            label_radius = STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            for j, seg in enumerate(label.segments):
+                name = f"standard_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated, r=label_radius)
+                except:
+                    pass
+
+    def update_spot_labels_for_view_orientation(self):
+        """
+        Update spot labels to match current view orientation.
+        
+        Regenerates spot labels so they are always readable
+        (not upside down) in the current view orientation.
+        """
+        if self.rt is None or self.spot_labels is None or self.spot_label_features is None:
+            return
+        
+        # Determine flip flags based on orientation
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        
+        # Regenerate labels with proper orientation
+        self.spot_labels = create_spot_labels(
+            self.spot_label_features,
+            moon_radius=self.moon_radius,
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
+        )
+        
+        # Get rotation matrix
+        R = self.moon_rotation
+        
+        # Update labels in renderer
+        for i, label in enumerate(self.spot_labels):
+            feature = self.spot_label_features[i]
+            label_radius = SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            for j, seg in enumerate(label.segments):
+                name = f"spot_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated, r=label_radius)
+                except:
+                    pass
 
     def change_brightness(self, delta: int):
         if delta == 0:
@@ -639,13 +843,21 @@ class MoonRenderer:
                 # Set monospace font for status bar to prevent text shifting
                 # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=245)
+                    rt._status_action.configure(font=("Consolas", 9), width=257)
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
                 # Bind mouse wheel for zoom
                 if hasattr(rt, '_canvas'):
                     rt._canvas.bind('<MouseWheel>', self._mouse_wheel_handler)
+                
+                # Apply initial view orientation to plotoptix
+                if self.orientation_mode != ORIENTATION_NSWE:
+                    rt._view_orientation = self.orientation_mode
+                    # Update grid labels for initial orientation if grid exists
+                    if self.moon_grid is not None and self.moon_grid_visible:
+                        self.update_grid_labels_for_orientation()
+                
                 rt._status_action_text.set(self.get_status_text())
             rt._root.after_idle(init_window)
     
@@ -745,21 +957,18 @@ class MoonRenderer:
         fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
         fov = max(1, min(90, fov))  # Clamp to valid range
         
-        # Invert up vector for upside down view
-        camera_up = scene.up if not self.inverted else -scene.up
-        
         self.rt.setup_camera("cam1",
                              cam_type=CAMERA_TYPE,
                              eye=scene.eye.tolist(),
                              target=scene.target.tolist(),
-                             up=camera_up.tolist(),
+                             up=scene.up.tolist(),
                              aperture_radius=0.01,
                              aperture_fract=0.2,
                              focal_scale=0.7,
                              fov=fov)
         
         # Always store default camera params (the view calculated from ephemeris)
-        self.default_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=camera_up.tolist(), fov=fov)
+        self.default_camera_params = CameraParams(eye=scene.eye.tolist(), target=scene.target.tolist(), up=scene.up.tolist(), fov=fov)
 
         # Store initial camera parameters and time for reset functionality
         if self.initial_camera_params is None:
@@ -814,7 +1023,7 @@ class MoonRenderer:
         self.default_camera_params = CameraParams(
             eye=scene.eye.tolist(), 
             target=scene.target.tolist(), 
-            up=scene.up.tolist() if not self.inverted else (-scene.up).tolist(), 
+            up=scene.up.tolist(), 
             fov=current_fov
         )
         
@@ -1328,6 +1537,10 @@ class MoonRenderer:
         
         self.moon_grid_visible = True
         
+        # Update labels for current view orientation if not default
+        if self.orientation_mode != ORIENTATION_NSWE:
+            self.update_grid_labels_for_orientation()
+        
         self.update_moon_grid_orientation()
     
     def show_moon_grid(self, visible: bool = True):
@@ -1393,10 +1606,11 @@ class MoonRenderer:
         
         self.moon_grid_visible = visible
         
-        # When showing the grid, update its orientation to match current Moon position
-        # This is needed in case time changed while the grid was hidden
+        # When showing the grid, update its orientation to match current view and Moon position
+        # This is needed in case view orientation or time changed while the grid was hidden
         if visible:
-            self.update_moon_grid_orientation()
+            self.update_grid_labels_for_orientation()  # View orientation for labels
+            self.update_moon_grid_orientation()  # Moon rotation for grid lines
     
     def toggle_grid(self):
         """Toggle the selenographic grid visibility."""
@@ -1410,12 +1624,18 @@ class MoonRenderer:
             print("Renderer not initialized")
             return
 
+        # Determine flip flags based on current orientation
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+
         # Get ALL features with standard_label=True (illumination checked during rendering)
         self.standard_label_features = [f for f in self.moon_features if f.standard_label]
         self.standard_labels = create_standard_labels(
             self.standard_label_features,
             moon_radius=self.moon_radius,
-            offset=0.0
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
         )
         
         # Create an emissive material for the labels (so they glow and are visible in shadow)
@@ -1438,10 +1658,6 @@ class MoonRenderer:
             current_radius = label_radius if self._is_feature_illuminated(feature) else 0.0
             for j, seg in enumerate(label.segments):
                 name = f"standard_label_{i}_{j}"
-                # Apply inversion if enabled
-                if self.labels_inverted:
-                    lat, lon = label.anchor_point
-                    seg = self.invert_label_segment(seg, lat, lon)
                 # Apply Moon rotation
                 if R is not None:
                     seg = (R @ seg.T).T
@@ -1480,10 +1696,10 @@ class MoonRenderer:
         
         self.standard_labels_visible = visible
         
-        # When showing labels, update their orientation to match current Moon position
-        # This is needed in case time changed while labels were hidden
+        # When showing labels, update their orientation to match current Moon position and view
+        # This is needed in case time or view orientation changed while labels were hidden
         if visible:
-            self.update_standard_labels_orientation()
+            self.update_standard_labels_for_view_orientation()
     
     def toggle_standard_labels(self):
         """Toggle the feature standard labels visibility."""
@@ -1497,12 +1713,18 @@ class MoonRenderer:
             print("Renderer not initialized")
             return
 
+        # Determine flip flags based on current orientation
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+
         # Get ALL features with spot_label=True (illumination checked during rendering)
         self.spot_label_features = [f for f in self.moon_features if f.spot_label]
         self.spot_labels = create_spot_labels(
             self.spot_label_features,
             moon_radius=self.moon_radius,
-            offset=0.0
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
         )
         
         # Create an emissive material for the labels (so they glow and are visible in shadow)
@@ -1525,10 +1747,6 @@ class MoonRenderer:
             current_radius = label_radius if self._is_feature_illuminated(feature) else 0.0
             for j, seg in enumerate(label.segments):
                 name = f"spot_label_{i}_{j}"
-                # Apply inversion if enabled
-                if self.labels_inverted:
-                    lat, lon = label.anchor_point
-                    seg = self.invert_label_segment(seg, lat, lon)
                 # Apply Moon rotation
                 if R is not None:
                     seg = (R @ seg.T).T
@@ -1567,82 +1785,14 @@ class MoonRenderer:
         
         self.spot_labels_visible = visible
         
-        # When showing labels, update their orientation to match current Moon position
-        # This is needed in case time changed while labels were hidden
+        # When showing labels, update their orientation to match current Moon position and view
+        # This is needed in case time or view orientation changed while labels were hidden
         if visible:
-            self.update_spot_labels_orientation()
+            self.update_spot_labels_for_view_orientation()
     
     def toggle_spot_labels(self):
         """Toggle the spot labels visibility."""
         self.show_spot_labels(not self.spot_labels_visible)
-    
-    def invert_label_segment(self, segment: np.ndarray, anchor_lat: float, anchor_lon: float) -> np.ndarray:
-        """
-        Invert (rotate 180°) a label segment around its anchor point on the Moon surface.
-        
-        This rotates the segment 180° around the radial vector at the anchor point,
-        effectively flipping the text upside down while keeping it pointing to the
-        same location on the Moon.
-        
-        Parameters
-        ----------
-        segment : np.ndarray
-            Array of 3D points (N x 3) defining the segment
-        anchor_lat : float
-            Selenographic latitude of anchor point in degrees
-        anchor_lon : float
-            Selenographic longitude of anchor point in degrees
-            
-        Returns
-        -------
-        np.ndarray
-            Inverted segment points
-        """
-        # Calculate anchor point on Moon surface (in original Moon coordinates)
-        r = self.moon_radius * 1.005  # Same offset as labels
-        lat_rad = np.radians(anchor_lat)
-        lon_rad = np.radians(anchor_lon)
-        
-        # Anchor point in original Moon coordinates (before Moon rotation)
-        # +Z is north pole, -Y is prime meridian (lon=0), +X is east (lon=90)
-        anchor_x = r * np.cos(lat_rad) * np.sin(lon_rad)
-        anchor_y = -r * np.cos(lat_rad) * np.cos(lon_rad)
-        anchor_z = r * np.sin(lat_rad)
-        anchor = np.array([anchor_x, anchor_y, anchor_z])
-        
-        # The radial vector at anchor point (pointing outward from Moon center)
-        radial = anchor / np.linalg.norm(anchor)
-        
-        # For each point in the segment, rotate 180° around the radial axis
-        # Rotation by 180° around axis n: R = 2 * n * n^T - I
-        # This reflects through the plane containing the axis
-        inverted_points = []
-        for point in segment:
-            # Vector from anchor to point
-            v = point - anchor
-            # 180° rotation around radial axis: v' = 2*(v·n)*n - v
-            v_rotated = 2 * np.dot(v, radial) * radial - v
-            # New point position
-            new_point = anchor + v_rotated
-            inverted_points.append(new_point)
-        
-        return np.array(inverted_points)
-    
-    def toggle_labels_invert(self):
-        """
-        Toggle the inversion (upside-down flip) of all labels.
-        
-        When inverted, labels are rotated 180° around their anchor points,
-        making them readable when the view is inverted with the 'I' key.
-        """
-        self.labels_inverted = not self.labels_inverted
-        
-        # Update both label types to reflect the new inversion state
-        # Update all existing labels regardless of visibility to keep them in sync
-        if self.standard_labels is not None:
-            self.update_standard_labels_orientation()
-        if self.spot_labels is not None:
-            self.update_spot_labels_orientation()
     
     def update_spot_labels_orientation(self):
         """
@@ -1666,13 +1816,7 @@ class MoonRenderer:
             label_radius = SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, orig_seg in enumerate(label.segments):
                 name = f"spot_label_{i}_{j}"
-                # Apply inversion if enabled (anchor is the spot itself, not label position)
-                if self.labels_inverted:
-                    lat, lon = label.anchor_point
-                    seg = self.invert_label_segment(orig_seg, lat, lon)
-                else:
-                    seg = orig_seg
-                rotated = (R @ seg.T).T
+                rotated = (R @ orig_seg.T).T
                 try:
                     self.rt.update_data(name, pos=rotated, r=label_radius)
                 except:
@@ -1700,13 +1844,7 @@ class MoonRenderer:
             label_radius = STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, orig_seg in enumerate(label.segments):
                 name = f"standard_label_{i}_{j}"
-                # Apply inversion if enabled
-                if self.labels_inverted:
-                    lat, lon = label.anchor_point
-                    seg = self.invert_label_segment(orig_seg, lat, lon)
-                else:
-                    seg = orig_seg
-                rotated = (R @ seg.T).T
+                rotated = (R @ orig_seg.T).T
                 try:
                     self.rt.update_data(name, pos=rotated, r=label_radius)
                 except:
@@ -1728,13 +1866,19 @@ class MoonRenderer:
         if self.rt is None:
             return
         
+        # Determine flip flags based on current orientation
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        
         # Generate pin digit segments (left-bottom corner at cursor position)
         pin_segments = create_single_digit_on_sphere(
             digit=digit,
             lat=lat,
             lon=lon,
             moon_radius=self.moon_radius,
-            offset=0.0
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
         )
         
         # Store pin data (original segments for rotation updates)
@@ -1749,12 +1893,6 @@ class MoonRenderer:
         
         # Apply Moon rotation to segments and add to renderer
         R = self.moon_rotation
-        
-        # If view is inverted, flip the digit 180° around the radial axis at the pin position
-        # so it appears normal in the inverted view
-        if self.inverted:
-            pin_segments = [self.invert_label_segment(seg, lat, lon) for seg in pin_segments]
-            self.pins[digit] = pin_segments
         
         for j, seg in enumerate(pin_segments):
             name = f"pin_{digit}_{j}"
@@ -1892,18 +2030,6 @@ class MoonRenderer:
                 except:
                     pass
     
-    def toggle_invert(self):
-        """Invert (flip) the view upside down"""
-        self.inverted = not self.inverted
-        
-        if self.rt is None:
-            return
-        
-        # Flip the camera up vector to invert the view
-        # Use setup_camera to get current camera and flip its up vector
-        new_up = [0, 0, -1] if self.inverted else [0, 0, 1]
-        self.rt.setup_camera("cam1", up=new_up)
-    
     def find_feature_for_status_bar(self, lat: float, lon: float) -> Optional[MoonFeature]:
         """
         Find a Moon feature by the given selenographic coordinates to be displayed on status bar.
@@ -1957,6 +2083,11 @@ class MoonRenderer:
         if self.rt is None or cp is None:
             return
         
+        # Reset orientation mode to initial
+        if self.orientation_mode != self.initial_orientation_mode:
+            self.set_orientation(self.initial_orientation_mode)
+            self.rt._view_orientation = self.initial_orientation_mode
+        
         # Reset time back to initial time if it was changed
         if self.initial_dt_local is not None and self.dt_local != self.initial_dt_local:
             # Reset to initial time - this will restore Moon orientation and lighting
@@ -1974,8 +2105,6 @@ class MoonRenderer:
             self.update_pins_orientation()
         
         # Restore initial camera parameters
-        # Clear inversion so reset always returns to the original saved view
-        self.inverted = False
         up = cp.up[:]
 
         self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
@@ -1996,9 +2125,12 @@ class MoonRenderer:
         if self.rt is None or cp is None:
             return
         
+        # Reset orientation mode to initial
+        if self.orientation_mode != self.initial_orientation_mode:
+            self.set_orientation(self.initial_orientation_mode)
+            self.rt._view_orientation = self.initial_orientation_mode
+        
         # Restore default camera parameters
-        # Clear inversion so reset always returns to the ephemeris-defined view
-        self.inverted = False
         up = cp.up[:]
 
         self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)

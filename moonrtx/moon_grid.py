@@ -115,7 +115,9 @@ def create_single_digit_on_sphere(digit: int,
                                    lat: float, lon: float,
                                    moon_radius: float,
                                    offset: float = 0.0,
-                                   digit_scale: float = PIN_DIGIT_SCALE) -> list:
+                                   digit_scale: float = PIN_DIGIT_SCALE,
+                                   flip_horizontal: bool = False,
+                                   flip_vertical: bool = False) -> list:
     """
     Create 3D line segments for a single digit (1-9) positioned on the Moon sphere.
     
@@ -131,6 +133,10 @@ def create_single_digit_on_sphere(digit: int,
         Height above surface (fraction of radius)
     digit_scale : float
         Size of digit
+    flip_horizontal : bool
+        If True, mirror digit horizontally
+    flip_vertical : bool
+        If True, mirror digit vertically
         
     Returns
     -------
@@ -153,7 +159,14 @@ def create_single_digit_on_sphere(digit: int,
         points_3d = []
         for p_local in [p1_local, p2_local]:
             lx, lz = p_local
-            # Shift so left-bottom corner is at origin
+            
+            # Apply flips in local 2D space before positioning
+            if flip_horizontal:
+                lx = -lx  # Mirror around center
+            if flip_vertical:
+                lz = -lz  # Mirror around center
+            
+            # Shift so left-bottom corner is at origin (or right-bottom if flipped)
             lx += w
             lz += h
             
@@ -182,7 +195,9 @@ def create_number_on_sphere(number: int,
                             moon_radius: float,
                             offset: float,
                             digit_scale: float = 0.3,
-                            spacing: float = 0.25) -> list:
+                            spacing: float = 0.25,
+                            flip_horizontal: bool = False,
+                            flip_vertical: bool = False) -> list:
     """
     Create 3D line segments for a number positioned on the Moon sphere.
     
@@ -200,6 +215,10 @@ def create_number_on_sphere(number: int,
         Size of digits
     spacing : float
         Spacing between digits (as fraction of scale)
+    flip_horizontal : bool
+        If True, flip digits horizontally (mirror left-right)
+    flip_vertical : bool
+        If True, flip digits vertically (upside down)
         
     Returns
     -------
@@ -218,7 +237,13 @@ def create_number_on_sphere(number: int,
     all_segments = []
     
     # Position for each digit
-    for i, digit in enumerate(num_str):
+    # If horizontally flipped, reverse the digit order
+    digit_indices = range(num_digits)
+    if flip_horizontal:
+        digit_indices = list(reversed(digit_indices))
+    
+    for i, digit_idx in enumerate(digit_indices):
+        digit = num_str[digit_idx]
         # Local x offset for this digit (centered)
         local_x = -total_width/2 + i * digit_scale * (1 + spacing) + digit_scale * 0.5
         
@@ -231,6 +256,13 @@ def create_number_on_sphere(number: int,
             points_3d = []
             for p_local in [p1_local, p2_local]:
                 lx, lz = p_local
+                
+                # Apply flipping to the digit shape in local 2D coords
+                if flip_horizontal:
+                    lx = -lx
+                if flip_vertical:
+                    lz = -lz
+                
                 lx += local_x  # Apply digit offset
                 
                 # Convert local offset to lat/lon offset
@@ -261,18 +293,32 @@ def create_text_on_sphere(text: str,
                           moon_radius: float,
                           offset: float,
                           char_scale: float = 0.15,
-                          spacing: float = 0.15) -> list:
+                          spacing: float = 0.15,
+                          flip_horizontal: bool = False,
+                          flip_vertical: bool = False) -> list:
     """
     Create 3D line segments for text positioned on the Moon sphere.
     Text starts horizontally at the given lon (not centered).
+    
+    Parameters
+    ----------
+    flip_horizontal : bool
+        If True, mirror text horizontally (for NSEW, SNEW orientations)
+    flip_vertical : bool
+        If True, mirror text vertically (for SNEW, SNWE orientations)
     """
 
     r = moon_radius * (1 + offset + 0.005)
     all_segments = []
 
     char_width = char_scale * (1 + spacing)
+    
+    # Get text to process (reverse if flipping horizontally)
+    display_text = text.upper()
+    if flip_horizontal:
+        display_text = display_text[::-1]
 
-    for i, char in enumerate(text.upper()):
+    for i, char in enumerate(display_text):
         # Local x offset: text starts at lon and grows eastward
         local_x = i * char_width
 
@@ -287,6 +333,13 @@ def create_text_on_sphere(text: str,
 
             for p_local in (p1_local, p2_local):
                 lx, lz = p_local
+                
+                # Apply flips in local 2D space before projection
+                if flip_horizontal:
+                    lx = char_scale - lx  # Mirror around character center
+                if flip_vertical:
+                    lz = char_scale - lz  # Mirror around character center
+                
                 lx += local_x
 
                 # Convert local offsets to lat/lon offsets
@@ -317,7 +370,9 @@ def create_centered_text_on_sphere(text: str,
                                    moon_radius: float,
                                    offset: float,
                                    char_scale: float = 0.15,
-                                   spacing: float = 0.15) -> list:
+                                   spacing: float = 0.15,
+                                   flip_horizontal: bool = False,
+                                   flip_vertical: bool = False) -> list:
     """
     Create 3D line segments for text positioned on the Moon sphere.
     
@@ -335,6 +390,10 @@ def create_centered_text_on_sphere(text: str,
         Size of characters
     spacing : float
         Spacing between characters (as fraction of scale)
+    flip_horizontal : bool
+        If True, mirror text horizontally (for NSEW, SNEW orientations)
+    flip_vertical : bool
+        If True, mirror text vertically (for SNEW, SNWE orientations)
         
     Returns
     -------
@@ -347,10 +406,16 @@ def create_centered_text_on_sphere(text: str,
     
     # Calculate total width for centering
     char_width = char_scale * (1 + spacing)
-    num_chars = len(text)
+    
+    # Get text to process (reverse if flipping horizontally)
+    display_text = text.upper()
+    if flip_horizontal:
+        display_text = display_text[::-1]
+    
+    num_chars = len(display_text)
     total_width = num_chars * char_width - char_scale * spacing  # subtract last spacing
     
-    for i, char in enumerate(text.upper()):
+    for i, char in enumerate(display_text):
         # Local x offset for this character (centered around origin)
         local_x = i * char_width - total_width / 2 + char_width / 2
         
@@ -366,6 +431,13 @@ def create_centered_text_on_sphere(text: str,
             points_3d = []
             for p_local in [p1_local, p2_local]:
                 lx, lz = p_local
+                
+                # Apply flips in local 2D space before projection
+                if flip_horizontal:
+                    lx = char_scale - lx  # Mirror around character center
+                if flip_vertical:
+                    lz = char_scale - lz  # Mirror around character center
+                
                 lx += local_x  # Apply character offset (already centered)
                 
                 # Convert local offset to lat/lon offset
@@ -390,7 +462,8 @@ def create_centered_text_on_sphere(text: str,
     return all_segments
 
 
-def create_standard_labels(standard_label_features: list[MoonFeature], moon_radius: float = 10.0, offset: float = 0.0) -> list[MoonLabel]:
+def create_standard_labels(standard_label_features: list[MoonFeature], moon_radius: float = 10.0, offset: float = 0.0,
+                           flip_horizontal: bool = False, flip_vertical: bool = False) -> list[MoonLabel]:
     """
     Create standard labels
     
@@ -404,6 +477,10 @@ def create_standard_labels(standard_label_features: list[MoonFeature], moon_radi
         Radius of the Moon sphere
     offset : float
         Height offset above surface
+    flip_horizontal : bool
+        If True, mirror text horizontally
+    flip_vertical : bool
+        If True, mirror text vertically
         
     Returns
     -------
@@ -424,14 +501,17 @@ def create_standard_labels(standard_label_features: list[MoonFeature], moon_radi
             moon_radius=moon_radius,
             offset=offset,
             char_scale=LABEL_CHAR_SCALE,
-            spacing=0.1
+            spacing=0.1,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
         )
         standard_label = MoonLabel(segments=standard_label_segments, anchor_point=(label_lat, label_lon))
         standard_labels.append(standard_label)
     
     return standard_labels
 
-def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: float = 10.0, offset: float = 0.0) -> list[MoonLabel]:
+def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: float = 10.0, offset: float = 0.0,
+                       flip_horizontal: bool = False, flip_vertical: bool = False) -> list[MoonLabel]:
     """
     Create spot labels
     
@@ -443,6 +523,10 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
         Radius of the Moon sphere
     offset : float
         Height offset above surface
+    flip_horizontal : bool
+        If True, mirror text horizontally
+    flip_vertical : bool
+        If True, mirror text vertically
         
     Returns
     -------
@@ -453,8 +537,14 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
     
     for spot_label_feature in spot_label_features:
         
-        label_text = "< " + spot_label_feature.name
-        label_lon = spot_label_feature.lon + spot_label_feature.angular_radius * 2
+        # For spot labels, the arrow points to the feature
+        # When flipped horizontally, arrow should be on the right side
+        if flip_horizontal:
+            label_text = spot_label_feature.name + " >"
+            label_lon = spot_label_feature.lon - spot_label_feature.angular_radius * 2
+        else:
+            label_text = "< " + spot_label_feature.name
+            label_lon = spot_label_feature.lon + spot_label_feature.angular_radius * 2
         label_lat = spot_label_feature.lat
         
         spot_label_segments = create_text_on_sphere(
@@ -464,7 +554,9 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
             moon_radius=moon_radius,
             offset=offset,
             char_scale=LABEL_CHAR_SCALE,
-            spacing=0.1
+            spacing=0.1,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
         )
         spot_label = MoonLabel(segments=spot_label_segments, anchor_point=(label_lat, label_lon))
         spot_labels.append(spot_label)
@@ -614,3 +706,71 @@ def create_moon_grid(moon_radius: float = 10.0,
         lon_label_values=lon_label_values,
         N=N
     )
+
+
+def create_grid_labels_for_orientation(moon_radius: float,
+                                       lat_step: float,
+                                       lon_step: float,
+                                       offset: float,
+                                       flip_horizontal: bool,
+                                       flip_vertical: bool) -> tuple:
+    """
+    Create grid labels (lat and lon numbers) with specified orientation.
+    
+    Used to regenerate labels when view orientation changes (F1-F4 keys).
+    
+    Parameters
+    ----------
+    moon_radius : float
+        Radius of the Moon sphere
+    lat_step : float
+        Spacing between latitude lines in degrees
+    lon_step : float
+        Spacing between longitude lines in degrees
+    offset : float
+        Offset above surface (fraction of radius)
+    flip_horizontal : bool
+        If True, flip digits horizontally (for NSEW, SNEW orientations)
+    flip_vertical : bool
+        If True, flip digits vertically (for SNEW, SNWE orientations)
+        
+    Returns
+    -------
+    tuple
+        (lat_labels, lat_label_values, lon_labels, lon_label_values)
+    """
+    # Create labels for latitude lines
+    lat_labels = []
+    lat_label_values = []
+    label_longitudes = [0, 90, 180, -90]
+    for label_lon in label_longitudes:
+        for lat in np.arange(-60, 61, lat_step):
+            if lat == 90 or lat == -90:
+                continue
+            segments = create_number_on_sphere(
+                int(lat), lat=lat+1, lon=label_lon + lat_step/2-1,
+                moon_radius=moon_radius, offset=offset,
+                digit_scale=0.125,
+                flip_horizontal=flip_horizontal,
+                flip_vertical=flip_vertical
+            )
+            lat_labels.append(segments)
+            lat_label_values.append(int(lat))
+    
+    # Create labels for longitude lines
+    lon_labels = []
+    lon_label_values = []    
+    for lon in np.arange(0, 360, lon_step):
+        display_lon = lon if lon <= 180 else lon - 360
+        lon_offset = 2 if display_lon < 0 else 1
+        segments = create_number_on_sphere(
+            int(display_lon), lat=lat_step/2-1, lon=display_lon+lon_offset,
+            moon_radius=moon_radius, offset=offset,
+            digit_scale=0.125,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
+        )
+        lon_labels.append(segments)
+        lon_label_values.append(int(display_lon))
+    
+    return lat_labels, lat_label_values, lon_labels, lon_label_values
