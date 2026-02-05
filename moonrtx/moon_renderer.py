@@ -1079,7 +1079,7 @@ class MoonRenderer:
         """
         Generate a default filename for saving screenshots.
         
-        Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_cam<base64>
+        Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>_cam<base64>
         
         The camera parameters (eye, target, up, fov) are encoded into a compact
         base64 string for a shorter filename while remaining fully reversible.
@@ -1112,7 +1112,10 @@ class MoonRenderer:
         else:
             parts.append("lonnone")
         
-        # 4. Current camera parameters (at the time of screenshot) - encoded as base64
+        # 4. View orientation
+        parts.append(f"view{self.orientation_mode}")
+        
+        # 5. Current camera parameters (at the time of screenshot) - encoded as base64
         if self.rt is not None:
             try:
                 cam = self.rt.get_camera("cam1")

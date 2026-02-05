@@ -46,6 +46,7 @@ class InitView(NamedTuple):
     dt_local: datetime
     lat: float
     lon: float
+    orientation: str
     eye: list
     target: list
     up: list
@@ -187,7 +188,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
     
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_cam<base64>
+    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>_cam<base64>
     
     Parameters
     ----------
@@ -200,7 +201,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         Parsed data or None if parsing fails
     """
     try:
-        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_cam([A-Za-z0-9_-]+)$'
+        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_view([A-Z]+)_cam([A-Za-z0-9_-]+)$'
         match = re.match(pattern, init_view_str)
         
         if not match:
@@ -209,7 +210,13 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         dt_str = match.group(1)
         lat = float(match.group(2))
         lon = float(match.group(3))
-        cam_encoded = match.group(4)
+        orientation = match.group(4)
+        cam_encoded = match.group(5)
+        
+        # Validate orientation
+        if orientation not in VALID_ORIENTATIONS:
+            print(f"Invalid orientation in init-view: {orientation}")
+            return None
         
         decoded = decode_camera_params(cam_encoded)
         if decoded is None:
@@ -225,6 +232,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
             dt_local=dt_local,
             lat=lat,
             lon=lon,
+            orientation=orientation,
             eye=eye,
             target=target,
             up=up,
@@ -251,6 +259,7 @@ def main():
         dt_local = init_view.dt_local
         lat = init_view.lat
         lon = init_view.lon
+        init_view_orientation = init_view.orientation
         init_camera_params = CameraParams(
             eye=init_view.eye,
             target=init_view.target,
@@ -271,6 +280,7 @@ def main():
             sys.exit(1)
         lat = args.lat
         lon = args.lon
+        init_view_orientation = args.init_view_orientation.upper()
 
     if not (lon >= -180.0 and lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
@@ -292,7 +302,6 @@ def main():
         print("Invalid time step. Must be between 1 and 1440 minutes.")
         sys.exit(1)
 
-    init_view_orientation = args.init_view_orientation.upper()
     if init_view_orientation not in VALID_ORIENTATIONS:
         print(f"Invalid view orientation '{args.init_view_orientation}'. Must be one of: {', '.join(VALID_ORIENTATIONS)}")
         sys.exit(1)

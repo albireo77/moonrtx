@@ -37,7 +37,6 @@ class MainWindow(tk.Tk):
 
         frm = tk.Frame(self)
         frm.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-        frm.columnconfigure(1, weight=1)
 
         tk.Label(frm, text="Observer latitude:").grid(row=0, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Observer longitude:").grid(row=1, column=0, sticky=tk.E, pady=2)
@@ -312,6 +311,7 @@ class MainWindow(tk.Tk):
             dt_local = init_view.dt_local
             lat = init_view.lat
             lon = init_view.lon
+            init_orientation = init_view.orientation
             init_camera_params = CameraParams(
                 eye=init_view.eye,
                 target=init_view.target,
@@ -323,6 +323,7 @@ class MainWindow(tk.Tk):
             if error is not None:
                 messagebox.showerror("Error", f"Incorrect time: {error}")
                 return
+            init_orientation = self.init_orientation.get()
             # Read latitude/longitude according to selected coordinate format
             def parse_sexa_fields(deg_w, min_w, sec_w, name, deg_min, deg_max):
                 try:
@@ -408,8 +409,6 @@ class MainWindow(tk.Tk):
         if not (time_step_minutes >= 1 and time_step_minutes <= 1440):
             messagebox.showerror("Error", "Invalid time step. Must be between 1 and 1440 minutes.")
             return
-
-        init_orientation = self.init_orientation.get()
 
         self._set_status("Checking GPU architecture...")
         self.update_idletasks()

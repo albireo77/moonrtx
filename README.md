@@ -24,7 +24,7 @@ MoonRTX can be run in 2 ways:
 
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --brightness 100`
 
-`python -m moonrtx.main --init-view "2025-03-07T18.53.00+01.00_lat+50.000000_lon+20.000000_cambMOZPzVT28IXi6y_bMOZP6uZGsEXi6y_AAAAAAAAAAAAAIA_5oB3QA"`  
+`python -m moonrtx.main --init-view "2025-03-07T19.53.00+01.00_lat+50.000000_lon+20.000000_viewSNEW_camAAAAAAAAyMIAAAAA-r1gPwAuEL5IaadAkiZvOs1TVr0xpn8_gxiHQA"`  
 where `--init-view` parameter value is taken from the screenshot default filename
 - GUI launcher:
 
