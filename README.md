@@ -38,9 +38,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **G** - Toggle selenographic grid  
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
-**I** - Toggle upside down view  
-**U** - Toggle labels upside down  
 **P** - Toggle pins ON/OFF  
+**F1-F4** - Switch view orientation (NSWE, NSEW, SNEW, SNWE)  
 **1-9** - Create/Remove pin (when pins are ON)  
 **R** - Reset view and time to initial state  
 **V** - Reset view to that based on current time (useful after starting with `--init-view` parameter)  
