@@ -335,10 +335,11 @@ def create_text_on_sphere(text: str,
                 lx, lz = p_local
                 
                 # Apply flips in local 2D space before projection
+                # Characters are centered at origin, so mirror by negation
                 if flip_horizontal:
-                    lx = char_scale - lx  # Mirror around character center
+                    lx = -lx
                 if flip_vertical:
-                    lz = char_scale - lz  # Mirror around character center
+                    lz = -lz
                 
                 lx += local_x
 
@@ -433,10 +434,11 @@ def create_centered_text_on_sphere(text: str,
                 lx, lz = p_local
                 
                 # Apply flips in local 2D space before projection
+                # Characters are centered at origin, so mirror by negation
                 if flip_horizontal:
-                    lx = char_scale - lx  # Mirror around character center
+                    lx = -lx
                 if flip_vertical:
-                    lz = char_scale - lz  # Mirror around character center
+                    lz = -lz
                 
                 lx += local_x  # Apply character offset (already centered)
                 
