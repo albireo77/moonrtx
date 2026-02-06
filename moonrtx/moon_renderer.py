@@ -594,7 +594,10 @@ class MoonRenderer:
         self.measured_distance = None  # Last measured distance in km
 
     def get_status_text(self, coord_data: str = "", feature_data: str = "") -> str:
-        # Local time info with timezone offset and time step (first column)
+        # View orientation info (first column)
+        view_column = f"View: {self.orientation_mode}"
+        
+        # Local time info with timezone offset and time step
         if self.dt_local:
             # Format timezone offset as +HH:MM or -HH:MM
             offset = self.dt_local.strftime('%z')  # e.g., +0100
@@ -618,7 +621,7 @@ class MoonRenderer:
         brightness_column = f"Brightness: {self.brightness}"
         pins_column = f"[Pins {'ON' if self.pins_visible else 'OFF'}]"
         current_status = self.rt._status_action_text.get()
-        # Layout: 15sp + local_time(52) + 2sp + moon_pos(32) + 2sp + coord_data(29) + 2sp + phase_info(20) + 2sp + measured(27) + 4sp + feature_data(40)
+        # Layout: view(15) + local_time(52) + 2sp + moon_pos(32) + 2sp + coord_data(29) + 2sp + phase_info(20) + 4sp + measured(27) + 2sp + feature_data(40)
         # Offsets: coord_data starts at 103, feature_data starts at 187
         if coord_data is None:
             coord_data = " " * 29
@@ -628,7 +631,7 @@ class MoonRenderer:
             feature_data = " " * 40
         elif not feature_data:
             feature_data = current_status[187:187+40]
-        return f"               {local_time:<52}  {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}  {measured_column:<27}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
+        return f"{view_column:<15}{local_time:<52}  {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}    {measured_column:<27}  {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
     
     def set_orientation(self, orientation: str):
         """
