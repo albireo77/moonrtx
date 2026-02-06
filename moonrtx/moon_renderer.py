@@ -188,6 +188,7 @@ def run_renderer(dt_local: datetime,
     print("  Hold and drag right mouse button - Rotate Moon around the eye")
     print("  Hold shift + right mouse button and drag up/down - Move eye backward/forward")
     print("  Hold shift + left mouse button and drag up/down - Zoom out/in (more reliable)")
+    print("  Hold ctrl + drag left mouse button - Measure distance on Moon surface")
     print("  Mouse wheel up/down - Zoom in/out (less reliable)")
     
     original_key_handler = moon_renderer.rt._gui_key_pressed
@@ -275,6 +276,37 @@ def run_renderer(dt_local: datetime,
             moon_renderer.rt._status_action_text.set(moon_renderer.get_status_text(coord_data, feature_data))
     
     moon_renderer.rt._gui_motion = custom_motion_handler
+    
+    # Override mouse handlers for distance measurement (Ctrl+drag)
+    original_pressed_left = moon_renderer.rt._gui_pressed_left
+    original_released_left = moon_renderer.rt._gui_released_left
+    original_motion_pressed = moon_renderer.rt._gui_motion_pressed
+    
+    def custom_pressed_left(event):
+        """Handle left mouse button press - start measurement if Ctrl is held."""
+        if event.state & 0x4:  # Ctrl key pressed
+            moon_renderer.start_measurement(event)
+            return  # Don't call original handler when measuring
+        original_pressed_left(event)
+    
+    def custom_released_left(event):
+        """Handle left mouse button release - finish measurement if measuring."""
+        if moon_renderer.measuring:
+            moon_renderer.finish_measurement(event)
+            return  # Don't call original handler when finishing measurement
+        original_released_left(event)
+    
+    def custom_motion_pressed(event):
+        """Handle mouse motion while pressed - update leading line if measuring."""
+        if moon_renderer.measuring:
+            moon_renderer.update_leading_line(event)
+            return  # Don't call original handler when measuring
+        original_motion_pressed(event)
+    
+    moon_renderer.rt._gui_pressed_left = custom_pressed_left
+    moon_renderer.rt._gui_released_left = custom_released_left
+    moon_renderer.rt._gui_motion_pressed = custom_motion_pressed
+    
     moon_renderer.start()
     return moon_renderer.rt
 
@@ -531,13 +563,15 @@ class MoonRenderer:
         self.pins_visible = True  # Pins visible by default
         self.pins = {}  # dict mapping digit (1-9) to pin segments
 
+        # Distance measurement settings
+        self.measuring = False  # True when Ctrl+drag is in progress
+        self.measure_start_canvas = None  # Start position (x, y) on canvas for leading line
+        self.measure_start_coords = None  # Start selenographic coordinates (lat, lon)
+        self.leading_line_id = None  # Canvas line ID for the leading line
+        self.measured_distance = None  # Last measured distance in km
+
     def get_status_text(self, coord_data: str = "", feature_data: str = "") -> str:
-        # Observer location
-        lat_dir = 'N' if self.observer_lat >= 0 else 'S'
-        lon_dir = 'E' if self.observer_lon >= 0 else 'W'
-        observer_info = f"Observer: {abs(self.observer_lat):5.2f}°{lat_dir} {abs(self.observer_lon):6.2f}°{lon_dir}" if self.observer_lat is not None else ""
-        
-        # Local time info with timezone offset and time step
+        # Local time info with timezone offset and time step (first column)
         if self.dt_local:
             # Format timezone offset as +HH:MM or -HH:MM
             offset = self.dt_local.strftime('%z')  # e.g., +0100
@@ -545,6 +579,12 @@ class MoonRenderer:
             local_time = f"Time: {self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_formatted} (step {self.time_step_minutes} minutes)"
         else:
             local_time = ""
+        
+        # Measured distance (empty if no measurement)
+        if self.measured_distance is not None:
+            measured_column = f"Measured: {self.measured_distance:8.2f} km"
+        else:
+            measured_column = ""
         
         # Moon position info
         moon_pos = f"Moon: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
@@ -555,15 +595,17 @@ class MoonRenderer:
         brightness_column = f"Brightness: {self.brightness}"
         pins_column = f"[Pins {'ON' if self.pins_visible else 'OFF'}]"
         current_status = self.rt._status_action_text.get()
+        # Layout: 15sp + local_time(52) + 2sp + moon_pos(32) + 2sp + coord_data(29) + 2sp + phase_info(20) + 2sp + measured(27) + 4sp + feature_data(40)
+        # Offsets: coord_data starts at 103, feature_data starts at 187
         if coord_data is None:
             coord_data = " " * 29
         elif not coord_data:
-            coord_data = current_status[119:119+29]
+            coord_data = current_status[103:103+29]
         if feature_data is None:
             feature_data = " " * 40
         elif not feature_data:
-            feature_data = current_status[174:174+40]
-        return f"{observer_info:<27}  {local_time:<52}    {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
+            feature_data = current_status[187:187+40]
+        return f"               {local_time:<52}  {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}  {measured_column:<27}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
 
     def change_brightness(self, delta: int):
         if delta == 0:
@@ -639,7 +681,7 @@ class MoonRenderer:
                 # Set monospace font for status bar to prevent text shifting
                 # and increase width to fill available space
                 if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=245)
+                    rt._status_action.configure(font=("Consolas", 9), width=258)
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
@@ -2382,3 +2424,197 @@ class MoonRenderer:
         new_fov = max(1, min(90, new_fov))
         
         self.rt._optix.set_camera_fov(new_fov)
+
+    # ==================== Distance Measurement Methods ====================
+    
+    MOON_RADIUS_KM = 1737.4  # Real Moon radius in kilometers
+    
+    def calculate_great_circle_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """
+        Calculate the great circle distance between two points on the Moon surface.
+        
+        Uses the Haversine formula to calculate the central angle, then
+        multiplies by the Moon's radius to get the arc length.
+        
+        Parameters
+        ----------
+        lat1, lon1 : float
+            First point's selenographic coordinates in degrees
+        lat2, lon2 : float
+            Second point's selenographic coordinates in degrees
+            
+        Returns
+        -------
+        float
+            Distance in kilometers
+        """
+        # Convert to radians
+        lat1_rad = np.radians(lat1)
+        lat2_rad = np.radians(lat2)
+        lon1_rad = np.radians(lon1)
+        lon2_rad = np.radians(lon2)
+        
+        # Haversine formula
+        dlat = lat2_rad - lat1_rad
+        dlon = lon2_rad - lon1_rad
+        
+        a = np.sin(dlat / 2) ** 2 + np.cos(lat1_rad) * np.cos(lat2_rad) * np.sin(dlon / 2) ** 2
+        c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+        
+        # Distance = central angle * radius
+        distance_km = c * self.MOON_RADIUS_KM
+        
+        return distance_km
+    
+    def _seleno_to_scene_position(self, lat: float, lon: float, radius: float = None) -> np.ndarray:
+        """
+        Convert selenographic coordinates to 3D scene position.
+        
+        Parameters
+        ----------
+        lat : float
+            Selenographic latitude in degrees
+        lon : float
+            Selenographic longitude in degrees
+        radius : float, optional
+            Radius at which to place the point. If None, uses moon_radius.
+            
+        Returns
+        -------
+        np.ndarray
+            3D position in scene coordinates
+        """
+        if radius is None:
+            r = self.moon_radius
+        else:
+            r = radius
+        
+        lat_rad = np.radians(lat)
+        lon_rad = np.radians(lon)
+        
+        # Convert to Cartesian in original Moon coordinates
+        # +Z is north pole, -Y is prime meridian (lon=0), +X is east (lon=90)
+        x = r * np.cos(lat_rad) * np.sin(lon_rad)
+        y = -r * np.cos(lat_rad) * np.cos(lon_rad)
+        z = r * np.sin(lat_rad)
+        original_pos = np.array([x, y, z])
+        
+        # Apply Moon rotation to get scene coordinates
+        if self.moon_rotation is None:
+            return original_pos
+        return self.moon_rotation @ original_pos
+    
+    def start_measurement(self, event):
+        """
+        Start distance measurement on Ctrl+B1 press.
+        
+        Captures the start position on the canvas and the selenographic
+        coordinates at that point.
+        
+        Parameters
+        ----------
+        event : tk.Event
+            Mouse button press event
+        """
+        if self.rt is None:
+            return
+        
+        # Get image coordinates
+        x, y = self.rt._get_image_xy(event.x, event.y)
+        
+        # Get hit position
+        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
+        
+        # Check if we hit the Moon surface
+        if hd <= 0:
+            self.measuring = False
+            return
+        
+        # Convert to selenographic coordinates
+        lat, lon = self.hit_to_selenographic(hx, hy, hz)
+        
+        if lat is None or lon is None:
+            self.measuring = False
+            return
+        
+        # Store start position and coordinates
+        self.measuring = True
+        self.measure_start_canvas = (event.x, event.y)
+        self.measure_start_coords = (lat, lon)
+        
+        # Create leading line on canvas (will be updated during drag)
+        if hasattr(self.rt, '_canvas'):
+            self.leading_line_id = self.rt._canvas.create_line(
+                event.x, event.y, event.x, event.y,
+                fill='yellow', width=2, dash=(4, 4)
+            )
+    
+    def update_leading_line(self, event):
+        """
+        Update the leading line during drag.
+        
+        Parameters
+        ----------
+        event : tk.Event
+            Mouse motion event
+        """
+        if not self.measuring or self.leading_line_id is None:
+            return
+        
+        if not hasattr(self.rt, '_canvas'):
+            return
+        
+        # Update the leading line endpoint
+        start_x, start_y = self.measure_start_canvas
+        self.rt._canvas.coords(
+            self.leading_line_id,
+            start_x, start_y, event.x, event.y
+        )
+    
+    def finish_measurement(self, event):
+        """
+        Finish distance measurement on B1 release.
+        
+        Calculates the great circle distance, creates a display line,
+        and updates the status bar.
+        
+        Parameters
+        ----------
+        event : tk.Event
+            Mouse button release event
+        """
+        if not self.measuring:
+            return
+        
+        # Remove the leading line from canvas
+        if self.leading_line_id is not None and hasattr(self.rt, '_canvas'):
+            self.rt._canvas.delete(self.leading_line_id)
+            self.leading_line_id = None
+        
+        self.measuring = False
+        
+        if self.rt is None or self.measure_start_coords is None:
+            return
+        
+        # Get end position
+        x, y = self.rt._get_image_xy(event.x, event.y)
+        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
+        
+        if hd <= 0:
+            return
+        
+        lat2, lon2 = self.hit_to_selenographic(hx, hy, hz)
+        
+        if lat2 is None or lon2 is None:
+            return
+        
+        lat1, lon1 = self.measure_start_coords
+        
+        # Calculate distance
+        distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
+        
+        # Store measured distance for status bar
+        self.measured_distance = distance_km
+        
+        # Update status bar
+        self.rt._status_action_text.set(self.get_status_text())

@@ -60,6 +60,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Hold and drag right mouse button** - Rotate Moon around the eye  
 **Hold shift + right mouse button and drag up/down** - Move eye backward/forward  
 **Hold shift + left mouse button and drag up/down** - Zoom out/in (more reliable)  
+**Hold ctrl + drag left mouse button** - Measure distance on Moon surface  
 **Mouse wheel up/down** - Zoom in/out (less reliable)  
 
 ## Screens
