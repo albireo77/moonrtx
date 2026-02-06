@@ -629,6 +629,180 @@ class MoonRenderer:
         elif not feature_data:
             feature_data = current_status[187:187+40]
         return f"               {local_time:<52}  {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}  {measured_column:<27}    {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
+    
+    def set_orientation(self, orientation: str):
+        """
+        Set the view orientation mode and update the status bar.
+        
+        Called when F1-F4 keys are pressed to match plotoptix internal orientation change.
+        
+        Parameters
+        ----------
+        orientation : str
+            One of ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
+        """
+        self.orientation_mode = orientation
+        
+        # Update grid labels if grid is visible
+        if self.moon_grid is not None and self.moon_grid_visible:
+            self.update_grid_labels_for_orientation()
+        
+        # Update standard labels if visible
+        if self.standard_labels is not None and self.standard_labels_visible:
+            self.update_standard_labels_for_view_orientation()
+        
+        # Update spot labels if visible
+        if self.spot_labels is not None and self.spot_labels_visible:
+            self.update_spot_labels_for_view_orientation()
+        
+        self.rt._status_action_text.set(self.get_status_text())
+
+    def update_grid_labels_for_orientation(self):
+        """
+        Update grid number labels to match current view orientation.
+        
+        Regenerates latitude and longitude number labels so they are
+        always readable (not upside down) in the current view orientation.
+        """
+        if self.rt is None or self.moon_grid is None:
+            return
+        
+        # Determine flip flags based on orientation
+        # NSWE (default): N up, W left - no flips
+        # NSEW: N up, E left - horizontal flip
+        # SNEW: S up, E left - both flips (180° rotation)
+        # SNWE: S up, W left - vertical flip
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        
+        # Generate new labels with proper orientation
+        lat_labels, lat_label_values, lon_labels, lon_label_values = create_grid_labels_for_orientation(
+            moon_radius=self.moon_radius,
+            lat_step=15.0,
+            lon_step=15.0,
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
+        )
+        
+        # Update the moon_grid with new labels
+        self.moon_grid = self.moon_grid._replace(
+            lat_labels=lat_labels,
+            lat_label_values=lat_label_values,
+            lon_labels=lon_labels,
+            lon_label_values=lon_label_values
+        )
+        
+        # Get rotation matrix
+        R = self.moon_rotation
+        
+        # Update latitude labels in renderer
+        for i, segments in enumerate(self.moon_grid.lat_labels):
+            for j, seg in enumerate(segments):
+                name = f"grid_lat_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated)
+                except:
+                    pass
+        
+        # Update longitude labels in renderer
+        for i, segments in enumerate(self.moon_grid.lon_labels):
+            for j, seg in enumerate(segments):
+                name = f"grid_lon_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated)
+                except:
+                    pass
+
+    def update_standard_labels_for_view_orientation(self):
+        """
+        Update standard labels to match current view orientation.
+        
+        Regenerates standard labels so they are always readable
+        (not upside down) in the current view orientation.
+        """
+        if self.rt is None or self.standard_labels is None or self.standard_label_features is None:
+            return
+        
+        # Determine flip flags based on orientation
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        
+        # Regenerate labels with proper orientation
+        self.standard_labels = create_standard_labels(
+            self.standard_label_features,
+            moon_radius=self.moon_radius,
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
+        )
+        
+        # Get rotation matrix
+        R = self.moon_rotation
+        
+        # Update labels in renderer
+        for i, label in enumerate(self.standard_labels):
+            feature = self.standard_label_features[i]
+            label_radius = STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            for j, seg in enumerate(label.segments):
+                name = f"standard_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated, r=label_radius)
+                except:
+                    pass
+
+    def update_spot_labels_for_view_orientation(self):
+        """
+        Update spot labels to match current view orientation.
+        
+        Regenerates spot labels so they are always readable
+        (not upside down) in the current view orientation.
+        """
+        if self.rt is None or self.spot_labels is None or self.spot_label_features is None:
+            return
+        
+        # Determine flip flags based on orientation
+        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
+        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        
+        # Regenerate labels with proper orientation
+        self.spot_labels = create_spot_labels(
+            self.spot_label_features,
+            moon_radius=self.moon_radius,
+            offset=0.0,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical
+        )
+        
+        # Get rotation matrix
+        R = self.moon_rotation
+        
+        # Update labels in renderer
+        for i, label in enumerate(self.spot_labels):
+            feature = self.spot_label_features[i]
+            label_radius = SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            for j, seg in enumerate(label.segments):
+                name = f"spot_label_{i}_{j}"
+                if R is not None:
+                    rotated = (R @ seg.T).T
+                else:
+                    rotated = seg
+                try:
+                    self.rt.update_data(name, pos=rotated, r=label_radius)
+                except:
+                    pass
 
     def change_brightness(self, delta: int):
         if delta == 0:
