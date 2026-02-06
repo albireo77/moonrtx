@@ -282,8 +282,8 @@ def run_renderer(dt_local: datetime,
             # Get hit position using the internal method
             hx, hy, hz, hd = moon_renderer.rt._get_hit_at(x, y)
             
-            coord_data = None
-            feature_data = None
+            coord_text = ""
+            feature_text = ""
             # Check if we hit something (distance > 0 means valid hit)
             if hd > 0:
                 lat, lon = moon_renderer.hit_to_selenographic(hx, hy, hz)
@@ -291,11 +291,13 @@ def run_renderer(dt_local: datetime,
                     # Check if hovering over a named feature
                     feature = moon_renderer.find_feature_for_status_bar(lat, lon)
                     if feature is not None:
-                        feature_data = f"{feature.name} (size = {feature.size_km:.1f} km)"
+                        feature_text = f"{feature.name} (size = {feature.size_km:.1f} km)"
                     lat_dir = 'N' if lat >= 0 else 'S'
                     lon_dir = 'E' if lon >= 0 else 'W'
-                    coord_data = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
-            moon_renderer.rt._status_action_text.set(moon_renderer.get_status_text(coord_data, feature_data))
+                    coord_text = f"Lat: {abs(lat):5.2f}° {lat_dir}  Lon: {abs(lon):6.2f}° {lon_dir}"
+            moon_renderer.rt._status_action_text.set('')
+            moon_renderer._update_status_coords(coord_text)
+            moon_renderer._update_status_feature(feature_text)
     
     moon_renderer.rt._gui_motion = custom_motion_handler
     
@@ -593,45 +595,81 @@ class MoonRenderer:
         self.leading_line_id = None  # Canvas line ID for the leading line
         self.measured_distance = None  # Last measured distance in km
 
-    def get_status_text(self, coord_data: str = "", feature_data: str = "") -> str:
-        # View orientation info (first column)
-        view_column = f"View: {self.orientation_mode}"
-        
-        # Local time info with timezone offset and time step
-        if self.dt_local:
-            # Format timezone offset as +HH:MM or -HH:MM
-            offset = self.dt_local.strftime('%z')  # e.g., +0100
-            offset_formatted = f"{offset[:3]}:{offset[3:]}" if offset else ""  # e.g., +01:00
-            local_time = f"Time: {self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_formatted} (step {self.time_step_minutes} minutes)"
-        else:
-            local_time = ""
-        
-        # Measured distance (empty if no measurement)
-        if self.measured_distance is not None:
-            measured_column = f"Measured: {self.measured_distance:8.2f} km"
-        else:
-            measured_column = ""
-        
-        # Moon position info
-        moon_pos = f"Moon: Az: {self.moon_ephem.az:6.2f}°  Alt: {self.moon_ephem.alt:+6.2f}°" if self.moon_ephem else ""
-        
-        # Phase angle info (0° = Full Moon, 180° = New Moon)
-        phase_info = f"Phase angle: {self.moon_ephem.phase:6.2f}°" if self.moon_ephem else ""
-        
-        brightness_column = f"Brightness: {self.brightness}"
-        pins_column = f"[Pins {'ON' if self.pins_visible else 'OFF'}]"
-        current_status = self.rt._status_action_text.get()
-        # Layout: view(15) + local_time(52) + 2sp + moon_pos(32) + 2sp + coord_data(29) + 2sp + phase_info(20) + 4sp + measured(27) + 2sp + feature_data(40)
-        # Offsets: coord_data starts at 103, feature_data starts at 187
-        if coord_data is None:
-            coord_data = " " * 29
-        elif not coord_data:
-            coord_data = current_status[103:103+29]
-        if feature_data is None:
-            feature_data = " " * 40
-        elif not feature_data:
-            feature_data = current_status[187:187+40]
-        return f"{view_column:<15}{local_time:<52}  {moon_pos:<32}  {coord_data:<29}  {phase_info:<20}    {measured_column:<27}  {feature_data:<40.40}    {brightness_column:<15}  {pins_column}"
+        # Status bar panel variables (set up as StringVars after renderer is created)
+        self._status_view_var = None
+        self._status_time_var = None
+        self._status_moon_var = None
+        self._status_measured_var = None
+        self._status_coords_var = None
+        self._status_feature_var = None
+        self._status_brightness_var = None
+        self._status_pins_var = None
+
+    # ---- Status panel update methods ----
+
+    def _update_status_view(self):
+        if self._status_view_var:
+            self._status_view_var.set(f"View: {self.orientation_mode}")
+
+    def _update_status_time(self):
+        if self._status_time_var and self.dt_local:
+            offset = self.dt_local.strftime('%z')
+            offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
+            self._status_time_var.set(
+                f"Time: {self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_fmt} (step {self.time_step_minutes} min)")
+
+    def _update_status_moon(self):
+        if self._status_moon_var and self.moon_ephem:
+            e = self.moon_ephem
+            # RA: convert degrees (0-360) to hours (0-24)
+            ra_total_h = e.ra / 15.0
+            ra_h = int(ra_total_h)
+            ra_m = int((ra_total_h - ra_h) * 60)
+            ra_s = (ra_total_h - ra_h - ra_m / 60) * 3600
+            # DEC in degrees:arcmin:arcsec
+            dec_sign = '+' if e.dec >= 0 else '-'
+            dec_abs = abs(e.dec)
+            dec_d = int(dec_abs)
+            dec_m = int((dec_abs - dec_d) * 60)
+            dec_s = (dec_abs - dec_d - dec_m / 60) * 3600
+            self._status_moon_var.set(
+                f"Az: {e.az:6.2f}° Alt: {e.alt:+6.2f}° "
+                f"RA: {ra_h:02d}h{ra_m:02d}m{ra_s:04.1f}s "
+                f"DEC: {dec_sign}{dec_d:02d}°{dec_m:02d}'{dec_s:04.1f}\" "
+                f"Phase Angle: {e.phase:6.2f}°")
+
+    def _update_status_measured(self):
+        if self._status_measured_var:
+            if self.measured_distance is not None:
+                self._status_measured_var.set(f"Measured: {self.measured_distance:8.2f} km")
+            else:
+                self._status_measured_var.set("")
+
+    def _update_status_coords(self, coord_text: str = ""):
+        if self._status_coords_var:
+            self._status_coords_var.set(coord_text)
+
+    def _update_status_feature(self, feature_text: str = ""):
+        if self._status_feature_var:
+            self._status_feature_var.set(feature_text)
+
+    def _update_status_brightness(self):
+        if self._status_brightness_var:
+            self._status_brightness_var.set(f"Brightness: {self.brightness}")
+
+    def _update_status_pins(self):
+        if self._status_pins_var:
+            self._status_pins_var.set(f"Pins {'ON' if self.pins_visible else 'OFF'}")
+
+    def _update_all_status_panels(self):
+        self._update_status_view()
+        self._update_status_time()
+        self._update_status_moon()
+        self._update_status_measured()
+        self._update_status_coords()
+        self._update_status_feature()
+        self._update_status_brightness()
+        self._update_status_pins()
     
     def set_orientation(self, orientation: str):
         """
@@ -658,7 +696,7 @@ class MoonRenderer:
         if self.spot_labels is not None and self.spot_labels_visible:
             self.update_spot_labels_for_view_orientation()
         
-        self.rt._status_action_text.set(self.get_status_text())
+        self._update_status_view()
 
     def update_grid_labels_for_orientation(self):
         """
@@ -817,7 +855,7 @@ class MoonRenderer:
         self.brightness += delta
         self.brightness = max(0, min(500, self.brightness))
         self.rt.setup_light("sun", color=self.brightness)
-        self.rt._status_action_text.set(self.get_status_text())
+        self._update_status_brightness()
 
     def change_time_step(self, delta: int):
         """
@@ -836,7 +874,7 @@ class MoonRenderer:
             return
         self.time_step_minutes += delta
         self.time_step_minutes = max(1, min(1440, self.time_step_minutes))
-        self.rt._status_action_text.set(self.get_status_text())
+        self._update_status_time()
 
     def change_time(self, delta_minutes: int):
         """
@@ -868,7 +906,8 @@ class MoonRenderer:
         self.update_pins_orientation()
         
         # Update status bar
-        self.rt._status_action_text.set(self.get_status_text())
+        self._update_status_time()
+        self._update_status_moon()
         
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
@@ -878,13 +917,59 @@ class MoonRenderer:
             def init_window():
                 rt._root.state('zoomed')
                 rt._root.title(self.app_name)
-                # Set monospace font for status bar to prevent text shifting
-                # and increase width to fill available space
-                if hasattr(rt, '_status_action'):
-                    rt._status_action.configure(font=("Consolas", 9), width=258)
+
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
                     rt._status_fps.grid_remove()
+
+                # Build multi-panel status bar replacing the single label
+                if hasattr(rt, '_status_action'):
+                    grid_info = rt._status_action.grid_info()
+                    parent = rt._status_action.master
+                    rt._status_action.grid_remove()
+
+                    status_frame = tk.Frame(parent)
+
+                    self._status_view_var = tk.StringVar()
+                    self._status_time_var = tk.StringVar()
+                    self._status_moon_var = tk.StringVar()
+                    self._status_measured_var = tk.StringVar()
+                    self._status_coords_var = tk.StringVar()
+                    self._status_feature_var = tk.StringVar()
+                    self._status_brightness_var = tk.StringVar()
+                    self._status_pins_var = tk.StringVar()
+
+                    font = ("Consolas", 9)
+                    panels = [
+                        (self._status_view_var,       12),
+                        (self._status_time_var,       48),
+                        (self._status_moon_var,       82),
+                        (self._status_measured_var,   23),
+                        (self._status_coords_var,     32),
+                        (self._status_feature_var,    34),
+                        (self._status_brightness_var, 15),
+                        (self._status_pins_var,        9),
+                    ]
+                    for var, w in panels:
+                        tk.Label(
+                            status_frame,
+                            textvariable=var,
+                            font=font,
+                            anchor='w',
+                            width=w,
+                            relief='sunken',
+                            borderwidth=1,
+                        ).pack(side='left', padx=0)
+
+                # Add 4-char left padding to shift panels right
+                status_frame.grid(
+                    row=int(grid_info['row']),
+                    column=int(grid_info['column']),
+                    columnspan=int(grid_info.get('columnspan', 1)),
+                    sticky='we',
+                    padx=(4, 0), pady=0
+                )
+
                 # Bind mouse wheel for zoom
                 if hasattr(rt, '_canvas'):
                     rt._canvas.bind('<MouseWheel>', self._mouse_wheel_handler)
@@ -896,7 +981,7 @@ class MoonRenderer:
                     if self.moon_grid is not None and self.moon_grid_visible:
                         self.update_grid_labels_for_orientation()
                 
-                rt._status_action_text.set(self.get_status_text())
+                self._update_all_status_panels()
             rt._root.after_idle(init_window)
     
     def _mouse_wheel_handler(self, event):
@@ -1409,7 +1494,7 @@ class MoonRenderer:
                 self.update_pins_orientation()
                 
                 # Update status bar
-                self.rt._status_action_text.set(self.get_status_text())
+                self._update_all_status_panels()
                 
                 error_var.set("")
                 
@@ -2041,7 +2126,7 @@ class MoonRenderer:
         if visible:
             self.update_pins_orientation()
         
-        self.rt._status_action_text.set(self.get_status_text())
+        self._update_status_pins()
     
     def toggle_pins(self):
         """Toggle the pins visibility."""
@@ -2151,7 +2236,7 @@ class MoonRenderer:
         self.rt.setup_camera("cam1", eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
         
         # Update status bar
-        self.rt._status_action_text.set(self.get_status_text())
+        self._update_all_status_panels()
     
     def reset_to_default_view(self):
         """
@@ -2748,4 +2833,4 @@ class MoonRenderer:
         self.measured_distance = distance_km
         
         # Update status bar
-        self.rt._status_action_text.set(self.get_status_text())
+        self._update_status_measured()
