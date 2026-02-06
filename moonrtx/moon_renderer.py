@@ -183,7 +183,7 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  P - Toggle pins ON/OFF")
-    print("  F1-F4 - Switch view orientation (NSWE, NSEW, SNEW, SNWE)")
+    print("  F5-F8 - Switch view orientation (NSWE, NSEW, SNEW, SNWE)")
     print("  1-9 - Create/Remove pin (when pins are ON)")
     print("  R - Reset view and time to initial state")
     print("  V - Reset view to that based on current time (useful after starting with --init-view parameter)")
@@ -218,16 +218,16 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_standard_labels()
         elif event.keysym.lower() == 's':
             moon_renderer.toggle_spot_labels()
-        elif event.keysym == 'F1':
+        elif event.keysym == 'F5':
             moon_renderer.set_orientation(ORIENTATION_NSWE)
             original_key_handler(event)
-        elif event.keysym == 'F2':
+        elif event.keysym == 'F6':
             moon_renderer.set_orientation(ORIENTATION_NSEW)
             original_key_handler(event)
-        elif event.keysym == 'F3':
+        elif event.keysym == 'F7':
             moon_renderer.set_orientation(ORIENTATION_SNEW)
             original_key_handler(event)
-        elif event.keysym == 'F4':
+        elif event.keysym == 'F8':
             moon_renderer.set_orientation(ORIENTATION_SNWE)
             original_key_handler(event)
         elif event.keysym.lower() == 'r':
@@ -637,7 +637,7 @@ class MoonRenderer:
         """
         Set the view orientation mode and update the status bar.
         
-        Called when F1-F4 keys are pressed to match plotoptix internal orientation change.
+        Called when F5-F8 keys are pressed to match plotoptix internal orientation change.
         
         Parameters
         ----------

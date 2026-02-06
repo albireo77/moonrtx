@@ -719,7 +719,7 @@ def create_grid_labels_for_orientation(moon_radius: float,
     """
     Create grid labels (lat and lon numbers) with specified orientation.
     
-    Used to regenerate labels when view orientation changes (F1-F4 keys).
+    Used to regenerate labels when view orientation changes (F5-F8 keys).
     
     Parameters
     ----------
