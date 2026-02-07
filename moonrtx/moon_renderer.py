@@ -183,6 +183,7 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  P - Toggle pins ON/OFF")
+    print("  Y - Toggle Moon data panel")
     print("  F5-F8 - Switch view orientation (NSWE, NSEW, SNEW, SNWE)")
     print("  1-9 - Create/Remove pin (when pins are ON)")
     print("  R - Reset view and time to initial state")
@@ -255,6 +256,8 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'n':
             step = 60 if event.state & 0x1 else 1  # Shift key pressed
             moon_renderer.change_time_step(-step)
+        elif event.keysym.lower() == 'y':
+            moon_renderer.toggle_info_panel()
         elif event.keysym.lower() == 'p':
             moon_renderer.toggle_pins()
         elif event.keysym.lower() == 'q':
@@ -603,6 +606,8 @@ class MoonRenderer:
         self._status_pins_var = None
 
         # Info panel variables (bottom-left overlay, set up as StringVars after renderer is created)
+        self._info_frame = None
+        self.show_info_panel = True
         self._info_az_var = None
         self._info_alt_var = None
         self._info_ra_var = None
@@ -1021,6 +1026,7 @@ class MoonRenderer:
                     self._info_lon_var = tk.StringVar(value="Lon:")
 
                     info_frame = tk.Frame(rt._canvas, bg=info_bg, padx=6, pady=4)
+                    self._info_frame = info_frame
                     info_vars = [
                         self._info_az_var,
                         self._info_alt_var,
@@ -1825,7 +1831,16 @@ class MoonRenderer:
     def toggle_grid(self):
         """Toggle the selenographic grid visibility."""
         self.show_moon_grid(not self.moon_grid_visible)
-    
+
+    def toggle_info_panel(self):
+        """Toggle the Moon info panel visibility."""
+        self.show_info_panel = not self.show_info_panel
+        if self._info_frame is not None:
+            if self.show_info_panel:
+                self._info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
+            else:
+                self._info_frame.place_forget()
+
     def setup_standard_labels(self):
         """
         Create standard feature labels for Moon features with standard_label=true.

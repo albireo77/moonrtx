@@ -40,6 +40,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
 **P** - Toggle pins ON/OFF  
+**Y** - Toggle Moon data panel  
 **F5-F8** - Switch view orientation (NSWE, NSEW, SNEW, SNWE)  
 **1-9** - Create/Remove pin (when pins are ON)  
 **R** - Reset view and time to initial state  
