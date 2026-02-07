@@ -604,6 +604,7 @@ class MoonRenderer:
         self._status_feature_var = None
         self._status_brightness_var = None
         self._status_pins_var = None
+        self._status_coords_var = None
 
         # Info panel variables (bottom-left overlay, set up as StringVars after renderer is created)
         self._info_frame = None
@@ -616,8 +617,6 @@ class MoonRenderer:
         self._info_distance_var = None
         self._info_libr_l_var = None
         self._info_libr_b_var = None
-        self._info_lat_var = None
-        self._info_lon_var = None
 
     # ---- Status panel update methods ----
 
@@ -681,19 +680,15 @@ class MoonRenderer:
                 self._status_measured_var.set("")
 
     def _update_info_coords(self, lat=None, lon=None):
-        """Update latitude/longitude in the info panel."""
-        if self._info_lat_var:
-            if lat is not None:
+        """Update selenographic coordinates in the status bar coords panel."""
+        if self._status_coords_var:
+            if lat is not None and lon is not None:
                 lat_dir = 'N' if lat >= 0 else 'S'
-                self._info_lat_var.set(f"Lat: {abs(lat):5.2f}° {lat_dir}")
-            else:
-                self._info_lat_var.set("Lat:")
-        if self._info_lon_var:
-            if lon is not None:
                 lon_dir = 'E' if lon >= 0 else 'W'
-                self._info_lon_var.set(f"Lon: {abs(lon):6.2f}° {lon_dir}")
+                self._status_coords_var.set(
+                    f"Lat: {abs(lat):5.2f}°{lat_dir} Lon: {abs(lon):6.2f}°{lon_dir}")
             else:
-                self._info_lon_var.set("Lon:")
+                self._status_coords_var.set("")
 
     def _update_status_feature(self, feature_text: str = ""):
         """Update feature name in the status bar."""
@@ -985,12 +980,14 @@ class MoonRenderer:
                     self._status_feature_var = tk.StringVar()
                     self._status_brightness_var = tk.StringVar()
                     self._status_pins_var = tk.StringVar()
+                    self._status_coords_var = tk.StringVar()
 
                     font = ("Consolas", 9)
                     panels = [
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
-                        (self._status_feature_var,    50),
+                        (self._status_feature_var,    46),
+                        (self._status_coords_var,     26),
                         (self._status_measured_var,   20),
                         (self._status_time_var,       47),
                         (self._status_view_var,       10),
@@ -1022,8 +1019,6 @@ class MoonRenderer:
                     self._info_distance_var = tk.StringVar(value="Dist:")
                     self._info_libr_l_var = tk.StringVar(value="LbL:")
                     self._info_libr_b_var = tk.StringVar(value="LbB:")
-                    self._info_lat_var = tk.StringVar(value="Lat:")
-                    self._info_lon_var = tk.StringVar(value="Lon:")
 
                     info_frame = tk.Frame(rt._canvas, bg=info_bg, padx=6, pady=4)
                     self._info_frame = info_frame
@@ -1036,8 +1031,6 @@ class MoonRenderer:
                         self._info_distance_var,
                         self._info_libr_l_var,
                         self._info_libr_b_var,
-                        self._info_lat_var,
-                        self._info_lon_var,
                     ]
                     for var in info_vars:
                         tk.Label(
