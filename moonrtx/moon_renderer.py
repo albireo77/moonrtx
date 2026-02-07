@@ -29,6 +29,29 @@ SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
 PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
 CAMERA_TYPE = "Pinhole"
 
+class _ToolTip:
+    """Simple tooltip for tkinter widgets."""
+    def __init__(self, widget, text):
+        self._widget = widget
+        self._text = text
+        self._tw = None
+        widget.bind('<Enter>', self._show)
+        widget.bind('<Leave>', self._hide)
+
+    def _show(self, event=None):
+        x = self._widget.winfo_rootx() + self._widget.winfo_width() // 2
+        y = self._widget.winfo_rooty() - 24
+        self._tw = tw = tk.Toplevel(self._widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f'+{x}+{y}')
+        tk.Label(tw, text=self._text, background='#ffffe0', relief='solid',
+                 borderwidth=1, font=('Segoe UI', 9)).pack()
+
+    def _hide(self, event=None):
+        if self._tw:
+            self._tw.destroy()
+            self._tw = None
+
 # View orientation modes for different telescope configurations
 # Each mode specifies: (vertical_flip, horizontal_flip)
 # vertical_flip=True means S is up (N is down)
@@ -606,6 +629,12 @@ class MoonRenderer:
         self._status_pins_var = None
         self._status_coords_var = None
 
+        # Auto-advance (real-time playback) settings
+        self._auto_advance_var = None   # tk.BooleanVar, bound to checkbox
+        self._auto_advance_id = None    # tk.after id for the tick
+        self._auto_advance_elapsed = 0  # elapsed milliseconds since last advance
+        self._auto_advance_interval = 1000  # tick interval in ms (1 second)
+
         # Info panel variables (bottom-left overlay, set up as StringVars after renderer is created)
         self._info_frame = None
         self.show_info_panel = True
@@ -917,7 +946,41 @@ class MoonRenderer:
             return
         self.time_step_minutes += delta
         self.time_step_minutes = max(1, min(1440, self.time_step_minutes))
+        # Reset auto-advance counter when time step changes while active
+        if self._auto_advance_var and self._auto_advance_var.get():
+            self._auto_advance_elapsed = 0
         self._update_status_time()
+
+    def _on_auto_advance_toggle(self):
+        """Called when the auto-advance checkbox is toggled."""
+        if self._auto_advance_var.get():
+            # Starting: reset counter and schedule first tick
+            self._auto_advance_elapsed = 0
+            self._schedule_auto_advance()
+        else:
+            # Stopping: cancel pending tick
+            if self._auto_advance_id is not None:
+                self.rt._root.after_cancel(self._auto_advance_id)
+                self._auto_advance_id = None
+
+    def _schedule_auto_advance(self):
+        """Schedule the next auto-advance tick."""
+        if self.rt is not None and self.rt._root is not None:
+            self._auto_advance_id = self.rt._root.after(
+                self._auto_advance_interval, self._auto_advance_tick)
+
+    def _auto_advance_tick(self):
+        """Periodic tick for auto-advance. Advances time when enough real time has elapsed."""
+        if not self._auto_advance_var.get():
+            self._auto_advance_id = None
+            return
+        self._auto_advance_elapsed += self._auto_advance_interval
+        target_ms = self.time_step_minutes * 60 * 1000
+        if self._auto_advance_elapsed >= target_ms:
+            self._auto_advance_elapsed = 0
+            self.change_time(self.time_step_minutes)
+        # Schedule next tick
+        self._schedule_auto_advance()
 
     def change_time(self, delta_minutes: int):
         """
@@ -930,6 +993,10 @@ class MoonRenderer:
         """
         if delta_minutes == 0:
             return
+        
+        # Reset auto-advance counter when time is manually changed
+        if self._auto_advance_var and self._auto_advance_var.get():
+            self._auto_advance_elapsed = 0
         
         # Calculate new time
         new_dt_local = self.dt_local + timedelta(minutes=delta_minutes)
@@ -982,27 +1049,53 @@ class MoonRenderer:
                     self._status_pins_var = tk.StringVar()
                     self._status_coords_var = tk.StringVar()
 
+                    self._auto_advance_var = tk.BooleanVar(value=False)
+
                     font = ("Consolas", 9)
                     panels = [
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
-                        (self._status_feature_var,    46),
+                        (self._status_feature_var,    43),
                         (self._status_coords_var,     26),
                         (self._status_measured_var,   20),
-                        (self._status_time_var,       47),
+                        (None,                        47),  # placeholder for time panel
                         (self._status_view_var,       10),
                         (self._status_observer_var,   27)
                     ]
                     for var, w in panels:
-                        tk.Label(
-                            status_frame,
-                            textvariable=var,
-                            font=font,
-                            anchor='w',
-                            width=w,
-                            relief='sunken',
-                            borderwidth=1,
-                        ).pack(side='right', padx=24)
+                        if var is None:
+                            # Build composite time panel: label + checkbox
+                            time_panel = tk.Frame(status_frame, relief='sunken', borderwidth=1)
+                            tk.Label(
+                                time_panel,
+                                textvariable=self._status_time_var,
+                                font=font,
+                                anchor='w',
+                                width=w,
+                            ).pack(side='left')
+                            bg = time_panel.cget('bg')
+                            cb = tk.Checkbutton(
+                                time_panel,
+                                text='\u25B6',
+                                variable=self._auto_advance_var,
+                                font=font,
+                                indicatoron=False,
+                                selectcolor=bg,
+                                command=self._on_auto_advance_toggle,
+                            )
+                            cb.pack(side='right', padx=(2, 0))
+                            _ToolTip(cb, 'Auto-advance time (every step minutes)')
+                            time_panel.pack(side='right', padx=24)
+                        else:
+                            tk.Label(
+                                status_frame,
+                                textvariable=var,
+                                font=font,
+                                anchor='w',
+                                width=w,
+                                relief='sunken',
+                                borderwidth=1,
+                            ).pack(side='right', padx=24)
 
                 # Build info panel (bottom-left overlay on canvas)
                 if hasattr(rt, '_canvas'):
@@ -1564,6 +1657,10 @@ class MoonRenderer:
                 
                 # Update the view
                 self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon)
+                
+                # Reset auto-advance counter when time is manually set
+                if self._auto_advance_var and self._auto_advance_var.get():
+                    self._auto_advance_elapsed = 0
                 
                 # Regenerate grid and labels with new orientation
                 if self.moon_grid_visible:
