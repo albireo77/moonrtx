@@ -608,6 +608,7 @@ class MoonRenderer:
         self._info_ra_var = None
         self._info_dec_var = None
         self._info_phase_var = None
+        self._info_distance_var = None
         self._info_libr_l_var = None
         self._info_libr_b_var = None
         self._info_lat_var = None
@@ -659,7 +660,9 @@ class MoonRenderer:
             dec_s = (dec_abs - dec_d - dec_m / 60) * 3600
             self._info_dec_var.set(f"DEC: {dec_sign}{dec_d:02d}°{dec_m:02d}'{dec_s:04.1f}\"")
         if self._info_phase_var:
-            self._info_phase_var.set(f"Phase An: {e.phase:6.2f}°")
+            self._info_phase_var.set(f"Phase ∠: {e.phase:6.2f}°")
+        if self._info_distance_var:
+            self._info_distance_var.set(f"Dist: {e.distance:,.0f} km".replace(",", " "))
         if self._info_libr_l_var:
             self._info_libr_l_var.set(f"Libr L: {e.libr_long:+5.2f}°")
         if self._info_libr_b_var:
@@ -1011,6 +1014,7 @@ class MoonRenderer:
                     self._info_ra_var = tk.StringVar(value="RA:")
                     self._info_dec_var = tk.StringVar(value="DEC:")
                     self._info_phase_var = tk.StringVar(value="Ph:")
+                    self._info_distance_var = tk.StringVar(value="Dist:")
                     self._info_libr_l_var = tk.StringVar(value="LbL:")
                     self._info_libr_b_var = tk.StringVar(value="LbB:")
                     self._info_lat_var = tk.StringVar(value="Lat:")
@@ -1023,6 +1027,7 @@ class MoonRenderer:
                         self._info_ra_var,
                         self._info_dec_var,
                         self._info_phase_var,
+                        self._info_distance_var,
                         self._info_libr_l_var,
                         self._info_libr_b_var,
                         self._info_lat_var,
