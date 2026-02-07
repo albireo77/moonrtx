@@ -22,7 +22,9 @@ from moonrtx.main import (
     STARMAP_FILE_LOCAL_PATH,
     MOON_FEATURES_FILE_LOCAL_PATH,
     DATA_DIRECTORY_PATH,
-    BASE_PATH
+    BASE_PATH,
+    VALID_ORIENTATIONS,
+    ORIENTATION_NSWE
 )
 
 class MainWindow(tk.Tk):
@@ -35,7 +37,6 @@ class MainWindow(tk.Tk):
 
         frm = tk.Frame(self)
         frm.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-        frm.columnconfigure(1, weight=1)
 
         tk.Label(frm, text="Observer latitude:").grid(row=0, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Observer longitude:").grid(row=1, column=0, sticky=tk.E, pady=2)
@@ -44,7 +45,8 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Downscale:").grid(row=4, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Brightness:").grid(row=5, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Time step (minutes):").grid(row=6, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view:").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view orientation:").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view:").grid(row=8, column=0, sticky=tk.E, pady=2)
 
         self.lat_decimal = tk.Entry(frm, width=60)
         self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
@@ -72,8 +74,12 @@ class MainWindow(tk.Tk):
         self.time_step_minutes.grid(row=6, column=1, sticky=tk.W, pady=2)
         self.time_step_minutes.insert(0, 15)
         
+        self.init_orientation = ttk.Combobox(frm, width=57, state="readonly", values=VALID_ORIENTATIONS)
+        self.init_orientation.grid(row=7, column=1, sticky=tk.W, pady=2)
+        self.init_orientation.set(ORIENTATION_NSWE)
+        
         self.init_view = tk.Entry(frm, width=60)
-        self.init_view.grid(row=7, column=1, sticky=tk.W, pady=2)
+        self.init_view.grid(row=8, column=1, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W)
@@ -110,11 +116,11 @@ class MainWindow(tk.Tk):
 
         # Run button and status
         self.run_btn = tk.Button(frm, text=f"Run {APP_NAME}", command=self.on_run)
-        self.run_btn.grid(row=8, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.run_btn.grid(row=9, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
 
-        # Preset controls (row 9)
+        # Preset controls (row 10)
         preset_frame = tk.Frame(frm)
-        preset_frame.grid(row=9, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
+        preset_frame.grid(row=10, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
 
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
         self.preset_name_entry = tk.Entry(preset_frame, width=15)
@@ -196,6 +202,7 @@ class MainWindow(tk.Tk):
             "downscale": self.downscale.get(),
             "brightness": self.brightness.get(),
             "time_step_minutes": self.time_step_minutes.get(),
+            "init_orientation": self.init_orientation.get(),
             "init_view": self.init_view.get(),
         }
 
@@ -272,6 +279,8 @@ class MainWindow(tk.Tk):
             self.time_step_minutes.delete(0, tk.END)
             self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))
 
+            self.init_orientation.set(settings.get("init_orientation", ORIENTATION_NSWE))
+
             self.init_view.delete(0, tk.END)
             self.init_view.insert(0, settings.get("init_view", ""))
 
@@ -302,6 +311,7 @@ class MainWindow(tk.Tk):
             dt_local = init_view.dt_local
             lat = init_view.lat
             lon = init_view.lon
+            init_orientation = init_view.orientation
             init_camera_params = CameraParams(
                 eye=init_view.eye,
                 target=init_view.target,
@@ -313,6 +323,7 @@ class MainWindow(tk.Tk):
             if error is not None:
                 messagebox.showerror("Error", f"Incorrect time: {error}")
                 return
+            init_orientation = self.init_orientation.get()
             # Read latitude/longitude according to selected coordinate format
             def parse_sexa_fields(deg_w, min_w, sec_w, name, deg_min, deg_max):
                 try:
@@ -448,7 +459,8 @@ class MainWindow(tk.Tk):
                 brightness,
                 APP_NAME,
                 init_camera_params,
-                time_step_minutes)
+                time_step_minutes,
+                init_orientation)
         )
         p.start()
         

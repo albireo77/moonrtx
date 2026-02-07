@@ -13,8 +13,10 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.moon_renderer import run_renderer
+from moonrtx.moon_renderer import run_renderer, ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
 from moonrtx.shared_types import CameraParams
+
+VALID_ORIENTATIONS = [ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE]
 
 APP_NAME = "MoonRTX"
 
@@ -44,6 +46,7 @@ class InitView(NamedTuple):
     dt_local: datetime
     lat: float
     lon: float
+    orientation: str
     eye: list
     target: list
     up: list
@@ -75,6 +78,9 @@ def parse_args():
     parser.add_argument("--init-view", type=str, default=None,
                         help="Initialize view from a screenshot default filename (without extension). "
                              "This restores the exact camera position from time when attempt to take a screenshot was made. ")
+    parser.add_argument("--init-view-orientation", type=str, default=ORIENTATION_NSWE,
+                        help="Initial view orientation for telescope configuration. "
+                             "Valid values: NSWE (default), NSEW, SNEW, SNWE. ")
     return parser.parse_args()
 
 def check_elevation_file(elevation_file: str) -> bool:
@@ -182,7 +188,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
     
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_cam<base64>
+    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>_cam<base64>
     
     Parameters
     ----------
@@ -195,7 +201,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         Parsed data or None if parsing fails
     """
     try:
-        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_cam([A-Za-z0-9_-]+)$'
+        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_view([A-Z]+)_cam([A-Za-z0-9_-]+)$'
         match = re.match(pattern, init_view_str)
         
         if not match:
@@ -204,7 +210,13 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         dt_str = match.group(1)
         lat = float(match.group(2))
         lon = float(match.group(3))
-        cam_encoded = match.group(4)
+        orientation = match.group(4)
+        cam_encoded = match.group(5)
+        
+        # Validate orientation
+        if orientation not in VALID_ORIENTATIONS:
+            print(f"Invalid orientation in init-view: {orientation}")
+            return None
         
         decoded = decode_camera_params(cam_encoded)
         if decoded is None:
@@ -220,6 +232,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
             dt_local=dt_local,
             lat=lat,
             lon=lon,
+            orientation=orientation,
             eye=eye,
             target=target,
             up=up,
@@ -246,6 +259,7 @@ def main():
         dt_local = init_view.dt_local
         lat = init_view.lat
         lon = init_view.lon
+        init_view_orientation = init_view.orientation
         init_camera_params = CameraParams(
             eye=init_view.eye,
             target=init_view.target,
@@ -266,6 +280,7 @@ def main():
             sys.exit(1)
         lat = args.lat
         lon = args.lon
+        init_view_orientation = args.init_view_orientation.upper()
 
     if not (lon >= -180.0 and lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
@@ -285,6 +300,10 @@ def main():
 
     if not (args.time_step_minutes > 0 and args.time_step_minutes <= 1440):
         print("Invalid time step. Must be between 1 and 1440 minutes.")
+        sys.exit(1)
+
+    if init_view_orientation not in VALID_ORIENTATIONS:
+        print(f"Invalid view orientation '{args.init_view_orientation}'. Must be one of: {', '.join(VALID_ORIENTATIONS)}")
         sys.exit(1)
 
     if not check_gpu_architecture():
@@ -311,7 +330,8 @@ def main():
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
                  init_camera_params=init_camera_params,
-                 time_step_minutes=args.time_step_minutes)
+                 time_step_minutes=args.time_step_minutes,
+                 init_view_orientation=init_view_orientation)
 
 if __name__ == "__main__":
     main()

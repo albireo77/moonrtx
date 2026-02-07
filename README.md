@@ -24,7 +24,7 @@ MoonRTX can be run in 2 ways:
 
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --brightness 100`
 
-`python -m moonrtx.main --init-view "2025-03-07T18.53.00+01.00_lat+50.000000_lon+20.000000_cambMOZPzVT28IXi6y_bMOZP6uZGsEXi6y_AAAAAAAAAAAAAIA_5oB3QA"`  
+`python -m moonrtx.main --init-view "2025-03-07T19.53.00+01.00_lat+50.000000_lon+20.000000_viewSNEW_camAAAAAAAAyMIAAAAA-r1gPwAuEL5IaadAkiZvOs1TVr0xpn8_gxiHQA"`  
 where `--init-view` parameter value is taken from the screenshot default filename
 - GUI launcher:
 
@@ -33,15 +33,15 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ## Notes
 - On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
-- There's experimental branch available [view_orientation_2](https://github.com/albireo77/moonrtx/tree/view_orientation_2) with switching view orientation (NSWE, NSEW, SNEW, SNWE) for various types of telescopes. It uses forked [PlotOptiX](https://github.com/albireo77/plotoptix) package.
+- Currently MoonRTX uses customized ([forked](https://github.com/albireo77/plotoptix)) PlotOptiX package to support switching view orientation.
 
 ## Keyboard and Mouse Actions
 **G** - Toggle selenographic grid  
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
-**I** - Toggle upside down view  
-**U** - Toggle labels upside down  
 **P** - Toggle pins ON/OFF  
+**Y** - Toggle Moon data panel  
+**F5-F8** - Switch view orientation (NSWE, NSEW, SNEW, SNWE)  
 **1-9** - Create/Remove pin (when pins are ON)  
 **R** - Reset view and time to initial state  
 **V** - Reset view to that based on current time (useful after starting with `--init-view` parameter)  
