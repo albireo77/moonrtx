@@ -33,7 +33,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ## Notes
 - On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
-- There's experimental branch available [view_orientation_2](https://github.com/albireo77/moonrtx/tree/view_orientation_2) with switching view orientation (NSWE, NSEW, SNEW, SNWE) for various types of telescopes. It uses forked [PlotOptiX](https://github.com/albireo77/plotoptix) package.
+- Currently MoonRTX uses customized ([forked](https://github.com/albireo77/plotoptix)) PlotOptiX package to support switching view orientation.
 
 ## Keyboard and Mouse Actions
 **G** - Toggle selenographic grid  
