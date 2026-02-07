@@ -206,7 +206,7 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  P - Toggle pins ON/OFF")
-    print("  Y - Toggle Moon data panel")
+    print("  F2 - Toggle Moon data panel")
     print("  F5-F8 - Switch view orientation (NSWE, NSEW, SNEW, SNWE)")
     print("  1-9 - Create/Remove pin (when pins are ON)")
     print("  R - Reset view and time to initial state")
@@ -279,7 +279,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'n':
             step = 60 if event.state & 0x1 else 1  # Shift key pressed
             moon_renderer.change_time_step(-step)
-        elif event.keysym.lower() == 'y':
+        elif event.keysym == 'F2':
             moon_renderer.toggle_info_panel()
         elif event.keysym.lower() == 'p':
             moon_renderer.toggle_pins()
