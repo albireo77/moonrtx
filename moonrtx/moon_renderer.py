@@ -206,7 +206,7 @@ def run_renderer(dt_local: datetime,
     print("  L - Toggle standard labels")
     print("  S - Toggle spot labels")
     print("  P - Toggle pins ON/OFF")
-    print("  F2 - Toggle Moon data panel")
+    print("  F2 - Toggle Moon ephemeris panel")
     print("  F5-F8 - Switch view orientation (NSWE, NSEW, SNEW, SNWE)")
     print("  1-9 - Create/Remove pin (when pins are ON)")
     print("  R - Reset view and time to initial state")
