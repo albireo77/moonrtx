@@ -36,20 +36,21 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - Currently MoonRTX uses customized ([forked](https://github.com/albireo77/plotoptix)) PlotOptiX package to support switching view orientation. You might need to re-run `pip install -r requirements.txt` to install this custom PlotOptiX and have switching view orientation working.
 
 ## Keyboard and Mouse Actions
+**F1** - Help  
+**F2** - Toggle Moon ephemeris panel  
+**F5-F8** - Switch view orientation (NSWE, NSEW, SNEW, SNWE)  
+**F9** - Set time to now using system timezone  
+**F12** - Save image  
+**1-9** - Create/Remove pin (when pins are ON)  
 **G** - Toggle selenographic grid  
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
 **P** - Toggle pins ON/OFF  
-**F2** - Toggle Moon ephemeris panel  
-**F5-F8** - Switch view orientation (NSWE, NSEW, SNEW, SNWE)  
-**1-9** - Create/Remove pin (when pins are ON)  
 **R** - Reset view and time to initial state  
 **V** - Reset view to that based on current time (useful after starting with `--init-view` parameter)  
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
 **T** - Open date/time window  
-**F12** - Save image  
-**Arrows** - Navigate view  
 **A/Z** - Increase/Decrease brightness  
 **Q/W** - Go back/forward in time by step minutes  
 **M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
@@ -58,10 +59,11 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
 **Hold and drag right mouse button** - Rotate Moon around the eye  
-**Hold shift + right mouse button and drag up/down** - Move eye backward/forward  
-**Hold shift + left mouse button and drag up/down** - Zoom out/in (more reliable)  
-**Hold ctrl + drag left mouse button** - Measure distance on Moon surface  
+**Hold Shift + right mouse button and drag up/down** - Move eye backward/forward  
+**Hold Shift + left mouse button and drag up/down** - Zoom out/in (more reliable)  
 **Mouse wheel up/down** - Zoom in/out (less reliable)  
+**Hold Ctrl + drag left mouse button** - Measure distance on Moon surface  
+**Arrows** - Navigate view  
 
 ## Screens
 **Plato and its surroundings**

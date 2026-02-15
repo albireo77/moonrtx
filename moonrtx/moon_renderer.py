@@ -199,36 +199,6 @@ def run_renderer(dt_local: datetime,
     if init_camera_params is not None:
         moon_renderer.apply_camera_params(init_camera_params)
     
-    # Print info
-    print("\n" + moon_renderer.get_info())
-    print("\nKeys and mouse:")
-    print("  G - Toggle selenographic grid")
-    print("  L - Toggle standard labels")
-    print("  S - Toggle spot labels")
-    print("  P - Toggle pins ON/OFF")
-    print("  F2 - Toggle Moon ephemeris panel")
-    print("  F5-F8 - Switch view orientation (NSWE, NSEW, SNEW, SNWE)")
-    print("  1-9 - Create/Remove pin (when pins are ON)")
-    print("  R - Reset view and time to initial state")
-    print("  V - Reset view to that based on current time (useful after starting with --init-view parameter)")
-    print("  C - Center and fix view on point under cursor")
-    print("  F - Search for Moon features (craters, mounts etc.)")
-    print("  T - Open date/time window")
-    print("  F12 - Save image")
-    print("  Arrows - Navigate view")
-    print("  A/Z - Increase/Decrease brightness")
-    print("  Q/W - Go back/forward in time by step minutes")
-    print("  M/N - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)")
-    print("  Shift + M/N - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)")
-    print("  Ctrl + Left/Right - Rotate view around Moon's polar axis")
-    print("  Ctrl + Up/Down - Rotate view around Moon's equatorial axis")
-    print("  Hold and drag left mouse button - Rotate the eye around Moon")
-    print("  Hold and drag right mouse button - Rotate Moon around the eye")
-    print("  Hold shift + right mouse button and drag up/down - Move eye backward/forward")
-    print("  Hold shift + left mouse button and drag up/down - Zoom out/in (more reliable)")
-    print("  Hold ctrl + drag left mouse button - Measure distance on Moon surface")
-    print("  Mouse wheel up/down - Zoom in/out (less reliable)")
-    
     original_key_handler = moon_renderer.rt._gui_key_pressed
     def custom_key_handler(event):
         # Ignore key events when search dialog or datetime dialog is focused
@@ -289,6 +259,10 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_time(moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 't':
             moon_renderer.open_datetime_dialog()
+        elif event.keysym == 'F1':
+            moon_renderer.show_help_dialog()
+        elif event.keysym == 'F9':
+            moon_renderer.set_time_to_now()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:
@@ -982,6 +956,31 @@ class MoonRenderer:
         # Schedule next tick
         self._schedule_auto_advance()
 
+    def set_time_to_now(self):
+        """Set the observation time to the current (now) time. Equivalent to pressing Now + Set in the datetime dialog."""
+        now_local = datetime.now().astimezone()
+
+        # Update Moon orientation and lighting for new time
+        self.update_moon_for_time(now_local, self.observer_lat, self.observer_lon)
+
+        # Reset auto-advance counter
+        if self._auto_advance_var and self._auto_advance_var.get():
+            self._auto_advance_elapsed = 0
+
+        # Regenerate grid and labels with new orientation
+        if self.moon_grid_visible:
+            self.update_moon_grid_orientation()
+        if self.standard_labels_visible:
+            self.update_standard_labels_orientation()
+        if self.spot_labels_visible:
+            self.update_spot_labels_orientation()
+
+        # Update pins positions
+        self.update_pins_orientation()
+
+        # Update status bar
+        self._update_all_status_panels()
+
     def change_time(self, delta_minutes: int):
         """
         Change the observation time by a given number of minutes.
@@ -1438,6 +1437,106 @@ class MoonRenderer:
         
         return "_".join(parts)
     
+    def show_help_dialog(self):
+        """Show a help window with keyboard and mouse shortcuts."""
+        if self.rt is None:
+            return
+
+        # If already open, just bring it to front
+        if hasattr(self, '_help_dialog') and self._help_dialog is not None:
+            try:
+                if self._help_dialog.winfo_exists():
+                    self._help_dialog.lift()
+                    self._help_dialog.focus_set()
+                    return
+            except Exception:
+                pass
+
+        help_win = tk.Toplevel(self.rt._root)
+        help_win.title("Help - Keys and mouse")
+        help_win.resizable(False, False)
+        self._help_dialog = help_win
+
+        def on_close():
+            self._help_dialog = None
+            help_win.destroy()
+
+        help_win.protocol("WM_DELETE_WINDOW", on_close)
+
+        main_frame = tk.Frame(help_win, padx=15, pady=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Entries from F1 to M/N use a fixed-width key column so hyphens align
+        aligned_lines = [
+            ("F1", "Help"),
+            ("F2", "Toggle Moon ephemeris panel"),
+            ("F5", "NSWE view orientation"),
+            ("F6", "NSEW view orientation"),
+            ("F7", "SNEW view orientation"),
+            ("F8", "SNWE view orientation"),
+            ("F9", "Set time to now using system timezone"),
+            ("F12", "Save image"),
+            ("1-9", "Create/Remove pin (when pins are ON)"),
+            ("G", "Toggle selenographic grid"),
+            ("L", "Toggle standard labels"),
+            ("S", "Toggle spot labels"),
+            ("P", "Toggle pins ON/OFF"),
+            ("R", "Reset view and time to initial state"),
+            ("V", "Reset view to that based on current time"),
+            ("", " (useful after starting with --init-view parameter)"),
+            ("C", "Center and fix view on point under cursor"),
+            ("F", "Search for Moon features (craters, mounts etc.)"),
+            ("T", "Open date/time window"),
+            ("A/Z", "Increase/Decrease brightness"),
+            ("Q/W", "Go back/forward in time by step minutes"),
+            ("M/N", "Increase/Decrease time step by 1 minute (max is 1440 - 1 day)"),
+        ]
+
+        # Remaining entries have longer keys, no fixed-width alignment
+        other_lines = [
+            ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
+            ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
+            ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
+            ("Hold and drag left mouse button", "Rotate the eye around Moon"),
+            ("Hold and drag right mouse button", "Rotate Moon around the eye"),
+            ("Hold Shift + right mouse button and drag up/down", "Move eye backward/forward"),
+            ("Hold Shift + left mouse button and drag up/down", "Zoom out/in (more reliable)"),
+            ("Mouse wheel up/down", "Zoom in/out (less reliable)"),
+            ("Hold Ctrl + drag left mouse button", "Measure distance on Moon surface"),
+            ("Arrows", "Navigate view"),
+        ]
+
+        # Find max key width for aligned section
+        max_key_len = max(len(k) for k, _ in aligned_lines if k)
+
+        for key, desc in aligned_lines:
+            row = tk.Frame(main_frame)
+            row.pack(fill=tk.X, pady=1)
+            if key:
+                key_label = tk.Label(row, text=key, width=max_key_len, anchor='e', font=('Consolas', 9, 'bold'))
+                key_label.pack(side=tk.LEFT)
+                tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
+            else:
+                # Continuation line: pad to align with description column
+                pad = " " * (max_key_len + 3)
+                tk.Label(row, text=pad + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
+
+        for key, desc in other_lines:
+            row = tk.Frame(main_frame)
+            row.pack(fill=tk.X, pady=1)
+            key_label = tk.Label(row, text=key, anchor='e', font=('Consolas', 9, 'bold'))
+            key_label.pack(side=tk.LEFT)
+            tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
+
+        # Close button
+        tk.Button(main_frame, text="Close", command=on_close, width=10).pack(pady=(10, 0))
+
+        # Center on main window
+        help_win.update_idletasks()
+        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - help_win.winfo_width()) // 2
+        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - help_win.winfo_height()) // 2
+        help_win.geometry(f"+{x}+{y}")
+
     def save_image_dialog(self):
         """
         Open a save dialog with a custom default filename.
@@ -1623,7 +1722,8 @@ class MoonRenderer:
         tk.Label(grid_frame, text="(YYYY-MM-DD)", fg='gray').grid(row=0, column=2, sticky='w', pady=2)
         
         # Time row
-        tk.Label(grid_frame, text=f"Local Time (UTC{offset_formatted}):", anchor='e').grid(row=1, column=0, sticky='w', pady=2)
+        tz_label_var = tk.StringVar(value=f"Local Time (UTC{offset_formatted}):")
+        tk.Label(grid_frame, textvariable=tz_label_var, anchor='e').grid(row=1, column=0, sticky='w', pady=2)
         time_var = tk.StringVar(value=current_dt_local.strftime('%H:%M:%S'))
         time_entry = tk.Entry(grid_frame, textvariable=time_var, width=15)
         time_entry.grid(row=1, column=1, padx=5, pady=2)
@@ -1682,8 +1782,13 @@ class MoonRenderer:
                 error_var.set(f"Error: {str(e)}")
         
         def set_now():
-            """Set to current local time."""
-            now_local = datetime.now(local_tz)
+            """Set to current system local time."""
+            nonlocal local_tz
+            now_local = datetime.now().astimezone()
+            local_tz = now_local.tzinfo
+            offset = now_local.strftime('%z')
+            offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
+            tz_label_var.set(f"Local Time (UTC{offset_fmt}):")
             date_var.set(now_local.strftime('%Y-%m-%d'))
             time_var.set(now_local.strftime('%H:%M:%S'))
         
@@ -1764,22 +1869,6 @@ class MoonRenderer:
         
         # Update camera
         self.rt.setup_camera("cam1", eye=new_eye.tolist(), target=new_target.tolist())
-            
-    def get_info(self) -> str:
-
-        if self.moon_ephem is None:
-            return "No view set"
-        
-        eph = self.moon_ephem
-        return (f"Moon topocentric ephemeris:\n"
-                f"  Altitude: {eph.alt:.2f}° {'(below horizon)' if eph.alt < 0 else ''}\n"
-                f"  Azimuth: {eph.az:.2f}°\n"
-                f"  RA: {eph.ra:.2f}°\n"
-                f"  DEC: {eph.dec:.2f}°\n"
-                f"  Distance: {eph.distance:.0f} km\n"
-                f"  Phase: {eph.phase:.2f}°\n"
-                f"  Illumination: {eph.illum:.2f}%\n"
-                f"  Libration: L={eph.libr_long:+.2f}° B={eph.libr_lat:+.2f}°")
     
     def setup_moon_grid(self, lat_step: float = 15.0, lon_step: float = 15.0):
         """
