@@ -1,4 +1,5 @@
 from multiprocessing import Process
+import calendar
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -27,6 +28,104 @@ from moonrtx.main import (
     ORIENTATION_NSWE
 )
 
+# Generate UTC offset values for the timezone combobox (-12:00 to +14:00, 30-min steps)
+_TZ_OFFSETS = []
+for _total_min in range(-720, 841, 30):
+    _h, _m = divmod(abs(_total_min), 60)
+    _sign = '+' if _total_min >= 0 else '-'
+    _TZ_OFFSETS.append(f"{_sign}{_h:02d}:{_m:02d}")
+
+
+class CalendarPopup(tk.Toplevel):
+    """Simple calendar popup for date selection."""
+
+    def __init__(self, parent, year=None, month=None, day=None):
+        super().__init__(parent)
+        self.transient(parent)
+        self.grab_set()
+        self.title("Select Date")
+        self.resizable(False, False)
+
+        self.result = None
+        self.cal = calendar.Calendar(firstweekday=0)  # Monday first
+
+        now = datetime.now()
+        self.year = year or now.year
+        self.month = month or now.month
+        self.selected_day = day
+
+        self._build_ui()
+
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.wait_window()
+
+    def _build_ui(self):
+        nav = tk.Frame(self)
+        nav.pack(fill=tk.X, padx=5, pady=5)
+
+        tk.Button(nav, text="\u25C0", command=self._prev_month, width=3).pack(side=tk.LEFT)
+        self.month_label = tk.Label(nav, text="", font=("", 10, "bold"), width=18)
+        self.month_label.pack(side=tk.LEFT, expand=True)
+        tk.Button(nav, text="\u25B6", command=self._next_month, width=3).pack(side=tk.RIGHT)
+
+        self.days_frame = tk.Frame(self)
+        self.days_frame.pack(padx=5, pady=(0, 5))
+
+        self._render_month()
+
+    def _render_month(self):
+        for w in self.days_frame.winfo_children():
+            w.destroy()
+
+        self.month_label.config(text=f"{calendar.month_name[self.month]} {self.year}")
+
+        for i, day_name in enumerate(["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]):
+            tk.Label(self.days_frame, text=day_name, width=4, font=("", 9, "bold")).grid(row=0, column=i)
+
+        today = datetime.now()
+        for row_idx, week in enumerate(self.cal.monthdayscalendar(self.year, self.month)):
+            for col_idx, day in enumerate(week):
+                if day == 0:
+                    tk.Label(self.days_frame, text="", width=4).grid(row=row_idx + 1, column=col_idx)
+                else:
+                    btn = tk.Button(self.days_frame, text=str(day), width=4,
+                                    command=lambda d=day: self._select(d))
+                    if day == self.selected_day:
+                        btn.config(relief=tk.SUNKEN, bg="lightblue")
+                    elif (day == today.day and self.month == today.month
+                          and self.year == today.year):
+                        btn.config(fg="blue")
+                    btn.grid(row=row_idx + 1, column=col_idx)
+
+    def _prev_month(self):
+        if self.month == 1:
+            self.month = 12
+            self.year -= 1
+        else:
+            self.month -= 1
+        self.selected_day = None
+        self._render_month()
+
+    def _next_month(self):
+        if self.month == 12:
+            self.month = 1
+            self.year += 1
+        else:
+            self.month += 1
+        self.selected_day = None
+        self._render_month()
+
+    def _select(self, day):
+        self.result = f"{self.year:04d}-{self.month:02d}-{day:02d}"
+        self.destroy()
+
+
 class MainWindow(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -54,9 +153,40 @@ class MainWindow(tk.Tk):
         self.lon_decimal = tk.Entry(frm, width=60)
         self.lon_decimal.grid(row=1, column=1, sticky=tk.W, pady=2)
 
-        self.time = tk.Entry(frm, width=60)
-        self.time.grid(row=2, column=1, sticky=tk.W, pady=2)
-        self.time.insert(0, datetime.now().astimezone().isoformat(timespec="seconds"))
+        # Date / Time / Timezone widgets
+        self.time_frame = tk.Frame(frm)
+        self.time_frame.grid(row=2, column=1, sticky=tk.W, pady=2)
+
+        now = datetime.now().astimezone()
+
+        self.date_entry = tk.Entry(self.time_frame, width=12)
+        self.date_entry.pack(side=tk.LEFT)
+        self.date_entry.insert(0, now.strftime("%Y-%m-%d"))
+
+        tk.Button(self.time_frame, text="\u25BC", width=2, command=self._open_calendar).pack(side=tk.LEFT, padx=(1, 4))
+
+        self.hour_var = tk.StringVar(value=f"{now.hour:02d}")
+        self.minute_var = tk.StringVar(value=f"{now.minute:02d}")
+        self.second_var = tk.StringVar(value=f"{now.second:02d}")
+
+        self.hour_spin = tk.Spinbox(self.time_frame, from_=0, to=23, width=3,
+                                    textvariable=self.hour_var, format="%02.0f", wrap=True)
+        self.hour_spin.pack(side=tk.LEFT)
+        tk.Label(self.time_frame, text=":").pack(side=tk.LEFT)
+        self.minute_spin = tk.Spinbox(self.time_frame, from_=0, to=59, width=3,
+                                      textvariable=self.minute_var, format="%02.0f", wrap=True)
+        self.minute_spin.pack(side=tk.LEFT)
+        tk.Label(self.time_frame, text=":").pack(side=tk.LEFT)
+        self.second_spin = tk.Spinbox(self.time_frame, from_=0, to=59, width=3,
+                                      textvariable=self.second_var, format="%02.0f", wrap=True)
+        self.second_spin.pack(side=tk.LEFT)
+
+        tk.Label(self.time_frame, text="  TZ:").pack(side=tk.LEFT)
+        tz_offset = now.strftime("%z")  # e.g. '+0100'
+        tz_str = f"{tz_offset[:3]}:{tz_offset[3:]}" if tz_offset else "+00:00"
+        self.tz_combo = ttk.Combobox(self.time_frame, width=7, values=_TZ_OFFSETS)
+        self.tz_combo.pack(side=tk.LEFT)
+        self.tz_combo.set(tz_str)
 
         self.elevation_file = tk.Entry(frm, width=60)
         self.elevation_file.insert(0, DEFAULT_ELEVATION_FILE_LOCAL_PATH)
@@ -86,8 +216,14 @@ class MainWindow(tk.Tk):
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W)
 
         def _set_time_now():
-            self.time.delete(0, tk.END)
-            self.time.insert(0, datetime.now().astimezone().isoformat(timespec="seconds"))
+            n = datetime.now().astimezone()
+            self.date_entry.delete(0, tk.END)
+            self.date_entry.insert(0, n.strftime("%Y-%m-%d"))
+            self.hour_var.set(f"{n.hour:02d}")
+            self.minute_var.set(f"{n.minute:02d}")
+            self.second_var.set(f"{n.second:02d}")
+            tz_off = n.strftime("%z")
+            self.tz_combo.set(f"{tz_off[:3]}:{tz_off[3:]}" if tz_off else "+00:00")
 
         tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=2, column=2, sticky=tk.W, pady=2, padx=4)
         tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=3, column=2, sticky=tk.W, pady=2, padx=4)
@@ -197,7 +333,7 @@ class MainWindow(tk.Tk):
             "lon_deg": self.lon_deg.get(),
             "lon_min": self.lon_min.get(),
             "lon_sec": self.lon_sec.get(),
-            "time": self.time.get(),
+            "time": self._get_time_iso(),
             "elevation_file": self.elevation_file.get(),
             "downscale": self.downscale.get(),
             "brightness": self.brightness.get(),
@@ -264,8 +400,7 @@ class MainWindow(tk.Tk):
             self.lon_sec.delete(0, tk.END)
             self.lon_sec.insert(0, settings.get("lon_sec", ""))
 
-            self.time.delete(0, tk.END)
-            self.time.insert(0, settings.get("time", ""))
+            self._set_time_from_iso(settings.get("time", ""))
 
             self.elevation_file.delete(0, tk.END)
             self.elevation_file.insert(0, settings.get("elevation_file", ""))
@@ -289,6 +424,44 @@ class MainWindow(tk.Tk):
             self.preset_name_entry.insert(0, preset_name)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load preset: {e}")
+
+    def _get_time_iso(self):
+        """Construct an ISO 8601 datetime string from the date/time/tz widgets."""
+        date_str = self.date_entry.get().strip()
+        hour = int(self.hour_var.get().strip() or 0)
+        minute = int(self.minute_var.get().strip() or 0)
+        second = int(self.second_var.get().strip() or 0)
+        tz = self.tz_combo.get().strip() or "+00:00"
+        return f"{date_str}T{hour:02d}:{minute:02d}:{second:02d}{tz}"
+
+    def _set_time_from_iso(self, iso_str):
+        """Populate date/time/tz widgets from an ISO 8601 datetime string."""
+        if not iso_str:
+            return
+        try:
+            dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+            self.date_entry.delete(0, tk.END)
+            self.date_entry.insert(0, dt.strftime("%Y-%m-%d"))
+            self.hour_var.set(f"{dt.hour:02d}")
+            self.minute_var.set(f"{dt.minute:02d}")
+            self.second_var.set(f"{dt.second:02d}")
+            offset = dt.strftime("%z")
+            if offset:
+                self.tz_combo.set(f"{offset[:3]}:{offset[3:]}")
+        except (ValueError, AttributeError):
+            pass
+
+    def _open_calendar(self):
+        """Open a calendar popup and set the date entry to the selected date."""
+        try:
+            parts = self.date_entry.get().strip().split("-")
+            year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+        except (ValueError, IndexError):
+            year, month, day = None, None, None
+        popup = CalendarPopup(self, year, month, day)
+        if popup.result:
+            self.date_entry.delete(0, tk.END)
+            self.date_entry.insert(0, popup.result)
 
     def browse_elevation(self):
         path = filedialog.askopenfilename(initialdir=DATA_DIRECTORY_PATH, title="Select elevation file")
@@ -319,7 +492,8 @@ class MainWindow(tk.Tk):
                 fov=init_view.fov,
             )
         else:
-            dt_local, error = get_date_time_local(self.time.get().strip())
+            time_iso = self._get_time_iso()
+            dt_local, error = get_date_time_local(time_iso)
             if error is not None:
                 messagebox.showerror("Error", f"Incorrect time: {error}")
                 return
