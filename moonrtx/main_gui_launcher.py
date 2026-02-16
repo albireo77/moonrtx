@@ -144,8 +144,8 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Downscale:").grid(row=4, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Brightness:").grid(row=5, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Time step (minutes):").grid(row=6, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view orientation:").grid(row=7, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view:").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=8, column=0, sticky=tk.E, pady=2)
 
         self.lat_decimal = tk.Entry(frm, width=60)
         self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
