@@ -51,7 +51,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     lst_deg = lst_hours * 15.0  # convert to degrees
 
     observer_lat = Angle(lat)
-    moon_ra, moon_dec = moon_topocentric_ra_dec(moon_ra, moon_dec, observer_lat, moon_parallax, lst_deg)
+    moon_ra, moon_dec = topocentric_ra_dec(moon_ra, moon_dec, observer_lat, moon_parallax, lst_deg)
     
     # Moon hour angle
     moon_ha_deg = (lst_deg - float(moon_ra)) % 360.0
@@ -59,7 +59,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
         moon_ha_deg -= 360
     moon_ha = Angle(moon_ha_deg)
 
-    moon_distance_topo = moon_topocentric_distance(moon_distance, observer_lat, moon_dec, moon_ha)
+    moon_distance_topo = topocentric_distance(moon_distance, observer_lat, moon_dec, moon_ha)
     
     # Convert equatorial to horizontal coordinates
     moon_az, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
@@ -68,51 +68,10 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
 
     # ---- Sun position (geocentric; Sun parallax < 9" so geocentric ≈ topocentric) ----
     sun_ra, sun_dec, sun_r_au = Sun.apparent_rightascension_declination_coarse(epoch)
-    sun_ra_rad = sun_ra.rad()
-    sun_dec_rad = sun_dec.rad()
 
-    # ---- Topocentric angular separation between Sun and Moon ----
-    moon_ra_rad = moon_ra.rad()
-    moon_dec_rad = moon_dec.rad()
-    # Standard angular separation formula
-    cos_sep = (math.sin(sun_dec_rad) * math.sin(moon_dec_rad)
-               + math.cos(sun_dec_rad) * math.cos(moon_dec_rad)
-               * math.cos(sun_ra_rad - moon_ra_rad))
-    cos_sep = max(-1.0, min(1.0, cos_sep))  # clamp for numerical safety
-    sun_moon_separation = math.degrees(math.acos(cos_sep))  # degrees
-
-    # ---- Topocentric phase angle (Sun-Moon-Observer angle at Moon vertex) ----
-    # In the Sun-Moon-Observer triangle:
-    #   elongation ψ = Sun-Observer-Moon angle ≈ sun_moon_separation
-    #   phase angle i = Sun-Moon-Observer angle
-    #   angle at Sun = π - i - ψ
-    # Using sine rule: sin(i)/D_Sun_Observer = sin(ψ)/D_Sun_Moon
-    # D_Sun_Observer ≈ sun_r_au * AU_KM, D_Sun_Moon ≈ same (Moon is close to Earth)
-    # More precisely: D_Sun_Moon² = D_Sun_Earth² + D_Moon_Earth² - 2·D_Sun·D_Moon·cos(ψ)
-    d_sun = sun_r_au * AU_KM
-    d_moon = moon_distance_topo
-    psi_rad = math.radians(sun_moon_separation)
-    d_sun_moon = math.sqrt(d_sun**2 + d_moon**2 - 2 * d_sun * d_moon * math.cos(psi_rad))
-    # Sine rule for angle at Moon vertex (phase angle i):
-    # sin(i) / d_sun = sin(ψ) / d_sun_moon
-    sin_i = d_sun * math.sin(psi_rad) / d_sun_moon if d_sun_moon > 0 else 0.0
-    sin_i = max(-1.0, min(1.0, sin_i))
-    phase_angle = math.degrees(math.asin(sin_i))
-    # asin gives 0..90; the actual phase angle spans 0..180.
-    # When elongation > 90° the Moon is between Earth and Sun → phase > 90°.
-    if sun_moon_separation < 90.0:
-        # Near new moon / eclipse: elongation < 90° means phase > 90°
-        phase_angle = 180.0 - phase_angle
-
-    # ---- Topocentric position angle of the bright limb ----
-    # PA of Sun direction from Moon, measured from celestial North toward East
-    # (standard position angle formula)
-    pa_bright_limb = math.degrees(math.atan2(
-        math.cos(sun_dec_rad) * math.sin(sun_ra_rad - moon_ra_rad),
-        math.sin(sun_dec_rad) * math.cos(moon_dec_rad)
-        - math.cos(sun_dec_rad) * math.sin(moon_dec_rad) * math.cos(sun_ra_rad - moon_ra_rad)
-    )) % 360.0
-    pa = Angle(pa_bright_limb)
+    sun_moon_separation = topocentric_sun_moon_separation(sun_ra, sun_dec, moon_ra, moon_dec)
+    phase_angle = topocentric_phase_angle(sun_moon_separation, sun_r_au, moon_distance_topo)
+    pa = Angle(topocentric_bright_limb_pa(sun_ra, sun_dec, moon_ra, moon_dec))
 
     # Parallactic angle tells us how much celestial north is tilted from zenith
     q = Coordinates.parallactic_angle(moon_ha, moon_dec, observer_lat)
@@ -138,7 +97,86 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
         sun_separation=sun_moon_separation
     )
 
-def moon_topocentric_ra_dec(
+def topocentric_sun_moon_separation(
+    sun_ra: Angle, sun_dec: Angle,
+    moon_ra: Angle, moon_dec: Angle
+) -> float:
+    """
+    Topocentric angular separation between Sun and Moon (degrees).
+
+    Uses the standard spherical angular separation formula.
+    """
+    sun_ra_rad = sun_ra.rad()
+    sun_dec_rad = sun_dec.rad()
+    moon_ra_rad = moon_ra.rad()
+    moon_dec_rad = moon_dec.rad()
+
+    cos_sep = (math.sin(sun_dec_rad) * math.sin(moon_dec_rad)
+               + math.cos(sun_dec_rad) * math.cos(moon_dec_rad)
+               * math.cos(sun_ra_rad - moon_ra_rad))
+    cos_sep = max(-1.0, min(1.0, cos_sep))  # clamp for numerical safety
+    return math.degrees(math.acos(cos_sep))
+
+
+def topocentric_phase_angle(
+    sun_moon_separation: float,
+    sun_r_au: float,
+    moon_distance_km: float
+) -> float:
+    """
+    Topocentric phase angle (Sun-Moon-Observer angle at the Moon vertex).
+
+    In the Sun-Moon-Observer triangle:
+      elongation ψ = Sun-Observer-Moon angle ≈ sun_moon_separation
+      phase angle i = Sun-Moon-Observer angle
+    Uses the sine rule after computing the Sun-Moon distance.
+
+    Returns
+    -------
+    float
+        Phase angle in degrees (0 = full, 180 = new).
+    """
+    d_sun = sun_r_au * AU_KM
+    d_moon = moon_distance_km
+    psi_rad = math.radians(sun_moon_separation)
+
+    d_sun_moon = math.sqrt(d_sun**2 + d_moon**2 - 2 * d_sun * d_moon * math.cos(psi_rad))
+
+    sin_i = d_sun * math.sin(psi_rad) / d_sun_moon if d_sun_moon > 0 else 0.0
+    sin_i = max(-1.0, min(1.0, sin_i))
+    phase_angle = math.degrees(math.asin(sin_i))
+
+    # asin gives 0..90; the actual phase angle spans 0..180.
+    # When elongation > 90° the Moon is between Earth and Sun → phase > 90°.
+    if sun_moon_separation < 90.0:
+        phase_angle = 180.0 - phase_angle
+
+    return phase_angle
+
+
+def topocentric_bright_limb_pa(
+    sun_ra: Angle, sun_dec: Angle,
+    moon_ra: Angle, moon_dec: Angle
+) -> float:
+    """
+    Position angle of the bright limb (degrees, 0-360).
+
+    PA of the Sun direction from the Moon, measured from celestial North
+    toward East (standard position-angle convention).
+    """
+    sun_ra_rad = sun_ra.rad()
+    sun_dec_rad = sun_dec.rad()
+    moon_ra_rad = moon_ra.rad()
+    moon_dec_rad = moon_dec.rad()
+
+    return math.degrees(math.atan2(
+        math.cos(sun_dec_rad) * math.sin(sun_ra_rad - moon_ra_rad),
+        math.sin(sun_dec_rad) * math.cos(moon_dec_rad)
+        - math.cos(sun_dec_rad) * math.sin(moon_dec_rad) * math.cos(sun_ra_rad - moon_ra_rad)
+    )) % 360.0
+
+
+def topocentric_ra_dec(
     ra_deg: Angle,
     dec_deg: Angle,
     lat_deg: Angle,
@@ -178,7 +216,7 @@ def moon_topocentric_ra_dec(
 
     return Angle(ra_topo, radians=True), Angle(dec_topo, radians=True)
 
-def moon_topocentric_distance(
+def topocentric_distance(
     distance_geo_km: float,
     lat: Angle,
     dec_topo: Angle,
