@@ -13,6 +13,7 @@ class MoonEphemeris(NamedTuple):
     q: float
     libr_long: float
     libr_lat: float
+    sun_separation: float  # Topocentric angular separation between Sun and Moon centers (degrees)
 
 class MoonFeature(NamedTuple):
     name: str
