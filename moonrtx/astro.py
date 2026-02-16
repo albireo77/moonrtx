@@ -71,7 +71,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
 
     sun_moon_separation = topocentric_sun_moon_separation(sun_ra, sun_dec, moon_ra, moon_dec)
     phase_angle = topocentric_phase_angle(sun_moon_separation, sun_r_au, moon_distance_topo)
-    pa = Angle(topocentric_bright_limb_pa(sun_ra, sun_dec, moon_ra, moon_dec))
+    pa = topocentric_bright_limb_pa(sun_ra, sun_dec, moon_ra, moon_dec)
 
     # Parallactic angle tells us how much celestial north is tilted from zenith
     q = Coordinates.parallactic_angle(moon_ha, moon_dec, observer_lat)
@@ -157,7 +157,7 @@ def topocentric_phase_angle(
 def topocentric_bright_limb_pa(
     sun_ra: Angle, sun_dec: Angle,
     moon_ra: Angle, moon_dec: Angle
-) -> float:
+) -> Angle:
     """
     Position angle of the bright limb (degrees, 0-360).
 
@@ -169,11 +169,11 @@ def topocentric_bright_limb_pa(
     moon_ra_rad = moon_ra.rad()
     moon_dec_rad = moon_dec.rad()
 
-    return math.degrees(math.atan2(
+    return Angle(math.atan2(
         math.cos(sun_dec_rad) * math.sin(sun_ra_rad - moon_ra_rad),
         math.sin(sun_dec_rad) * math.cos(moon_dec_rad)
         - math.cos(sun_dec_rad) * math.sin(moon_dec_rad) * math.cos(sun_ra_rad - moon_ra_rad)
-    )) % 360.0
+    ), radians=True)
 
 
 def topocentric_ra_dec(
