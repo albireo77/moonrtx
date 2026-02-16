@@ -42,7 +42,7 @@ class StatusMixin:
                 lat_dir = 'N' if self.observer_lat >= 0 else 'S'
                 lon_dir = 'E' if self.observer_lon >= 0 else 'W'
                 self._status_observer_var.set(
-                    f"Observer: {abs(self.observer_lat):.3f}\u00b0{lat_dir} {abs(self.observer_lon):.3f}\u00b0{lon_dir}")
+                    f"Observer: {abs(self.observer_lat):.4f}\u00b0{lat_dir} {abs(self.observer_lon):.4f}\u00b0{lon_dir}")
             else:
                 self._status_observer_var.set("Observer:")
 
@@ -177,12 +177,12 @@ class StatusMixin:
                     panels = [
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
-                        (self._status_feature_var,    43),
+                        (self._status_feature_var,    41),
                         (self._status_coords_var,     26),
                         (self._status_measured_var,   20),
                         (None,                        47),  # placeholder for time panel
                         (self._status_view_var,       10),
-                        (self._status_observer_var,   27)
+                        (self._status_observer_var,   29)
                     ]
                     for var, w in panels:
                         if var is None:

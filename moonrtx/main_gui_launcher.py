@@ -354,7 +354,7 @@ class MainWindow(tk.Tk):
                 
                 sign = -1 if deg < 0 else 1
                 result = sign * (abs(deg) + minutes / 60.0 + seconds / 3600.0)
-                return round(result, 3)
+                return round(result, 4)
 
             if self.coord_mode.get() == 'decimal':
                 lat_str = self.lat_decimal.get().strip()
