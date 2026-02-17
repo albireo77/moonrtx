@@ -397,7 +397,7 @@ class DialogsMixin:
                 new_dt_local = new_dt_naive.replace(tzinfo=local_tz)
                 
                 # Update the view
-                self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon)
+                self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
                 
                 # Reset auto-advance counter when time is manually set
                 if self._auto_advance_var and self._auto_advance_var.get():

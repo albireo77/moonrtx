@@ -46,7 +46,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  width: int = 1400,
                  height: int = 900,
                  time_step_minutes: int = 15,
-                 init_view_orientation: str = ORIENTATION_NSWE):
+                 init_view_orientation: str = ORIENTATION_NSWE,
+                 observer_elevation: int = 0):
         """
         Initialize the planetarium.
 
@@ -65,13 +66,15 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         starmap_file : str, optional
             Path to star map TIFF for background
         downscale : int
-            Elevation downscale factor
+            Elevation map downscale factor
         width, height : int
             Render window size
         time_step_minutes : int
             Time step in minutes for Q/W keys
         init_view_orientation : str
             Initial view orientation (ORIENTATION_NSWE, ORIENTATION_NSEW, etc.)
+        observer_elevation : int
+            Observer elevation in meters above sea level
         """
         self.width = width
         self.height = height
@@ -132,6 +135,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.dt_local = None
         self.observer_lat = None
         self.observer_lon = None
+        self.observer_elevation = observer_elevation
 
         # Flag to track if search dialog is open
         self.search_dialog_open = False
@@ -248,7 +252,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """Set the observation time to the current (now) time."""
         now_local = datetime.now().astimezone()
 
-        self.update_moon_for_time(now_local, self.observer_lat, self.observer_lon)
+        self.update_moon_for_time(now_local, self.observer_lat, self.observer_lon, self.observer_elevation)
 
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
@@ -280,7 +284,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         new_dt_local = self.dt_local + timedelta(minutes=delta_minutes)
 
-        self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon)
+        self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
 
         if self.moon_grid_visible:
             self.update_moon_grid_orientation()
@@ -337,7 +341,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     # ---- view update ----
 
-    def update_view(self, dt_local: datetime, lat: float, lon: float, zoom: float = 1000):
+    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0, zoom: float = 1000):
         """
         Update the view for a specific time and location.
 
@@ -347,11 +351,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Local time
         lat, lon : float
             Observer latitude and longitude in degrees
+        elevation : int
+            Observer elevation in meters above sea level
         zoom : float
             Camera zoom factor
         """
         dt_utc = dt_local.astimezone(timezone.utc)
-        eph = calculate_moon_ephemeris(dt_utc, lat, lon)
+        eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
         self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
@@ -359,6 +365,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.dt_local = dt_local
         self.observer_lat = lat
         self.observer_lon = lon
+        self.observer_elevation = elevation
 
         scene = calculate_camera_and_light(self.moon_ephem, zoom, self.moon_radius)
         self.light_pos = scene.light_pos
@@ -401,7 +408,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if self.standard_labels_visible:
             self.update_standard_labels_orientation()
 
-    def update_moon_for_time(self, dt_local: datetime, lat: float, lon: float):
+    def update_moon_for_time(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0):
         """
         Update Moon orientation and lighting for a new time without changing camera.
 
@@ -411,9 +418,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Local time
         lat, lon : float
             Observer latitude and longitude in degrees
+        elevation : int
+            Observer elevation in meters above sea level
         """
         dt_utc = dt_local.astimezone(timezone.utc)
-        eph = calculate_moon_ephemeris(dt_utc, lat, lon)
+        eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
         self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
@@ -421,6 +430,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.dt_local = dt_local
         self.observer_lat = lat
         self.observer_lon = lon
+        self.observer_elevation = elevation
 
         scene = calculate_camera_and_light(self.moon_ephem, 1000, self.moon_radius)
         self.light_pos = scene.light_pos
@@ -490,6 +500,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 def run_renderer(dt_local: datetime,
                  lat: float,
                  lon: float,
+                 observer_elevation: int,
                  elevation_file: str,
                  color_file: str,
                  starmap_file: str,
@@ -509,6 +520,8 @@ def run_renderer(dt_local: datetime,
         Local time
     lat, lon : float
         Observer latitude and longitude in degrees
+    observer_elevation : int
+        Observer elevation in meters above sea level
     elevation_file, color_file, starmap_file, features_file : str
         Paths to data files
     downscale : int
@@ -532,7 +545,7 @@ def run_renderer(dt_local: datetime,
     print()
     print("Used PlotOptiX version:", plotoptix.__version__)
     print("Renderer started with parameters:")
-    print(f"  Geographical Location: Lat {lat}°, Lon {lon}°")
+    print(f"  Geographical Location: Lat {lat}°, Lon {lon}°, Elevation {observer_elevation} m")
     print(f"  Local Time: {dt_local}")
     print(f"  Elevation Map File: {elevation_file}")
     print(f"  Brightness: {brightness}")
@@ -552,14 +565,15 @@ def run_renderer(dt_local: datetime,
         features_file=features_file,
         brightness=brightness,
         time_step_minutes=time_step_minutes,
-        init_view_orientation=init_view_orientation
+        init_view_orientation=init_view_orientation,
+        observer_elevation=observer_elevation
     )
 
     # Setup renderer
     moon_renderer.setup_renderer()
 
     # Set view
-    moon_renderer.update_view(dt_local=dt_local, lat=lat, lon=lon)
+    moon_renderer.update_view(dt_local=dt_local, lat=lat, lon=lon, elevation=observer_elevation)
 
     # Apply custom camera parameters if provided (to restore a saved view)
     if init_camera_params is not None:

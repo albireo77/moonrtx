@@ -13,7 +13,7 @@ from moonrtx.shared_types import MoonEphemeris
 EARTH_RADIUS_KM = 6378.14
 AU_KM = 149597870.7  # 1 Astronomical Unit in km
 
-def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEphemeris:
+def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
     """
     Calculate Moon ephemeris for a given time and observer location (topocentric system)
     
@@ -24,7 +24,9 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     lat : float
         Observer latitude in degrees
     lon : float
-        Observer longitude in degrees  
+        Observer longitude in degrees
+    observer_elevation : int
+        Observer elevation in meters above sea level
         
     Returns
     -------
@@ -43,12 +45,23 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     """
 
     epoch = Epoch(dt_utc, utc=True)
+
+    # UT1-based epoch for sidereal time computation
+    # Epoch(utc=True) stores TT internally (adds ΔT ≈ 69s), but sidereal time
+    # must be computed from UT1. Since UT1 ≈ UTC (within 0.9s), we use UTC directly.
+    epoch_ut = Epoch(dt_utc)
     
     moon_ra, moon_dec, moon_distance, moon_parallax = Moon.apparent_equatorial_pos(epoch)
     
+    # Nutation and obliquity (needed for apparent sidereal time)
+    nut_lon = Coordinates.nutation_longitude(epoch)
+    obl = Coordinates.true_obliquity(epoch)
+
     # Calculate local sidereal time for hour angle computation
-    # LST = Greenwich Sidereal Time + observer longitude
-    lst_hours = (epoch.mean_sidereal_time() * 24.0 + lon / 15.0) % 24.0
+    # LST = Greenwich Apparent Sidereal Time + observer longitude
+    # Must use apparent (not mean) sidereal time to match apparent coordinates (which include nutation)
+    # Must use UT-based epoch (not TT) since sidereal time is a function of Earth's rotation (UT1)
+    lst_hours = (epoch_ut.apparent_sidereal_time(obl, nut_lon) * 24.0 + lon / 15.0) % 24.0
     lst_deg = lst_hours * 15.0  # convert to degrees
 
     observer_lat = Angle(lat)
@@ -62,7 +75,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     # Apply topocentric parallax correction (Meeus ch. 40, oblate Earth)
     moon_distance_au = float(moon_distance) / AU_KM
     moon_ra, moon_dec = Earth.parallax_correction(
-        moon_ra, moon_dec, observer_lat, moon_distance_au, moon_ha
+        moon_ra, moon_dec, observer_lat, moon_distance_au, moon_ha, float(observer_elevation)
     )
 
     # Recompute hour angle with topocentric RA
@@ -71,11 +84,13 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
         moon_ha_deg -= 360
     moon_ha = Angle(moon_ha_deg)
 
-    moon_distance_topo = topocentric_distance(moon_distance, observer_lat, moon_dec, moon_ha)
+    moon_distance_topo = topocentric_distance(moon_distance, observer_lat, moon_dec, moon_ha, observer_elevation)
     
     # Convert equatorial to horizontal coordinates
     moon_az, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
-    
+    moon_alt = Coordinates.refraction_true2apparent(moon_alt)
+
+
     illum_frac = Moon.illuminated_fraction_disk(epoch)
 
     # ---- Sun position (geocentric; Sun parallax < 9" so geocentric ≈ topocentric) ----
@@ -192,7 +207,8 @@ def topocentric_distance(
     distance_geo_km: float,
     lat: Angle,
     dec_topo: Angle,
-    ha_topo: Angle
+    ha_topo: Angle,
+    elevation_m: int = 0
 ) -> float:
     """
     Compute topocentric distance Δ′ of the Moon (Meeus, ch. 40)
@@ -207,6 +223,8 @@ def topocentric_distance(
         Topocentric declination δ′
     ha_topo : Angle
         Topocentric hour angle H′
+    elevation_m : int
+        Observer elevation in meters above sea level
 
     Returns
     -------
@@ -214,9 +232,9 @@ def topocentric_distance(
         Topocentric distance Δ′ in km
     """
 
-    # Observer distance to Earth's center (oblate Earth), in km
+    # Observer distance to Earth's center (oblate Earth + elevation), in km
     rho = Earth().rho(lat)
-    observer_radius_km = EARTH_RADIUS_KM * rho
+    observer_radius_km = EARTH_RADIUS_KM * rho + elevation_m / 1000.0
 
     # Convert to radians
     phi = lat.rad()

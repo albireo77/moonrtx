@@ -133,7 +133,7 @@ class NavigationMixin:
         # Reset time back to initial time if it was changed
         if self.initial_dt_local is not None and self.dt_local != self.initial_dt_local:
             # Reset to initial time - this will restore Moon orientation and lighting
-            self.update_moon_for_time(self.initial_dt_local, self.observer_lat, self.observer_lon)
+            self.update_moon_for_time(self.initial_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
             
             # Update grid and labels with restored orientation
             if self.moon_grid_visible:

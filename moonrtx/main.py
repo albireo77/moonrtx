@@ -65,6 +65,8 @@ def parse_args():
     parser.add_argument("--lon", type=float, default=None,
                         help="Observer longitude in degrees. Examples: 19.9365 (Cracow, Poland), -58.3772 (Buenos Aires, Argentina). "
                              "Mandatory parameter unless --init-view is used.")
+    parser.add_argument("--elevation", type=int, default=0,
+                        help="Observer elevation above sea level in meters. Examples: 0 (sea level), 219 (Cracow, Poland).")
     parser.add_argument("--time", type=str, default="now",
                         help="Time in ISO format with timezone information. Examples: 2024-01-01T12:00:00Z, 2025-12-26T16:30:00+01:00")
     parser.add_argument("--elevation-file", type=str, default=DEFAULT_ELEVATION_FILE_LOCAL_PATH,
@@ -298,6 +300,10 @@ def main():
         print("Invalid brightness. Must be between 0 and 500.")
         sys.exit(1)
 
+    if not (0 <= args.elevation <= 100000):
+        print("Invalid elevation. Must be between 0 and 100000 meters.")
+        sys.exit(1)
+
     if not (args.time_step_minutes > 0 and args.time_step_minutes <= 1440):
         print("Invalid time step. Must be between 1 and 1440 minutes.")
         sys.exit(1)
@@ -323,6 +329,7 @@ def main():
                  elevation_file=args.elevation_file,
                  lat=lat,
                  lon=lon,
+                 observer_elevation=args.elevation,
                  downscale=args.downscale,
                  brightness=args.brightness,
                  app_name=APP_NAME,

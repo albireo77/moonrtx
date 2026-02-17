@@ -4,7 +4,7 @@ from typing import NamedTuple
 from moonrtx.shared_types import MoonFeature, MoonLabel
 
 LABEL_CHAR_SCALE = 0.12
-PIN_DIGIT_SCALE = 0.4
+PIN_DIGIT_SCALE = 0.2
 
 class MoonGrid(NamedTuple):
     lat_lines: list

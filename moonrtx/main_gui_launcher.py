@@ -139,13 +139,14 @@ class MainWindow(tk.Tk):
 
         tk.Label(frm, text="Observer latitude:").grid(row=0, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Observer longitude:").grid(row=1, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time with timezone:").grid(row=2, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Elevation file:").grid(row=3, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Downscale:").grid(row=4, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Brightness:").grid(row=5, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time step (minutes):").grid(row=6, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="View orientation:").grid(row=7, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Elevation (meters):").grid(row=2, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time with timezone:").grid(row=3, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Elevation file:").grid(row=4, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Downscale:").grid(row=5, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Brightness:").grid(row=6, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=9, column=0, sticky=tk.E, pady=2)
 
         self.lat_decimal = tk.Entry(frm, width=60)
         self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
@@ -153,9 +154,13 @@ class MainWindow(tk.Tk):
         self.lon_decimal = tk.Entry(frm, width=60)
         self.lon_decimal.grid(row=1, column=1, sticky=tk.W, pady=2)
 
+        self.elevation_entry = tk.Entry(frm, width=60)
+        self.elevation_entry.grid(row=2, column=1, sticky=tk.W, pady=2)
+        self.elevation_entry.insert(0, "0")
+
         # Date / Time / Timezone widgets
         self.time_frame = tk.Frame(frm)
-        self.time_frame.grid(row=2, column=1, sticky=tk.W, pady=2)
+        self.time_frame.grid(row=3, column=1, sticky=tk.W, pady=2)
 
         now = datetime.now().astimezone()
 
@@ -190,30 +195,31 @@ class MainWindow(tk.Tk):
 
         self.elevation_file = tk.Entry(frm, width=60)
         self.elevation_file.insert(0, DEFAULT_ELEVATION_FILE_LOCAL_PATH)
-        self.elevation_file.grid(row=3, column=1, sticky=tk.W, pady=2)
+        self.elevation_file.grid(row=4, column=1, sticky=tk.W, pady=2)
 
         self.downscale = tk.Entry(frm, width=60)
-        self.downscale.grid(row=4, column=1, sticky=tk.W, pady=2)
+        self.downscale.grid(row=5, column=1, sticky=tk.W, pady=2)
         self.downscale.insert(0, 3)
 
         self.brightness = tk.Entry(frm, width=60)
-        self.brightness.grid(row=5, column=1, sticky=tk.W, pady=2)
+        self.brightness.grid(row=6, column=1, sticky=tk.W, pady=2)
         self.brightness.insert(0, 120)
 
         self.time_step_minutes = tk.Entry(frm, width=60)
-        self.time_step_minutes.grid(row=6, column=1, sticky=tk.W, pady=2)
+        self.time_step_minutes.grid(row=7, column=1, sticky=tk.W, pady=2)
         self.time_step_minutes.insert(0, 15)
         
         self.init_orientation = ttk.Combobox(frm, width=57, state="readonly", values=VALID_ORIENTATIONS)
-        self.init_orientation.grid(row=7, column=1, sticky=tk.W, pady=2)
+        self.init_orientation.grid(row=8, column=1, sticky=tk.W, pady=2)
         self.init_orientation.set(ORIENTATION_NSWE)
         
         self.init_view = tk.Entry(frm, width=60)
-        self.init_view.grid(row=8, column=1, sticky=tk.W, pady=2)
+        self.init_view.grid(row=9, column=1, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W)
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W)
+        tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W)
 
         def _set_time_now():
             n = datetime.now().astimezone()
@@ -225,8 +231,8 @@ class MainWindow(tk.Tk):
             tz_off = n.strftime("%z")
             self.tz_combo.set(f"{tz_off[:3]}:{tz_off[3:]}" if tz_off else "+00:00")
 
-        tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=2, column=2, sticky=tk.W, pady=2, padx=4)
-        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=3, column=2, sticky=tk.W, pady=2, padx=4)
+        tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=4)
+        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=4, column=2, sticky=tk.W, pady=2, padx=4)
 
         self.lat_sexa_frame = tk.Frame(frm)
         self.lat_deg = tk.Entry(self.lat_sexa_frame, width=6)
@@ -252,11 +258,11 @@ class MainWindow(tk.Tk):
 
         # Run button and status
         self.run_btn = tk.Button(frm, text=f"Run {APP_NAME}", command=self.on_run)
-        self.run_btn.grid(row=9, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.run_btn.grid(row=10, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
 
-        # Preset controls (row 10)
+        # Preset controls (row 11)
         preset_frame = tk.Frame(frm)
-        preset_frame.grid(row=10, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
+        preset_frame.grid(row=11, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
 
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
         self.preset_name_entry = tk.Entry(preset_frame, width=15)
@@ -327,6 +333,7 @@ class MainWindow(tk.Tk):
             "coord_mode": self.coord_mode.get(),
             "lat_decimal": self.lat_decimal.get(),
             "lon_decimal": self.lon_decimal.get(),
+            "elevation": self.elevation_entry.get(),
             "lat_deg": self.lat_deg.get(),
             "lat_min": self.lat_min.get(),
             "lat_sec": self.lat_sec.get(),
@@ -381,6 +388,9 @@ class MainWindow(tk.Tk):
 
             self.lon_decimal.delete(0, tk.END)
             self.lon_decimal.insert(0, settings.get("lon_decimal", ""))
+
+            self.elevation_entry.delete(0, tk.END)
+            self.elevation_entry.insert(0, settings.get("elevation", settings.get("altitude", "0")))
 
             self.lat_deg.delete(0, tk.END)
             self.lat_deg.insert(0, settings.get("lat_deg", ""))
@@ -558,6 +568,15 @@ class MainWindow(tk.Tk):
             return
 
         try:
+            elevation = int(self.elevation_entry.get().strip() or 0)
+        except ValueError:
+            messagebox.showerror("Error", "Elevation must be an integer (meters).")
+            return
+        if not (0 <= elevation <= 100000):
+            messagebox.showerror("Error", "Invalid elevation. Must be between 0 and 100000 meters.")
+            return
+
+        try:
             downscale = int(self.downscale.get().strip())
         except ValueError:
             messagebox.showerror("Error", "Downscale must be a positive integer.")
@@ -625,6 +644,7 @@ class MainWindow(tk.Tk):
                 dt_local,
                 lat,
                 lon,
+                elevation,
                 elevation_file,
                 COLOR_FILE_LOCAL_PATH,
                 STARMAP_FILE_LOCAL_PATH,

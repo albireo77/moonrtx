@@ -63,9 +63,17 @@ class StatusMixin:
             return
         e = self.moon_ephem
         if self._info_az_var:
-            self._info_az_var.set(f"Azimuth:  {e.az:6.2f}°")
+            az_d = int(e.az)
+            az_m = int((e.az - az_d) * 60)
+            az_s = (e.az - az_d - az_m / 60) * 3600
+            self._info_az_var.set(f"Az:  {az_d:3d}\u00b0{az_m:02d}'{az_s:04.1f}\"")
         if self._info_alt_var:
-            self._info_alt_var.set(f"Altitude: {e.alt:+6.2f}°")
+            alt_sign = '+' if e.alt >= 0 else '-'
+            alt_abs = abs(e.alt)
+            alt_d = int(alt_abs)
+            alt_m = int((alt_abs - alt_d) * 60)
+            alt_s = (alt_abs - alt_d - alt_m / 60) * 3600
+            self._info_alt_var.set(f"Alt: {alt_sign}{alt_d:02d}\u00b0{alt_m:02d}'{alt_s:04.1f}\"")
         if self._info_ra_var:
             ra_total_h = e.ra / 15.0
             ra_h = int(ra_total_h)
