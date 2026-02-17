@@ -4,6 +4,7 @@ from datetime import datetime
 from pymeeus.Epoch import Epoch
 from pymeeus.Moon import Moon
 from pymeeus.Sun import Sun
+from pymeeus.Earth import Earth
 from pymeeus.Angle import Angle
 from pymeeus import Coordinates
 
@@ -51,9 +52,20 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float) -> MoonEp
     lst_deg = lst_hours * 15.0  # convert to degrees
 
     observer_lat = Angle(lat)
-    moon_ra, moon_dec = topocentric_ra_dec(moon_ra, moon_dec, observer_lat, moon_parallax, lst_deg)
-    
-    # Moon hour angle
+
+    # Geocentric hour angle (needed for parallax correction)
+    moon_ha_deg = (lst_deg - float(moon_ra)) % 360.0
+    if moon_ha_deg > 180:
+        moon_ha_deg -= 360
+    moon_ha = Angle(moon_ha_deg)
+
+    # Apply topocentric parallax correction (Meeus ch. 40, oblate Earth)
+    moon_distance_au = float(moon_distance) / AU_KM
+    moon_ra, moon_dec = Earth.parallax_correction(
+        moon_ra, moon_dec, observer_lat, moon_distance_au, moon_ha
+    )
+
+    # Recompute hour angle with topocentric RA
     moon_ha_deg = (lst_deg - float(moon_ra)) % 360.0
     if moon_ha_deg > 180:
         moon_ha_deg -= 360
@@ -176,46 +188,6 @@ def topocentric_bright_limb_pa(
     ), radians=True)
 
 
-def topocentric_ra_dec(
-    ra_deg: Angle,
-    dec_deg: Angle,
-    lat_deg: Angle,
-    parallax: Angle,
-    lst_deg: float
-) -> tuple[Angle, Angle]:
-
-    ra = ra_deg.rad()
-    dec = dec_deg.rad()
-    lat = lat_deg.rad()
-    lst = math.radians(lst_deg)
-
-    pi = parallax.rad()
-
-    H = lst - ra
-
-    sin_phi = math.sin(lat)
-    cos_phi = math.cos(lat)
-    sin_dec = math.sin(dec)
-    cos_dec = math.cos(dec)
-
-    sin_H = math.sin(H)
-    cos_H = math.cos(H)
-
-    delta_ra = math.atan2(
-        -cos_phi * sin_H * math.sin(pi),
-        cos_dec - cos_phi * cos_H * math.sin(pi)
-    )
-
-    delta_dec = math.atan2(
-        -(sin_phi * cos_dec - cos_phi * sin_dec * cos_H) * math.sin(pi),
-        1 - cos_phi * cos_dec * cos_H * math.sin(pi)
-    )
-
-    ra_topo = ra + delta_ra
-    dec_topo = dec + delta_dec
-
-    return Angle(ra_topo, radians=True), Angle(dec_topo, radians=True)
-
 def topocentric_distance(
     distance_geo_km: float,
     lat: Angle,
@@ -242,6 +214,10 @@ def topocentric_distance(
         Topocentric distance Δ′ in km
     """
 
+    # Observer distance to Earth's center (oblate Earth), in km
+    rho = Earth().rho(lat)
+    observer_radius_km = EARTH_RADIUS_KM * rho
+
     # Convert to radians
     phi = lat.rad()
     dec = dec_topo.rad()
@@ -253,11 +229,11 @@ def topocentric_distance(
         math.cos(phi) * math.cos(dec) * math.cos(H)
     )
 
-    # Meeus formula
+    # Meeus formula (using oblate Earth radius)
     delta_prime = math.sqrt(
         distance_geo_km**2 +
-        EARTH_RADIUS_KM**2 -
-        2.0 * distance_geo_km * EARTH_RADIUS_KM * cos_z
+        observer_radius_km**2 -
+        2.0 * distance_geo_km * observer_radius_km * cos_z
     )
 
     return delta_prime
