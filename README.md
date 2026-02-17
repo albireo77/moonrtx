@@ -66,8 +66,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Arrows** - Navigate view  
 
 ## Screens
-**Plato and its surroundings**
-![Plato](images/plato.jpg)
+**Archimedes with neighbours**
+![Archimedes](images/archimedes.jpg)
 **Selenographic grid and labels**
 ![Grid](images/grid.jpg)
 **Lonely Timocharis**
