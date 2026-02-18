@@ -535,7 +535,7 @@ class NavigationMixin:
 
     def update_leading_line(self, event):
         """
-        Update the leading line during drag.
+        Update the leading line during drag and show live distance.
         
         Parameters
         ----------
@@ -553,6 +553,17 @@ class NavigationMixin:
             self.leading_line_id,
             start_x, start_y, event.x, event.y
         )
+
+        # Live distance update during drag
+        x, y = self.rt._get_image_xy(event.x, event.y)
+        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
+        if hd > 0:
+            lat2, lon2 = self.hit_to_selenographic(hx, hy, hz)
+            if lat2 is not None and lon2 is not None:
+                lat1, lon1 = self.measure_start_coords
+                distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
+                self.measured_distance = distance_km
+                self._update_status_measured()
 
     def finish_measurement(self, event):
         """
