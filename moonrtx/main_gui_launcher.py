@@ -203,7 +203,7 @@ class MainWindow(tk.Tk):
 
         self.brightness = tk.Entry(frm, width=60)
         self.brightness.grid(row=6, column=1, sticky=tk.W, pady=2)
-        self.brightness.insert(0, 120)
+        self.brightness.insert(0, 80)
 
         self.time_step_minutes = tk.Entry(frm, width=60)
         self.time_step_minutes.grid(row=7, column=1, sticky=tk.W, pady=2)
@@ -419,7 +419,7 @@ class MainWindow(tk.Tk):
             self.downscale.insert(0, settings.get("downscale", "3"))
 
             self.brightness.delete(0, tk.END)
-            self.brightness.insert(0, settings.get("brightness", "120"))
+            self.brightness.insert(0, settings.get("brightness", "80"))
 
             self.time_step_minutes.delete(0, tk.END)
             self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))

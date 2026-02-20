@@ -4,7 +4,7 @@ Constants used across the Moon renderer modules.
 
 # Scene geometry
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
-SUN_RADIUS = 10             # affects Moon surface illumination
+SUN_RADIUS = 11             # affects Moon surface illumination
 MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
 
 # Colors
