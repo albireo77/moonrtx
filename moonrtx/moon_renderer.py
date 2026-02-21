@@ -48,7 +48,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
                  observer_elevation: int = 0,
-                 gamma: float = 2.2):
+                 gamma: float = 3.2):
         """
         Initialize the planetarium.
 
@@ -535,7 +535,7 @@ def run_renderer(dt_local: datetime,
                  init_camera_params: Optional[CameraParams] = None,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
-                 gamma: float = 2.2) -> TkOptiX:
+                 gamma: float = 3.2) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 

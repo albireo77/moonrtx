@@ -75,8 +75,8 @@ def parse_args():
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
     parser.add_argument("--brightness", type=int, default=80,
                         help="Brightness")
-    parser.add_argument("--gamma", type=float, default=2.2,
-                        help="Gamma correction value (0.5 - 5.0, default 2.2)")
+    parser.add_argument("--gamma", type=float, default=3.2,
+                        help="Gamma correction value (0.5 - 5.0, default 3.2)")
     parser.add_argument("--time-step-minutes", type=int, default=15,
                         help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
