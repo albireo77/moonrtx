@@ -47,7 +47,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  height: int = 900,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
-                 observer_elevation: int = 0):
+                 observer_elevation: int = 0,
+                 gamma: float = 2.2):
         """
         Initialize the planetarium.
 
@@ -75,11 +76,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Initial view orientation (ORIENTATION_NSWE, ORIENTATION_NSEW, etc.)
         observer_elevation : int
             Observer elevation in meters above sea level
+        gamma : float
+            Gamma correction value (default 2.2)
         """
         self.width = width
         self.height = height
         self.downscale = downscale
-        self.gamma = 2.2
+        self.gamma = gamma
         self.time_step_minutes = time_step_minutes
 
         # Load data
@@ -162,6 +165,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._status_measured_var = None
         self._status_feature_var = None
         self._status_brightness_var = None
+        self._status_gamma_var = None
         self._status_pins_var = None
         self._status_coords_var = None
 
@@ -197,6 +201,26 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.brightness = max(0, min(500, self.brightness))
         self.rt.setup_light("sun", color=self.brightness)
         self._update_status_brightness()
+
+    def change_gamma(self, delta: float):
+        """
+        Change the gamma correction value by a given amount.
+
+        Parameters
+        ----------
+        delta : float
+            Amount to add (positive) or subtract (negative) from gamma
+        """
+        if delta == 0:
+            return
+        new_gamma = self.gamma + delta
+        new_gamma = round(new_gamma, 1)  # Avoid floating-point drift
+        new_gamma = max(0.5, min(5.0, new_gamma))
+        if new_gamma == self.gamma:
+            return
+        self.gamma = new_gamma
+        self.rt.set_float("tonemap_gamma", self.gamma)
+        self._update_status_gamma()
 
     def change_time_step(self, delta: int):
         """
@@ -510,7 +534,8 @@ def run_renderer(dt_local: datetime,
                  app_name: str,
                  init_camera_params: Optional[CameraParams] = None,
                  time_step_minutes: int = 15,
-                 init_view_orientation: str = ORIENTATION_NSWE) -> TkOptiX:
+                 init_view_orientation: str = ORIENTATION_NSWE,
+                 gamma: float = 2.2) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 
@@ -536,6 +561,8 @@ def run_renderer(dt_local: datetime,
         Time step in minutes for Q/W keys (default 15)
     init_view_orientation : str
         Initial view orientation mode.
+    gamma : float
+        Gamma correction value (default 2.2)
 
     Returns
     -------
@@ -549,6 +576,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Local Time: {dt_local}")
     print(f"  Elevation Map File: {elevation_file}")
     print(f"  Brightness: {brightness}")
+    print(f"  Gamma: {gamma}")
     print(f"  Downscale Factor: {downscale}")
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
@@ -566,7 +594,8 @@ def run_renderer(dt_local: datetime,
         brightness=brightness,
         time_step_minutes=time_step_minutes,
         init_view_orientation=init_view_orientation,
-        observer_elevation=observer_elevation
+        observer_elevation=observer_elevation,
+        gamma=gamma
     )
 
     # Setup renderer
@@ -624,6 +653,10 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_brightness(10)
         elif event.keysym.lower() == 'z':
             moon_renderer.change_brightness(-10)
+        elif event.keysym.lower() == 'e':
+            moon_renderer.change_gamma(0.1)
+        elif event.keysym.lower() == 'd':
+            moon_renderer.change_gamma(-0.1)
         elif event.keysym.lower() == 'm':
             step = 60 if event.state & 0x1 else 1
             moon_renderer.change_time_step(step)

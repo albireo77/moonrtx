@@ -65,6 +65,7 @@ class DialogsMixin:
             ("F", "Search for Moon features (craters, mounts etc.)"),
             ("T", "Open date/time window"),
             ("A/Z", "Increase/Decrease brightness"),
+            ("E/D", "Increase/Decrease gamma correction (0.5 - 5.0)"),
             ("Q/W", "Go back/forward in time by step minutes"),
             ("M/N", "Increase/Decrease time step by 1 minute (max is 1440 - 1 day)"),
         ]

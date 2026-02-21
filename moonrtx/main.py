@@ -75,6 +75,8 @@ def parse_args():
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
     parser.add_argument("--brightness", type=int, default=80,
                         help="Brightness")
+    parser.add_argument("--gamma", type=float, default=2.2,
+                        help="Gamma correction value (0.5 - 5.0, default 2.2)")
     parser.add_argument("--time-step-minutes", type=int, default=15,
                         help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
@@ -300,6 +302,10 @@ def main():
         print("Invalid brightness. Must be between 0 and 500.")
         sys.exit(1)
 
+    if not (0.5 <= args.gamma <= 5.0):
+        print("Invalid gamma. Must be between 0.5 and 5.0.")
+        sys.exit(1)
+
     if not (0 <= args.elevation <= 100000):
         print("Invalid elevation. Must be between 0 and 100000 meters.")
         sys.exit(1)
@@ -338,7 +344,8 @@ def main():
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
                  init_camera_params=init_camera_params,
                  time_step_minutes=args.time_step_minutes,
-                 init_view_orientation=init_view_orientation)
+                 init_view_orientation=init_view_orientation,
+                 gamma=args.gamma)
 
 if __name__ == "__main__":
     main()

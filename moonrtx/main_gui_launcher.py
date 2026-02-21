@@ -144,9 +144,10 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Elevation file:").grid(row=4, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Downscale:").grid(row=5, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Brightness:").grid(row=6, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time step (minutes):").grid(row=7, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="View orientation:").grid(row=8, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=9, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Gamma:").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=9, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=10, column=0, sticky=tk.E, pady=2)
 
         self.lat_decimal = tk.Entry(frm, width=60)
         self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
@@ -205,21 +206,26 @@ class MainWindow(tk.Tk):
         self.brightness.grid(row=6, column=1, sticky=tk.W, pady=2)
         self.brightness.insert(0, 80)
 
+        self.gamma_entry = tk.Entry(frm, width=60)
+        self.gamma_entry.grid(row=7, column=1, sticky=tk.W, pady=2)
+        self.gamma_entry.insert(0, "2.2")
+
         self.time_step_minutes = tk.Entry(frm, width=60)
-        self.time_step_minutes.grid(row=7, column=1, sticky=tk.W, pady=2)
+        self.time_step_minutes.grid(row=8, column=1, sticky=tk.W, pady=2)
         self.time_step_minutes.insert(0, 15)
         
         self.init_orientation = ttk.Combobox(frm, width=57, state="readonly", values=VALID_ORIENTATIONS)
-        self.init_orientation.grid(row=8, column=1, sticky=tk.W, pady=2)
+        self.init_orientation.grid(row=9, column=1, sticky=tk.W, pady=2)
         self.init_orientation.set(ORIENTATION_NSWE)
         
         self.init_view = tk.Entry(frm, width=60)
-        self.init_view.grid(row=9, column=1, sticky=tk.W, pady=2)
+        self.init_view.grid(row=10, column=1, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W)
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W)
         tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W)
+        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=7, column=2, sticky=tk.W)
 
         def _set_time_now():
             n = datetime.now().astimezone()
@@ -233,6 +239,7 @@ class MainWindow(tk.Tk):
 
         tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=4)
         tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=4, column=2, sticky=tk.W, pady=2, padx=4)
+
 
         self.lat_sexa_frame = tk.Frame(frm)
         self.lat_deg = tk.Entry(self.lat_sexa_frame, width=6)
@@ -258,11 +265,11 @@ class MainWindow(tk.Tk):
 
         # Run button and status
         self.run_btn = tk.Button(frm, text=f"Run {APP_NAME}", command=self.on_run)
-        self.run_btn.grid(row=10, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.run_btn.grid(row=11, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
 
-        # Preset controls (row 11)
+        # Preset controls (row 12)
         preset_frame = tk.Frame(frm)
-        preset_frame.grid(row=11, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
+        preset_frame.grid(row=12, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
 
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
         self.preset_name_entry = tk.Entry(preset_frame, width=15)
@@ -344,6 +351,7 @@ class MainWindow(tk.Tk):
             "elevation_file": self.elevation_file.get(),
             "downscale": self.downscale.get(),
             "brightness": self.brightness.get(),
+            "gamma": self.gamma_entry.get(),
             "time_step_minutes": self.time_step_minutes.get(),
             "init_orientation": self.init_orientation.get(),
             "init_view": self.init_view.get(),
@@ -420,6 +428,9 @@ class MainWindow(tk.Tk):
 
             self.brightness.delete(0, tk.END)
             self.brightness.insert(0, settings.get("brightness", "80"))
+
+            self.gamma_entry.delete(0, tk.END)
+            self.gamma_entry.insert(0, settings.get("gamma", "2.2"))
 
             self.time_step_minutes.delete(0, tk.END)
             self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))
@@ -595,6 +606,15 @@ class MainWindow(tk.Tk):
             return
 
         try:
+            gamma = float(self.gamma_entry.get().strip())
+        except ValueError:
+            messagebox.showerror("Error", "Gamma must be a number.")
+            return
+        if not (0.5 <= gamma <= 5.0):
+            messagebox.showerror("Error", "Invalid gamma. Must be between 0.5 and 5.0.")
+            return
+
+        try:
             time_step_minutes = int(self.time_step_minutes.get().strip())
         except ValueError:
             messagebox.showerror("Error", "Time step must be a positive integer.")
@@ -654,7 +674,8 @@ class MainWindow(tk.Tk):
                 APP_NAME,
                 init_camera_params,
                 time_step_minutes,
-                init_orientation)
+                init_orientation,
+                gamma)
         )
         p.start()
         

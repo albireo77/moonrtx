@@ -125,6 +125,10 @@ class StatusMixin:
         if self._status_brightness_var:
             self._status_brightness_var.set(f"Brightness: {self.brightness}")
 
+    def _update_status_gamma(self):
+        if self._status_gamma_var:
+            self._status_gamma_var.set(f"Gamma: {self.gamma:.1f}")
+
     def _update_status_pins(self):
         if self._status_pins_var:
             self._status_pins_var.set(f"Pins {'ON' if self.pins_visible else 'OFF'}")
@@ -136,6 +140,7 @@ class StatusMixin:
         self._update_status_measured()
         self._update_status_feature()
         self._update_status_brightness()
+        self._update_status_gamma()
         self._update_status_pins()
         self._update_info_moon()
         self._update_info_coords()
@@ -176,6 +181,7 @@ class StatusMixin:
                     self._status_measured_var = tk.StringVar()
                     self._status_feature_var = tk.StringVar()
                     self._status_brightness_var = tk.StringVar()
+                    self._status_gamma_var = tk.StringVar()
                     self._status_pins_var = tk.StringVar()
                     self._status_coords_var = tk.StringVar()
 
@@ -185,6 +191,7 @@ class StatusMixin:
                     panels = [
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
+                        (self._status_gamma_var,      10),
                         (self._status_feature_var,    41),
                         (self._status_coords_var,     26),
                         (self._status_measured_var,   20),
@@ -215,7 +222,7 @@ class StatusMixin:
                             )
                             cb.pack(side='right', padx=(2, 0))
                             _ToolTip(cb, 'Auto-advance time (every step minutes)')
-                            time_panel.pack(side='right', padx=24)
+                            time_panel.pack(side='right', padx=16)
                         else:
                             tk.Label(
                                 status_frame,
@@ -225,7 +232,7 @@ class StatusMixin:
                                 width=w,
                                 relief='sunken',
                                 borderwidth=1,
-                            ).pack(side='right', padx=24)
+                            ).pack(side='right', padx=16)
 
                 # Build info panel (bottom-left overlay on canvas)
                 if hasattr(rt, '_canvas'):
