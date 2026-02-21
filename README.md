@@ -40,6 +40,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **F2** - Toggle Moon ephemeris panel  
 **F5-F8** - Switch view orientation (NSWE, NSEW, SNEW, SNWE)  
 **F9** - Set time to now using system timezone  
+**F10** - Set time to now + start auto-advance  
 **F12** - Save image  
 **1-9** - Create/Remove pin (when pins are ON)  
 **G** - Toggle selenographic grid  

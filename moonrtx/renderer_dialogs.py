@@ -52,6 +52,7 @@ class DialogsMixin:
             ("F7", "SNEW view orientation"),
             ("F8", "SNWE view orientation"),
             ("F9", "Set time to now using system timezone"),
+            ("F10", "Set time to now + start auto-advance"),
             ("F12", "Save image"),
             ("1-9", "Create/Remove pin (when pins are ON)"),
             ("G", "Toggle selenographic grid"),

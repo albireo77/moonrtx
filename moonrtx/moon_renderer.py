@@ -291,6 +291,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.update_pins_orientation()
         self._update_all_status_panels()
 
+    def set_time_to_now_and_auto_advance(self):
+        """Set time to now and start auto-advance to keep in sync with real time."""
+        self.set_time_to_now()
+        if self._auto_advance_var and not self._auto_advance_var.get():
+            self._auto_advance_var.set(True)
+            self._on_auto_advance_toggle()
+
     def change_time(self, delta_minutes: int):
         """
         Change the observation time by a given number of minutes.
@@ -677,6 +684,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.show_help_dialog()
         elif event.keysym == 'F9':
             moon_renderer.set_time_to_now()
+        elif event.keysym == 'F10':
+            moon_renderer.set_time_to_now_and_auto_advance()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:

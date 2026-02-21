@@ -288,6 +288,14 @@ class StatusMixin:
                 # Bind mouse wheel for zoom
                 if hasattr(rt, '_canvas'):
                     rt._canvas.bind('<MouseWheel>', self._mouse_wheel_handler)
+
+                # F10 is intercepted by the window manager on Windows
+                # (activates menu bar), so bind it explicitly on _root
+                # and return 'break' to suppress the default behaviour.
+                def _f10_handler(event):
+                    self.set_time_to_now_and_auto_advance()
+                    return 'break'
+                rt._root.bind('<F10>', _f10_handler)
                 
                 # Apply initial view orientation to plotoptix
                 if self.orientation_mode != ORIENTATION_NSWE:
