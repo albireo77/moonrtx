@@ -111,7 +111,7 @@ def load_elevation_data(filepath: str, downscale: int) -> np.ndarray:
     # Normalize for displacement mapping
     # Real Moon: radius ~1737 km, max relief ~20 km = ~1.15% of radius
     # Increase this value for more dramatic terrain, decrease for flatter appearance
-    displacement_range = 0.012  # 1.15% of radius
+    displacement_range = 0.0115  # 1.15% of radius
     
     rmin = np.min(elevation)
     rmax = np.max(elevation)
