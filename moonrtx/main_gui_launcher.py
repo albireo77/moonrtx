@@ -19,7 +19,7 @@ from moonrtx.main import (
     check_gpu_architecture,
     DEFAULT_ELEVATION_FILE_LOCAL_PATH,
     APP_NAME,
-    COLOR_FILE_LOCAL_PATH,
+    DEFAULT_COLOR_FILE_LOCAL_PATH,
     STARMAP_FILE_LOCAL_PATH,
     MOON_FEATURES_FILE_LOCAL_PATH,
     DATA_DIRECTORY_PATH,
@@ -142,12 +142,13 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Elevation (meters):").grid(row=2, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Time with timezone:").grid(row=3, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Elevation file:").grid(row=4, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Downscale:").grid(row=5, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Brightness:").grid(row=6, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Gamma:").grid(row=7, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time step (minutes):").grid(row=8, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="View orientation:").grid(row=9, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=10, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Color file:").grid(row=5, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Downscale:").grid(row=6, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Brightness:").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Gamma:").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=9, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=10, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=11, column=0, sticky=tk.E, pady=2)
 
         self.lat_decimal = tk.Entry(frm, width=60)
         self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
@@ -198,34 +199,38 @@ class MainWindow(tk.Tk):
         self.elevation_file.insert(0, DEFAULT_ELEVATION_FILE_LOCAL_PATH)
         self.elevation_file.grid(row=4, column=1, sticky=tk.W, pady=2)
 
+        self.color_file = tk.Entry(frm, width=60)
+        self.color_file.insert(0, DEFAULT_COLOR_FILE_LOCAL_PATH)
+        self.color_file.grid(row=5, column=1, sticky=tk.W, pady=2)
+
         self.downscale = tk.Entry(frm, width=60)
-        self.downscale.grid(row=5, column=1, sticky=tk.W, pady=2)
+        self.downscale.grid(row=6, column=1, sticky=tk.W, pady=2)
         self.downscale.insert(0, 3)
 
         self.brightness = tk.Entry(frm, width=60)
-        self.brightness.grid(row=6, column=1, sticky=tk.W, pady=2)
+        self.brightness.grid(row=7, column=1, sticky=tk.W, pady=2)
         self.brightness.insert(0, 80)
 
         self.gamma_entry = tk.Entry(frm, width=60)
-        self.gamma_entry.grid(row=7, column=1, sticky=tk.W, pady=2)
+        self.gamma_entry.grid(row=8, column=1, sticky=tk.W, pady=2)
         self.gamma_entry.insert(0, "3.2")
 
         self.time_step_minutes = tk.Entry(frm, width=60)
-        self.time_step_minutes.grid(row=8, column=1, sticky=tk.W, pady=2)
+        self.time_step_minutes.grid(row=9, column=1, sticky=tk.W, pady=2)
         self.time_step_minutes.insert(0, 15)
         
         self.init_orientation = ttk.Combobox(frm, width=57, state="readonly", values=VALID_ORIENTATIONS)
-        self.init_orientation.grid(row=9, column=1, sticky=tk.W, pady=2)
+        self.init_orientation.grid(row=10, column=1, sticky=tk.W, pady=2)
         self.init_orientation.set(ORIENTATION_NSWE)
         
         self.init_view = tk.Entry(frm, width=60)
-        self.init_view.grid(row=10, column=1, sticky=tk.W, pady=2)
+        self.init_view.grid(row=11, column=1, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W)
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W)
         tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W)
-        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=7, column=2, sticky=tk.W)
+        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=8, column=2, sticky=tk.W)
 
         def _set_time_now():
             n = datetime.now().astimezone()
@@ -239,6 +244,7 @@ class MainWindow(tk.Tk):
 
         tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=4)
         tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=4, column=2, sticky=tk.W, pady=2, padx=4)
+        tk.Button(frm, text="Browse", width=12, command=self.browse_color).grid(row=5, column=2, sticky=tk.W, pady=2, padx=4)
 
 
         self.lat_sexa_frame = tk.Frame(frm)
@@ -265,11 +271,11 @@ class MainWindow(tk.Tk):
 
         # Run button and status
         self.run_btn = tk.Button(frm, text=f"Run {APP_NAME}", command=self.on_run)
-        self.run_btn.grid(row=11, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.run_btn.grid(row=12, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
 
-        # Preset controls (row 12)
+        # Preset controls (row 13)
         preset_frame = tk.Frame(frm)
-        preset_frame.grid(row=12, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
+        preset_frame.grid(row=13, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
 
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
         self.preset_name_entry = tk.Entry(preset_frame, width=15)
@@ -349,6 +355,7 @@ class MainWindow(tk.Tk):
             "lon_sec": self.lon_sec.get(),
             "time": self._get_time_iso(),
             "elevation_file": self.elevation_file.get(),
+            "color_file": self.color_file.get(),
             "downscale": self.downscale.get(),
             "brightness": self.brightness.get(),
             "gamma": self.gamma_entry.get(),
@@ -423,6 +430,9 @@ class MainWindow(tk.Tk):
             self.elevation_file.delete(0, tk.END)
             self.elevation_file.insert(0, settings.get("elevation_file", ""))
 
+            self.color_file.delete(0, tk.END)
+            self.color_file.insert(0, settings.get("color_file", DEFAULT_COLOR_FILE_LOCAL_PATH))
+
             self.downscale.delete(0, tk.END)
             self.downscale.insert(0, settings.get("downscale", "3"))
 
@@ -487,10 +497,14 @@ class MainWindow(tk.Tk):
     def browse_elevation(self):
         path = filedialog.askopenfilename(initialdir=DATA_DIRECTORY_PATH, title="Select elevation file")
         if path:
-            self.elev_entry.delete(0, tk.END)
-            self.elev_entry.insert(0, path)
-            # ensure it's shown as normal text (not placeholder)
-            self.elev_entry.config(fg="black")
+            self.elevation_file.delete(0, tk.END)
+            self.elevation_file.insert(0, path)
+
+    def browse_color(self):
+        path = filedialog.askopenfilename(initialdir=DATA_DIRECTORY_PATH, title="Select color file")
+        if path:
+            self.color_file.delete(0, tk.END)
+            self.color_file.insert(0, path)
 
     def on_run(self):
 
@@ -638,11 +652,12 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "Elevation file is not present or downloading default file failed.")
             return
 
+        color_file = self.color_file.get().strip()
         self._set_status("Checking color file...")
         self.update_idletasks()
-        if not check_color_file():
+        if not check_color_file(color_file):
             self._set_status("")
-            messagebox.showerror("Error", "Surface color file is not present and download failed.")
+            messagebox.showerror("Error", "Color file is not present or downloading default file failed.")
             return
         
         self._set_status("Checking starmap file...")
@@ -666,7 +681,7 @@ class MainWindow(tk.Tk):
                 lon,
                 elevation,
                 elevation_file,
-                COLOR_FILE_LOCAL_PATH,
+                color_file,
                 STARMAP_FILE_LOCAL_PATH,
                 MOON_FEATURES_FILE_LOCAL_PATH,
                 downscale,

@@ -35,9 +35,9 @@ STARMAP_FILE_REMOTE_PATH = "https://svs.gsfc.nasa.gov/vis/a000000/a003800/a00389
 STARMAP_FILE_SIZE_MB = 132
 STARMAP_FILE_SIZE_BYTES = STARMAP_FILE_SIZE_MB * 1024**2
 
-COLOR_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_color_10k_8bit.tif")
-COLOR_FILE_SIZE_MB = 71.3
-COLOR_FILE_SIZE_BYTES = COLOR_FILE_SIZE_MB * 1024**2
+DEFAULT_COLOR_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_color_10k_8bit.tif")
+DEFAULT_COLOR_FILE_SIZE_MB = 71.3
+DEFAULT_COLOR_FILE_SIZE_BYTES = DEFAULT_COLOR_FILE_SIZE_MB * 1024**2
 
 MOON_FEATURES_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_features.csv")
 
@@ -71,6 +71,8 @@ def parse_args():
                         help="Time in ISO format with timezone information. Examples: 2024-01-01T12:00:00Z, 2025-12-26T16:30:00+01:00")
     parser.add_argument("--elevation-file", type=str, default=DEFAULT_ELEVATION_FILE_LOCAL_PATH,
                         help="Path to Moon elevation map file")
+    parser.add_argument("--color-file", type=str, default=DEFAULT_COLOR_FILE_LOCAL_PATH,
+                        help="Path to Moon color map file")
     parser.add_argument("--downscale", type=int, default=3,
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
     parser.add_argument("--brightness", type=int, default=80,
@@ -120,18 +122,21 @@ def check_starmap_file() -> bool:
             return False
     return True
 
-def check_color_file() -> bool:
-    if not os.path.isfile(COLOR_FILE_LOCAL_PATH):
-        _, _, free = shutil.disk_usage(os.getcwd())
-        if free < COLOR_FILE_SIZE_BYTES * 1.02:
-            print(f"Not enough disk space to download color file ({COLOR_FILE_SIZE_MB} MB required).")
-            return False
-        print(f"Downloading color file (size {COLOR_FILE_SIZE_MB} MB). It can take some time but must be done only once.")
-        try:
-            os.makedirs(os.path.dirname(COLOR_FILE_LOCAL_PATH), exist_ok=True)
-            download_file_from_google_drive("1gJeVic597BUAkpz1GgCYRMJVninKEDKB", COLOR_FILE_LOCAL_PATH)
-        except Exception as e:
-            print(f"Error downloading color file: {e}")
+def check_color_file(color_file: str) -> bool:
+    if not os.path.isfile(color_file):
+        if color_file == DEFAULT_COLOR_FILE_LOCAL_PATH:
+            _, _, free = shutil.disk_usage(os.getcwd())
+            if free < DEFAULT_COLOR_FILE_SIZE_BYTES * 1.02:
+                print(f"Not enough disk space to download color file ({DEFAULT_COLOR_FILE_SIZE_MB} MB required).")
+                return False
+            print(f"Downloading color file (size {DEFAULT_COLOR_FILE_SIZE_MB} MB). It can take some time but must be done only once.")
+            try:
+                os.makedirs(os.path.dirname(color_file), exist_ok=True)
+                download_file_from_google_drive("1gJeVic597BUAkpz1GgCYRMJVninKEDKB", color_file)
+            except Exception as e:
+                print(f"Error downloading color file: {e}")
+                return False
+        else:
             return False
     return True
 
@@ -325,7 +330,7 @@ def main():
     if not check_elevation_file(args.elevation_file):
         sys.exit(1)
 
-    if not check_color_file():
+    if not check_color_file(args.color_file):
         sys.exit(1)
 
     if not check_starmap_file():
@@ -339,7 +344,7 @@ def main():
                  downscale=args.downscale,
                  brightness=args.brightness,
                  app_name=APP_NAME,
-                 color_file=COLOR_FILE_LOCAL_PATH,
+                 color_file=args.color_file,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
                  init_camera_params=init_camera_params,
