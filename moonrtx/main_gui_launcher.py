@@ -634,15 +634,11 @@ class MainWindow(tk.Tk):
                     messagebox.showerror("Error", "Latitude and longitude are mandatory unless init-view is provided.")
                     return
                 try:
-                    lat = abs(float(lat_str))
-                    lon = abs(float(lon_str))
+                    lat = float(lat_str)
+                    lon = float(lon_str)
                 except ValueError:
                     messagebox.showerror("Error", "Latitude and longitude must be numbers.")
                     return
-                if self.lat_dir_var.get() == "S":
-                    lat = -lat
-                if self.lon_dir_var.get() == "W":
-                    lon = -lon
             else:
                 lat = parse_sexa_fields(self.lat_deg, self.lat_min, self.lat_sec, "latitude", 0, 90)
                 if lat is None:
@@ -650,17 +646,18 @@ class MainWindow(tk.Tk):
                 lon = parse_sexa_fields(self.lon_deg, self.lon_min, self.lon_sec, "longitude", 0, 180)
                 if lon is None:
                     return
-                if self.lat_dir_var.get() == "S":
-                    lat = -lat
-                if self.lon_dir_var.get() == "W":
-                    lon = -lon
 
-        if not (lon >= -180.0 and lon <= 180.0):
-            messagebox.showerror("Error", "Invalid longitude. Must be between -180 and 180 degrees.")
+        if not (lon >= 0.0 and lon <= 180.0):
+            messagebox.showerror("Error", "Invalid longitude. Must be between 0 and 180 degrees.")
             return
-        if not (lat >= -90.0 and lat <= 90.0):
-            messagebox.showerror("Error", "Invalid latitude. Must be between -90 and 90 degrees.")
+        if not (lat >= 0.0 and lat <= 90.0):
+            messagebox.showerror("Error", "Invalid latitude. Must be between 0 and 90 degrees.")
             return
+        
+        if self.lat_dir_var.get() == "S":
+            lat = -lat
+        if self.lon_dir_var.get() == "W":
+            lon = -lon
 
         try:
             elevation = int(self.elevation_entry.get().strip() or 0)
