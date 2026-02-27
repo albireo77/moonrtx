@@ -117,7 +117,7 @@ def load_elevation_data(filepath: str, downscale: int) -> np.ndarray:
     rmax = np.max(elevation)
     rv = rmax - rmin
     
-    elevation += rmin
+    elevation -= rmin
     elevation *= displacement_range / rv
     elevation += (1.0 - displacement_range)
     
