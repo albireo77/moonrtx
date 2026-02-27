@@ -130,12 +130,13 @@ class MainWindow(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} - GUI Launcher")
+        self.resizable(False, False)
         self._build_ui()
 
     def _build_ui(self):
 
         frm = tk.Frame(self)
-        frm.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+        frm.pack(padx=10, pady=10)
 
         tk.Label(frm, text="Observer latitude:").grid(row=0, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Observer longitude:").grid(row=1, column=0, sticky=tk.E, pady=2)
@@ -150,14 +151,25 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="View orientation:").grid(row=10, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Init view parameter:").grid(row=11, column=0, sticky=tk.E, pady=2)
 
-        self.lat_decimal = tk.Entry(frm, width=60)
-        self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
+        self.lat_dir_var = tk.StringVar(value="N")
+        self.lon_dir_var = tk.StringVar(value="E")
 
-        self.lon_decimal = tk.Entry(frm, width=60)
-        self.lon_decimal.grid(row=1, column=1, sticky=tk.W, pady=2)
+        self.lat_decimal_frame = tk.Frame(frm)
+        self.lat_decimal_frame.grid(row=0, column=1, sticky=tk.EW, pady=2)
+        ttk.Combobox(self.lat_decimal_frame, width=2, state="readonly",
+                     values=["N", "S"], textvariable=self.lat_dir_var).pack(side=tk.LEFT, padx=(0, 4))
+        self.lat_decimal = tk.Entry(self.lat_decimal_frame)
+        self.lat_decimal.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        self.elevation_entry = tk.Entry(frm, width=60)
-        self.elevation_entry.grid(row=2, column=1, sticky=tk.W, pady=2)
+        self.lon_decimal_frame = tk.Frame(frm)
+        self.lon_decimal_frame.grid(row=1, column=1, sticky=tk.EW, pady=2)
+        ttk.Combobox(self.lon_decimal_frame, width=2, state="readonly",
+                     values=["E", "W"], textvariable=self.lon_dir_var).pack(side=tk.LEFT, padx=(0, 4))
+        self.lon_decimal = tk.Entry(self.lon_decimal_frame)
+        self.lon_decimal.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        self.elevation_entry = tk.Entry(frm, width=5)
+        self.elevation_entry.grid(row=2, column=1, sticky=tk.EW, pady=2)
         self.elevation_entry.insert(0, "0")
 
         # Date / Time / Timezone widgets
@@ -195,42 +207,42 @@ class MainWindow(tk.Tk):
         self.tz_combo.pack(side=tk.LEFT)
         self.tz_combo.set(tz_str)
 
-        self.elevation_file = tk.Entry(frm, width=60)
+        self.elevation_file = tk.Entry(frm, width=5)
         self.elevation_file.insert(0, DEFAULT_ELEVATION_FILE_LOCAL_PATH)
-        self.elevation_file.grid(row=4, column=1, sticky=tk.W, pady=2)
+        self.elevation_file.grid(row=4, column=1, sticky=tk.EW, pady=2)
 
-        self.color_file = tk.Entry(frm, width=60)
+        self.color_file = tk.Entry(frm, width=5)
         self.color_file.insert(0, DEFAULT_COLOR_FILE_LOCAL_PATH)
-        self.color_file.grid(row=5, column=1, sticky=tk.W, pady=2)
+        self.color_file.grid(row=5, column=1, sticky=tk.EW, pady=2)
 
-        self.downscale = tk.Entry(frm, width=60)
-        self.downscale.grid(row=6, column=1, sticky=tk.W, pady=2)
+        self.downscale = tk.Entry(frm, width=5)
+        self.downscale.grid(row=6, column=1, sticky=tk.EW, pady=2)
         self.downscale.insert(0, 3)
 
-        self.brightness = tk.Entry(frm, width=60)
-        self.brightness.grid(row=7, column=1, sticky=tk.W, pady=2)
+        self.brightness = tk.Entry(frm, width=5)
+        self.brightness.grid(row=7, column=1, sticky=tk.EW, pady=2)
         self.brightness.insert(0, 80)
 
-        self.gamma_entry = tk.Entry(frm, width=60)
-        self.gamma_entry.grid(row=8, column=1, sticky=tk.W, pady=2)
+        self.gamma_entry = tk.Entry(frm, width=5)
+        self.gamma_entry.grid(row=8, column=1, sticky=tk.EW, pady=2)
         self.gamma_entry.insert(0, "3.2")
 
-        self.time_step_minutes = tk.Entry(frm, width=60)
-        self.time_step_minutes.grid(row=9, column=1, sticky=tk.W, pady=2)
+        self.time_step_minutes = tk.Entry(frm, width=5)
+        self.time_step_minutes.grid(row=9, column=1, sticky=tk.EW, pady=2)
         self.time_step_minutes.insert(0, 15)
         
-        self.init_orientation = ttk.Combobox(frm, width=57, state="readonly", values=VALID_ORIENTATIONS)
-        self.init_orientation.grid(row=10, column=1, sticky=tk.W, pady=2)
+        self.init_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VALID_ORIENTATIONS)
+        self.init_orientation.grid(row=10, column=1, sticky=tk.EW, pady=2)
         self.init_orientation.set(ORIENTATION_NSWE)
         
-        self.init_view = tk.Entry(frm, width=60)
-        self.init_view.grid(row=11, column=1, sticky=tk.W, pady=2)
+        self.init_view = tk.Entry(frm, width=5)
+        self.init_view.grid(row=11, column=1, sticky=tk.EW, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
-        tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W)
-        tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W)
-        tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W)
-        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=8, column=2, sticky=tk.W)
+        tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=8, column=2, sticky=tk.W, padx=(4, 0))
 
         def _set_time_now():
             n = datetime.now().astimezone()
@@ -242,40 +254,44 @@ class MainWindow(tk.Tk):
             tz_off = n.strftime("%z")
             self.tz_combo.set(f"{tz_off[:3]}:{tz_off[3:]}" if tz_off else "+00:00")
 
-        tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=4)
-        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=4, column=2, sticky=tk.W, pady=2, padx=4)
-        tk.Button(frm, text="Browse", width=12, command=self.browse_color).grid(row=5, column=2, sticky=tk.W, pady=2, padx=4)
+        tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=(4, 0))
+        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=4, column=2, sticky=tk.W, pady=2, padx=(4, 0))
+        tk.Button(frm, text="Browse", width=12, command=self.browse_color).grid(row=5, column=2, sticky=tk.W, pady=2, padx=(4, 0))
 
 
         self.lat_sexa_frame = tk.Frame(frm)
+        ttk.Combobox(self.lat_sexa_frame, width=2, state="readonly",
+                     values=["N", "S"], textvariable=self.lat_dir_var).grid(row=0, column=0, padx=(0, 4))
         self.lat_deg = tk.Entry(self.lat_sexa_frame, width=6)
         self.lat_min = tk.Entry(self.lat_sexa_frame, width=4)
         self.lat_sec = tk.Entry(self.lat_sexa_frame, width=6)
-        self.lat_deg.grid(row=0, column=0)
-        tk.Label(self.lat_sexa_frame, text="°").grid(row=0, column=1)
-        self.lat_min.grid(row=0, column=2)
-        tk.Label(self.lat_sexa_frame, text="'").grid(row=0, column=3)
-        self.lat_sec.grid(row=0, column=4)
-        tk.Label(self.lat_sexa_frame, text='"').grid(row=0, column=5)
+        self.lat_deg.grid(row=0, column=1)
+        tk.Label(self.lat_sexa_frame, text="°").grid(row=0, column=2)
+        self.lat_min.grid(row=0, column=3)
+        tk.Label(self.lat_sexa_frame, text="'").grid(row=0, column=4)
+        self.lat_sec.grid(row=0, column=5)
+        tk.Label(self.lat_sexa_frame, text='"').grid(row=0, column=6)
 
         self.lon_sexa_frame = tk.Frame(frm)
+        ttk.Combobox(self.lon_sexa_frame, width=2, state="readonly",
+                     values=["E", "W"], textvariable=self.lon_dir_var).grid(row=0, column=0, padx=(0, 4))
         self.lon_deg = tk.Entry(self.lon_sexa_frame, width=6)
         self.lon_min = tk.Entry(self.lon_sexa_frame, width=4)
         self.lon_sec = tk.Entry(self.lon_sexa_frame, width=6)
-        self.lon_deg.grid(row=0, column=0)
-        tk.Label(self.lon_sexa_frame, text="°").grid(row=0, column=1)
-        self.lon_min.grid(row=0, column=2)
-        tk.Label(self.lon_sexa_frame, text="'").grid(row=0, column=3)
-        self.lon_sec.grid(row=0, column=4)
-        tk.Label(self.lon_sexa_frame, text='"').grid(row=0, column=5)
+        self.lon_deg.grid(row=0, column=1)
+        tk.Label(self.lon_sexa_frame, text="°").grid(row=0, column=2)
+        self.lon_min.grid(row=0, column=3)
+        tk.Label(self.lon_sexa_frame, text="'").grid(row=0, column=4)
+        self.lon_sec.grid(row=0, column=5)
+        tk.Label(self.lon_sexa_frame, text='"').grid(row=0, column=6)
 
         # Run button and status
-        self.run_btn = tk.Button(frm, text=f"Run {APP_NAME}", command=self.on_run)
-        self.run_btn.grid(row=12, column=0, columnspan=3, sticky=tk.EW, pady=(10, 0))
+        self.run_btn = tk.Button(self, text=f"Run {APP_NAME}", command=self.on_run)
+        self.run_btn.pack(padx=10, fill=tk.X)
 
-        # Preset controls (row 13)
-        preset_frame = tk.Frame(frm)
-        preset_frame.grid(row=13, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
+        # Preset controls
+        preset_frame = tk.Frame(self)
+        preset_frame.pack(padx=10, pady=(10, 10), anchor=tk.W)
 
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
         self.preset_name_entry = tk.Entry(preset_frame, width=15)
@@ -287,7 +303,7 @@ class MainWindow(tk.Tk):
         tk.Button(preset_frame, text="Load", width=6, command=self._load_preset).pack(side=tk.LEFT, padx=2)
 
         # Status label for progress messages
-        self.status_label = tk.Label(preset_frame, text="", fg="blue", width=30, anchor=tk.W)
+        self.status_label = tk.Label(preset_frame, text="", fg="blue", anchor=tk.W)
         self.status_label.pack(side=tk.LEFT, padx=(20, 0))
 
         self._refresh_preset_list()
@@ -296,9 +312,9 @@ class MainWindow(tk.Tk):
         def update_coord_mode(*args):
             mode = self.coord_mode.get()
             if mode == 'sexagesimal':
-                # hide decimal entries
-                self.lat_decimal.grid_remove()
-                self.lon_decimal.grid_remove()
+                # hide decimal frames
+                self.lat_decimal_frame.grid_remove()
+                self.lon_decimal_frame.grid_remove()
                 # show sexagesimal frames
                 self.lat_sexa_frame.grid(row=0, column=1, sticky=tk.W, pady=2)
                 self.lon_sexa_frame.grid(row=1, column=1, sticky=tk.W, pady=2)
@@ -306,9 +322,9 @@ class MainWindow(tk.Tk):
                 # hide sexagesimal frames
                 self.lat_sexa_frame.grid_remove()
                 self.lon_sexa_frame.grid_remove()
-                # show decimal entries
-                self.lat_decimal.grid(row=0, column=1, sticky=tk.W, pady=2)
-                self.lon_decimal.grid(row=1, column=1, sticky=tk.W, pady=2)
+                # show decimal frames
+                self.lat_decimal_frame.grid(row=0, column=1, sticky=tk.EW, pady=2)
+                self.lon_decimal_frame.grid(row=1, column=1, sticky=tk.EW, pady=2)
 
         # attach trace to update UI when radio changes
         self.coord_mode.trace_add('write', update_coord_mode)
@@ -344,6 +360,8 @@ class MainWindow(tk.Tk):
         # Collect current settings
         settings = {
             "coord_mode": self.coord_mode.get(),
+            "lat_dir": self.lat_dir_var.get(),
+            "lon_dir": self.lon_dir_var.get(),
             "lat_decimal": self.lat_decimal.get(),
             "lon_decimal": self.lon_decimal.get(),
             "elevation": self.elevation_entry.get(),
@@ -397,6 +415,9 @@ class MainWindow(tk.Tk):
 
             # Apply settings to UI
             self.coord_mode.set(settings.get("coord_mode", "decimal"))
+
+            self.lat_dir_var.set(settings.get("lat_dir", "N"))
+            self.lon_dir_var.set(settings.get("lon_dir", "E"))
 
             self.lat_decimal.delete(0, tk.END)
             self.lat_decimal.insert(0, settings.get("lat_decimal", ""))
@@ -572,18 +593,26 @@ class MainWindow(tk.Tk):
                     messagebox.showerror("Error", "Latitude and longitude are mandatory unless init-view is provided.")
                     return
                 try:
-                    lat = float(lat_str)
-                    lon = float(lon_str)
+                    lat = abs(float(lat_str))
+                    lon = abs(float(lon_str))
                 except ValueError:
                     messagebox.showerror("Error", "Latitude and longitude must be numbers.")
                     return
+                if self.lat_dir_var.get() == "S":
+                    lat = -lat
+                if self.lon_dir_var.get() == "W":
+                    lon = -lon
             else:
-                lat = parse_sexa_fields(self.lat_deg, self.lat_min, self.lat_sec, "latitude", -90, 90)
+                lat = parse_sexa_fields(self.lat_deg, self.lat_min, self.lat_sec, "latitude", 0, 90)
                 if lat is None:
                     return
-                lon = parse_sexa_fields(self.lon_deg, self.lon_min, self.lon_sec, "longitude", -180, 180)
+                lon = parse_sexa_fields(self.lon_deg, self.lon_min, self.lon_sec, "longitude", 0, 180)
                 if lon is None:
                     return
+                if self.lat_dir_var.get() == "S":
+                    lat = -lat
+                if self.lon_dir_var.get() == "W":
+                    lon = -lon
 
         if not (lon >= -180.0 and lon <= 180.0):
             messagebox.showerror("Error", "Invalid longitude. Must be between -180 and 180 degrees.")
