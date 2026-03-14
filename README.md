@@ -33,13 +33,13 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ## Notes
 - On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
-- Currently MoonRTX uses customized ([forked](https://github.com/albireo77/plotoptix)) PlotOptiX package to support switching view orientation. You might need to re-run `pip install -r requirements.txt` to install this custom PlotOptiX and have switching view orientation working.
+- Currently MoonRTX uses customized ([forked](https://github.com/albireo77/plotoptix)) PlotOptiX package to support changing view orientation. You might need to re-run `pip install -r requirements.txt` to install this custom PlotOptiX and have changing view orientation working.
 - If you don't like default Moon colors, you can download file with more realistic (though bland) colors from [NASA site](https://svs.gsfc.nasa.gov/4720) and load it with `--color-file` parameter on program start.
 
 ## Keyboard and Mouse Actions
 **F1** - Help  
 **F2** - Toggle Moon ephemeris panel  
-**F5-F8** - Switch view orientation (NSWE, NSEW, SNEW, SNWE)  
+**F5-F8** - Change view orientation (NSWE, NSEW, SNEW, SNWE)  
 **F9** - Set time to now using system timezone  
 **F10** - Set time to now + start auto-advance  
 **F12** - Save image  
