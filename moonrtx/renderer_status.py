@@ -197,7 +197,7 @@ class StatusMixin:
                         (self._status_measured_var,   20),
                         (None,                        47),  # placeholder for time panel
                         (self._status_view_var,       10),
-                        (self._status_observer_var,   29)
+                        (self._status_observer_var,   30)
                     ]
                     for var, w in panels:
                         if var is None:
