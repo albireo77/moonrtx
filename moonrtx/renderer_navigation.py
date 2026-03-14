@@ -359,6 +359,43 @@ class NavigationMixin:
         
         self.rt.setup_camera("cam1", eye=new_eye.tolist(), up=new_up.tolist())
 
+    def rotate_around_view_direction(self, direction: str, step_deg: float = 1.0):
+        """
+        Rotate (roll) the camera around the current view direction.
+
+        Parameters
+        ----------
+        direction : str
+            'cw' for clockwise, 'ccw' for counter-clockwise
+        step_deg : float
+            Rotation step in degrees (default 1°)
+        """
+        if self.rt is None:
+            return
+
+        cam = self.rt.get_camera("cam1")
+        eye = np.array(cam["Eye"])
+        target = np.array(cam["Target"])
+        up = np.array(cam["Up"])
+
+        # View direction is the roll axis
+        view_dir = target - eye
+        axis = view_dir / np.linalg.norm(view_dir)
+
+        if direction == 'cw':
+            angle = np.radians(-step_deg)
+        else:
+            angle = np.radians(step_deg)
+
+        # Rodrigues' rotation: rotate only the up vector around the view axis
+        cos_a = np.cos(angle)
+        sin_a = np.sin(angle)
+        new_up = (up * cos_a +
+                  np.cross(axis, up) * sin_a +
+                  axis * np.dot(axis, up) * (1 - cos_a))
+
+        self.rt.setup_camera("cam1", up=new_up.tolist())
+
     def hit_to_selenographic(self, hx: float, hy: float, hz: float) -> tuple:
         """
         Convert 3D hit position to selenographic coordinates.

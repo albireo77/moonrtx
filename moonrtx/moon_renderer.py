@@ -665,6 +665,10 @@ def run_renderer(dt_local: datetime,
             moon_renderer.save_image_dialog()
         elif event.keysym.lower() == 'f':
             moon_renderer.search_feature_dialog()
+        elif event.keysym.lower() == 'h':
+            moon_renderer.rotate_around_view_direction('ccw')
+        elif event.keysym.lower() == 'j':
+            moon_renderer.rotate_around_view_direction('cw')
         elif event.keysym in ('Left', 'Right', 'Up', 'Down'):
             if event.state & 0x4:  # Ctrl key pressed
                 moon_renderer.rotate_around_moon_axis(event.keysym)

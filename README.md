@@ -55,6 +55,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **T** - Open date/time window  
 **A/Z** - Increase/Decrease brightness  
 **E/D** - Increase/Decrease gamma correction  
+**H/J** - Roll view around current view direction  
 **Q/W** - Go back/forward in time by step minutes  
 **M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
 **Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
