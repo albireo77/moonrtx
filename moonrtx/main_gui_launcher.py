@@ -132,6 +132,9 @@ class MainWindow(tk.Tk):
         self.title(f"{APP_NAME} - GUI Launcher")
         self.resizable(False, False)
         self._build_ui()
+        # Freeze window size after layout so status label updates don't resize it
+        self.update_idletasks()
+        self.geometry(self.geometry())
 
     def _build_ui(self):
 
