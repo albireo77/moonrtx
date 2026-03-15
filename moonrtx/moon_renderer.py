@@ -350,11 +350,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         _sensitivity = 0.1  # 0..1, lower = less sensitive
 
         def _dampened_motion_pressed(event):
-            ix, iy = self.rt._get_image_xy(event.x, event.y)
-            fx, fy = self.rt._mouse_from_x, self.rt._mouse_from_y
-            self.rt._mouse_to_x = int(fx + (ix - fx) * _sensitivity)
-            self.rt._mouse_to_y = int(fy + (iy - fy) * _sensitivity)
-            self.rt._optix.break_launch()
+            if event.state & 0x400:  # Right mouse button held
+                ix, iy = self.rt._get_image_xy(event.x, event.y)
+                fx, fy = self.rt._mouse_from_x, self.rt._mouse_from_y
+                self.rt._mouse_to_x = int(fx + (ix - fx) * _sensitivity)
+                self.rt._mouse_to_y = int(fy + (iy - fy) * _sensitivity)
+                self.rt._optix.break_launch()
+            else:
+                _orig_motion_pressed(event)
 
         self.rt._gui_motion_pressed = _dampened_motion_pressed
 
