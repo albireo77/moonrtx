@@ -85,7 +85,7 @@ def parse_args():
                         help="Initialize view from a screenshot default filename (without extension). "
                              "This restores the exact camera position from time when attempt to take a screenshot was made. ")
     parser.add_argument("--init-view-orientation", type=str, default=ORIENTATION_NSWE,
-                        help="Initial view orientation for telescope configuration. "
+                        help="View orientation for specific telescope design. For example, for refractor telescope it's SNEW. "
                              "Valid values: NSWE (default), NSEW, SNEW, SNWE. ")
     return parser.parse_args()
 
