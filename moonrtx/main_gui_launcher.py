@@ -246,6 +246,7 @@ class MainWindow(tk.Tk):
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=8, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=6, column=2, sticky=tk.W, padx=(4, 0))
 
         def _set_time_now():
             n = datetime.now().astimezone()

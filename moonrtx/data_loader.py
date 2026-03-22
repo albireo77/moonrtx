@@ -94,13 +94,16 @@ def load_elevation_data(filepath: str, downscale: int) -> np.ndarray:
     elev_src.dtype = np.int16
     scale = 1. / np.iinfo(np.int16).max
     
-    h = elev_src.shape[0] // downscale
-    w = elev_src.shape[1] // downscale
-    
-    # Downscale by averaging
-    elevation = elev_src.reshape(1, h, downscale, w, downscale).mean(
-        4, dtype=np.float32).mean(2, dtype=np.float32).reshape(h, w)
-    elevation *= scale
+    if downscale == 1:
+        # No downscaling needed, just convert to float
+        elevation = elev_src.astype(np.float32) * scale
+    else:
+        # Downscale by averaging
+        h = elev_src.shape[0] // downscale
+        w = elev_src.shape[1] // downscale
+        elevation = elev_src.reshape(1, h, downscale, w, downscale).mean(
+            4, dtype=np.float32).mean(2, dtype=np.float32).reshape(h, w)
+        elevation *= scale
     
     # Release source memory
     elev_src = None
