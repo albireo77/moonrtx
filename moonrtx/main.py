@@ -70,9 +70,9 @@ def parse_args():
     parser.add_argument("--time", type=str, default="now",
                         help="Time in ISO format with timezone information. Examples: 2024-01-01T12:00:00Z, 2025-12-26T16:30:00+01:00")
     parser.add_argument("--elevation-file", type=str, default=DEFAULT_ELEVATION_FILE_LOCAL_PATH,
-                        help="Path to Moon elevation map file")
+                        help="Local path to Moon elevation map file")
     parser.add_argument("--color-file", type=str, default=DEFAULT_COLOR_FILE_LOCAL_PATH,
-                        help="Path to Moon color map file. Alternate color files can be downloaded from https://svs.gsfc.nasa.gov/4720")
+                        help="Local path to Moon color map file. Alternate color files can be downloaded from https://svs.gsfc.nasa.gov/4720")
     parser.add_argument("--downscale", type=int, default=3,
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
     parser.add_argument("--brightness", type=int, default=80,
