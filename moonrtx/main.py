@@ -291,11 +291,11 @@ def main():
         lon = args.lon
         init_view_orientation = args.init_view_orientation.upper()
 
-    if not (lon >= -180.0 and lon <= 180.0):
+    if not (-180.0 <= lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
         sys.exit(1)
 
-    if not (lat >= -90.0 and lat <= 90.0):
+    if not (-90.0 <= lat <= 90.0):
         print("Invalid latitude. Must be between -90 and 90 degrees.")
         sys.exit(1)
 
@@ -303,7 +303,7 @@ def main():
         print("Invalid downscale factor. Must be a positive integer.")
         sys.exit(1)
 
-    if not (args.brightness >= 0 and args.brightness <= 500):
+    if not (0 <= args.brightness <= 500):
         print("Invalid brightness. Must be between 0 and 500.")
         sys.exit(1)
 
@@ -315,7 +315,7 @@ def main():
         print("Invalid elevation. Must be between 0 and 100000 meters.")
         sys.exit(1)
 
-    if not (args.time_step_minutes > 0 and args.time_step_minutes <= 1440):
+    if not (1 <= args.time_step_minutes <= 1440):
         print("Invalid time step. Must be between 1 and 1440 minutes.")
         sys.exit(1)
 

@@ -651,10 +651,10 @@ class MainWindow(tk.Tk):
                 if lon is None:
                     return
 
-        if not (lon >= 0.0 and lon <= 180.0):
+        if not (0.0 <= lon <= 180.0):
             messagebox.showerror("Error", "Invalid longitude. Must be between 0 and 180 degrees.")
             return
-        if not (lat >= 0.0 and lat <= 90.0):
+        if not (0.0 <= lat <= 90.0):
             messagebox.showerror("Error", "Invalid latitude. Must be between 0 and 90 degrees.")
             return
         
@@ -686,7 +686,7 @@ class MainWindow(tk.Tk):
         except ValueError:
             messagebox.showerror("Error", "Brightness must be an integer.")
             return
-        if not (brightness >= 0 and brightness <= 500):
+        if not (0 <= brightness <= 500):
             messagebox.showerror("Error", "Invalid brightness. Must be between 0 and 500.")
             return
 
@@ -704,7 +704,7 @@ class MainWindow(tk.Tk):
         except ValueError:
             messagebox.showerror("Error", "Time step must be a positive integer.")
             return
-        if not (time_step_minutes >= 1 and time_step_minutes <= 1440):
+        if not (1 <= time_step_minutes <= 1440):
             messagebox.showerror("Error", "Invalid time step. Must be between 1 and 1440 minutes.")
             return
 
