@@ -90,9 +90,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     moon_az, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
     moon_alt = Coordinates.refraction_true2apparent(moon_alt)
 
-
-    illum_frac = Moon.illuminated_fraction_disk(epoch)
-
     # ---- Sun position (geocentric; Sun parallax < 9" so geocentric ≈ topocentric) ----
     sun_ra, sun_dec, sun_r_au = Sun.apparent_rightascension_declination_coarse(epoch)
 
@@ -114,7 +111,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         ra=float(moon_ra),
         dec=float(moon_dec),
         distance=moon_distance_topo,
-        illum=illum_frac * 100,
         phase=phase_angle,
         pa=float(pa),
         pa_axis_view=float(pa_axis_view) % 360.0,
