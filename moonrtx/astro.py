@@ -93,6 +93,10 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     # ---- Sun position (geocentric; Sun parallax < 9" so geocentric ≈ topocentric) ----
     sun_ra, sun_dec, sun_r_au = Sun.apparent_rightascension_declination_coarse(epoch)
 
+    lambda_moon, _ = Coordinates.equatorial2ecliptical(moon_ra, moon_dec, obl)
+    lambda_sun, _ = Coordinates.equatorial2ecliptical(sun_ra, sun_dec, obl)
+    delta_long = (float(lambda_moon) - float(lambda_sun)) % 360.0
+
     sun_moon_separation = topocentric_sun_moon_separation(sun_ra, sun_dec, moon_ra, moon_dec)
     phase_angle = topocentric_phase_angle(sun_moon_separation, sun_r_au, moon_distance_topo)
     pa = topocentric_bright_limb_pa(sun_ra, sun_dec, moon_ra, moon_dec)
@@ -117,7 +121,8 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         q=float(q),
         libr_long=float(libr_long_tot),
         libr_lat=float(libr_lat_tot),
-        sun_separation=sun_moon_separation
+        sun_separation=sun_moon_separation,
+        delta_long=delta_long
     )
 
 def topocentric_sun_moon_separation(
@@ -152,7 +157,7 @@ def topocentric_phase_angle(
     In the Sun-Moon-Observer triangle:
       elongation ψ = Sun-Observer-Moon angle ≈ sun_moon_separation
       phase angle i = Sun-Moon-Observer angle
-    Uses the sine rule after computing the Sun-Moon distance.
+    Uses the law of cosines to avoid a discontinuous asin branch.
 
     Returns
     -------
@@ -163,18 +168,16 @@ def topocentric_phase_angle(
     d_moon = moon_distance_km
     psi_rad = math.radians(sun_moon_separation)
 
-    d_sun_moon = math.sqrt(d_sun**2 + d_moon**2 - 2 * d_sun * d_moon * math.cos(psi_rad))
+    d_sun_moon = math.sqrt(
+        d_sun**2 + d_moon**2 - 2 * d_sun * d_moon * math.cos(psi_rad)
+    )
 
-    sin_i = d_sun * math.sin(psi_rad) / d_sun_moon if d_sun_moon > 0 else 0.0
-    sin_i = max(-1.0, min(1.0, sin_i))
-    phase_angle = math.degrees(math.asin(sin_i))
+    cos_i = (
+        d_moon**2 + d_sun_moon**2 - d_sun**2
+    ) / (2 * d_moon * d_sun_moon) if d_sun_moon > 0 else 1.0
+    cos_i = max(-1.0, min(1.0, cos_i))
 
-    # asin gives 0..90; the actual phase angle spans 0..180.
-    # When elongation > 90° the Moon is between Earth and Sun → phase > 90°.
-    if sun_moon_separation < 90.0:
-        phase_angle = 180.0 - phase_angle
-
-    return phase_angle
+    return math.degrees(math.acos(cos_i))
 
 
 def topocentric_bright_limb_pa(

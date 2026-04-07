@@ -2,6 +2,7 @@
 StatusMixin: status bar and info panel update methods for MoonRenderer.
 """
 
+import math
 import tkinter as tk
 
 from moonrtx.constants import ORIENTATION_NSWE
@@ -79,7 +80,7 @@ class StatusMixin:
             ra_h = int(ra_total_h)
             ra_m = int((ra_total_h - ra_h) * 60)
             ra_s = (ra_total_h - ra_h - ra_m / 60) * 3600
-            self._info_ra_var.set(f"RA:  {ra_h:02d}h{ra_m:02d}m{ra_s:04.1f}s")
+            self._info_ra_var.set(f"RA:   {ra_h:02d}h{ra_m:02d}m{ra_s:04.1f}s")
         if self._info_dec_var:
             dec_sign = '+' if e.dec >= 0 else '-'
             dec_abs = abs(e.dec)
@@ -87,16 +88,18 @@ class StatusMixin:
             dec_m = int((dec_abs - dec_d) * 60)
             dec_s = (dec_abs - dec_d - dec_m / 60) * 3600
             self._info_dec_var.set(f"DEC: {dec_sign}{dec_d:02d}°{dec_m:02d}'{dec_s:04.1f}\"")
+        if self._info_phase_name_var:
+            self._info_phase_name_var.set(f"{self._get_lunar_phase_name(e.delta_long):>17}")
         if self._info_phase_var:
-            self._info_phase_var.set(f"Phase ∠: {e.phase:6.2f}°")
+            self._info_phase_var.set(f"Phase ∠:  {e.phase:6.2f}°")
         if self._info_sun_sep_var:
-            self._info_sun_sep_var.set(f"Sun ∠:  {e.sun_separation:6.3f}°")
+            self._info_sun_sep_var.set(f"Sun ∠:    {e.sun_separation:6.3f}°")
         if self._info_distance_var:
-            self._info_distance_var.set(f"Dist: {e.distance:,.0f} km".replace(",", " "))
+            self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
         if self._info_libr_l_var:
-            self._info_libr_l_var.set(f"Libr L: {e.libr_long:+5.2f}°")
+            self._info_libr_l_var.set(f"Libr L:    {e.libr_long:+5.2f}°")
         if self._info_libr_b_var:
-            self._info_libr_b_var.set(f"Libr B: {e.libr_lat:+5.2f}°")
+            self._info_libr_b_var.set(f"Libr B:    {e.libr_lat:+5.2f}°")
 
     def _update_status_measured(self):
         if self._status_measured_var:
@@ -132,6 +135,27 @@ class StatusMixin:
     def _update_status_pins(self):
         if self._status_pins_var:
             self._status_pins_var.set(f"Pins {'ON' if self.pins_visible else 'OFF'}")
+        
+    def _get_lunar_phase_name(self, delta_long):
+        
+        if (delta_long < 0.5) or (delta_long > 359.5):
+            return "New Moon"
+        elif delta_long < 89.5:
+            return "Waxing Crescent"
+        elif delta_long < 90.5:
+            return "First Quarter"
+        elif delta_long < 179.5:
+            return "Waxing Gibbous"
+        elif delta_long < 180.5:
+            return "Full Moon"
+        elif delta_long < 269.5:
+            return "Waning Gibbous"
+        elif delta_long < 270.5:
+            return "Last Quarter"
+        elif delta_long < 359.5:
+            return "Waning Crescent"
+        else:
+            return "New Moon"
 
     def _update_all_status_panels(self):
         self._update_status_observer()
@@ -245,11 +269,12 @@ class StatusMixin:
                     self._info_alt_var = tk.StringVar(value="Alt:")
                     self._info_ra_var = tk.StringVar(value="RA:")
                     self._info_dec_var = tk.StringVar(value="DEC:")
-                    self._info_phase_var = tk.StringVar(value="Ph:")
-                    self._info_sun_sep_var = tk.StringVar(value="Sun:")
-                    self._info_distance_var = tk.StringVar(value="Dist:")
                     self._info_libr_l_var = tk.StringVar(value="LbL:")
                     self._info_libr_b_var = tk.StringVar(value="LbB:")
+                    self._info_distance_var = tk.StringVar(value="Dist:")
+                    self._info_sun_sep_var = tk.StringVar(value="Sun:")
+                    self._info_phase_var = tk.StringVar(value="Ph:")
+                    self._info_phase_name_var = tk.StringVar(value="Phase:")
 
                     info_frame = tk.Frame(rt._canvas, bg=info_bg, padx=6, pady=4)
                     self._info_frame = info_frame
@@ -258,11 +283,12 @@ class StatusMixin:
                         self._info_alt_var,
                         self._info_ra_var,
                         self._info_dec_var,
-                        self._info_phase_var,
-                        self._info_sun_sep_var,
-                        self._info_distance_var,
                         self._info_libr_l_var,
                         self._info_libr_b_var,
+                        self._info_distance_var,
+                        self._info_sun_sep_var,
+                        self._info_phase_var,
+                        self._info_phase_name_var,
                     ]
                     for var in info_vars:
                         tk.Label(
