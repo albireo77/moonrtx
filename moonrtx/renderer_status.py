@@ -77,6 +77,8 @@ class StatusMixin:
             self._info_alt_var.set(f"Alt: {alt_sign}{alt_d:02d}\u00b0{alt_m:02d}'{alt_s:04.1f}\"")
         if self._info_ra_var:
             ra_total_h = e.ra / 15.0
+            if ra_total_h < 0:
+                ra_total_h += 24
             ra_h = int(ra_total_h)
             ra_m = int((ra_total_h - ra_h) * 60)
             ra_s = (ra_total_h - ra_h - ra_m / 60) * 3600
