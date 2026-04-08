@@ -93,9 +93,9 @@ class StatusMixin:
         if self._info_phase_name_var:
             self._info_phase_name_var.set(f"{self._get_lunar_phase_name(e.delta_long):>17}")
         if self._info_phase_var:
-            self._info_phase_var.set(f"Phase ∠:  {e.phase:6.2f}°")
+            self._info_phase_var.set(f"Phase ∠: {e.phase:7.3f}°")
         if self._info_sun_sep_var:
-            self._info_sun_sep_var.set(f"Sun ∠:    {e.sun_separation:6.3f}°")
+            self._info_sun_sep_var.set(f"Sun ∠:   {e.sun_separation:7.3f}°")
         if self._info_distance_var:
             self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
         if self._info_libr_l_var:
