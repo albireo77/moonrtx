@@ -109,9 +109,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
 
     _, _, _, _, libr_long_tot, libr_lat_tot = Moon.moon_librations(epoch)
 
-    # Normalize librations
     libr_long_tot = (libr_long_tot + 180) % 360 - 180
-    libr_lat_tot = (libr_lat_tot + 180) % 360 - 180
 
     return MoonEphemeris(
         az=(float(moon_az) + 180.0) % 360.0,      # Convert from Meeus convention (azimuth from South) to standard (from North)
