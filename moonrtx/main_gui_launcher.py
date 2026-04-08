@@ -228,7 +228,7 @@ class MainWindow(tk.Tk):
 
         self.gamma_entry = tk.Entry(frm, width=5)
         self.gamma_entry.grid(row=8, column=1, sticky=tk.EW, pady=2)
-        self.gamma_entry.insert(0, "3.2")
+        self.gamma_entry.insert(0, "2.8")
 
         self.time_step_minutes = tk.Entry(frm, width=5)
         self.time_step_minutes.grid(row=9, column=1, sticky=tk.EW, pady=2)
@@ -506,7 +506,7 @@ class MainWindow(tk.Tk):
             self.brightness.insert(0, settings.get("brightness", "80"))
 
             self.gamma_entry.delete(0, tk.END)
-            self.gamma_entry.insert(0, settings.get("gamma", "3.2"))
+            self.gamma_entry.insert(0, settings.get("gamma", "2.8"))
 
             self.time_step_minutes.delete(0, tk.END)
             self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))
