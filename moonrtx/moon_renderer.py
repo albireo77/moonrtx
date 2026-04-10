@@ -185,6 +185,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._info_phase_var = None
         self._info_sun_sep_var = None
         self._info_distance_var = None
+        self._info_illum_var = None
         self._info_libr_l_var = None
         self._info_libr_b_var = None
 

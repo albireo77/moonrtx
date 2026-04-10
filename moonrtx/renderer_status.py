@@ -2,7 +2,6 @@
 StatusMixin: status bar and info panel update methods for MoonRenderer.
 """
 
-import math
 import tkinter as tk
 
 from moonrtx.constants import ORIENTATION_NSWE
@@ -98,6 +97,8 @@ class StatusMixin:
             self._info_sun_sep_var.set(f"Sun ∠:   {e.sun_separation:7.3f}°")
         if self._info_distance_var:
             self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
+        if self._info_illum_var:
+            self._info_illum_var.set(f"💡:        {e.illum_fraction:6.2f}%")
         if self._info_libr_l_var:
             self._info_libr_l_var.set(f"Libr L:    {e.libr_long:+5.2f}°")
         if self._info_libr_b_var:
@@ -274,6 +275,7 @@ class StatusMixin:
                     self._info_libr_l_var = tk.StringVar(value="LbL:")
                     self._info_libr_b_var = tk.StringVar(value="LbB:")
                     self._info_distance_var = tk.StringVar(value="Dist:")
+                    self._info_illum_var = tk.StringVar(value="Illuminated:")
                     self._info_sun_sep_var = tk.StringVar(value="Sun:")
                     self._info_phase_var = tk.StringVar(value="Ph:")
                     self._info_phase_name_var = tk.StringVar(value="Phase:")
@@ -288,6 +290,7 @@ class StatusMixin:
                         self._info_libr_l_var,
                         self._info_libr_b_var,
                         self._info_distance_var,
+                        self._info_illum_var,
                         self._info_sun_sep_var,
                         self._info_phase_var,
                         self._info_phase_name_var,

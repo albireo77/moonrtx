@@ -14,6 +14,7 @@ class MoonEphemeris(NamedTuple):
     libr_lat: float
     sun_separation: float  # Topocentric angular separation between Sun and Moon centers (degrees)
     delta_long: float  # Ecliptical longitude difference (degrees, 0-360)
+    illum_fraction: float
 
 class MoonFeature(NamedTuple):
     name: str

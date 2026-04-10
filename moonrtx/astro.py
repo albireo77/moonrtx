@@ -51,7 +51,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     # must be computed from UT1. Since UT1 ≈ UTC (within 0.9s), we use UTC directly.
     epoch_ut = Epoch(dt_utc)
     
-    moon_ra, moon_dec, moon_distance, moon_parallax = Moon.apparent_equatorial_pos(epoch)
+    moon_ra_geo, moon_dec_geo, moon_distance, moon_parallax = Moon.apparent_equatorial_pos(epoch)
     
     # Nutation and obliquity (needed for apparent sidereal time)
     nut_lon = Coordinates.nutation_longitude(epoch)
@@ -67,7 +67,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     observer_lat = Angle(lat)
 
     # Geocentric hour angle (needed for parallax correction)
-    moon_ha_deg = (lst_deg - float(moon_ra)) % 360.0
+    moon_ha_deg = (lst_deg - float(moon_ra_geo)) % 360.0
     if moon_ha_deg > 180:
         moon_ha_deg -= 360
     moon_ha = Angle(moon_ha_deg)
@@ -75,7 +75,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     # Apply topocentric parallax correction (Meeus ch. 40, oblate Earth)
     moon_distance_au = float(moon_distance) / AU_KM
     moon_ra, moon_dec = Earth.parallax_correction(
-        moon_ra, moon_dec, observer_lat, moon_distance_au, moon_ha, float(observer_elevation)
+        moon_ra_geo, moon_dec_geo, observer_lat, moon_distance_au, moon_ha, float(observer_elevation)
     )
 
     # Recompute hour angle with topocentric RA
@@ -90,13 +90,11 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     moon_az, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
     moon_alt = Coordinates.refraction_true2apparent(moon_alt)
 
-    # ---- Sun position (geocentric; Sun parallax < 9" so geocentric ≈ topocentric) ----
+    lambda_sun, _ = Sun.apparent_longitude_coarse(epoch)
+    lambda_moon, _, _, _ = Moon.apparent_ecliptical_pos(epoch)
+    delta_long = lambda_moon - lambda_sun
+
     sun_ra, sun_dec, sun_r_au = Sun.apparent_rightascension_declination_coarse(epoch)
-
-    lambda_moon, _ = Coordinates.equatorial2ecliptical(moon_ra, moon_dec, obl)
-    lambda_sun, _ = Coordinates.equatorial2ecliptical(sun_ra, sun_dec, obl)
-    delta_long = (float(lambda_moon) - float(lambda_sun)) % 360.0
-
     sun_moon_separation = topocentric_sun_moon_separation(sun_ra, sun_dec, moon_ra, moon_dec)
     phase_angle = topocentric_phase_angle(sun_moon_separation, sun_r_au, moon_distance_topo)
     pa = topocentric_bright_limb_pa(sun_ra, sun_dec, moon_ra, moon_dec)
@@ -111,6 +109,8 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
 
     libr_long_tot = (libr_long_tot + 180) % 360 - 180
 
+    illum_fraction = Moon.illuminated_fraction_disk(epoch)
+
     return MoonEphemeris(
         az=(float(moon_az) + 180.0) % 360.0,      # Convert from Meeus convention (azimuth from South) to standard (from North)
         alt=float(moon_alt),
@@ -124,7 +124,8 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         libr_long=float(libr_long_tot),
         libr_lat=float(libr_lat_tot),
         sun_separation=sun_moon_separation,
-        delta_long=delta_long
+        delta_long=float(delta_long) % 360.0,
+        illum_fraction=illum_fraction * 100.0
     )
 
 def topocentric_sun_moon_separation(
