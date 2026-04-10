@@ -107,8 +107,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
 
     _, _, _, _, libr_long_tot, libr_lat_tot = Moon.moon_librations(epoch)
 
-    libr_long_tot = (libr_long_tot + 180) % 360 - 180
-
     illum_fraction = Moon.illuminated_fraction_disk(epoch)
 
     return MoonEphemeris(
@@ -121,7 +119,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         pa=float(pa),
         pa_axis_view=float(pa_axis_view) % 360.0,
         q=float(q),
-        libr_long=float(libr_long_tot),
+        libr_long=(float(libr_long_tot) + 180.0) % 360.0 - 180.0,
         libr_lat=float(libr_lat_tot),
         sun_separation=sun_moon_separation,
         delta_long=float(delta_long) % 360.0,
