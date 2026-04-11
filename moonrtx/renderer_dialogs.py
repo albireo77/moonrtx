@@ -74,16 +74,17 @@ class DialogsMixin:
 
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
+            ("Arrows", "Navigate view"),
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),
             ("Hold and drag right mouse button", "Rotate Moon around the eye"),
             ("Hold Shift + right mouse button and drag up/down", "Move eye backward/forward"),
+            ("Hold Ctrl + drag left mouse button", "Measure distance on Moon surface along"),
+            ("", "                                     with elevation difference"),
             ("Hold Shift + left mouse button and drag up/down", "Zoom out/in (more reliable)"),
             ("Mouse wheel up/down", "Zoom in/out (less reliable)"),
-            ("Hold Ctrl + drag left mouse button", "Measure distance on Moon surface"),
-            ("Arrows", "Navigate view"),
         ]
 
         # Find max key width for aligned section
@@ -106,7 +107,10 @@ class DialogsMixin:
             row.pack(fill=tk.X, pady=1)
             key_label = tk.Label(row, text=key, anchor='e', font=('Consolas', 9, 'bold'))
             key_label.pack(side=tk.LEFT)
-            tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
+            text = desc
+            if key:
+                text = " - " + text
+            tk.Label(row, text=text, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
 
         # Close button
         tk.Button(main_frame, text="Close", command=on_close, width=10).pack(pady=(10, 0))

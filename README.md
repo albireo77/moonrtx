@@ -57,16 +57,16 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **H/J** - Roll view around current view direction  
 **Q/W** - Go back/forward in time by step minutes  
 **M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
+**Arrows** - Navigate view  
 **Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
 **Hold and drag right mouse button** - Rotate Moon around the eye  
 **Hold Shift + right mouse button and drag up/down** - Move eye backward/forward  
+**Hold Ctrl + drag left mouse button** - Measure distance on Moon surface along with elevation difference  
 **Hold Shift + left mouse button and drag up/down** - Zoom out/in (more reliable)  
 **Mouse wheel up/down** - Zoom in/out (less reliable)  
-**Hold Ctrl + drag left mouse button** - Measure distance on Moon surface  
-**Arrows** - Navigate view  
 
 ## Screens
 **Archimedes with neighbours**

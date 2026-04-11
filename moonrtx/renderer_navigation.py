@@ -500,6 +500,37 @@ class NavigationMixin:
         distance_km = c * self.MOON_RADIUS_KM
         return distance_km
 
+    def get_elevation_m(self, lat: float, lon: float) -> float:
+        """
+        Look up the elevation at a selenographic coordinate relative to the mean Moon radius.
+        
+        Parameters
+        ----------
+        lat : float
+            Selenographic latitude in degrees (-90 to +90)
+        lon : float
+            Selenographic longitude in degrees (-180 to +180)
+            
+        Returns
+        -------
+        float
+            Elevation in meters relative to the mean surface (positive = above, negative = below)
+        """
+        h, w = self.elevation.shape
+
+        # Equirectangular projection: row 0 = +90° lat, last row = -90° lat
+        row = (90.0 - lat) / 180.0 * h
+        col = (lon + 180.0) / 360.0 * w
+
+        row = int(np.clip(row, 0, h - 1))
+        col = int(np.clip(col, 0, w - 1))
+
+        # Stored elevation is a displacement factor of moon radius [~0.9885, ~1.0]
+        # The mean of the full range maps to the nominal radius.
+        displacement = self.elevation[row, col]
+        mid = 1.0 - self._elev_displacement_range / 2.0
+        return (displacement - mid) * self.MOON_RADIUS_KM * 1000.0
+
     def _seleno_to_scene_position(self, lat: float, lon: float, radius: float = None) -> np.ndarray:
         """
         Convert selenographic coordinates to 3D scene position.
@@ -600,6 +631,7 @@ class NavigationMixin:
                 lat1, lon1 = self.measure_start_coords
                 distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
                 self.measured_distance = distance_km
+                self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
                 self._update_status_measured()
 
     def finish_measurement(self, event):
@@ -639,4 +671,5 @@ class NavigationMixin:
         distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
         
         self.measured_distance = distance_km
+        self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
         self._update_status_measured()

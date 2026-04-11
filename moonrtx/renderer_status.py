@@ -107,7 +107,10 @@ class StatusMixin:
     def _update_status_measured(self):
         if self._status_measured_var:
             if self.measured_distance is not None:
-                self._status_measured_var.set(f"Measured: {self.measured_distance:7.2f} km")
+                text = f"Δs: {self.measured_distance:7.2f} km"
+                if self.measured_height_diff is not None:
+                    text += f"  Δh: {self.measured_height_diff:5.0f} m"
+                self._status_measured_var.set(text)
             else:
                 self._status_measured_var.set("")
 
@@ -219,9 +222,9 @@ class StatusMixin:
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
                         (self._status_gamma_var,      10),
-                        (self._status_feature_var,    41),
+                        (self._status_feature_var,    37),
                         (self._status_coords_var,     26),
-                        (self._status_measured_var,   20),
+                        (self._status_measured_var,   27),
                         (None,                        47),  # placeholder for time panel
                         (self._status_view_var,       10),
                         (self._status_observer_var,   30)
