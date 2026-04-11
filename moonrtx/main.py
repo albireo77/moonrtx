@@ -104,6 +104,7 @@ def check_elevation_file(elevation_file: str) -> bool:
                 print(f"Error downloading default elevation file: {e}")
                 return False
         else:
+            print(f"Elevation file not found: {elevation_file}")
             return False
     return True
 
@@ -137,6 +138,7 @@ def check_color_file(color_file: str) -> bool:
                 print(f"Error downloading color file: {e}")
                 return False
         else:
+            print(f"Color file not found: {color_file}")
             return False
     return True
 
