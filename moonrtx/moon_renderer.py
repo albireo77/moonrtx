@@ -10,7 +10,7 @@ import plotoptix
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
 
-from moonrtx.shared_types import MoonEphemeris, MoonFeature, CameraParams
+from moonrtx.shared_types import CameraParams
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
@@ -19,7 +19,7 @@ from moonrtx.constants import (
     CAMERA_TYPE,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
-from moonrtx.scene_math import Scene, calculate_rotation, calculate_camera_and_light, encode_camera_params
+from moonrtx.scene_math import calculate_rotation, calculate_camera_and_light
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin
