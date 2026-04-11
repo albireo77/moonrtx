@@ -109,9 +109,9 @@ class StatusMixin:
             if self.measured_distance is None and self.measured_height_diff is None:
                 self._status_measured_var.set("")
             else:
-                measured_distance = "              " if self.measured_distance is None else f"Δs: {self.measured_distance:7.2f} km"
-                measured_height_diff = "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:5.0f} m"
-                self._status_measured_var.set(f"{measured_distance}{measured_height_diff}")
+                text = "              " if self.measured_distance is None else f"Δs: {self.measured_distance:7.2f} km"
+                text += "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:5.0f} m"
+                self._status_measured_var.set(text)
 
     def _update_info_coords(self, lat=None, lon=None):
         """Update selenographic coordinates in the status bar coords panel."""
