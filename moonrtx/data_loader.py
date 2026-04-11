@@ -65,7 +65,7 @@ def load_moon_features(filepath: str) -> list:
     
     return moon_features
 
-def load_elevation_data(filepath: str, downscale: int) -> np.ndarray:
+def load_elevation_data(filepath: str, downscale: int):
     """
     Load and process the Moon elevation data.
     
@@ -78,8 +78,8 @@ def load_elevation_data(filepath: str, downscale: int) -> np.ndarray:
         
     Returns
     -------
-    np.ndarray
-        Processed elevation data normalized for displacement mapping
+    tuple
+        Processed elevation data normalized for displacement mapping and scaling factors (scale, rv, displacement_range)
     """
     print(f"Loading elevation data from {filepath}...")
     elev_src = read_image(filepath)
@@ -124,7 +124,7 @@ def load_elevation_data(filepath: str, downscale: int) -> np.ndarray:
     elevation *= displacement_range / rv
     elevation += (1.0 - displacement_range)
     
-    return elevation
+    return elevation, scale, rv, displacement_range
 
 
 def load_color_data(filepath: str, gamma: float = 2.2) -> np.ndarray:
