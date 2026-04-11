@@ -74,12 +74,12 @@ class DialogsMixin:
 
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
-            ("Arrows", "Navigate view"),
+            ("Arrows", "Move view"),
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),
-            ("Hold and drag right mouse button", "Rotate Moon around the eye"),
+            ("Hold and drag right mouse button", "Rotate Moon around the eye (move view)"),
             ("Hold Shift + right mouse button and drag up/down", "Move eye backward/forward"),
             ("Hold Ctrl + drag left mouse button", "Measure distance on Moon surface along"),
             ("", "                                     with elevation difference"),
