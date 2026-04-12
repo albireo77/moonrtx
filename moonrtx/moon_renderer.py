@@ -189,6 +189,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._info_illum_var = None
         self._info_libr_l_var = None
         self._info_libr_b_var = None
+        self._info_colong_var = None
 
     # ---- brightness / time-step / auto-advance ----
 

@@ -12,6 +12,112 @@ from moonrtx.shared_types import MoonEphemeris
 
 EARTH_RADIUS_KM = 6378.14
 AU_KM = 149597870.7  # 1 Astronomical Unit in km
+JDE2000 = Epoch(2000, 1, 1.5)
+I_RAD = math.radians(1.54242)  # Inclination of Moon's equator to ecliptic
+SIN_I = math.sin(I_RAD)
+COS_I = math.cos(I_RAD)
+
+
+def _lunar_orientation_terms(epoch: Epoch):
+    """Return the lunar arguments used by Meeus chapter 53."""
+    t = (epoch - JDE2000) / 36525.0
+
+    d_rad = math.radians((297.8501921 + (445267.1114034
+                          + (-0.0018819
+                             + (1.0 / 545868.0 - t / 113065000.0) * t) * t) * t) % 360.0)
+    m_rad = math.radians((357.5291092 + (35999.0502909
+                          + (-0.0001536 + t / 24490000.0) * t) * t) % 360.0)
+    mprime_rad = math.radians((134.9633964 + (477198.8675055
+                               + (0.0087414
+                                  + (1.0 / 69699.9 + t / 14712000.0) * t) * t) * t) % 360.0)
+    f_rad = math.radians((93.2720950 + (483202.0175233
+                          + (-0.0036539
+                             + (-1.0 / 3526000.0 + t / 863310000.0) * t) * t) * t) % 360.0)
+    omega = Moon.longitude_mean_ascending_node(epoch)
+    k1_rad = math.radians((119.75 + 131.849 * t) % 360.0)
+    k2_rad = math.radians((72.56 + 20.186 * t) % 360.0)
+    eccentricity = 1.0 + (-0.002516 - 0.0000074 * t) * t
+
+    return d_rad, m_rad, mprime_rad, f_rad, omega, k1_rad, k2_rad, eccentricity
+
+
+def _physical_libration_in_longitude(
+    a_rad: float,
+    b_rad: float,
+    d_rad: float,
+    m_rad: float,
+    mprime_rad: float,
+    f_rad: float,
+    omega_rad: float,
+    k1_rad: float,
+    k2_rad: float,
+    eccentricity: float,
+) -> float:
+    """Return the physical libration correction in longitude (degrees)."""
+    rho = (-0.02752 * math.cos(mprime_rad)
+           - 0.02245 * math.sin(f_rad)
+           + 0.00684 * math.cos(mprime_rad - 2.0 * f_rad)
+           - 0.00293 * math.cos(2.0 * f_rad)
+           - 0.00085 * math.cos(2.0 * (f_rad - d_rad))
+           - 0.00054 * math.cos(mprime_rad - 2.0 * d_rad)
+           - 0.00020 * math.sin(mprime_rad + f_rad)
+           - 0.00020 * math.cos(mprime_rad + 2.0 * f_rad)
+           - 0.00020 * math.cos(mprime_rad - f_rad)
+           + 0.00014 * math.cos(mprime_rad + 2.0 * (f_rad - d_rad)))
+
+    sigma = (-0.02816 * math.sin(mprime_rad)
+             + 0.02244 * math.cos(f_rad)
+             - 0.00682 * math.sin(mprime_rad - 2.0 * f_rad)
+             - 0.00279 * math.sin(2.0 * f_rad)
+             - 0.00083 * math.sin(2.0 * (f_rad - d_rad))
+             + 0.00069 * math.sin(mprime_rad - 2.0 * d_rad)
+             + 0.00040 * math.cos(mprime_rad + f_rad)
+             - 0.00025 * math.sin(2.0 * mprime_rad)
+             - 0.00023 * math.sin(mprime_rad + 2.0 * f_rad)
+             + 0.00020 * math.cos(mprime_rad - f_rad)
+             + 0.00019 * math.sin(mprime_rad - f_rad)
+             + 0.00013 * math.sin(mprime_rad + 2.0 * (f_rad - d_rad))
+             - 0.00010 * math.cos(mprime_rad - 3.0 * f_rad))
+
+    tau = (0.02520 * eccentricity * math.sin(m_rad)
+           + 0.00473 * math.sin(2.0 * (mprime_rad - f_rad))
+           - 0.00467 * math.sin(mprime_rad)
+           + 0.00396 * math.sin(k1_rad)
+           + 0.00276 * math.sin(2.0 * (mprime_rad - d_rad))
+           + 0.00196 * math.sin(omega_rad)
+           - 0.00183 * math.cos(mprime_rad - f_rad)
+           + 0.00115 * math.sin(mprime_rad - 2.0 * d_rad)
+           - 0.00096 * math.sin(mprime_rad - d_rad)
+           + 0.00046 * math.sin(2.0 * (f_rad - d_rad))
+           - 0.00039 * math.sin(mprime_rad - f_rad)
+           - 0.00032 * math.sin(mprime_rad - m_rad - d_rad)
+           + 0.00027 * math.sin(2.0 * (mprime_rad - d_rad) - m_rad)
+           + 0.00023 * math.sin(k2_rad)
+           - 0.00014 * math.sin(2.0 * d_rad)
+           + 0.00014 * math.cos(2.0 * (mprime_rad - f_rad))
+           - 0.00012 * math.sin(mprime_rad - 2.0 * f_rad)
+           - 0.00012 * math.sin(2.0 * mprime_rad)
+           + 0.00011 * math.sin(2.0 * (mprime_rad - m_rad - d_rad)))
+
+    return -tau + (rho * math.cos(a_rad) + sigma * math.sin(a_rad)) * math.tan(b_rad)
+
+
+def _ecliptic_to_cartesian(lon: Angle, lat: Angle, radius: float):
+    lon_rad = lon.rad()
+    lat_rad = lat.rad()
+    cos_lat = math.cos(lat_rad)
+    return (
+        radius * cos_lat * math.cos(lon_rad),
+        radius * cos_lat * math.sin(lon_rad),
+        radius * math.sin(lat_rad),
+    )
+
+
+def _cartesian_to_ecliptic(x: float, y: float, z: float) -> tuple[float, float]:
+    return (
+        math.degrees(math.atan2(y, x)) % 360.0,
+        math.degrees(math.atan2(z, math.hypot(x, y))),
+    )
 
 def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
     """
@@ -91,7 +197,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     moon_alt = Coordinates.refraction_true2apparent(moon_alt)
 
     lambda_sun, _ = Sun.apparent_longitude_coarse(epoch)
-    lambda_moon, _, _, _ = Moon.apparent_ecliptical_pos(epoch)
+    lambda_moon, beta_moon, _, _ = Moon.apparent_ecliptical_pos(epoch)
     delta_long = lambda_moon - lambda_sun
 
     sun_ra, sun_dec, sun_r_au = Sun.apparent_rightascension_declination_coarse(epoch)
@@ -109,6 +215,8 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
 
     illum_fraction = Moon.illuminated_fraction_disk(epoch)
 
+    colongitude = calculate_colongitude(epoch, lambda_moon - nut_lon, beta_moon, moon_distance)
+
     return MoonEphemeris(
         az=(float(moon_az) + 180.0) % 360.0,      # Convert from Meeus convention (azimuth from South) to standard (from North)
         alt=float(moon_alt),
@@ -123,8 +231,67 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         libr_lat=float(libr_lat_tot),
         sun_separation=sun_moon_separation,
         delta_long=float(delta_long) % 360.0,
-        illum_fraction=illum_fraction * 100.0
+        illum_fraction=illum_fraction * 100.0,
+        colongitude=colongitude
     )
+
+def calculate_colongitude(
+    epoch: Epoch,
+    moon_lon_geo: Angle,
+    moon_lat_geo: Angle,
+    moon_distance_km: float,
+) -> float:
+    """
+    Calculate the selenographic colongitude of the Sun.
+
+    The colongitude is the selenographic longitude of the morning terminator.
+    Co ≈ 0° at First Quarter, 90° at Full Moon, 180° at Last Quarter, 270° at New Moon.
+
+    Uses the same selenographic projection as Moon.moon_librations() (Meeus ch. 53),
+    but with the Sun direction evaluated at the Moon instead of at the Earth.
+    This removes the Earth-Moon parallax error, which can shift colongitude by
+    about 0.15°.
+    """
+    d_rad, m_rad, mprime_rad, f_rad, omega, k1_rad, k2_rad, eccentricity = _lunar_orientation_terms(epoch)
+
+    sun_lon_geo, sun_lat_geo, sun_distance_au = Sun.geometric_geocentric_position(epoch)
+
+    sun_x, sun_y, sun_z = _ecliptic_to_cartesian(sun_lon_geo, sun_lat_geo, sun_distance_au * AU_KM)
+    moon_x, moon_y, moon_z = _ecliptic_to_cartesian(moon_lon_geo, moon_lat_geo, moon_distance_km)
+    sun_lon_seleno, sun_lat_seleno = _cartesian_to_ecliptic(
+        sun_x - moon_x,
+        sun_y - moon_y,
+        sun_z - moon_z,
+    )
+
+    w_sun_rad = math.radians(sun_lon_seleno + 180.0 - float(omega))
+    sun_lat_seleno_rad = math.radians(sun_lat_seleno)
+    sin_w = math.sin(w_sun_rad)
+    cos_w = math.cos(w_sun_rad)
+    sin_beta = math.sin(sun_lat_seleno_rad)
+    cos_beta = math.cos(sun_lat_seleno_rad)
+
+    a_sun = math.atan2(
+        sin_w * cos_beta * COS_I - sin_beta * SIN_I,
+        cos_w * cos_beta,
+    )
+    b_sun = math.asin(-sin_w * cos_beta * SIN_I - sin_beta * COS_I)
+    l_sun = math.degrees(a_sun) % 360.0 - math.degrees(f_rad)
+    l_sun += _physical_libration_in_longitude(
+        a_sun,
+        b_sun,
+        d_rad,
+        m_rad,
+        mprime_rad,
+        f_rad,
+        omega.rad(),
+        k1_rad,
+        k2_rad,
+        eccentricity,
+    )
+
+    return (450.0 - l_sun) % 360.0
+
 
 def topocentric_sun_moon_separation(
     sun_ra: Angle, sun_dec: Angle,
