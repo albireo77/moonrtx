@@ -104,7 +104,7 @@ class StatusMixin:
         if self._info_libr_b_var:
             self._info_libr_b_var.set(f"Libr B:    {e.libr_lat:+5.2f}°")
         if self._info_colong_var:
-            self._info_colong_var.set(f"Colong:  {e.colongitude:7.3f}°")
+            self._info_colong_var.set(f"Colongit: {e.colongitude:6.2f}°")
 
     def _update_status_measured(self):
         if self._status_measured_var:
@@ -279,7 +279,7 @@ class StatusMixin:
                     self._info_distance_var = tk.StringVar(value="Dist:")
                     self._info_libr_l_var = tk.StringVar(value="LbL:")
                     self._info_libr_b_var = tk.StringVar(value="LbB:")
-                    self._info_colong_var = tk.StringVar(value="Colong:")
+                    self._info_colong_var = tk.StringVar(value="Colongit:")
                     self._info_illum_var = tk.StringVar(value="Illuminated:")
                     self._info_sun_sep_var = tk.StringVar(value="Sun:")
                     self._info_phase_var = tk.StringVar(value="Ph:")
