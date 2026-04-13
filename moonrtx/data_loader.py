@@ -127,7 +127,7 @@ def load_elevation_data(filepath: str, downscale: int):
     return elevation, scale, rv, displacement_range
 
 
-def load_color_data(filepath: str, gamma: float = 2.2) -> np.ndarray:
+def load_color_data(filepath: str, gamma: float = 2.8) -> np.ndarray:
     """
     Load and process the Moon color/albedo data.
     

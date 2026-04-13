@@ -77,7 +77,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         observer_elevation : int
             Observer elevation in meters above sea level
         gamma : float
-            Gamma correction value (default 2.2)
+            Gamma correction value (default 2.8)
         """
         self.width = width
         self.height = height
