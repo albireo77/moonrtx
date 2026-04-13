@@ -77,7 +77,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ![Timocharis](images/timocharis.jpg)
 **Rima Hesiodus and the distant Rupes Recta**
 ![Rima Hesiodus](images/rima_hesiodus.jpg)
-**Maria with [Blue Steel color map](https://planetarymaps.usgs.gov/mosaic/Lunar_LRO_LOLA_ClrShade_Global_64ppd_BlueSteel.tif)**
+**Maria with [Blue Steel color map](https://astrogeology.usgs.gov/search/map/moon_lro_lola_color_shaded_relief_blue_steel_474m)**
 ![Maria](images/maria.jpg)
 
 
