@@ -79,6 +79,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ![Rima Hesiodus](images/rima_hesiodus.jpg)
 **Maria with [Blue Steel color map](https://astrogeology.usgs.gov/search/map/moon_lro_lola_color_shaded_relief_blue_steel_474m)**
 ![Maria](images/maria.jpg)
+**Mare Smythii in 2 projections (standard and Blue Steel)**
+![Mare Smythii](images/mare_smythii.jpg)
 
 
 
