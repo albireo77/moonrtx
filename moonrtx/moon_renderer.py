@@ -390,7 +390,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         zoom : float
             Camera zoom factor
         """
-        dt_utc = dt_local if dt_local.tzinfo == timezone.utc else dt_local.astimezone(timezone.utc)
+        dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
         self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
         self.moon_rotation_inv = self.moon_rotation.T
@@ -455,7 +455,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         elevation : int
             Observer elevation in meters above sea level
         """
-        dt_utc = dt_local if dt_local.tzinfo == timezone.utc else dt_local.astimezone(timezone.utc)
+        dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
         self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
         self.moon_rotation_inv = self.moon_rotation.T
