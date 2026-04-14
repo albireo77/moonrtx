@@ -15,13 +15,13 @@ def load_moon_features(filepath: str) -> list:
     Parameters
     ----------
     filepath : str
-        Path to CSV file with columns: name, latitude, longitude, angular_size, standard_label, spot_label, status_bar
+        Path to CSV file with columns: name, latitude, longitude, angular_size, standard_label, spot_label, status_bar, optional feature_id
         Separator is ':'
         
     Returns
     -------
     list
-        List of dicts with keys: name, lat, lon, angular_size, standard_label, spot_label, status_bar
+        List of MoonFeature entries parsed from the CSV file.
     """
     moon_features = []
     if not os.path.isfile(filepath):
@@ -44,6 +44,7 @@ def load_moon_features(filepath: str) -> list:
                     standard_label = parts[4].strip().lower() == 'true'
                     spot_label = parts[5].strip().lower() == 'true'
                     status_bar = parts[6].strip().lower() == 'true'
+                    feature_id_str = parts[7].strip() if len(parts) >= 8 else ''
                     try:
                         moon_feature = MoonFeature(
                             name=name,
@@ -54,7 +55,8 @@ def load_moon_features(filepath: str) -> list:
                             size_km=float(angular_diameter_str) * 30.34,
                             standard_label=standard_label,
                             spot_label=spot_label,
-                            status_bar=status_bar
+                            status_bar=status_bar,
+                            feature_id=int(feature_id_str) if feature_id_str else None
                         )
                         moon_features.append(moon_feature)
                     except ValueError as e:

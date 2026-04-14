@@ -1,693 +1,693 @@
 # Lunar Features Database
-# Format: name:latitude:longitude:angular diameter on Moon surface:standard label:spot label:statusbar
+# Format: name:latitude:longitude:angular diameter on Moon surface:standard label:spot label:statusbar[:feature_id in USGS database]
 
 # === MARIA (Lunar Seas) ===
-Mare Tranquillitatis:8.5:31.4:28.8:true:false:false
-Mare Serenitatis:28.0:17.5:23.1:true:false:false
-Mare Imbrium:32.8:-15.6:39.6:true:false:false
-Mare Crisium:17.0:59.1:18.2:true:false:false
-Mare Fecunditatis:-7.8:51.3:29.7:true:false:false
-Mare Nectaris:-15.2:35.5:11.6:true:false:false
-Mare Humorum:-24.4:-38.6:14.9:true:false:false
-Mare Nubium:-21.3:-16.6:24.8:true:false:false
-Mare Frigoris:56.0:1.4:52.8:true:false:false
-Mare Vaporum:13.3:3.6:8.3:true:false:false
-Mare Marginis:13.3:86.1:14.2:true:false:false
-Mare Smythii:1.3:87.5:14.9:true:false:false
-Mare Australe:-38.9:93.0:19.8:true:false:false
-Mare Orientale:-19.4:-92.8:19.8:true:false:false
-Mare Moscoviense:27.3:147.9:9.9:true:false:false
-Mare Anguis:22.6:67.7:5.0:true:false:false
-Mare Spumans:1.1:65.1:4.6:true:false:false
-Mare Undarum:6.8:68.4:7.3:true:false:false
-Mare Humboldtianum:56.8:81.5:13.2:true:false:false
-Mare Cognitum:-10.0:-23.1:14.9:true:false:false
-Oceanus Procellarum:18.4:-57.4:82.5:true:false:false
-Lacus Somniorum:38.0:29.2:14.9:false:false:false
-Lacus Mortis:45.0:27.2:5.3:false:false:false
-Lacus Veris:-16.5:-86.1:4.0:false:false:false
-Lacus Autumni:-9.9:-83.9:3.3:false:false:false
-Lacus Temporis:45.9:58.4:4.0:false:false:false
-Lacus Doloris:17.1:9.0:3.6:false:false:false
-Lacus Gaudii:16.2:12.6:3.0:false:false:true
-Lacus Hiemalis:15.0:14.0:1.7:false:false:true
-Lacus Lenitatis:14.0:12.0:2.3:false:false:true
-Lacus Odii:19.0:7.0:2.3:false:false:true
-Lacus Spei:43.0:65.0:2.6:false:false:true
-Lacus Timoris:-38.8:-27.3:4.6:false:false:false
-Lacus Excellentiae:-35.4:-44.0:6.3:false:false:false
-Lacus Perseverantiae:8.0:62.0:2.3:false:false:true
-Palus Putredinis:26.5:0.4:6.0:false:false:false
-Palus Somni:14.1:45.0:9.6:false:false:false
-Palus Epidemiarum:-32.0:-28.2:9.9:false:false:false
-Sinus Iridum:44.1:-31.5:8.6:true:false:true
-Sinus Roris:54.0:-56.0:13.2:false:false:true
-Sinus Aestuum:10.9:-8.8:9.6:false:false:true
-Sinus Medii:2.4:1.7:11.6:false:false:true
-Sinus Lunicus:31.8:-1.4:4.6:false:false:true
-Sinus Successus:0.9:59.0:4.3:false:false:true
-Sinus Concordiae:10.8:43.2:5.6:false:false:true
-Sinus Honoris:11.7:18.1:3.6:false:false:true
-Sinus Amoris:18.1:39.1:4.3:false:false:true
-Sinus Asperitatis:-3.8:27.4:6.6:false:false:true
-Sinus Fidei:18.0:2.0:2.3:false:false:true
+Mare Tranquillitatis:8.35:30.83:28.86:true:false:false:3691
+Mare Serenitatis:27.29:18.36:22.22:true:false:false:3686
+Mare Imbrium:34.72:-14.91:37.76:true:false:false:3678
+Mare Crisium:16.18:59.10:18.32:true:false:false:3671
+Mare Fecunditatis:-7.83:53.67:27.7:true:false:false:3673
+Mare Nectaris:-15.19:34.60:11.19:true:false:false:3683
+Mare Humorum:-24.48:-38.57:13.83:true:false:false:3677
+Mare Nubium:-20.59:-17.29:23.55:true:false:false:3684
+Mare Frigoris:57.59:-0.01:47.67:true:false:false:3674
+Mare Vaporum:13.20:4.09:7.99:true:false:false:3694
+Mare Marginis:12.70:86.52:11.79:true:false:false:3681
+Mare Smythii:-1.71:87.05:12.33:true:false:false:3689
+Mare Australe:-47.77:91.99:32.86:true:false:false:3665
+Mare Orientale:-19.87:-94.67:9.7:true:false:false:3685
+Mare Moscoviense:27.28:148.12:9.08:true:false:false:3682
+Mare Anguis:22.43:67.58:4.81:true:false:false:3664
+Mare Spumans:1.30:65.30:4.72:true:false:false:3690
+Mare Undarum:7.49:68.66:8.07:true:false:false:3693
+Mare Humboldtianum:56.92:81.54:7.61:true:false:false:3676
+Mare Cognitum:-10.53:-22.31:11.54:true:false:false:3670
+Oceanus Procellarum:20.67:-56.68:85.44:true:false:false:4395
+Lacus Somniorum:37.56:30.80:14:false:false:false:3217
+Lacus Mortis:45.13:27.32:5.23:false:false:false:3212
+Lacus Veris:-16.48:-85.91:12.62:false:false:false:3221
+Lacus Autumni:-11.82:-83.17:6.45:false:false:false:3203
+Lacus Temporis:46.77:56.21:6.77:false:false:false:3219
+Lacus Doloris:16.80:8.61:3.39:false:false:false:3205
+Lacus Gaudii:16.33:12.27:2.92:false:false:true:3208
+Lacus Hiemalis:15.01:13.97:1.58:false:false:true:3209
+Lacus Lenitatis:14.32:12.05:2.58:false:false:true:3210
+Lacus Odii:19.22:7.27:2.4:false:false:true:3214
+Lacus Spei:43.46:65.20:2.53:false:false:true:3218
+Lacus Timoris:-39.42:-27.95:5.06:false:false:false:3220
+Lacus Excellentiae:-35.65:-43.58:6.52:false:false:false:3206
+Lacus Perseverantiae:7.84:61.93:2.33:false:false:true:3215
+Palus Putredinis:27.36:0.00:5.95:false:false:false:4566
+Palus Somni:13.69:44.72:5.39:false:false:false:4567
+Palus Epidemiarum:-32.00:-27.54:9.9:false:false:false:4565
+Sinus Iridum:45.01:-31.67:8.22:true:false:true:5565
+Sinus Roris:50.26:-50.86:6.43:false:false:true:5569
+Sinus Aestuum:12.10:-8.34:10.43:false:false:true:5558
+Sinus Medii:1.63:1.03:9.45:false:false:true:5567
+Sinus Lunicus:32.36:-1.85:3.93:false:false:true:5566
+Sinus Successus:1.12:58.52:4.17:false:false:true:5571
+Sinus Concordiae:10.98:42.47:5.24:false:false:true:5562
+Sinus Honoris:11.72:17.87:3.68:false:false:true:5564
+Sinus Amoris:19.92:37.29:6.23:false:false:true:5559
+Sinus Asperitatis:-5.41:27.49:7.22:false:false:true:5561
+Sinus Fidei:17.99:2.04:2.33:false:false:true:5563
 
 # === MAJOR IMPACT CRATERS ===
-Tycho:-43.3:-11.2:2.8:false:false:true
-Copernicus:9.6:-20.1:3.1:false:false:true
-Kepler:8.1:-38.0:1.1:false:false:true
-Aristarchus:23.7:-47.4:1.3:false:false:true
-Plato:51.6:-9.4:3.4:false:false:true
-Plato B:53.1:-17.3:0.26:false:false:true
-Plato D:49.6:-14.5:0.33:false:false:true
-Plato E:49.7:-16.2:0.23:false:false:true
-Plato H:55.2:-2.0:0.3:false:false:true
-Plato J:49.0:-4.6:0.26:false:false:true
-Plato K:46.8:-3.3:0.2:false:false:true
-Plato KA:46.8:-3.6:0.2:false:false:true
-Plato P:51.5:-15.2:0.26:false:false:true
-Archimedes:29.7:-4.0:2.7:false:false:true
-Eratosthenes:14.5:-11.3:1.9:false:false:true
-Ptolemaeus:-9.2:-1.8:5.0:false:false:true
-Herschel:-5.7:-2.1:1.4:false:false:true
-Alphonsus:-13.4:-2.8:3.9:false:false:true
-Alpetragius:-16.0:-4.5:1.3:false:false:true
-Arzachel:-18.2:-1.9:3.2:false:false:true
-Thebit:-22.0:-4.0:1.9:false:false:true
-Hipparchus:-5.5:4.8:5.0:false:false:true
-Albategnius:-11.2:4.1:4.5:false:false:true
-Theophilus:-11.4:26.4:3.3:false:false:true
-Theophrastus:17.5:39.0:0.3:false:false:true
-Cyrillus:-13.2:24.0:3.2:false:false:true
-Catharina:-18.1:23.4:3.3:false:false:true
-Piccolomini:-29.7:32.2:2.9:false:false:true
-Langrenus:-8.9:61.1:4.4:false:false:true
-Petavius:-25.3:60.4:5.9:false:false:true
-Vendelinus:-16.4:61.8:5.0:false:false:true
-Furnerius:-36.3:60.4:4.2:false:false:true
-Janssen:-45.4:40.8:6.3:false:false:true
-Fabricius:-42.9:42.0:2.6:false:false:true
-Metius:-40.3:43.3:2.9:false:false:true
-Rheita:-37.1:47.2:2.3:false:false:true
-Stevinus:-32.5:54.2:2.5:false:false:true
-Snellius:-29.3:55.7:2.8:false:false:true
-Hase:-29.4:62.5:2.8:false:false:true
-Reichenbach:-30.3:48.0:1.6:false:false:true
-Steinheil:-48.6:46.5:2.2:false:false:true
-Watt:-49.5:48.6:2.2:false:false:true
-Biela:-54.9:51.3:2.5:false:false:true
-Rosenberger:-55.4:43.1:3.2:false:false:true
-Vlacq:-53.3:38.8:2.9:false:false:true
-Hommel:-54.7:33.8:4.0:false:false:true
-Pitiscus:-50.4:30.9:2.8:false:false:true
-Maurolycus:-42.0:14.0:3.9:false:false:true
-Stofler:-41.1:6.0:4.0:false:false:true
-Faraday:-42.4:8.7:2.3:false:false:true
-Licetus:-47.1:6.7:2.5:false:false:true
-Cuvier:-50.3:9.9:2.5:false:false:true
-Heraclitus:-49.2:6.2:3.0:false:false:true
-Lilius:-54.5:6.2:2.0:false:false:true
-Jacobi:-56.7:11.4:2.2:false:false:true
-Zach:-60.9:5.3:2.3:false:false:true
-Curtius:-67.2:4.4:3.2:false:false:true
-Moretus:-70.6:-5.5:3.9:false:false:true
-Short:-74.6:7.3:1.6:false:false:true
-Newton:-76.7:-16.9:2.6:false:false:true
-Clavius:-58.4:-14.4:7.6:false:false:true
-Blancanus:-63.6:-21.3:3.5:false:false:true
-Scheiner:-60.5:-27.5:3.6:false:false:true
-Longomontanus:-49.5:-21.7:5.0:false:false:true
-Maginus:-50.5:-6.2:5.7:false:false:true
-Tycho A:-42.5:-9.1:0.5:false:false:true
-Wilhelm:-43.4:-20.4:3.5:false:false:true
-Heinsius:-39.5:-17.7:2.2:false:false:true
-Orontius:-40.6:-4.6:3.9:false:false:true
-Sasserides:-39.1:-9.2:3.0:false:false:true
-Pictet:-43.6:-7.3:2.0:false:false:true
-Street:-46.5:-10.5:1.8:false:false:true
-Ball:-35.9:-8.4:1.3:false:false:true
-Deslandres:-32.5:-5.2:7.6:false:false:true
-Walter:-33.1:-0.7:4.5:false:false:true
-Regiomontanus:-28.3:-1.0:4.0:false:false:true
-Purbach:-25.5:-2.0:3.9:false:false:true
-La Caille:-23.8:-1.1:2.2:false:false:true
-Blanchinus:-25.4:2.5:2.0:false:false:true
-Werner:-28.0:3.3:2.3:false:false:true
-Aliacensis:-30.6:5.2:2.7:false:false:true
-Apianus:-26.9:7.9:2.1:false:false:true
-Playfair:-23.5:8.4:1.6:false:false:true
-Airy:-18.1:5.7:1.2:false:false:true
-Argelander:-16.5:5.8:1.1:false:false:true
-Vogel:-15.1:5.9:0.9:false:false:true
-Burnham:-13.9:7.3:0.8:false:false:true
-Tacitus:-16.2:19.0:1.3:false:false:true
-Fermat:-22.6:19.8:1.3:false:false:true
-Pons:-25.3:21.5:1.3:false:false:true
-Polybius:-22.4:25.6:1.3:false:false:true
-Beaumont:-18.0:28.8:1.7:false:false:true
-Fracastorius:-21.5:33.2:4.0:false:false:true
-Rosse:-17.9:35.0:0.4:false:false:true
-Santbech:-20.9:44.0:2.1:false:false:true
-Colombo:-15.1:45.8:2.5:false:false:true
-Cook:-17.5:48.9:1.5:false:false:true
-Monge:-19.2:47.6:1.2:false:false:true
-Bellot:-12.4:48.2:0.6:false:false:true
-Crozier:-13.5:50.8:0.7:false:false:true
-McClure:-15.3:50.3:0.8:false:false:true
-Wrottesley:-23.9:56.8:1.8:false:false:true
-Adams:-31.9:68.2:2.2:false:false:true
-Legendre:-28.9:70.2:2.5:false:false:true
-Palitzsch:-28.0:64.5:1.3:false:false:true
-Hase A:-30.6:63.5:0.8:false:false:true
-Ansgarius:-12.7:79.7:2.9:false:false:true
-La Perouse:-10.7:76.3:2.5:false:false:true
-Kapteyn:-10.8:70.6:1.1:false:false:true
-Kastner:-6.8:79.1:3.6:false:false:true
-Gilbert:-3.2:76.0:3.5:false:false:true
-Hubble:22.1:86.9:2.7:false:false:true
-Joliot:25.8:93.1:5.7:false:false:true
-Lomonosov:27.3:98.0:3.0:false:false:true
-Fleming:15.0:109.6:3.4:false:false:true
-Heaviside:-10.4:167.1:5.7:false:false:true
-Tsiolkovskiy:-21.2:128.9:5.9:false:false:true
-Aitken:-16.8:173.4:4.4:false:false:true
-Van de Graaff:-27.4:172.2:8.3:false:false:true
-Gagarin:-20.2:149.2:9.2:false:false:true
-Korolev:-4.0:-157.4:14.2:false:false:true
-Hertzsprung:2.6:-129.2:18.2:false:false:true
-Apollo:-36.1:-151.8:17.8:false:false:true
-Planck:-57.9:136.8:10.6:false:false:true
-Schrodinger:-75.0:132.4:10.6:false:false:true
-Zeeman:-75.2:133.6:6.3:false:false:true
-Bailly:-66.5:-69.1:10.6:false:false:true
-Drygalski:-79.3:-84.9:5.0:false:false:true
-Schiller:-51.9:-39.0:5.9:false:false:true
-Phocylides:-52.7:-57.4:3.9:false:false:true
-Nasmyth:-50.5:-56.2:2.5:false:false:true
-Wargentin:-49.6:-60.2:2.8:false:false:true
-Schickard:-44.4:-54.6:7.2:false:false:true
-Inghirami:-47.5:-68.8:3.0:false:false:true
-Hainzel:-41.3:-33.5:2.3:false:false:true
-Mee:-43.7:-35.3:4.0:false:false:true
-Lacroix:-37.9:-59.0:1.2:false:false:true
-Vieta:-29.2:-56.3:2.9:false:false:true
-Fourier:-30.3:-53.0:1.7:false:false:true
-Cavendish:-24.5:-53.7:1.8:false:false:true
-Henry:-24.0:-56.8:1.4:false:false:true
-De Gasparis:-25.9:-50.7:1.0:false:false:true
-Mersenius:-21.5:-49.2:2.8:false:false:true
-Liebig:-24.3:-48.2:1.2:false:false:true
-Byrgius:-24.7:-65.3:2.9:false:false:true
-Cruger:-16.7:-66.8:1.5:false:false:true
-Darwin:-20.2:-69.5:4.2:false:false:true
-Lamarck:-22.9:-69.8:3.5:false:false:true
-Rocca:-12.7:-72.8:2.9:false:false:true
-Grimaldi:-5.2:-68.6:7.2:false:false:true
-Riccioli:-3.0:-74.6:5.0:false:false:true
-Olbers:7.4:-75.9:2.5:false:false:true
-Glushko:8.4:-77.6:1.4:false:false:true
-Hevelius:2.2:-67.6:3.9:false:false:true
-Cavalerius:5.1:-66.9:2.0:false:false:true
+Tycho:-43.30:-11.22:2.81:false:false:true:6163
+Copernicus:9.62:-20.08:3.17:false:false:true:1296
+Kepler:8.12:-38.01:0.97:false:false:true:2990
+Aristarchus:23.73:-47.49:1.32:false:false:true:380
+Plato:51.62:-9.38:3.32:false:false:true:4757
+Plato B:53.10:-17.30:0.41:false:false:true:12115
+Plato D:49.69:-14.57:0.31:false:false:true:12117
+Plato E:49.77:-16.19:0.22:false:false:true:12118
+Plato H:55.16:-2.03:0.35:false:false:true:12121
+Plato J:49.05:-4.58:0.25:false:false:true:12122
+Plato K:46.83:-3.26:0.21:false:false:true:12123
+Plato KA:46.79:-3.58:0.18:false:false:true:12124
+Plato P:51.53:-15.21:0.27:false:false:true:12128
+Archimedes:29.72:-3.99:2.67:false:false:true:350
+Eratosthenes:14.47:-11.32:1.94:false:false:true:1820
+Ptolemaeus:-9.16:-1.84:5.06:false:false:true:4860
+Herschel:-5.69:-2.09:1.29:false:false:true:2477
+Alphonsus:-13.39:-2.85:3.64:false:false:true:206
+Alpetragius:-16.05:-4.51:1.32:false:false:true:202
+Arzachel:-18.26:-1.93:3.2:false:false:true:412
+Thebit:-22.01:-4.02:1.8:false:false:true:5957
+Hipparchus:-5.36:4.91:4.74:false:false:true:2516
+Albategnius:-11.24:4.01:4.31:false:false:true:162
+Theophilus:-11.45:26.28:3.25:false:false:true:5965
+Theophrastus:17.46:39.06:0.26:false:false:true:5966
+Cyrillus:-13.29:24.07:3.23:false:false:true:1372
+Catharina:-17.98:23.55:3.26:false:false:true:1076
+Piccolomini:-29.70:32.20:2.89:false:false:true:4721
+Langrenus:-8.86:61.04:4.35:false:false:true:3273
+Petavius:-25.39:60.78:6.07:false:false:true:4668
+Vendelinus:-16.46:61.55:4.65:false:false:true:6346
+Furnerius:-36.00:60.54:4.45:false:false:true:2043
+Janssen:-44.96:40.82:6.61:false:false:true:2800
+Fabricius:-42.75:41.84:2.6:false:false:true:1895
+Metius:-40.42:43.37:2.76:false:false:true:3873
+Rheita:-37.10:47.17:2.33:false:false:true:5015
+Stevinus:-32.49:54.14:2.36:false:false:true:5704
+Snellius:-29.33:55.70:2.83:false:false:true:5609
+Hase:-29.37:62.68:2.71:false:false:true:2380
+Reichenbach:-30.48:47.95:2.14:false:false:true:4981
+Steinheil:-48.71:46.66:2.09:false:false:true:5693
+Watt:-49.60:48.48:2.19:false:false:true:6497
+Biela:-54.99:51.63:2.54:false:false:true:739
+Rosenberger:-55.49:43.15:3.02:false:false:true:5189
+Vlacq:-53.39:38.69:2.94:false:false:true:6420
+Hommel:-54.74:32.93:3.74:false:false:true:2546
+Pitiscus:-50.61:30.57:2.63:false:false:true:4741
+Maurolycus:-41.77:13.92:3.8:false:false:true:3760
+Stofler:-41.24:5.93:4.28:false:false:true:5736
+Faraday:-42.45:8.75:2.28:false:false:true:1911
+Licetus:-47.19:6.54:2.49:false:false:true:3392
+Cuvier:-50.29:9.69:2.55:false:false:true:1356
+Heraclitus:-49.31:6.42:2.83:false:false:true:2465
+Lilius:-54.60:6.09:2.02:false:false:true:3402
+Jacobi:-56.82:11.30:2.18:false:false:true:2782
+Zach:-60.92:5.25:2.26:false:false:true:6690
+Curtius:-67.08:4.40:3.27:false:false:true:1353
+Moretus:-70.63:-5.95:3.77:false:false:true:4034
+Short:-74.54:-7.68:2.24:false:false:true:5499
+Newton:-76.52:-17.44:2.76:false:false:true:4235
+Clavius:-58.62:-14.73:7.61:false:false:true:1236
+Blancanus:-63.77:-21.63:3.49:false:false:true:767
+Scheiner:-60.35:-27.81:3.63:false:false:true:5364
+Longomontanus:-49.55:-21.88:4.8:false:false:true:3465
+Maginus:-50.03:-5.98:5.13:false:false:true:3581
+Tycho A:-39.94:-12.07:0.95:false:false:true:13551
+Wilhelm:-43.21:-20.94:3.32:false:false:true:6548
+Heinsius:-39.48:-17.82:2.14:false:false:true:2417
+Orontius:-40.37:-3.96:3.99:false:false:true:4497
+Sasserides:-39.28:-9.44:2.69:false:false:true:5335
+Pictet:-43.56:-7.49:1.98:false:false:true:4724
+Street:-46.58:-10.74:1.93:false:false:true:5724
+Ball:-35.92:-8.39:1.33:false:false:true:579
+Deslandres:-32.55:-5.57:7.48:false:false:true:1502
+Walter:28.04:-33.81:0.04:false:false:true:6482
+Regiomontanus:-28.28:-1.09:4.17:false:false:true:4979
+Purbach:-25.51:-2.03:3.79:false:false:true:4872
+La Caille:-23.68:1.08:2.22:false:false:true:3185
+Blanchinus:-25.32:2.44:1.97:false:false:true:770
+Werner:-28.03:3.29:2.33:false:false:true:6523
+Aliacensis:-30.60:5.13:2.63:false:false:true:185
+Apianus:-26.96:7.87:2.09:false:false:true:320
+Playfair:-23.56:8.45:1.64:false:false:true:4759
+Airy:-18.14:5.61:1.28:false:false:true:113
+Argelander:-16.55:5.80:1.11:false:false:true:363
+Vogel:-15.11:5.83:0.87:false:false:true:6425
+Burnham:-13.92:7.25:0.79:false:false:true:925
+Tacitus:-16.20:18.95:1.31:false:false:true:5814
+Fermat:-22.71:19.79:1.25:false:false:true:1939
+Pons:-25.43:21.55:1.31:false:false:true:4795
+Polybius:-22.46:25.63:1.35:false:false:true:4786
+Beaumont:-18.08:28.82:1.67:false:false:true:653
+Fracastorius:-21.36:33.07:3.97:false:false:true:2008
+Rosse:-17.95:34.98:0.38:false:false:true:5195
+Santbech:-20.99:44.06:2.05:false:false:true:5314
+Colombo:-15.26:46.02:2.6:false:false:true:1273
+Cook:-17.50:48.81:1.49:false:false:true:1292
+Monge:-19.24:47.54:1.21:false:false:true:3965
+Bellot:-12.48:48.19:0.58:false:false:true:677
+Crozier:-13.56:50.72:0.74:false:false:true:1340
+McClure:-15.32:50.24:0.79:false:false:true:3778
+Wrottesley:-23.90:56.62:1.92:false:false:true:6583
+Adams:-31.89:68.39:2.09:false:false:true:47
+Legendre:-28.92:70.02:2.57:false:false:true:3330
+Palitzsch:-28.02:64.39:1.38:false:false:true:4558
+Hase A:-29.06:62.94:0.48:false:false:true:9744
+Ansgarius:-12.92:79.72:3.01:false:false:true:289
+La Perouse:-10.67:76.28:2.65:false:false:true:3189
+Kapteyn:-10.79:70.59:1.6:false:false:true:2924
+Kastner:-6.90:78.94:3.83:false:false:true:3182
+Gilbert:-3.19:76.16:3.3:false:false:true:2159
+Hubble:22.29:86.91:2.7:false:false:true:2573
+Joliot:25.79:93.39:5.7:false:false:true:2839
+Lomonosov:27.35:98.28:2.99:false:false:true:3462
+Fleming:14.91:109.28:4.17:false:false:true:1979
+Heaviside:-10.44:166.77:5.42:false:false:true:2400
+Tsiolkovskiy:-20.38:128.97:6.08:false:false:true:6108
+Aitken:-16.44:172.96:4.27:false:false:true:119
+Van de Graaff:-27.04:172.01:7.93:false:false:true:6305
+Gagarin:-19.66:149.35:8.63:false:false:true:2054
+Korolev:-4.19:-157.41:13.96:false:false:true:3090
+Hertzsprung:1.37:-128.66:17.68:false:false:true:2482
+Apollo:-35.69:-151.48:17.28:false:false:true:326
+Planck:-57.27:135.34:10.53:false:false:true:4749
+Schrodinger:-74.73:132.93:10.43:false:false:true:5381
+Zeeman:-75.07:-135.06:6.15:false:false:true:6711
+Bailly:-66.82:-68.90:9.91:false:false:true:561
+Drygalski:-79.57:-87.18:5.36:false:false:true:1645
+Schiller:-51.72:-39.78:5.91:false:false:true:5369
+Phocylides:-52.79:-57.31:3.8:false:false:true:4704
+Nasmyth:-50.49:-56.39:2.58:false:false:true:4158
+Wargentin:-49.53:-60.44:2.79:false:false:true:6488
+Schickard:-44.38:-55.11:6.99:false:false:true:5368
+Inghirami:-47.49:-68.95:3.12:false:false:true:2692
+Hainzel:-41.23:-33.52:2.33:false:false:true:2317
+Mee:-43.63:-35.19:4.42:false:false:true:3797
+Lacroix:-37.93:-59.20:1.19:false:false:true:3201
+Vieta:-29.31:-56.53:2.87:false:false:true:6384
+Fourier:-30.31:-53.10:1.7:false:false:true:2003
+Cavendish:-24.63:-53.78:1.73:false:false:true:1086
+Henry:-23.97:-57.01:1.29:false:false:true:2451
+De Gasparis:-25.83:-50.83:1.02:false:false:true:1438
+Mersenius:-21.49:-49.34:2.78:false:false:true:3862
+Liebig:-24.35:-48.30:1.28:false:false:true:3397
+Byrgius:-24.73:-65.38:2.78:false:false:true:943
+Cruger:-16.68:-66.96:1.51:false:false:true:1343
+Darwin:-19.93:-69.21:4.03:false:false:true:1417
+Lamarck:-23.12:-70.06:3.78:false:false:true:3249
+Rocca:-12.89:-72.89:2.77:false:false:true:5164
+Grimaldi:-5.38:-68.36:7.75:false:false:true:2252
+Riccioli:-2.90:-74.42:5.13:false:false:true:5022
+Olbers:7.30:-76.14:2.41:false:false:true:4432
+Glushko:8.11:-77.67:1.32:false:false:true:2195
+Hevelius:2.20:-67.46:3.75:false:false:true:2493
+Cavalerius:5.10:-66.93:1.96:false:false:true:1083
 Galilei:10.5:-62.7:0.5:false:false:true
-Reiner:7.0:-54.9:1.0:false:false:true
-Marius:11.9:-50.8:1.3:false:false:true
-Kepler A:7.2:-36.2:0.4:false:false:true
-Encke:4.6:-36.6:0.9:false:false:true
-Kunowsky:3.2:-32.5:0.6:false:false:true
-Hortensius:6.5:-28.0:0.5:false:false:true
-Milichius:10.0:-30.2:0.4:false:false:true
+Reiner:6.92:-54.98:0.98:false:false:true:4986
+Marius:11.90:-50.84:1.32:false:false:true:3715
+Kepler A:7.14:-36.12:0.35:false:false:true:10308
+Encke:4.57:-36.68:0.93:false:false:true:1796
+Kunowsky:3.22:-32.53:0.6:false:false:true:3161
+Hortensius:6.47:-28.00:0.47:false:false:true:2559
+Milichius:10.01:-30.23:0.4:false:false:true:3897
 Tobias Mayer:15.6:-29.1:1.1:false:false:true
-Euler:23.3:-29.2:0.9:false:false:true
-Euler E:24.7:-34.0:0.20:false:false:true
-Lambert:25.8:-21.0:1.0:false:false:true
-Timocharis:26.7:-13.1:1.1:false:false:true
-Heinrich:24.8:-15.3:0.20:false:false:true
-Pytheas:20.5:-20.6:0.7:false:false:true
-Gay-Lussac:13.9:-20.8:0.8:false:false:true
-Draper:17.6:-21.7:0.3:false:false:true
-Draper C:17.1:-21.5:0.24:false:false:true
-C. Herschel:34.5:-31.2:0.4:false:false:true
-C. Herschel C:37.2:-32.5:0.23:false:false:true
-Helicon:40.4:-23.1:0.8:false:false:true
-Helicon B:38.0:-21.3:0.2:false:false:true
-Le Verrier:40.3:-20.6:0.7:false:false:true
-Le Verrier B:40.2:-12.9:0.17:false:false:true
-Le Verrier D:39.7:-12.3:0.3:false:false:true
-Le Verrier E:42.4:-17.0:0.23:false:false:true
-Bianchini:48.7:-34.3:1.2:false:false:true
-Bliss:53.0:-13.5:0.66:false:false:true
-Carlini:33.7:-24.1:0.36:false:false:true
-Carlini A:35.4:-26.6:0.23:false:false:true
-Carlini D:33.0:-16.0:0.3:false:false:true
-Carlini S:37.9:-27.2:0.13:false:false:true
-Heis:32.4:-31.9:0.46:false:false:true
-Heis D:31.7:-31.1:0.26:false:false:true
-Landsteiner:31.3:-14.8:0.2:false:false:true
-Beer:27.1:-9.1:0.33:false:false:true
-Feuillee:27.4:-9.4:0.3:false:false:true
-Timocharis B:27.9:-12.1:0.17:false:false:true
-Aristillus B:34.8:-1.9:0.26:false:false:true
-Archimedes C:31.6:-1.5:0.26:false:false:true
-McDonald:30.4:-20.9:0.26:false:false:true
-Sharp:45.7:-40.2:1.3:false:false:true
-Mairan:41.6:-43.4:1.3:false:false:true
-Mairan A:38.6:-38.8:0.53:false:false:true
-Louville:44.0:-46.0:1.2:false:false:true
-Gruithuisen:32.9:-39.7:0.5:false:false:true
-Gruithuisen B:35.6:-38.8:0.3:false:false:true
-Delisle:29.9:-34.6:0.8:false:false:true
-Diophantus:27.6:-34.3:0.6:false:false:true
-Fedorov:28.2:-37.0:0.2:false:false:true
-Krieger:29.0:-45.6:0.7:false:false:true
-Rocco:29.0:-44.6:0.2:false:false:true
-Lichtenberg:31.8:-67.7:0.7:false:false:true
-Naumann:35.4:-62.0:0.3:false:false:true
-Wollaston:30.6:-46.9:0.3:false:false:true
-Angstrom:29.9:-41.6:0.3:false:false:true
-Briggs:26.5:-69.1:1.2:false:false:true
-Seleucus:21.0:-66.6:1.4:false:false:true
-Eddington:21.3:-72.2:4.0:false:false:true
-Struve:22.4:-77.1:5.7:false:false:true
-Russell:26.5:-75.4:3.2:false:false:true
-Balboa:19.1:-83.2:2.3:false:false:true
-Dalton:17.1:-84.3:1.9:false:false:true
-Einstein:16.6:-88.7:5.7:false:false:true
-Moseley:20.9:-90.1:2.9:false:false:true
-Bohr:12.4:-86.6:2.3:false:false:true
-Vasco da Gama:13.6:-83.9:3.2:false:false:true
-Bunsen:41.4:-85.3:1.7:false:false:true
-Gerard:44.5:-80.0:3.0:false:false:true
-Cremona:67.5:-90.6:2.8:false:false:true
-Galvani:49.6:-84.6:2.7:false:false:true
-Repsold:51.3:-78.6:3.5:false:false:true
-Volta:53.9:-84.4:4.0:false:false:true
-Stokes:52.5:-88.1:1.7:false:false:true
-Langley:51.1:-86.3:1.8:false:false:true
-Carpenter:69.4:-50.9:1.9:false:false:true
-Anaximander:66.9:-51.3:2.9:false:false:true
-Philolaus:72.1:-32.4:2.4:false:false:true
-Anaxagoras:73.4:-10.1:1.7:false:false:true
-Goldschmidt:73.2:3.8:3.9:false:false:true
-Meton:73.6:19.2:4.2:false:false:true
-Barrow:71.3:7.7:3.0:false:false:true
-W. Bond:65.4:4.2:5.2:false:false:true
-G. Bond:32.4:36.2:0.6:false:false:true
-Protagoras:56.0:7.3:0.73:false:false:true
-Archytas:58.7:5.0:1.06:false:false:true
-Timaeus:62.8:-0.5:1.1:false:false:true
-Birmingham:65.1:-10.5:3.0:false:false:true
-Epigenes:67.5:-4.6:1.8:false:false:true
-Fontenelle:63.4:-18.9:1.2:false:false:true
-La Condamine:53.4:-28.2:1.2:false:false:true
-Maupertuis:49.6:-27.3:1.5:false:false:true
-Harpalus:52.6:-43.4:1.3:false:false:true
-Foucault:50.4:-39.7:0.8:false:false:true
-South:58.0:-50.8:3.6:false:false:true
-Babbage:59.7:-57.1:5.0:false:false:true
-Pythagoras:63.5:-63.0:4.3:false:false:true
-Oenopides:57.0:-64.1:2.2:false:false:true
-Xenophanes:57.5:-77.6:3.9:false:false:true
-Robinson:59.0:-45.9:0.8:false:false:true
-J. Herschel:62.0:-41.1:4.9:false:false:true
-Horrebow:58.7:-40.8:0.8:false:false:true
-Scoresby:77.7:-14.1:1.8:false:false:true
-Challis:79.5:-9.6:1.9:false:false:true
-Gioja:83.3:-2.0:1.4:false:false:true
-Main:80.8:-10.1:1.6:false:false:true
-Peary:88.6:33.0:2.5:false:false:true
-Byrd:85.3:9.8:3.0:false:false:true
-Hermite:86.0:-89.9:3.5:false:false:true
-Nansen:81.3:95.3:3.9:false:false:true
-Rozhdestvenskiy:85.2:155.4:5.9:false:false:true
-Arnold:66.8:35.9:3.2:false:false:true
-Moigno:66.4:28.9:1.2:false:false:true
-Gartner:59.1:34.6:3.5:false:false:true
-Democritus:62.3:35.0:1.3:false:false:true
-Thales:61.8:50.3:1.0:false:false:true
-Strabo:61.9:54.3:1.8:false:false:true
-De La Rue:59.1:52.3:4.6:false:false:true
-Endymion:53.6:56.5:4.0:false:false:true
-Atlas:46.7:44.4:2.9:false:false:true
-Atlas A:45.3:49.6:0.73:false:false:true
-Keldysh:51.23:43.65:1.08:false:false:true
-Hercules:46.7:39.1:2.3:false:false:true
-Bürg:45.0:28.2:1.3:false:false:true
-Bürg A:46.8:33.1:0.40:false:false:true
-Eudoxus:44.3:16.3:2.2:false:false:true
-Eudoxus A:45.8:20.0:0.46:false:false:true
-Eudoxus B:45.6:17.4:0.26:false:false:true
-Lamech:42.7:13.1:0.43:false:false:true
-Aristoteles:50.2:17.4:2.9:false:false:true
-Sheepshanks:59.2:16.9:0.7:false:false:true
-Galle:55.9:22.3:0.7:false:false:true
-Egede:48.7:-10.6:1.2:false:false:true
-Egede A:51.6:10.5:0.43:false:false:true
-Egede B:50.5:8.9:0.26:false:false:true
-Cassini:40.2:4.6:1.9:false:false:true
-Cassini A:40.5:4.8:0.5:false:false:true
-Cassini B:39.9:3.9:0.3:false:false:true
-Cassini C:41.7:7.8:0.46:false:false:true
-Cassini E:42.9:7.3:0.33:false:false:true
-Cassini F:40.9:7.3:0.23:false:false:true
-Cassini M:41.3:3.7:0.26:false:false:true
-Theaetetus:37.0:6.0:0.8:false:false:true
-Calippus:38.9:10.9:1.1:false:false:true
-Alexander:40.3:13.5:2.8:false:false:true
-Euctemon:76.4:-31.3:2.0:false:false:true
-Kane:63.1:26.1:1.7:false:false:true
-Baily:49.7:30.4:0.9:false:false:true
-Baily A:48.6:31.3:0.53:false:false:true
-Geminus:34.5:56.7:2.9:false:false:true
-Burckhardt:31.1:56.5:1.9:false:false:true
-Cleomedes:27.7:55.5:4.3:false:false:true
-Tralles:28.4:52.8:1.4:false:false:true
-Macrobius:21.3:46.0:2.1:false:false:true
-Tisserand:21.4:48.2:1.2:false:false:true
-Römer:25.4:36.4:1.3:false:false:true
-Le Monnier:26.6:30.6:2.0:false:false:true
-Chacornac:29.8:31.7:1.7:false:false:true
-Posidonius:31.8:29.9:3.3:false:false:true
-Posidonius P:33.5:27.5:0.35:false:false:true
-Luther:33.2:24.1:0.3:false:false:true
-Franck:22.6:35.5:0.35:false:false:true
-Brewster:23.3:34.7:0.3:false:false:true
-Daniell:35.5:31.1:1.0:false:false:true
-Grove:40.3:32.9:0.9:false:false:true
-Maury:37.1:39.6:0.5:false:false:true
-Maury A:36.0:41.9:0.5:false:false:true
-Williams:42.0:37.2:1.3:false:false:true
-Mason:42.6:30.5:1.1:false:false:true
-Plana:42.2:28.2:1.5:false:false:true
-Plana C:42.8:27.1:0.4:false:false:true
-Burg:45.0:28.2:1.3:false:false:true
-Franklin:38.8:47.7:1.9:false:false:true
-Cepheus:40.8:45.8:1.3:false:false:true
-Oersted:43.1:47.2:1.4:false:false:true
-Chevallier:44.9:51.2:1.7:false:false:true
-Chladni:4.0:1.1:0.4:false:false:true
-Shuckburgh:42.6:52.8:1.3:false:false:true
-Hooke:41.2:54.9:1.2:false:false:true
-Beketov:16.3:29.2:0.3:false:false:true
-Berosus:33.5:69.9:2.5:false:false:true
-Cajal:12.6:31.1:0.3:false:false:true
-Hahn:31.3:73.6:2.8:false:false:true
-Gardner:17.7:33.8:0.6:false:false:true
-Gauss:35.7:79.0:5.7:false:false:true
-Riemann:38.9:87.0:5.2:false:false:true
-Lyapunov:26.3:89.3:2.2:false:false:true
-Rayleigh:29.3:89.6:3.9:false:false:true
-Goddard:14.8:89.0:2.9:false:false:true
-Ibn Yunus:14.1:91.1:1.8:false:false:true
-Al-Biruni:17.9:92.5:2.0:false:false:true
-Neper:8.8:84.5:3.9:false:false:true
-Jansky:8.5:89.5:2.3:false:false:true
-Condorcet:12.1:69.6:2.5:false:false:true
-Hansen:14.0:72.5:1.3:false:false:true
-Alhazen:15.9:71.8:1.1:false:false:true
-Plutarch:24.1:79.0:2.2:false:false:true
-Seneca:26.6:80.2:1.6:false:false:true
-Haldane:-1.7:84.1:1.2:false:false:true
-Schubert:2.8:81.0:1.6:false:false:true
-Back:-1.1:80.7:1.1:false:false:true
-Jenkins:-0.3:78.1:1.3:false:false:true
-Firmicus:7.3:63.4:1.9:false:false:true
-Apollonius:4.5:61.1:1.6:false:false:true
-Condon:1.9:60.3:1.6:false:false:true
-Respighi:2.8:71.9:0.6:false:false:true
-Auzout:10.3:64.1:1.1:false:false:true
-Carmichael:19.6:40.4:0.7:false:false:true
-Hill:20.9:40.8:0.5:false:false:true
-Proclus:16.1:46.8:0.9:false:false:true
-Proclus A:13.3:42.25:0.3:false:false:true
-Proclus D:17.5:41.0:0.3:false:false:true
-Picard:14.6:54.7:0.7:false:false:true
-Yerkes:14.6:51.7:1.2:false:false:true
-Peirce:18.3:53.5:0.6:false:false:true
-Swift:19.3:53.4:0.3:false:false:true
-Greaves:13.2:52.7:0.4:false:false:true
-Lick:12.4:52.7:0.5:false:false:true
-Franz:16.6:40.2:0.8:false:false:true
-Lyell:13.6:40.6:1.1:false:false:true
-Vitruvius:17.6:31.3:1.0:false:false:true
-Maraldi:19.4:34.9:1.3:false:false:true
-Littrow:21.5:31.4:1.0:false:false:true
-Clerke:21.7:29.8:0.2:false:false:true
-Dawes:17.2:26.4:0.6:false:false:true
-Delambre:-1.9:17.5:1.7:false:false:true
-Plinius:15.4:23.7:1.4:false:false:true
-Ross:11.7:21.7:0.8:false:false:true
-Arago:6.2:21.4:0.9:false:false:true
-Manners:4.6:20.0:0.5:false:false:true
-Maclear:10.5:20.1:0.7:false:false:true
-Sosigenes:8.7:17.6:0.6:false:false:true
-Sosigenes A:7.7:18.4:0.4:false:false:true
-Julius Caesar:9.0:15.4:3.0:false:false:true
-Boscovich:9.8:11.1:1.5:false:false:true
-Manilius:14.5:9.1:1.3:false:false:true
-Menelaus:16.3:16.0:0.9:false:false:true
-Bessel:21.8:17.9:0.5:false:false:true
-Deseilligny:21.1:20.6:0.2:false:false:true
-Sulpicius Gallus:19.6:11.6:0.4:false:false:true
-Conon:21.6:2.0:0.7:false:false:true
-Aratus:23.6:4.5:0.3:false:false:true
-Autolycus:30.7:1.5:1.3:false:false:true
-Aristillus:33.9:1.2:1.8:false:false:true
-Bancroft:28.0:-6.4:0.43:false:false:true
-Kirch:39.2:-5.5:0.4:false:false:true
-Piazzi Smyth:41.9:-3.2:0.4:false:false:true
+Euler:23.26:-29.18:0.86:false:false:true:1866
+Euler E:24.70:-34.07:0.2:false:false:true:9015
+Lambert:25.77:-20.99:0.99:false:false:true:3253
+Timocharis:26.72:-13.10:1.13:false:false:true:6012
+Heinrich:24.84:-15.37:0.23:false:false:true:2416
+Pytheas:20.57:-20.59:0.62:false:false:true:4887
+Gay-Lussac:13.88:-20.79:0.84:false:false:true:2124
+Draper:17.56:-21.75:0.27:false:false:true:1635
+Draper C:17.07:-21.51:0.24:false:false:true:8813
+C. Herschel:34.48:-31.29:0.45:false:false:true:950
+C. Herschel C:37.23:-32.62:0.23:false:false:true:8045
+Helicon:40.43:-23.11:0.78:false:false:true:2424
+Helicon B:37.95:-21.30:0.18:false:false:true:9825
+Le Verrier:40.33:-20.61:0.68:false:false:true:3313
+Le Verrier B:40.19:-12.88:0.16:false:false:true:10698
+Le Verrier D:39.74:-12.35:0.29:false:false:true:10699
+Le Verrier E:42.42:-17.01:0.21:false:false:true:10700
+Bianchini:48.78:-34.37:1.24:false:false:true:734
+Bliss:53.04:-13.78:0.75:false:false:true:776
+Carlini:33.75:-24.12:0.35:false:false:true:1018
+Carlini A:35.36:-26.64:0.22:false:false:true:8112
+Carlini D:32.98:-16.03:0.3:false:false:true:8114
+Carlini S:37.91:-27.24:0.14:false:false:true:8120
+Heis:32.47:-31.98:0.45:false:false:true:2418
+Heis D:31.66:-31.11:0.25:false:false:true:9822
+Landsteiner:31.30:-14.79:0.2:false:false:true:3267
+Beer:27.07:-9.10:0.3:false:false:true:658
+Feuillee:27.37:-9.46:0.29:false:false:true:1952
+Timocharis B:27.88:-12.18:0.17:false:false:true:13490
+Aristillus B:34.80:-1.92:0.26:false:false:true:7377
+Archimedes C:31.63:-1.53:0.25:false:false:true:7331
+McDonald:30.39:-20.88:0.23:false:false:true:3779
+Sharp:45.75:-40.22:1.24:false:false:true:5471
+Mairan:41.60:-43.50:1.3:false:false:true:3597
+Mairan A:38.64:-38.78:0.52:false:false:true:11068
+Louville:44.12:-46.04:1.15:false:false:true:3486
+Gruithuisen:32.89:-39.78:0.49:false:false:true:2262
+Gruithuisen B:35.65:-38.75:0.31:false:false:true:9584
+Delisle:29.98:-34.68:0.82:false:false:true:1472
+Diophantus:27.62:-34.30:0.58:false:false:true:1543
+Fedorov:28.23:-37.05:0.2:false:false:true:1928
+Krieger:29.02:-45.61:0.75:false:false:true:3120
+Rocco:28.91:-45.00:0.14:false:false:true:5165
+Lichtenberg:31.85:-67.72:0.64:false:false:true:3393
+Naumann:35.38:-62.02:0.33:false:false:true:4165
+Wollaston:30.60:-46.98:0.32:false:false:true:6570
+Angstrom:29.90:-41.67:0.31:false:false:true:272
+Briggs:26.45:-69.19:1.21:false:false:true:881
+Seleucus:21.09:-66.66:1.48:false:false:true:5418
+Eddington:21.50:-72.02:3.96:false:false:true:1719
+Struve:23.41:-76.65:5.42:false:false:true:5727
+Russell:26.51:-75.55:3.41:false:false:true:5235
+Balboa:19.24:-83.31:2.28:false:false:true:570
+Dalton:17.07:-84.45:2:false:false:true:1392
+Einstein:16.60:-88.65:5.98:false:false:true:1745
+Moseley:20.95:-90.20:2.93:false:false:true:4048
+Bohr:12.71:-86.52:2.31:false:false:true:798
+Vasco da Gama:13.78:-83.94:3.08:false:false:true:6327
+Bunsen:41.40:-85.46:1.82:false:false:true:920
+Gerard:44.54:-80.51:3.26:false:false:true:2143
+Cremona:67.24:-90.86:2.81:false:false:true:1329
+Galvani:49.51:-84.56:2.53:false:false:true:2083
+Repsold:51.31:-78.41:3.58:false:false:true:4999
+Volta:53.90:-84.77:3.86:false:false:true:6430
+Stokes:52.36:-88.11:1.77:false:false:true:5711
+Langley:51.17:-86.05:1.95:false:false:true:3271
+Carpenter:69.52:-51.23:1.95:false:false:true:1026
+Anaximander:66.97:-51.44:2.26:false:false:true:254
+Philolaus:72.22:-32.88:2.35:false:false:true:4691
+Anaxagoras:73.48:-10.17:1.71:false:false:true:252
+Goldschmidt:73.04:-3.37:3.8:false:false:true:2210
+Meton:73.57:19.63:4.11:false:false:true:3874
+Barrow:71.28:7.59:3.09:false:false:true:617
+W. Bond:65.41:3.52:5.62:false:false:true:6466
+G. Bond:32.39:36.32:0.63:false:false:true:2046
+Protagoras:56.02:7.34:0.69:false:false:true:4849
+Archytas:58.87:4.99:1.05:false:false:true:351
+Timaeus:62.91:-0.55:1.08:false:false:true:6008
+Birmingham:65.12:-10.70:2.96:false:false:true:754
+Epigenes:67.50:-4.62:1.8:false:false:true:1815
+Fontenelle:63.42:-18.96:1.24:false:false:true:1992
+La Condamine:53.54:-28.22:1.25:false:false:true:3186
+Maupertuis:49.70:-27.28:1.5:false:false:true:3758
+Harpalus:52.73:-43.49:1.31:false:false:true:2372
+Foucault:50.46:-39.86:0.83:false:false:true:2001
+South:57.58:-50.94:3.92:false:false:true:5655
+Babbage:59.56:-57.38:4.83:false:false:true:533
+Pythagoras:63.68:-62.98:4.76:false:false:true:4886
+Oenopides:57.13:-64.20:2.42:false:false:true:4408
+Xenophanes:57.49:-82.01:3.88:false:false:true:6606
+Robinson:59.06:-46.03:0.79:false:false:true:5163
+J. Herschel:62.31:-41.86:5.09:false:false:true:2779
+Horrebow:58.80:-40.93:0.82:false:false:true:2557
+Scoresby:77.73:14.13:1.81:false:false:true:5394
+Challis:79.58:9.09:1.75:false:false:true:1126
+Gioja:83.35:1.76:1.4:false:false:true:2171
+Main:80.87:10.41:1.56:false:false:true:3595
+Peary:88.63:24.40:2.6:false:false:true:4627
+Byrd:85.43:10.07:3.21:false:false:true:941
+Hermite:86.17:-93.32:3.58:false:false:true:2471
+Nansen:81.17:95.38:3.85:false:false:true:4142
+Rozhdestvenskiy:84.99:-157.89:5.97:false:false:true:5207
+Arnold:66.98:35.83:3.07:false:false:true:387
+Moigno:66.27:28.80:1.21:false:false:true:3947
+Gartner:59.24:34.76:3.35:false:false:true:2302
+Democritus:62.31:34.99:1.25:false:false:true:1483
+Thales:61.74:50.27:1.01:false:false:true:5945
+Strabo:61.94:54.42:1.8:false:false:true:5721
+De La Rue:59.02:52.84:4.46:false:false:true:1440
+Endymion:53.61:56.48:4.02:false:false:true:1799
+Atlas:46.74:44.38:2.9:false:false:true:458
+Atlas A:45.34:49.56:0.73:false:false:true:7417
+Keldysh:51.23:43.65:1.08:false:false:true:2980
+Hercules:46.82:39.21:2.25:false:false:true:2467
+Bürg:45.07:28.21:1.35:false:false:true:948
+Bürg A:46.87:33.06:0.38:false:false:true:8005
+Eudoxus:44.27:16.23:2.31:false:false:true:1863
+Eudoxus A:45.83:20.09:0.44:false:false:true:9007
+Eudoxus B:45.66:17.35:0.25:false:false:true:9008
+Lamech:42.79:13.15:0.41:false:false:true:3262
+Aristoteles:50.24:17.32:2.89:false:false:true:382
+Sheepshanks:59.24:17.04:0.78:false:false:true:5480
+Galle:55.87:22.33:0.69:false:false:true:2079
+Egede:48.72:10.64:1.13:false:false:true:1728
+Egede A:51.57:10.50:0.4:false:false:true:8879
+Egede B:50.59:8.92:0.24:false:false:true:8880
+Cassini:40.25:4.64:1.87:false:false:true:1045
+Cassini A:40.51:4.78:0.55:false:false:true:8140
+Cassini B:40.02:3.87:0.31:false:false:true:8141
+Cassini C:41.76:7.80:0.45:false:false:true:8142
+Cassini E:42.98:7.34:0.31:false:false:true:8143
+Cassini F:40.92:7.28:0.22:false:false:true:8144
+Cassini M:41.38:3.75:0.26:false:false:true:8148
+Theaetetus:37.01:6.06:0.81:false:false:true:5955
+Calippus:38.92:10.72:1.12:false:false:true:972
+Alexander:40.25:13.69:3.12:false:false:true:177
+Euctemon:76.26:30.57:2.07:false:false:true:1861
+Kane:62.99:25.84:1.81:false:false:true:2913
+Baily:49.78:30.56:0.85:false:false:true:562
+Baily A:48.71:31.39:0.54:false:false:true:7511
+Geminus:34.42:56.66:2.7:false:false:true:2137
+Burckhardt:31.11:56.39:1.79:false:false:true:922
+Cleomedes:27.60:55.50:4.31:false:false:true:1239
+Tralles:28.32:52.85:1.46:false:false:true:6076
+Macrobius:21.26:45.97:2.07:false:false:true:3560
+Tisserand:21.41:48.17:1.14:false:false:true:6029
+Römer:25.43:36.41:1.44:false:false:true:5254
+Le Monnier:26.66:30.50:2.25:false:false:true:3312
+Chacornac:29.88:31.67:1.66:false:false:true:1117
+Posidonius:31.88:29.99:3.13:false:false:true:4808
+Posidonius P:33.60:27.58:0.48:false:false:true:12292
+Luther:33.20:24.15:0.31:false:false:true:3523
+Franck:22.59:35.56:0.39:false:false:true:2012
+Brewster:23.27:34.69:0.32:false:false:true:874
+Daniell:35.42:31.16:0.93:false:false:true:1400
+Grove:40.30:32.98:0.94:false:false:true:2259
+Maury:37.11:39.69:0.55:false:false:true:3761
+Maury A:35.99:41.90:0.7:false:false:true:11247
+Williams:42.02:37.31:1.2:false:false:true:6551
+Mason:42.70:30.51:1.1:false:false:true:3742
+Plana:42.25:28.22:1.42:false:false:true:4748
+Plana C:42.80:27.14:0.45:false:false:true:12095
+Burg:45.07:28.21:1.35:false:false:true:948
+Franklin:38.73:47.64:1.84:false:false:true:2014
+Cepheus:40.68:45.78:1.3:false:false:true:1102
+Oersted:43.09:47.25:1.39:false:false:true:4410
+Chevallier:45.01:51.57:1.71:false:false:true:1176
+Chladni:3.99:1.12:0.43:false:false:true:1190
+Shuckburgh:42.65:52.71:1.24:false:false:true:5504
+Hooke:41.14:54.86:1.13:false:false:true:2548
+Beketov:16.23:29.18:0.27:false:false:true:666
+Berosus:33.50:69.99:2.48:false:false:true:710
+Cajal:12.59:31.08:0.28:false:false:true:964
+Hahn:31.22:73.55:2.88:false:false:true:2314
+Gardner:17.75:33.81:0.58:false:false:true:2104
+Gauss:36.01:79.08:5.63:false:false:true:2120
+Riemann:39.38:87.18:3.88:false:false:true:5030
+Lyapunov:26.43:89.36:2.23:false:false:true:3526
+Rayleigh:29.12:89.45:3.75:false:false:true:4966
+Goddard:15.15:89.13:3.07:false:false:true:2199
+Ibn Yunus:14.14:91.14:1.97:false:false:true:2635
+Al-Biruni:18.07:92.62:2.65:false:false:true:146
+Neper:8.76:84.58:4.76:false:false:true:4208
+Jansky:8.63:89.50:2.43:false:false:true:2799
+Condorcet:12.10:69.58:2.47:false:false:true:1286
+Hansen:14.04:72.54:1.36:false:false:true:2353
+Alhazen:15.91:71.83:1.14:false:false:true:183
+Plutarch:24.18:79.05:2.29:false:false:true:4766
+Seneca:26.71:79.81:1.57:false:false:true:5427
+Haldane:-1.66:84.11:1.33:false:false:true:2319
+Schubert:2.78:81.01:1.71:false:false:true:5383
+Back:1.20:80.67:1.14:false:false:true:541
+Jenkins:0.37:78.04:1.24:false:false:true:2818
+Firmicus:7.25:63.43:1.87:false:false:true:1963
+Apollonius:4.51:60.96:1.67:false:false:true:328
+Condon:1.87:60.36:1.15:false:false:true:1285
+Respighi:2.86:71.90:0.59:false:false:true:5004
+Auzout:10.21:64.01:1.09:false:false:true:497
+Carmichael:19.53:40.36:0.65:false:false:true:1022
+Hill:20.91:40.81:0.52:false:false:true:1022
+Proclus:16.09:46.89:0.89:false:false:true:4827
+Proclus A:13.32:42.23:0.46:false:false:true:12304
+Proclus D:17.43:41.02:0.39:false:false:true:12306
+Picard:14.57:54.72:0.74:false:false:true:4720
+Yerkes:14.60:51.70:1.15:false:false:true:6658
+Peirce:18.26:53.35:0.62:false:false:true:4633
+Swift:19.35:53.44:0.33:false:false:true:5788
+Greaves:13.18:52.79:0.47:false:false:true:2241
+Lick:12.36:52.84:1.04:false:false:true:3394
+Franz:16.57:40.24:0.84:false:false:true:2015
+Lyell:13.63:40.56:1.03:false:false:true:3532
+Vitruvius:17.66:31.28:1.02:false:false:true:6414
+Maraldi:19.36:34.80:1.31:false:false:true:3650
+Littrow:21.50:31.39:0.94:false:false:true:3427
+Clerke:21.68:29.80:0.22:false:false:true:1242
+Dawes:17.21:26.34:0.58:false:false:true:1430
+Delambre:-1.94:17.39:1.7:false:false:true:1467
+Plinius:15.36:23.61:1.36:false:false:true:4762
+Ross:11.67:21.74:0.81:false:false:true:5192
+Arago:6.15:21.43:0.84:false:false:true:337
+Manners:4.57:19.99:0.5:false:false:true:3633
+Maclear:10.52:20.10:0.67:false:false:true:3558
+Sosigenes:8.70:17.60:0.56:false:false:true:5653
+Sosigenes A:7.76:18.47:0.37:false:false:true:13160
+Julius Caesar:9.17:15.21:2.79:false:false:true:2859
+Boscovich:9.71:11.01:1.37:false:false:true:831
+Manilius:14.45:9.07:1.26:false:false:true:3631
+Menelaus:16.26:15.93:0.89:false:false:true:3840
+Bessel:21.73:17.92:0.51:false:false:true:720
+Deseilligny:21.13:20.59:0.2:false:false:true:1501
+Sulpicius Gallus:19.63:11.68:0.38:false:false:true:5757
+Conon:21.66:1.95:0.69:false:false:true:1289
+Aratus:23.58:4.51:0.34:false:false:true:344
+Autolycus:30.68:1.49:1.28:false:false:true:493
+Aristillus:33.88:1.21:1.79:false:false:true:381
+Bancroft:28.07:-6.43:0.41:false:false:true:594
+Kirch:39.27:-5.62:0.39:false:false:true:3046
+Piazzi Smyth:41.91:-3.24:0.43:false:false:true:4718
 Spitzbergen:35.0:-5.0:2.0:false:false:true
-Spitzbergen A:32.7:-7.1:0.2:false:false:true
-Spitzbergen C:32.9:-8.8:0.21:false:false:true
+Spitzbergen A:32.71:-7.10:0.2:false:false:true:13182
+Spitzbergen C:32.88:-8.81:0.21:false:false:true:13183
 Pico:45.7:-8.9:0.8:false:false:true
 Piton:40.6:-1.0:0.8:false:false:true
-Piton A:39.8:-1.0:0.2:false:false:true
-Piton B:39.3:-0.1:0.17:false:false:true
-Mons La Hire:27.8:-25.5:0.8:false:false:true
+Piton A:39.83:-0.95:0.18:false:false:true:12091
+Piton B:39.35:-0.16:0.15:false:false:true:12092
+Mons La Hire:27.66:-25.51:0.72:false:false:true:3988
 Euler A:22.2:-31.3:0.2:false:false:true
 Lahire:27.8:-25.8:0.8:false:false:true
 Gruithuisen Gamma:36.6:-40.5:0.7:false:false:true
 Gruithuisen Delta:36.1:-39.5:0.5:false:false:true
-Brayley:20.9:-36.9:0.5:false:false:true
-Bessarion:14.9:-37.3:0.3:false:false:true
-Lichtenberg A:33.8:-66.3:0.2:false:false:true
+Brayley:20.90:-36.94:0.47:false:false:true:866
+Bessarion:14.85:-37.31:0.32:false:false:true:719
+Lichtenberg A:28.97:-60.11:0.23:false:false:true:10804
 Wolff:22.0:-7.0:1.1:false:false:true
-Mons Wolff:17.0:-6.8:1.1:false:false:true
-Joy:25.0:6.6:0.2:false:false:true
-Mons Hadley:26.5:4.7:0.8:false:false:true
-Mons Hadley Delta:25.8:3.8:0.5:false:false:true
+Mons Wolff:16.88:-6.80:1.08:false:false:true:3998
+Joy:25.01:6.56:0.17:false:false:true:2851
+Mons Hadley:26.69:4.12:0.87:false:false:true:3983
+Mons Hadley Delta:25.72:3.71:0.57:false:false:true:3984
 Bradley:22.0:1.0:0.4:false:false:true
 Ampere:26.1:4.0:1.0:false:false:true
-Huxley:20.2:-4.5:0.1:false:false:true
-Wallace:20.3:-8.7:0.8:false:false:true
-Eratosthenes A:15.4:-12.0:0.2:false:false:true
-Stadius:10.5:-13.7:2.3:false:false:true
-Copernicus B:10.5:-18.0:0.3:false:false:true
-Copernicus H:6.9:-18.2:0.2:false:false:true
-Reinhold:3.3:-22.8:1.6:false:false:true
-Lansberg:-0.3:-26.6:1.3:false:false:true
-Euclides:-7.4:-29.5:0.4:false:false:true
-Euclides C:-13.2:-30.0:0.33:false:false:true
-Norman:-11.8:-30.4:0.33:false:false:true
-Darney:-14.5:-23.5:0.5:false:false:true
-Darney C:-14.1:-26.0:0.43:false:false:true
-Herigonius:-13.3:-34.0:0.50:false:false:true
-Agatharchides A:-23.2:-28.4:0.53:false:false:true
-Bonpland:-8.3:-17.4:1.9:false:false:true
-Fra Mauro:-6.1:-17.0:3.2:false:false:true
-Fra Mauro A:-5.4:-20.9:0.30:false:false:true
-Parry:-7.9:-15.8:1.5:false:false:true
-Guericke:-11.5:-14.1:2.0:false:false:true
-Guericke B:-14.5:-15.3:0.53:false:false:true
-Davy:-11.8:-8.1:1.1:false:false:true
-Tolansky:-9.5:-16.0:0.43:false:false:true
-Kundt:-11.5:-11.5:0.50:false:false:true
-Lassell:-15.5:-7.9:0.76:false:false:true
-Bullialdus:-20.7:-22.2:2.01:false:false:true
-Bullialdus A:-22.1:-21.5:0.86:false:false:true
-Bullialdus B:-23.4:-21.9:0.69:false:false:true
-Konig:-24.1:-24.6:0.76:false:false:true
-Birt:-22.4:-8.5:0.56:false:false:true
-Nicollet:-21.9:-12.5:0.50:false:false:true
-Campanus:-28.0:-27.8:1.58:false:false:true
-Oppolzer:-1.5:-0.5:1.4:false:false:true
-Rhaeticus:0.0:4.9:1.5:false:false:true
-Gyldén:-5.3:0.3:1.5:false:false:true
-Hind:-7.9:7.4:0.9:false:false:true
-Halley:-8.0:5.7:1.2:false:false:true
-Mösting:-0.7:-5.9:0.8:false:false:true
-Flammarion:3.4:3.7:2.5:false:false:true
-Lalande:-4.4:-8.6:0.8:false:false:true
-Turner:-1.4:-13.2:0.4:false:false:true
-Schröter:2.6:-7.0:1.1:false:false:true
-Sommering:0.1:-7.5:0.9:false:false:true
-Gambart:1.0:-15.2:0.8:false:false:true
-Triesnecker:4.2:3.6:0.9:false:false:true
-Agrippa:4.1:10.5:1.5:false:false:true
-Bode:6.7:-2.4:0.6:false:false:true
-Ukert:7.8:1.4:0.8:false:false:true
-Pallas:5.5:-1.6:1.6:false:false:true
-Hyginus:7.8:6.3:0.3:false:false:true
-Silberschlag:6.2:12.5:0.4:false:false:true
-Ariadaeus:4.6:17.3:0.4:false:false:true
-Dionysius:2.8:17.3:0.6:false:false:true
-Ritter:2.0:19.2:1.0:false:false:true
-Sabine:1.4:20.1:1.0:false:false:true
-Schmidt:1.0:18.8:0.4:false:false:true
-D'Arrest:2.3:14.7:1.1:false:false:true
-Godin:1.8:10.2:1.4:false:false:true
-Tempel:3.9:11.9:1.5:false:false:true
-Cayley:4.0:15.1:0.5:false:false:true
-De Morgan:3.3:14.9:0.3:false:false:true
-Whewell:4.2:13.7:0.4:false:false:true
-Dembowski:2.9:7.2:0.9:false:false:true
-Aldrin:1.4:22.1:1.2:false:false:true
-Collins:1.3:23.7:0.8:false:false:true
-Armstrong:1.4:25.0:0.1:false:false:true
-Maskelyne:2.2:30.1:0.8:false:false:true
-Torricelli:-4.6:28.5:0.7:false:false:true
-Torricelli C:-2.75:26.0:0.35:false:false:true
-Hypatia:-4.3:22.6:1.3:false:false:true
-Moltke:-0.6:24.2:0.2:false:false:true
-Lamont:4.4:23.2:0.9:false:false:true
-Sinas:8.8:31.6:0.4:false:false:true
-Carrel:10.7:26.7:0.5:false:false:true
+Huxley:20.20:-4.54:0.11:false:false:true:2594
+Wallace:20.26:-8.75:0.85:false:false:true:6477
+Eratosthenes A:18.34:-8.33:0.19:false:false:true:8979
+Stadius:10.48:-13.77:2.26:false:false:true:5680
+Copernicus B:7.50:-22.39:0.25:false:false:true:8422
+Copernicus H:6.89:-18.29:0.14:false:false:true:8428
+Reinhold:3.28:-22.86:1.43:false:false:true:4988
+Lansberg:-0.31:-26.63:1.28:false:false:true:3276
+Euclides:-7.40:-29.56:0.39:false:false:true:1860
+Euclides C:-13.29:-30.08:0.33:false:false:true:8995
+Norman:-11.78:-30.35:0.33:false:false:true:4336
+Darney:-14.61:-23.57:0.49:false:false:true:1415
+Darney C:-14.14:-26.04:0.42:false:false:true:8594
+Herigonius:-13.36:-33.97:0.49:false:false:true:2468
+Agatharchides A:-23.27:-28.46:0.52:false:false:true:7081
+Bonpland:-8.38:-17.33:1.95:false:false:true:817
+Fra Mauro:-6.06:-16.97:3.19:false:false:true:2007
+Fra Mauro A:-5.47:-20.96:0.31:false:false:true:9181
+Parry:-7.88:-15.78:1.56:false:false:true:4595
+Guericke:-11.57:-14.19:2:false:false:true:2268
+Guericke B:-14.59:-15.31:0.48:false:false:true:9595
+Davy:-11.85:-8.15:1.12:false:false:true:1429
+Tolansky:-9.52:-15.98:0.43:false:false:true:6049
+Kundt:-11.57:-11.57:0.34:false:false:true:3157
+Lassell:-15.49:-7.90:0.72:false:false:true:3286
+Bullialdus:-20.75:-22.26:2:false:false:true:917
+Bullialdus A:-22.21:-21.57:0.84:false:false:true:7985
+Bullialdus B:-23.46:-21.96:0.7:false:false:true:7986
+Konig:-24.23:-24.68:0.75:false:false:true:3183
+Birt:-22.36:-8.59:0.52:false:false:true:755
+Nicollet:-21.95:-12.50:0.49:false:false:true:4253
+Campanus:-28.04:-27.90:1.53:false:false:true:989
+Oppolzer:-1.52:-0.45:1.35:false:false:true:4481
+Rhaeticus:0.03:4.92:1.46:false:false:true:5013
+Gyldén:-5.37:0.23:1.59:false:false:true:2300
+Hind:-7.92:7.31:0.94:false:false:true:2511
+Halley:-8.05:5.73:1.14:false:false:true:2330
+Mösting:-0.70:-5.88:0.8:false:false:true:4094
+Flammarion:-3.33:-3.73:2.51:false:false:true:1972
+Lalande:-4.46:-8.65:0.78:false:false:true:3245
+Turner:-1.40:-13.24:0.37:false:false:true:6144
+Schröter:2.74:-6.98:1.21:false:false:true:5382
+Sommering:0.19:-7.53:0.92:false:false:true:5806
+Gambart:0.92:-15.24:0.81:false:false:true:2085
+Triesnecker:4.18:3.60:0.82:false:false:true:6081
+Agrippa:4.10:10.47:1.44:false:false:true:92
+Bode:6.71:-2.45:0.59:false:false:true:790
+Ukert:7.71:1.37:0.72:false:false:true:6192
+Pallas:5.48:-1.65:1.63:false:false:true:4560
+Hyginus:7.76:6.27:0.29:false:false:true:2606
+Silberschlag:6.21:12.53:0.41:false:false:true:5533
+Ariadaeus:4.55:17.28:0.34:false:false:true:373
+Dionysius:2.77:17.29:0.57:false:false:true:1542
+Ritter:1.96:19.17:0.97:false:false:true:5158
+Sabine:1.38:20.07:0.98:false:false:true:5258
+Schmidt:0.96:18.78:0.37:false:false:true:5374
+D'Arrest:2.26:14.60:0.98:false:false:true:1695
+Godin:1.82:10.16:1.13:false:false:true:2201
+Tempel:3.76:11.86:1.42:false:false:true:5917
+Cayley:3.94:15.09:0.47:false:false:true:1093
+De Morgan:3.31:14.89:0.32:false:false:true:1443
+Whewell:4.16:13.73:0.43:false:false:true:6533
+Dembowski:2.88:7.27:0.86:false:false:true:1481
+Aldrin:1.41:22.09:0.09:false:false:true:172
+Collins:1.30:23.71:0.08:false:false:true:1271
+Armstrong:1.35:24.94:0.14:false:false:true:386
+Maskelyne:2.16:30.04:0.74:false:false:true:3740
+Torricelli:-4.72:28.40:1.02:false:false:true:6065
+Torricelli C:-2.71:26.01:0.34:false:false:true:13508
+Hypatia:-4.25:22.58:1.28:false:false:true:2610
+Moltke:-0.59:24.16:0.2:false:false:true:3957
+Lamont:5.14:23.32:2.74:false:false:true:3256
+Sinas:8.85:31.60:0.38:false:false:true:5552
+Carrel:10.67:26.68:0.51:false:false:true:1029
 Arago A:5.2:24.2:0.2:false:false:true
-Cauchy:9.6:38.6:0.4:false:false:true
-Da Vinci:9.1:45.0:1.2:false:false:true
-Taruntius:5.6:46.5:1.9:false:false:true
-Cameron:6.2:45.9:0.3:false:false:true
-Lawrence:7.4:43.2:0.4:false:false:true
-Secchi:-2.4:43.5:0.7:false:false:true
-Gutenberg:-8.6:41.2:2.5:false:false:true
-Goclenius:-10.0:45.0:2.3:false:false:true
-Magelhaens:-11.9:44.1:1.3:false:false:true
-Colombo A:-14.6:44.5:0.4:false:false:true
-Messier:-1.9:47.6:0.4:false:false:true
-Messier A:-2.0:46.9:0.4:false:false:true
-Lindbergh:-5.4:52.9:0.4:false:false:true
-Lubbock:-3.9:41.8:0.5:false:false:true
-Censorinus:-0.4:32.7:0.1:false:false:true
-Isidorus:-8.0:33.5:1.4:false:false:true
-Capella:-7.5:35.0:1.6:false:false:true
-Gaudibert:-10.9:37.8:1.1:false:false:true
-Daguerre:-11.9:33.6:1.5:false:false:true
-Madler:-11.0:29.8:0.9:false:false:true
-Kant:-10.6:20.1:1.1:false:false:true
-Zöllner:-8.0:18.9:1.6:false:false:true
-Dollond:-10.4:14.4:0.4:false:false:true
-Alfraganus:-5.4:19.0:0.7:false:false:true
-Taylor:-5.3:16.7:1.2:false:false:true
-Descartes:-11.7:15.7:1.6:false:false:true
-Abulfeda:-13.8:13.9:2.1:false:false:true
-Almanon:-16.8:15.2:1.5:false:false:true
-Geber:-19.4:13.9:1.5:false:false:true
-Abenezra:-21.0:11.7:1.4:false:false:true
-Azophi:-22.1:12.7:1.6:false:false:true
-Sacrobosco:-23.7:16.7:3.2:false:false:true
-Lexell:-35.8:-4.2:2.1:false:false:true
-Nonius:-34.8:3.8:2.3:false:false:true
-Kaiser:-36.5:6.5:1.7:false:false:true
-Fernelius:-38.1:4.9:2.2:false:false:true
-Breislak:-48.2:18.3:1.6:false:false:true
-Baco:-51.0:19.1:2.2:false:false:true
-Ideler:-49.2:22.3:1.3:false:false:true
-Pentland:-64.6:11.5:1.9:false:false:true
-Simpelius:-73.0:15.2:2.3:false:false:true
-Boguslawsky:-72.9:43.2:3.2:false:false:true
-Boussingault:-70.2:54.6:4.2:false:false:true
-Helmholtz:-68.1:64.1:3.2:false:false:true
-Pico B:46.5:-15.3:0.4:false:false:true
-Pico D:43.4:-11.3:0.23:false:false:true
-Pico E:43.0:-10.3:0.3:false:false:true
-Laplace A:43.7:-26.8:0.3:false:false:true
-Laplace F:45.5:-19.9:0.2:false:false:true
-Kies:-26.3:-22.6:1.5:false:false:true
-Kies A:-28.4:-22.8:0.5:false:false:true
-Gassendi:-17.5:-40.1:3.6:false:false:true
-Gassendi A:-15.5:-39.8:1.0:false:false:true
-Gassendi O:-17.0:-37.6:0.5:false:false:true
-Gassendi J:-15.5:-44.2:0.33:false:false:true
-Flamsteed:-4.5:-44.3:0.69:false:false:true
-Flamsteed A:-6.5:-49.4:0.43:false:false:true
-Wichmann:-7.5:-38.1:0.33:false:false:true
-Kepler C:10.0:-41.9:0.16:false:false:true
-Marius A:12.6:-46.0:0.5:false:false:true
-Hesiodus:-29.5:-16.4:1.4:false:false:true
-Lubiniezky:-17.9:-23.9:1.5:false:false:true
-Cichus:-33.3:-21.2:1.35:false:false:true
-Pitatus:-29.9:-13.5:3.23:false:false:true
-Hell:-32.4:-7.8:1.08:false:false:true
+Cauchy:9.56:38.63:0.39:false:false:true:1081
+Da Vinci:9.10:44.95:1.23:false:false:true:1376
+Taruntius:5.50:46.54:1.89:false:false:true:5878
+Cameron:6.19:45.93:0.36:false:false:true:986
+Lawrence:7.35:43.30:0.79:false:false:true:3308
+Secchi:2.40:43.56:0.73:false:false:true:5401
+Gutenberg:-8.61:41.25:2.33:false:false:true:2290
+Goclenius:-10.05:45.03:2.41:false:false:true:2198
+Magelhaens:-11.98:44.07:1.23:false:false:true:3578
+Colombo A:-14.18:44.46:1.34:false:false:true:8365
+Messier:-1.90:47.65:0.45:false:false:true:3869
+Messier A:-2.03:46.94:0.36:false:false:true:11385
+Lindbergh:-5.41:52.90:0.44:false:false:true:3408
+Lubbock:-3.99:41.79:0.46:false:false:true:3498
+Censorinus:-0.42:32.69:0.14:false:false:true:1099
+Isidorus:-7.96:33.50:1.36:false:false:true:2736
+Capella:-7.65:34.92:1.59:false:false:true:1011
+Gaudibert:-10.93:37.82:1.09:false:false:true:2116
+Daguerre:-11.91:33.61:1.51:false:false:true:1388
+Madler:-11.04:29.76:0.91:false:false:true:4091
+Kant:-10.62:20.20:1.02:false:false:true:2919
+Zöllner:-7.97:18.90:1.57:false:false:true:6773
+Dollond:-10.48:14.41:0.36:false:false:true:1566
+Alfraganus:-5.42:18.97:0.68:false:false:true:181
+Taylor:-5.28:16.65:1.2:false:false:true:5889
+Descartes:-11.74:15.67:1.57:false:false:true:1498
+Abulfeda:-13.87:13.91:2.05:false:false:true:23
+Almanon:-16.85:15.14:1.57:false:false:true:196
+Geber:-19.46:13.85:1.47:false:false:true:2128
+Abenezra:-20.99:11.89:1.42:false:false:true:14
+Azophi:-22.19:12.70:1.57:false:false:true:524
+Sacrobosco:-23.75:16.64:3.22:false:false:true:5270
+Lexell:-35.78:-4.27:2.1:false:false:true:3370
+Nonius:-34.90:3.79:2.33:false:false:true:4330
+Kaiser:-36.49:6.48:1.75:false:false:true:2889
+Fernelius:-38.18:4.86:2.26:false:false:true:1942
+Breislak:-48.31:18.31:1.6:false:false:true:869
+Baco:-51.04:19.10:2.15:false:false:true:543
+Ideler:-49.32:22.24:1.25:false:false:true:2649
+Pentland:-64.57:11.34:1.86:false:false:true:4649
+Simpelius:-72.61:14.74:2.27:false:false:true:5543
+Boguslawsky:-72.90:43.26:3.12:false:false:true:796
+Boussingault:-70.21:53.73:4.21:false:false:true:844
+Helmholtz:-68.64:65.34:3.63:false:false:true:2438
+Pico B:46.52:-15.38:0.38:false:false:true:12015
+Pico D:43.46:-11.30:0.2:false:false:true:12017
+Pico E:43.02:-10.31:0.3:false:false:true:12018
+Laplace A:43.74:-26.93:0.27:false:false:true:10637
+Laplace F:45.55:-19.86:0.19:false:false:true:10641
+Kies:-26.31:-22.63:1.5:false:false:true:3025
+Kies A:-28.36:-22.76:0.48:false:false:true:10321
+Gassendi:-17.55:-39.96:3.67:false:false:true:2111
+Gassendi A:-15.55:-39.80:1.06:false:false:true:9353
+Gassendi O:-21.96:-35.13:0.34:false:false:true:9363
+Gassendi J:-21.62:-37.10:0.3:false:false:true:9358
+Flamsteed:-4.49:-44.34:0.64:false:false:true:1974
+Flamsteed A:-7.88:-43.00:0.38:false:false:true:9107
+Wichmann:-7.54:-38.13:0.32:false:false:true:6538
+Kepler C:10.01:-41.86:0.38:false:false:true:10310
+Marius A:12.60:-46.04:0.5:false:false:true:11175
+Hesiodus:-29.42:-16.42:1.43:false:false:true:2485
+Lubiniezky:-17.88:-23.89:1.42:false:false:true:3499
+Cichus:-33.29:-21.18:1.29:false:false:true:1214
+Pitatus:-29.88:-13.53:3.32:false:false:true:4740
+Hell:-32.41:-7.80:1.1:false:false:true:2428
 
 # === MOUNTAIN RANGES ===
-Montes Apenninus:18.9:-3.7:19.8:true:false:false
-Montes Caucasus:38.4:10.0:17.8:true:false:false
-Montes Alpes:46.4:-0.8:16.8:true:false:false
-Montes Carpatus:14.5:-24.4:13.2:true:false:false
-Montes Jura:47.1:-34.0:14.2:true:false:false
-Montes Haemus:19.9:9.2:16.5:true:false:false
-Montes Taurus:28.4:41.1:17.2:true:false:false
-Montes Pyrenaeus:-15.6:41.2:8.3:true:false:false
-Montes Riphaeus:-7.7:-28.1:5.6:true:false:false
-Montes Spitzbergen:35.0:-5.0:2.0:false:false:true
-Montes Teneriffe:47.1:-11.8:3.6:false:false:true
-Montes Recti:48.0:-20.0:3.0:false:false:true
-Montes Harbinger:27.0:-41.0:3.0:false:false:true
-Montes Agricola:29.1:-54.2:5.6:true:false:false
-Montes Cordillera:-17.5:-81.6:31.0:true:false:false
-Montes Rook:-20.6:-82.5:16.5:true:false:false
-Mons Piton:40.6:-1.0:0.8:false:false:true
-Mons Pico:45.7:-8.9:0.8:false:false:true
-Mons Gruithuisen Gamma:36.6:-40.5:0.7:false:false:true
-Mons Rümker:40.8:-58.1:2.3:false:false:true
-Mons Hansteen:-12.0:-50.0:1.0:false:false:true
-Mons Vinogradov:22.4:-32.4:0.8:false:false:true
-Mons Penck:-10.0:21.6:1.0:false:false:true
-Mons Maraldi:20.3:35.3:0.5:false:false:true
-Mons Argaeus:19.0:29.0:1.7:false:false:true
-Mons Esam:14.6:35.7:0.3:false:false:true
-Mons Usov:12.0:63.0:0.5:false:false:true
+Montes Apenninus:19.87:0.03:19.77:true:false:false:4004
+Montes Caucasus:37.52:9.93:14.62:true:false:false:4007
+Montes Alpes:48.36:-0.58:11.02:true:false:false:4003
+Montes Carpatus:14.57:-23.62:11:true:false:false:4006
+Montes Jura:47.49:-36.11:13.87:true:false:false:4011
+Montes Haemus:17.11:12.03:12.68:true:false:false:4009
+Montes Taurus:27.32:40.34:5.48:true:false:false:4018
+Montes Pyrenaeus:-14.05:41.51:8.28:true:false:false:4012
+Montes Riphaeus:-7.48:-27.60:6.27:true:false:false:4014
+Montes Spitzbergen:34.47:-5.21:1.95:false:false:true:4017
+Montes Teneriffe:47.89:-13.19:3.69:false:false:true:4019
+Montes Recti:48.30:-19.72:2.74:false:false:true:4013
+Montes Harbinger:26.89:-41.29:3.06:false:false:true:4010
+Montes Agricola:29.06:-54.07:5.27:true:false:false:4002
+Montes Cordillera:-19.44:-94.93:31.76:true:false:false:4008
+Montes Rook:-19.49:-94.95:22.49:true:false:false:4015
+Mons Piton:40.72:-0.92:0.74:false:false:true:3993
+Mons Pico:45.82:-8.87:0.8:false:false:true:3992
+Mons Gruithuisen Gamma:36.56:-40.72:0.65:false:false:true:3982
+Mons Rümker:40.76:-58.38:2.41:false:false:true:3994
+Mons Hansteen:-12.19:-50.21:1.01:false:false:true:3985
+Mons Vinogradov:22.35:-32.52:0.95:false:false:true:3996
+Mons Penck:-10.00:21.74:1.24:false:false:true:3991
+Mons Maraldi:20.34:35.50:0.52:false:false:true:3989
+Mons Argaeus:19.33:29.01:2.03:false:false:true:3974
+Mons Esam:14.61:35.71:0.26:false:false:true:3979
+Mons Usov:11.91:63.26:0.44:false:false:true:3995
 
 # === RILLES AND VALLEYS ===
-Vallis Schröteri:26.2:-50.8:5.6:false:false:true
-Vallis Alpes:48.5:3.2:5.3:false:false:true
-Rima Hadley:25.0:3.0:2.6:false:false:true
-Rima Ariadaeus:6.4:14.0:7.6:false:false:true
-Rima Hyginus:7.4:7.8:7.3:false:false:true
-Rimae Triesnecker:4.3:4.6:7.0:false:false:true
-Rimae Sulpicius Gallus:21.0:10.0:3.0:false:false:true
-Rima Calippus:37.0:13.0:2.0:false:false:true
-Rimae Theaetetus:33.0:6.0:2.0:false:false:true
-Rimae Fresnel:28.0:4.0:3.3:false:false:true
-Rimae Plinius:18.0:24.0:3.0:false:false:true
+Vallis Schröteri:26.16:-51.58:6.11:false:false:true:6300
+Vallis Alpes:49.21:3.63:5.12:false:false:true:6290
+Rima Hadley:25.72:3.15:3.83:false:false:true:5064
+Rima Ariadaeus:6.48:13.44:8.16:false:false:true:5040
+Rima Hyginus:7.62:6.77:6.72:false:false:true:5067
+Rimae Triesnecker:5.10:4.83:6.59:false:false:true:5146
+Rimae Sulpicius Gallus:20.65:9.99:2.64:false:false:true:5143
+Rima Calippus:37.03:12.66:1.32:false:false:true:5046
+Rimae Theaetetus:33.04:5.87:1.75:false:false:true:5145
+Rimae Fresnel:28.11:3.73:2.47:false:false:true:5106
+Rimae Plinius:17.05:23.14:3.3:false:false:true:5132
 Rimae Cauchy:10.5:38.0:4.3:false:false:true
-Rimae Gutenberg:-5.0:38.0:9.9:false:false:true
-Rimae Posidonius:32.0:29.0:2.3:false:false:true
-Rimae Chacornac:32.0:32.0:3.6:false:false:true
-Rimae Römer:27.0:35.0:3.3:false:false:true
-Rimae Littrow:22.0:30.0:3.0:false:false:true
-Rimae Maclear:13.0:20.0:3.3:false:false:true
-Rimae Sosigenes:8.0:19.0:5.0:false:false:true
-Rimae Petavius:-24.0:66.0:4.6:false:false:true
-Rimae Goclenius:-8.0:43.0:7.9:false:false:true
-Rimae Hypatia:-1.0:22.0:6.6:false:false:true
-Rimae Secchi:-2.0:44.0:1.7:false:false:true
-Rimae Hase:-28.0:62.0:4.3:false:false:true
-Rimae Darwin:-18.0:-70.0:5.3:false:false:true
-Rimae Hippalus:-25.0:-29.0:9.9:false:false:true
-Rimae Mersenius:-21.0:-49.0:7.6:false:false:true
-Rimae Parry:-6.0:-17.0:3.3:false:false:true
-Rimae Ramsden:-33.0:-32.0:4.6:false:false:true
-Rimae Sirsalis:-15.0:-61.0:13.2:false:false:true
-Rimae Grimaldi:-6.0:-64.0:6.6:false:false:true
-Rimae Riccioli:-2.0:-74.0:13.2:false:false:true
-Rimae Gerard:46.0:-84.0:3.0:false:false:true
+Rimae Gutenberg:-4.42:36.42:7.35:false:false:true:5111
+Rimae Posidonius:32.03:29.61:2.57:false:false:true:5133
+Rimae Chacornac:29.01:31.24:3.3:false:false:true:5100
+Rimae Römer:26.98:34.86:3.69:false:false:true:5139
+Rimae Littrow:22.47:30.47:5.44:false:false:true:5119
+Rimae Maclear:12.23:19.90:3.1:false:false:true:5120
+Rimae Sosigenes:8.08:18.72:4.28:false:false:true:5142
+Rimae Petavius:-25.23:60.48:3.63:false:false:true:5128
+Rimae Goclenius:-7.84:42.88:6.26:false:false:true:5109
+Rimae Hypatia:-0.34:22.78:6.59:false:false:true:5115
+Rimae Secchi:0.99:44.08:1.15:false:false:true:5140
+Rimae Hase:-34.71:67.78:8.48:false:false:true:6898
+Rimae Darwin:-19.84:-66.66:5.6:false:false:true:5102
+Rimae Hippalus:-25.60:-29.36:8.77:false:false:true:5114
+Rimae Mersenius:-20.69:-46.53:7.91:false:false:true:5124
+Rimae Parry:-8.07:-16.52:6.92:false:false:true:5127
+Rimae Ramsden:-32.93:-31.32:3.3:false:false:true:5135
+Rimae Sirsalis:-15.01:-61.36:13.35:false:false:true:5141
+Rimae Grimaldi:-6.18:-63.90:5.34:false:false:true:5110
+Rimae Riccioli:-1.52:-73.07:8.24:false:false:true:5137
+Rimae Gerard:45.54:-84.36:3.63:false:false:true:5108
 Rimae Marius:14.0:-51.0:8.3:false:false:true
-Rimae Aristarchus:26.0:-48.0:8.3:false:false:true
-Rimae Prinz:27.0:-43.0:3.3:false:false:true
-Vallis Rheita:-42.5:51.5:16.5:true:false:false
-Vallis Snellius:-31.0:56.0:16.5:true:false:false
-Vallis Palitzsch:-26.4:64.3:3.6:false:false:true
-Vallis Bouvard:-38.3:-83.1:8.6:false:false:true
+Rimae Aristarchus:27.52:-47.25:5.77:false:false:true:5094
+Rimae Prinz:27.05:-43.51:0.36:false:false:true:5134
+Vallis Rheita:-42.51:51.65:16.78:true:false:false:6298
+Vallis Snellius:-30.93:57.84:21.09:true:false:false:6301
+Vallis Palitzsch:-26.16:64.64:3.64:false:false:true:6296
+Vallis Bouvard:-38.45:-82.32:9.49:false:false:true:6293
 
 # === LANDING SITES ===
 Apollo 11 Landing:-0.67:23.47:0.1:false:true:true
@@ -715,45 +715,45 @@ Chandrayaan-3 Landing:-69.37:32.35:0.1:false:true:true
 SLIM Landing:-13.32:25.25:0.1:false:true:true
 
 # === ADDITIONAL NOTABLE FEATURES ===
-Ina:18.6:5.3:0.1:false:false:true
-Reiner Gamma:7.5:-59.0:2.3:false:false:true
-Promontorium Heraclides:40.3:-33.2:1.7:false:false:true
-Promontorium Laplace:46.0:-25.8:1.7:false:false:true
-Promontorium Agarum:14.0:66.0:1.3:false:false:true
-Promontorium Archerusia:16.7:22.0:0.7:false:false:true
-Promontorium Taenarium:-19.0:8.0:2.3:false:false:true
-Promontorium Kelvin:-27.0:-33.0:1.7:false:false:true
-Promontorium Fresnel:29.0:4.7:0.7:false:false:true
-Dorsum Nicol:-18.0:23.0:6.6:false:false:true
-Dorsum Buckland:-2.0:14.0:5.0:false:false:true
-Dorsum Guettard:-7.0:13.0:5.6:false:false:true
-Dorsum Thera:-23.0:64.0:3.0:false:false:true
-Dorsum Bucher:31.0:40.0:4.3:false:false:true
-Dorsum Azara:-27.0:19.5:5.0:false:false:true
-Dorsum Heim:-32.0:30.0:3.6:false:false:true
-Dorsum Cayeux:-0.3:51.3:4.3:false:false:true
-Dorsum Owen:-25.0:22.0:4.6:false:false:true
-Dorsum Gast:24.0:8.0:4.0:false:false:true
-Dorsum Grabau:29.0:15.0:5.3:false:false:true
-Dorsum Cushman:1.0:49.0:3.0:false:false:true
-Dorsum Termier:-11.0:58.0:3.6:false:false:true
-Dorsum Scilla:-31.0:-60.0:4.3:false:false:true
-Dorsum Niggli:-29.0:52.0:3.6:false:false:true
-Dorsum Cloos:-0.5:90.0:3.0:false:false:true
-Catena Davy:-11.0:-7.0:1.7:false:false:true
-Catena Abulfeda:-17.0:17.0:7.3:false:false:true
-Catena Humboldt:-21.5:84.6:5.6:false:false:true
-Catena Taruntius:3.0:48.0:3.3:false:false:true
-Catena Krafft:15.0:-72.0:2.0:false:false:true
+Ina:18.66:5.30:0.1:false:false:true:2680
+Reiner Gamma:7.39:-58.96:2.42:false:false:true:4987
+Promontorium Heraclides:40.60:-34.10:1.65:false:false:true:4843
+Promontorium Laplace:46.84:-25.51:1.65:false:false:true:4845
+Promontorium Agarum:13.87:65.73:2.06:false:false:true:4838
+Promontorium Archerusia:16.80:21.94:0.37:false:false:true:4840
+Promontorium Taenarium:-18.63:-7.34:2.31:false:false:true:4846
+Promontorium Kelvin:-26.95:-33.45:1.48:false:false:true:4844
+Promontorium Fresnel:28.63:4.75:0.66:false:false:true:4842
+Dorsum Nicol:18.32:22.66:1.44:false:false:true:1617
+Dorsum Buckland:19.43:14.30:12.17:false:false:true:1608
+Dorsum Guettard:-9.92:-18.26:1.33:false:false:true:1614
+Dorsum Thera:24.40:-31.42:0.24:false:false:true:1623
+Dorsum Bucher:30.76:-39.55:2.79:false:false:true:1607
+Dorsum Azara:26.86:19.17:3.4:false:false:true:1606
+Dorsum Heim:32.20:-29.83:4.84:false:false:true:1615
+Dorsum Cayeux:0.76:51.22:3.14:false:false:true:1609
+Dorsum Owen:25.14:11.09:1.1:false:false:true:1620
+Dorsum Gast:24.38:8.71:2.14:false:false:true:1612
+Dorsum Grabau:29.76:-14.19:4.08:false:false:true:1613
+Dorsum Cushman:1.42:49.19:2.82:false:false:true:1611
+Dorsum Termier:11.63:57.15:2.95:false:false:true:1622
+Dorsum Scilla:32.34:-60.00:3.54:false:false:true:1621
+Dorsum Niggli:29.01:-52.28:1.57:false:false:true:1618
+Dorsum Cloos:1.15:90.41:3.4:false:false:true:1610
+Catena Davy:-10.98:-6.27:1.72:false:false:true:1058
+Catena Abulfeda:-16.59:16.70:6.92:false:false:true:1055
+Catena Humboldt:-21.98:84.70:5.35:false:false:true:1061
+Catena Taruntius:3.04:48.71:2.28:false:false:true:1072
+Catena Krafft:14.91:-72.25:1.82:false:false:true:1062
 Catena Michelson:1.4:-113.4:7.6:true:false:false
 Catena Leuschner:4.7:-110.1:4.6:false:false:true
-Catena Gregory:-0.6:129.9:3.6:false:false:true
-Catena Sylvester:81.4:-86.3:3.0:false:false:true
-Catena Yuri:24.4:-30.4:0.5:false:false:true
-Rupes Recta:-21.8:-7.8:3.6:false:false:true
-Rupes Altai:-24.3:22.6:16.5:true:false:false
-Rupes Cauchy:9.0:37.0:4.0:false:false:true
-Rupes Kelvin:-27.3:-33.1:3.0:false:false:true
-Rupes Boris:30.5:-33.5:0.5:false:false:true
-Rupes Toscanelli:27.4:-47.5:2.3:false:false:true
-Rupes Liebig:-25.0:-46.0:5.6:false:false:true
+Catena Gregory:-0.59:129.80:4.88:false:false:true:1060
+Catena Sylvester:79.99:-83.12:4.58:false:false:true:1071
+Catena Yuri:24.41:-30.38:0.15:false:false:true:1074
+Rupes Recta:-21.67:-7.70:3.82:false:false:true:5230
+Rupes Altai:-24.32:23.12:17.97:true:false:false:5224
+Rupes Cauchy:9.31:37.08:5.6:false:false:true:5226
+Rupes Kelvin:-28.03:-33.17:2.83:false:false:true:5227
+Rupes Boris:30.67:-33.60:0.28:false:false:true:5225
+Rupes Toscanelli:26.97:-47.53:1.65:false:false:true:5232
+Rupes Liebig:-25.14:-45.92:4.77:false:false:true:5228

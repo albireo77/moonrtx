@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 class MoonEphemeris(NamedTuple):
     az: float
@@ -27,6 +27,7 @@ class MoonFeature(NamedTuple):
     standard_label: bool
     spot_label: bool
     status_bar: bool
+    feature_id: Optional[int]
 
 class CameraParams(NamedTuple):
     eye: list
