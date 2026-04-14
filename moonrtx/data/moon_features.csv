@@ -406,7 +406,7 @@ Hansen:14.0:72.5:1.3:false:false:true
 Alhazen:15.9:71.8:1.1:false:false:true
 Plutarch:24.1:79.0:2.2:false:false:true
 Seneca:26.6:80.2:1.6:false:false:true
-Haldane:1.7:84.1:1.2:false:false:true
+Haldane:-1.7:84.1:1.2:false:false:true
 Schubert:2.8:81.0:1.6:false:false:true
 Back:-1.1:80.7:1.1:false:false:true
 Jenkins:-0.3:78.1:1.3:false:false:true
