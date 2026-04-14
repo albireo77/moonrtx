@@ -3,8 +3,11 @@ StatusMixin: status bar and info panel update methods for MoonRenderer.
 """
 
 import tkinter as tk
+import webbrowser
+from typing import Optional
 
 from moonrtx.constants import ORIENTATION_NSWE
+from moonrtx.shared_types import MoonFeature
 
 
 class _ToolTip:
@@ -126,10 +129,28 @@ class StatusMixin:
             else:
                 self._status_coords_var.set("")
 
-    def _update_status_feature(self, feature_text: str = ""):
-        """Update feature name in the status bar."""
+    def _update_status_feature(self, feature: Optional[MoonFeature] = None):
+        """Update feature name in the status bar and remember the active feature."""
+        self._status_feature = feature
         if self._status_feature_var:
+            feature_text = ""
+            if feature is not None:
+                feature_text = f"{feature.name} (size = {feature.size_km:.1f} km)"
             self._status_feature_var.set(feature_text)
+
+    def open_status_feature_usgs_page(self) -> bool:
+        """Open the USGS page for the feature currently shown in the status bar."""
+        feature = self._status_feature
+        if feature is None or feature.feature_id is None:
+            return False
+
+        url = f"https://planetarynames.wr.usgs.gov/Feature/{feature.feature_id}"
+
+        try:
+            return bool(webbrowser.open_new_tab(url))
+        except Exception as exc:
+            print(f"Failed to open USGS page for {feature.name}: {exc}")
+            return False
 
     def _update_status_brightness(self):
         if self._status_brightness_var:

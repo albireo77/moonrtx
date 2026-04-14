@@ -169,6 +169,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._status_gamma_var = None
         self._status_pins_var = None
         self._status_coords_var = None
+        self._status_feature = None
 
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
@@ -653,6 +654,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.save_image_dialog()
         elif event.keysym.lower() == 'f':
             moon_renderer.search_feature_dialog()
+        elif event.keysym.lower() == 'i':
+            moon_renderer.open_status_feature_usgs_page()
         elif event.keysym.lower() == 'h':
             moon_renderer.rotate_around_view_direction('ccw')
         elif event.keysym.lower() == 'j':
@@ -711,16 +714,14 @@ def run_renderer(dt_local: datetime,
             hx, hy, hz, hd = moon_renderer.rt._get_hit_at(x, y)
             lat = None
             lon = None
-            feature_text = ""
+            feature = None
             if hd > 0:
                 lat, lon = moon_renderer.hit_to_selenographic(hx, hy, hz)
                 if lat is not None and lon is not None:
                     feature = moon_renderer.find_feature_for_status_bar(lat, lon)
-                    if feature is not None:
-                        feature_text = f"{feature.name} (size = {feature.size_km:.1f} km)"
             moon_renderer.rt._status_action_text.set('')
             moon_renderer._update_info_coords(lat, lon)
-            moon_renderer._update_status_feature(feature_text)
+            moon_renderer._update_status_feature(feature)
 
     moon_renderer.rt._gui_motion = custom_motion_handler
 
