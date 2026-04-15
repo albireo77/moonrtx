@@ -326,7 +326,7 @@ def topocentric_phase_angle(
     In the Sun-Moon-Observer triangle:
       elongation ψ = Sun-Observer-Moon angle ≈ sun_moon_separation
       phase angle i = Sun-Moon-Observer angle
-    Uses the law of cosines to avoid a discontinuous asin branch.
+        Uses a direct atan2 form for speed and stable behavior near full/new Moon.
 
     Returns
     -------
@@ -337,16 +337,10 @@ def topocentric_phase_angle(
     d_moon = moon_distance_km
     psi_rad = math.radians(sun_moon_separation)
 
-    d_sun_moon = math.sqrt(
-        d_sun**2 + d_moon**2 - 2 * d_sun * d_moon * math.cos(psi_rad)
-    )
-
-    cos_i = (
-        d_moon**2 + d_sun_moon**2 - d_sun**2
-    ) / (2 * d_moon * d_sun_moon) if d_sun_moon > 0 else 1.0
-    cos_i = max(-1.0, min(1.0, cos_i))
-
-    return math.degrees(math.acos(cos_i))
+    return math.degrees(math.atan2(
+        d_sun * math.sin(psi_rad),
+        d_moon - d_sun * math.cos(psi_rad),
+    ))
 
 
 def topocentric_bright_limb_pa(
