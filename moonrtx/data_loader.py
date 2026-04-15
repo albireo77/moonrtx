@@ -46,13 +46,15 @@ def load_moon_features(filepath: str) -> list:
                     status_bar = parts[6].strip().lower() == 'true'
                     feature_id_str = parts[7].strip() if len(parts) >= 8 else ''
                     try:
+                        lat = float(lat_str)
+                        angular_diameter = float(angular_diameter_str)
                         moon_feature = MoonFeature(
                             name=name,
-                            lat=float(lat_str),
+                            lat=lat,
                             lon=float(lon_str),
-                            angular_radius=float(angular_diameter_str) / 2,
-                            cos_lat=np.cos(np.radians(float(lat_str))),
-                            size_km=float(angular_diameter_str) * 30.34,
+                            angular_radius=angular_diameter / 2,
+                            cos_lat=np.cos(np.radians(lat)),
+                            size_km=angular_diameter * 30.32,
                             standard_label=standard_label,
                             spot_label=spot_label,
                             status_bar=status_bar,

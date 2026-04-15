@@ -10,6 +10,7 @@ from pymeeus import Coordinates
 
 from moonrtx.shared_types import MoonEphemeris
 
+EARTH = Earth()
 EARTH_RADIUS_KM = 6378.14
 AU_KM = 149597870.7  # 1 Astronomical Unit in km
 JDE2000 = Epoch(2000, 1, 1.5)
@@ -400,7 +401,7 @@ def topocentric_distance(
     """
 
     # Observer distance to Earth's center (oblate Earth + elevation), in km
-    rho = Earth().rho(lat)
+    rho = EARTH.rho(lat)
     observer_radius_km = EARTH_RADIUS_KM * rho + elevation_m / 1000.0
 
     # Convert to radians
