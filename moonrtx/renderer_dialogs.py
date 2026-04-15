@@ -274,8 +274,8 @@ class DialogsMixin:
             for feature in self.moon_features:
                 if query in feature.name.lower():
                     matching_features.append(feature)
-                    size_km = feature.size_km
-                    listbox.insert(tk.END, f"{feature.name} ({size_km:.1f} km)")
+                    diameter_km = feature.diameter_km
+                    listbox.insert(tk.END, f"{feature.name} ({diameter_km:.1f} km)")
         
         def on_select(event=None):
             selection = listbox.curselection()

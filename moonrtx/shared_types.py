@@ -23,7 +23,7 @@ class MoonFeature(NamedTuple):
     lon: float
     angular_radius: float
     cos_lat: float
-    size_km: float
+    diameter_km: float
     standard_label: bool
     spot_label: bool
     status_bar: bool

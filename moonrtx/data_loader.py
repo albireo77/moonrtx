@@ -40,21 +40,21 @@ def load_moon_features(filepath: str) -> list:
                     # Handle Unicode minus sign (−) and regular minus (-)
                     lat_str = parts[1].strip().replace('−', '-')
                     lon_str = parts[2].strip().replace('−', '-')
-                    angular_diameter_str = parts[3].strip()
+                    diameter_km_str = parts[3].strip()
                     standard_label = parts[4].strip().lower() == 'true'
                     spot_label = parts[5].strip().lower() == 'true'
                     status_bar = parts[6].strip().lower() == 'true'
                     feature_id_str = parts[7].strip() if len(parts) >= 8 else ''
                     try:
                         lat = float(lat_str)
-                        angular_diameter = float(angular_diameter_str)
+                        diameter_km = float(diameter_km_str)
                         moon_feature = MoonFeature(
                             name=name,
                             lat=lat,
                             lon=float(lon_str),
-                            angular_radius=angular_diameter / 2,
+                            angular_radius=diameter_km / 60.64,
                             cos_lat=np.cos(np.radians(lat)),
-                            size_km=angular_diameter * 30.32,
+                            diameter_km=diameter_km,
                             standard_label=standard_label,
                             spot_label=spot_label,
                             status_bar=status_bar,
