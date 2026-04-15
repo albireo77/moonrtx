@@ -633,8 +633,8 @@ Montes Teneriffe:47.89:-13.19:111.98:false:false:true:4019
 Montes Recti:48.30:-19.72:83.24:false:false:true:4013
 Montes Harbinger:26.89:-41.29:92.70:false:false:true:4010
 Montes Agricola:29.06:-54.07:159.76:true:false:false:4002
-Montes Cordillera:-19.44:-94.93:963.50:true:false:false:4008
-Montes Rook:-19.49:-94.95:682.27:true:false:false:4015
+Montes Cordillera:-19.44:-94.93:963.50:false:false:true:4008
+Montes Rook:-19.49:-94.95:682.27:false:false:true:4015
 Mons Piton:40.72:-0.92:22.50:false:false:true:3993
 Mons Pico:45.82:-8.87:24.42:false:false:true:3992
 Mons Gruithuisen Gamma:36.56:-40.72:19.65:false:false:true:3982
@@ -704,7 +704,7 @@ Luna 20 Landing:3.53:56.55:0.1:false:true:true
 Luna 21 Landing:25.85:30.45:0.1:false:true:true
 Luna 24 Landing:12.75:62.20:0.1:false:true:true
 Surveyor 1 Landing:-2.47:-43.34:0.1:false:true:true
-Surveyor 3 Landing:-3.01:-23.42:0.1:false:true:true
+Surveyor 3 Landing:-3.01:-23.42:0.1:false:false:true
 Surveyor 5 Landing:1.41:23.18:0.1:false:true:true
 Surveyor 6 Landing:0.49:-1.40:0.1:false:true:true
 Surveyor 7 Landing:-41.01:-11.47:0.1:false:true:true
