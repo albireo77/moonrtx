@@ -135,7 +135,7 @@ class StatusMixin:
         if self._status_feature_var:
             feature_text = ""
             if feature is not None:
-                feature_text = f"{feature.name} (⌀ = {feature.diameter_km:.1f} km)"
+                feature_text = f"{feature.name} (⌀ = {feature.diameter_km:.2f} km)"
             self._status_feature_var.set(feature_text)
 
     def open_status_feature_usgs_page(self) -> bool:

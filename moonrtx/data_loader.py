@@ -52,7 +52,7 @@ def load_moon_features(filepath: str) -> list:
                             name=name,
                             lat=lat,
                             lon=float(lon_str),
-                            angular_radius=diameter_km / 60.64,
+                            angular_radius=diameter_km / 60.647,
                             cos_lat=np.cos(np.radians(lat)),
                             diameter_km=diameter_km,
                             standard_label=standard_label,
