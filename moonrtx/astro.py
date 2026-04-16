@@ -194,8 +194,12 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     moon_distance_topo = topocentric_distance(moon_distance, observer_lat, moon_dec, moon_ha, observer_elevation)
     
     # Convert equatorial to horizontal coordinates
-    moon_az, moon_alt = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
-    moon_alt = Coordinates.refraction_true2apparent(moon_alt)
+    moon_az, moon_alt_geo = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
+    moon_alt_app = Coordinates.refraction_true2apparent(moon_alt_geo)
+
+    # Match Stellarium's displayed altitude behavior: once the refracted altitude
+    # is far enough below the horizon, show the geometric altitude instead.
+    moon_alt = moon_alt_app if float(moon_alt_app) > -2.0 else moon_alt_geo
 
     lambda_sun, _ = Sun.apparent_longitude_coarse(epoch)
     lambda_moon, beta_moon, _, _ = Moon.apparent_ecliptical_pos(epoch)
