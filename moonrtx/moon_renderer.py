@@ -656,6 +656,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.search_feature_dialog()
         elif event.keysym.lower() == 'i':
             moon_renderer.open_status_feature_usgs_page()
+        elif event.keysym.lower() == 'o':
+            moon_renderer.open_status_feature_www_page()
         elif event.keysym.lower() == 'h':
             moon_renderer.rotate_around_view_direction('ccw')
         elif event.keysym.lower() == 'j':

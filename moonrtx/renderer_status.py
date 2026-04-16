@@ -155,6 +155,22 @@ class StatusMixin:
             print(f"Failed to open USGS page for {feature.name}: {exc}")
             return False
 
+    def open_status_feature_www_page(self) -> bool:
+        """Open the user-defined web page for the feature shown in the status bar."""
+        feature = self._status_feature
+        if feature is None or not feature.www_address:
+            return False
+
+        url = feature.www_address
+        if not url.startswith(('http://', 'https://')):
+            url = f"https://{url}"
+
+        try:
+            return bool(webbrowser.open_new_tab(url))
+        except Exception as exc:
+            print(f"Failed to open www page for {feature.name}: {exc}")
+            return False
+
     def _update_status_brightness(self):
         if self._status_brightness_var:
             self._status_brightness_var.set(f"Brightness: {self.brightness}")

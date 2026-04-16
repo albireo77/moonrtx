@@ -52,6 +52,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
 **I** - Open USGS web page for Moon feature shown in status bar  
+**O** - Open user defined web page (Wiki by default) for Moon feature shown in status bar  
 **T** - Open date/time window  
 **A/Z** - Increase/Decrease brightness  
 **E/D** - Increase/Decrease gamma correction  

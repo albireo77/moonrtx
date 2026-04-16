@@ -60,11 +60,11 @@ class DialogsMixin:
             ("S", "Toggle spot labels"),
             ("P", "Toggle pins ON/OFF"),
             ("R", "Reset view and time to initial state"),
-            ("V", "Reset view to that based on current time"),
-            ("", " (useful after starting with --init-view parameter)"),
+            ("V", "Reset view to that based on current time (useful after starting with --init-view parameter)"),
             ("C", "Center and fix view on point under cursor"),
             ("F", "Search for Moon features (craters, mounts etc.)"),
             ("I", "Open USGS web page for Moon feature shown in status bar"),
+            ("O", "Open user defined web page (Wiki by default) for Moon feature shown in status bar"),
             ("T", "Open date/time window"),
             ("A/Z", "Increase/Decrease brightness"),
             ("E/D", "Increase/Decrease gamma correction (0.5 - 5.0)"),
@@ -82,8 +82,7 @@ class DialogsMixin:
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),
             ("Hold and drag right mouse button", "Rotate Moon around the eye (move view)"),
             ("Hold Shift + right mouse button and drag up/down", "Move eye backward/forward"),
-            ("Hold Ctrl + drag left mouse button", "Measure distance and elevation difference"),
-            ("", "                                     on Moon surface"),
+            ("Hold Ctrl + drag left mouse button", "Measure distance and elevation difference on Moon surface"),
             ("Hold Shift + left mouse button and drag up/down", "Zoom out/in (more reliable)"),
             ("Mouse wheel up/down", "Zoom in/out (less reliable)"),
         ]
@@ -94,23 +93,16 @@ class DialogsMixin:
         for key, desc in aligned_lines:
             row = tk.Frame(main_frame)
             row.pack(fill=tk.X, pady=1)
-            if key:
-                key_label = tk.Label(row, text=key, width=max_key_len, anchor='e', font=('Consolas', 9, 'bold'))
-                key_label.pack(side=tk.LEFT)
-                tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
-            else:
-                # Continuation line: pad to align with description column
-                pad = " " * (max_key_len + 3)
-                tk.Label(row, text=pad + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
+            key_label = tk.Label(row, text=key, width=max_key_len, anchor='e', font=('Consolas', 9, 'bold'))
+            key_label.pack(side=tk.LEFT)
+            tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
 
         for key, desc in other_lines:
             row = tk.Frame(main_frame)
             row.pack(fill=tk.X, pady=1)
             key_label = tk.Label(row, text=key, anchor='e', font=('Consolas', 9, 'bold'))
             key_label.pack(side=tk.LEFT)
-            text = desc
-            if key:
-                text = " - " + text
+            text = " - " + desc
             tk.Label(row, text=text, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
 
         # Close button
