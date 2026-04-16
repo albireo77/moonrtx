@@ -77,6 +77,9 @@ class StatusMixin:
             alt_m = int((alt_abs - alt_d) * 60)
             alt_s = (alt_abs - alt_d - alt_m / 60) * 3600
             self._info_alt_var.set(f"Alt: {alt_sign}{alt_d:02d}\u00b0{alt_m:02d}'{alt_s:04.1f}\"")
+            if getattr(self, '_info_alt_label', None) is not None:
+                alt_fg = self._info_alt_negative_fg if e.alt < 0 else self._info_fg
+                self._info_alt_label.configure(fg=alt_fg)
         if self._info_ra_var:
             ra_total_h = e.ra / 15.0
             if ra_total_h < 0:
@@ -290,8 +293,13 @@ class StatusMixin:
                 if hasattr(rt, '_canvas'):
                     info_font = ("Consolas", 9)
                     info_fg = "#808080"
+                    info_alt_negative_fg = "#404040"
                     info_bg = "#010104"
                     info_width = 17  # Fixed width in chars (fits DEC: +89°59'59.9")
+
+                    self._info_fg = info_fg
+                    self._info_alt_negative_fg = info_alt_negative_fg
+                    self._info_alt_label = None
 
                     self._info_az_var = tk.StringVar(value="Az:")
                     self._info_alt_var = tk.StringVar(value="Alt:")
@@ -323,7 +331,7 @@ class StatusMixin:
                         self._info_phase_name_var,
                     ]
                     for var in info_vars:
-                        tk.Label(
+                        label = tk.Label(
                             info_frame,
                             textvariable=var,
                             font=info_font,
@@ -331,7 +339,10 @@ class StatusMixin:
                             bg=info_bg,
                             anchor='w',
                             width=info_width,
-                        ).pack(anchor='w')
+                        )
+                        label.pack(anchor='w')
+                        if var is self._info_alt_var:
+                            self._info_alt_label = label
                     info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
 
                 # Add 4-char left padding to shift panels right
