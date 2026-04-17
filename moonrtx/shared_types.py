@@ -6,7 +6,7 @@ class MoonEphemeris(NamedTuple):
     ra: float
     dec: float
     distance: int
-    phase: float
+    phase_angle: float
     pa: float
     pa_axis_view: float
     q: float
@@ -14,7 +14,6 @@ class MoonEphemeris(NamedTuple):
     libr_lat: float
     sun_separation: float  # Topocentric angular separation between Sun and Moon centers (degrees)
     delta_long: float  # Ecliptical longitude difference (degrees, 0-360)
-    illum_fraction: float
     colongitude: float  # Selenographic colongitude of the Sun (degrees, 0-360)
 
 class MoonFeature(NamedTuple):

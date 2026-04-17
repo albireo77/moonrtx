@@ -138,7 +138,7 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float, moon_radi
     while bright_limb_angle_deg < -180: bright_limb_angle_deg += 360
     
     bright_limb_angle = np.radians(bright_limb_angle_deg)
-    phase = np.radians(moon_ephem.phase)
+    phase_angle = np.radians(moon_ephem.phase_angle)
     light_distance = 100  # Far away for parallel rays
     
     # The bright limb angle tells us which edge of the Moon is illuminated
@@ -196,17 +196,17 @@ def calculate_camera_and_light(moon_ephem: MoonEphemeris, zoom: float, moon_radi
     # (phase ≈ 180°) where the Moon should actually be dark.
     #
     # Consequences of 6 degree offset:
-    # - Only affects when phase < 6.0° (very close to full moon)
+    # - Only affects when phase_angle < 6.0° (very close to full moon)
     # - At 6° phase, illumination = (1 + cos(6.0°))/2 ≈ 99.7% (vs 100% at true full)
     # - A ~0.3% sliver at the Moon's edge would be in shadow, visually imperceptible
-    # - Most of the lunar cycle (phase > 6.0°) is completely unaffected
+    # - Most of the lunar cycle (phase_angle > 6.0°) is completely unaffected
     min_phase_offset = np.radians(6.0)
-    # Only apply minimum offset near full moon (phase < 6.0°), not near new moon
-    effective_sin_phase = np.sin(min_phase_offset if phase < min_phase_offset else phase)
+    # Only apply minimum offset near full moon (phase_angle < 6.0°), not near new moon
+    effective_sin_phase = np.sin(min_phase_offset if phase_angle < min_phase_offset else phase_angle)
     
     light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
     light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
-    light_y = -np.cos(phase) * light_distance
+    light_y = -np.cos(phase_angle) * light_distance
     
     light_pos = np.array([light_x, light_y, light_z])
 

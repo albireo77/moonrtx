@@ -218,8 +218,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
 
     _, _, _, _, libr_long_tot, libr_lat_tot = Moon.moon_librations(epoch)
 
-    illum_fraction = (1.0 + math.cos(math.radians(phase_angle))) / 2.0
-
     colongitude = calculate_colongitude(epoch, lambda_moon - nut_lon, beta_moon, moon_distance)
 
     return MoonEphemeris(
@@ -228,7 +226,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         ra=float(moon_ra),
         dec=float(moon_dec),
         distance=moon_distance_topo,
-        phase=phase_angle,
+        phase_angle=phase_angle,
         pa=float(pa),
         pa_axis_view=float(pa_axis_view) % 360.0,
         q=float(q),
@@ -236,7 +234,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         libr_lat=float(libr_lat_tot),
         sun_separation=sun_moon_separation,
         delta_long=float(delta_long) % 360.0,
-        illum_fraction=illum_fraction * 100.0,
         colongitude=colongitude
     )
 
