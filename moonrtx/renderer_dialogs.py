@@ -66,15 +66,15 @@ class DialogsMixin:
             ("T", "Open date/time window"),
             ("A/Z", "Increase/Decrease brightness"),
             ("E/D", "Increase/Decrease gamma correction (0.5 - 5.0)"),
+            ("H/J", "Roll view around current view direction"),
             ("Q/W", "Go back/forward in time by step minutes"),
             ("M/N", "Increase/Decrease time step by 1 minute (max is 1440 - 1 day)"),
-            ("H/J", "Roll view around current view direction"),
         ]
 
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
-            ("Arrows", "Move view"),
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
+            ("Arrows", "Move view"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),
