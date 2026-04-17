@@ -8,8 +8,6 @@ from tkinter import filedialog
 from datetime import datetime
 
 from moonrtx.scene_math import encode_camera_params
-from moonrtx.shared_types import MoonFeature
-
 
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
@@ -102,8 +100,7 @@ class DialogsMixin:
             row.pack(fill=tk.X, pady=1)
             key_label = tk.Label(row, text=key, anchor='e', font=('Consolas', 9, 'bold'))
             key_label.pack(side=tk.LEFT)
-            text = " - " + desc
-            tk.Label(row, text=text, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
+            tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
 
         # Close button
         tk.Button(main_frame, text="Close", command=on_close, width=10).pack(pady=(10, 0))
