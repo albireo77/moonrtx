@@ -201,13 +201,27 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     # is far enough below the horizon, show the geometric altitude instead.
     moon_alt = moon_alt_app if float(moon_alt_app) > -2.0 else moon_alt_geo
 
-    lambda_sun, _ = Sun.apparent_longitude_coarse(epoch)
     lambda_moon, beta_moon, _, _ = Moon.apparent_ecliptical_pos(epoch)
-    delta_long = lambda_moon - lambda_sun
+    sun_lon, sun_lat, sun_distance_au = Sun.apparent_geocentric_position(epoch)
+    delta_long = lambda_moon - sun_lon
 
-    sun_ra, sun_dec, sun_r_au = Sun.apparent_rightascension_declination_coarse(epoch)
+    sun_ra_geo, sun_dec_geo = Coordinates.ecliptical2equatorial(sun_lon, sun_lat, obl)
+    sun_ha_deg = (lst_deg - float(sun_ra_geo)) % 360.0
+    if sun_ha_deg > 180:
+        sun_ha_deg -= 360
+    sun_ha = Angle(sun_ha_deg)
+    sun_ra, sun_dec = Earth.parallax_correction(
+        sun_ra_geo, sun_dec_geo, observer_lat, float(sun_distance_au), sun_ha, float(observer_elevation)
+    )
+
+    sun_ha_deg = (lst_deg - float(sun_ra)) % 360.0
+    if sun_ha_deg > 180:
+        sun_ha_deg -= 360
+    sun_ha = Angle(sun_ha_deg)
+    sun_distance_topo = topocentric_distance(float(sun_distance_au) * AU_KM, observer_lat, sun_dec, sun_ha, observer_elevation)
+
     sun_moon_separation = topocentric_sun_moon_separation(sun_ra, sun_dec, moon_ra, moon_dec)
-    phase_angle = topocentric_phase_angle(sun_moon_separation, sun_r_au, moon_distance_topo)
+    phase_angle = topocentric_phase_angle(sun_moon_separation, sun_distance_topo, moon_distance_topo)
     pa = topocentric_bright_limb_pa(sun_ra, sun_dec, moon_ra, moon_dec)
 
     # Parallactic angle tells us how much celestial north is tilted from zenith
@@ -318,7 +332,7 @@ def topocentric_sun_moon_separation(
 
 def topocentric_phase_angle(
     sun_moon_separation: float,
-    sun_r_au: float,
+    sun_distance_km: float,
     moon_distance_km: float
 ) -> float:
     """
@@ -334,7 +348,7 @@ def topocentric_phase_angle(
     float
         Phase angle in degrees (0 = full, 180 = new).
     """
-    d_sun = sun_r_au * AU_KM
+    d_sun = sun_distance_km
     d_moon = moon_distance_km
     psi_rad = math.radians(sun_moon_separation)
 
