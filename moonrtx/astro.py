@@ -218,7 +218,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
 
     _, _, _, _, libr_long_tot, libr_lat_tot = Moon.moon_librations(epoch)
 
-    illum_fraction = Moon.illuminated_fraction_disk(epoch)
+    illum_fraction = (1.0 + math.cos(math.radians(phase_angle))) / 2.0
 
     colongitude = calculate_colongitude(epoch, lambda_moon - nut_lon, beta_moon, moon_distance)
 
