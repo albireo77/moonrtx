@@ -585,6 +585,12 @@ class MainWindow(tk.Tk):
             dt_local = init_view.dt_local
             lat = init_view.lat
             lon = init_view.lon
+            if not (-180.0 <= lon <= 180.0):
+                messagebox.showerror("Error", "Invalid longitude. Must be between -180 and 180 degrees.")
+                return
+            if not (-90.0 <= lat <= 90.0):
+                messagebox.showerror("Error", "Invalid latitude. Must be between -90 and 90 degrees.")
+                return
             init_orientation = init_view.orientation
             init_camera_params = CameraParams(
                 eye=init_view.eye,
@@ -651,17 +657,17 @@ class MainWindow(tk.Tk):
                 if lon is None:
                     return
 
-        if not (0.0 <= lon <= 180.0):
-            messagebox.showerror("Error", "Invalid longitude. Must be between 0 and 180 degrees.")
-            return
-        if not (0.0 <= lat <= 90.0):
-            messagebox.showerror("Error", "Invalid latitude. Must be between 0 and 90 degrees.")
-            return
+            if not (0.0 <= lon <= 180.0):
+                messagebox.showerror("Error", "Invalid longitude. Must be between 0 and 180 degrees.")
+                return
+            if not (0.0 <= lat <= 90.0):
+                messagebox.showerror("Error", "Invalid latitude. Must be between 0 and 90 degrees.")
+                return
         
-        if self.lat_dir_var.get() == "S":
-            lat = -lat
-        if self.lon_dir_var.get() == "W":
-            lon = -lon
+            if self.lat_dir_var.get() == "S":
+                lat = -lat
+            if self.lon_dir_var.get() == "W":
+                lon = -lon
 
         try:
             elevation = int(self.elevation_entry.get().strip() or 0)
