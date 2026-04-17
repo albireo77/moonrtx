@@ -120,6 +120,36 @@ def _cartesian_to_ecliptic(x: float, y: float, z: float) -> tuple[float, float]:
         math.degrees(math.atan2(z, math.hypot(x, y))),
     )
 
+
+def _exact_topocentric_distance(
+    distance_geo_km: float,
+    ra_geo: Angle,
+    dec_geo: Angle,
+    local_sidereal_deg: float,
+    lat: Angle,
+    elevation_m: int = 0,
+) -> float:
+    """Return exact topocentric distance from geocentric equatorial coordinates."""
+    theta = math.radians(local_sidereal_deg)
+    rho_cosphi = EARTH.rho_cosphi(lat, float(elevation_m))
+    rho_sinphi = EARTH.rho_sinphi(lat, float(elevation_m))
+
+    obs_x = EARTH_RADIUS_KM * rho_cosphi * math.cos(theta)
+    obs_y = EARTH_RADIUS_KM * rho_cosphi * math.sin(theta)
+    obs_z = EARTH_RADIUS_KM * rho_sinphi
+
+    ra_rad = ra_geo.rad()
+    dec_rad = dec_geo.rad()
+    cos_dec = math.cos(dec_rad)
+    obj_x = distance_geo_km * cos_dec * math.cos(ra_rad)
+    obj_y = distance_geo_km * cos_dec * math.sin(ra_rad)
+    obj_z = distance_geo_km * math.sin(dec_rad)
+
+    dx = obj_x - obs_x
+    dy = obj_y - obs_y
+    dz = obj_z - obs_z
+    return math.sqrt(dx * dx + dy * dy + dz * dz)
+
 def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
     """
     Calculate Moon ephemeris for a given time and observer location (topocentric system)
@@ -191,7 +221,14 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         moon_ha_deg -= 360
     moon_ha = Angle(moon_ha_deg)
 
-    moon_distance_topo = topocentric_distance(moon_distance, observer_lat, moon_dec, moon_ha, observer_elevation)
+    moon_distance_topo = _exact_topocentric_distance(
+        moon_distance,
+        moon_ra_geo,
+        moon_dec_geo,
+        lst_deg,
+        observer_lat,
+        observer_elevation,
+    )
     
     # Convert equatorial to horizontal coordinates
     moon_az, moon_alt_geo = Coordinates.equatorial2horizontal(moon_ha, moon_dec, observer_lat)
