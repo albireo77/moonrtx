@@ -17,6 +17,7 @@ class MoonEphemeris(NamedTuple):
     sun_separation: float  # Topocentric angular separation between Sun and Moon centers (degrees)
     delta_long: float  # Ecliptical longitude difference (degrees, 0-360)
     colongitude: float  # Selenographic colongitude of the Sun (degrees, 0-360)
+    rotation_matrix: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
 
 class MoonFeature(NamedTuple):
     name: str

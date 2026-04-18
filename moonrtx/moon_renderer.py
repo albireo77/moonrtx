@@ -19,7 +19,7 @@ from moonrtx.constants import (
     CAMERA_TYPE,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
-from moonrtx.scene_math import calculate_rotation, calculate_camera_and_light
+from moonrtx.scene_math import calculate_camera_and_light
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin
@@ -393,7 +393,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
-        self.moon_rotation = calculate_rotation(-eph.libr_long_topo, eph.libr_lat_topo, eph.pa_axis_view)
+        self.moon_rotation = np.asarray(eph.rotation_matrix, dtype=float)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
 
@@ -458,7 +458,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
-        self.moon_rotation = calculate_rotation(-eph.libr_long_topo, eph.libr_lat_topo, eph.pa_axis_view)
+        self.moon_rotation = np.asarray(eph.rotation_matrix, dtype=float)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
 
