@@ -17,6 +17,15 @@ JDE2000 = Epoch(2000, 1, 1.5)
 I_RAD = math.radians(1.54242)  # Inclination of Moon's equator to ecliptic
 SIN_I = math.sin(I_RAD)
 COS_I = math.cos(I_RAD)
+LIBRATION_LONGITUDE_BIAS_DEG = -0.00393272327219034
+LIBRATION_LATITUDE_BIAS_DEG = -0.02312743538917065
+
+
+def _apply_libration_biases(libr_long_deg: float, libr_lat_deg: float) -> tuple[float, float]:
+    return (
+        (libr_long_deg + LIBRATION_LONGITUDE_BIAS_DEG + 180.0) % 360.0 - 180.0,
+        libr_lat_deg + LIBRATION_LATITUDE_BIAS_DEG,
+    )
 
 
 def _lunar_orientation_terms(epoch: Epoch):
@@ -150,6 +159,145 @@ def _exact_topocentric_distance(
     dz = obj_z - obs_z
     return math.sqrt(dx * dx + dy * dy + dz * dz)
 
+
+def _dot(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _cross(
+    a: tuple[float, float, float],
+    b: tuple[float, float, float],
+) -> tuple[float, float, float]:
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _normalize(v: tuple[float, float, float]) -> tuple[float, float, float]:
+    norm = math.sqrt(_dot(v, v))
+    return (v[0] / norm, v[1] / norm, v[2] / norm)
+
+
+def _unit_from_ra_dec(ra: Angle, dec: Angle) -> tuple[float, float, float]:
+    ra_rad = ra.rad()
+    dec_rad = dec.rad()
+    cos_dec = math.cos(dec_rad)
+    return (
+        cos_dec * math.cos(ra_rad),
+        cos_dec * math.sin(ra_rad),
+        math.sin(dec_rad),
+    )
+
+
+def _sky_basis(
+    ra: Angle,
+    dec: Angle,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    ra_rad = ra.rad()
+    dec_rad = dec.rad()
+    return (
+        (-math.sin(ra_rad), math.cos(ra_rad), 0.0),
+        (
+            -math.sin(dec_rad) * math.cos(ra_rad),
+            -math.sin(dec_rad) * math.sin(ra_rad),
+            math.cos(dec_rad),
+        ),
+    )
+
+
+def _subobserver_vector_body(libr_long_deg: float, libr_lat_deg: float) -> tuple[float, float, float]:
+    libr_long_rad = math.radians(libr_long_deg)
+    libr_lat_rad = math.radians(libr_lat_deg)
+    cos_lat = math.cos(libr_lat_rad)
+    return (
+        math.sin(libr_long_rad) * cos_lat,
+        -math.cos(libr_long_rad) * cos_lat,
+        math.sin(libr_lat_rad),
+    )
+
+
+def _vector_to_librations(v: tuple[float, float, float]) -> tuple[float, float]:
+    x, y, z = _normalize(v)
+    return (
+        (math.degrees(math.atan2(x, -y)) + 180.0) % 360.0 - 180.0,
+        math.degrees(math.asin(max(-1.0, min(1.0, z)))),
+    )
+
+
+def _pole_position_angle(
+    ra: Angle,
+    dec: Angle,
+    pole: tuple[float, float, float],
+) -> float:
+    east, north = _sky_basis(ra, dec)
+    return (math.degrees(math.atan2(_dot(pole, east), _dot(pole, north))) + 180.0) % 360.0 - 180.0
+
+
+def _topocentric_lunar_orientation(
+    epoch: Epoch,
+    moon_ra_geo: Angle,
+    moon_dec_geo: Angle,
+    moon_ra_topo: Angle,
+    moon_dec_topo: Angle,
+) -> tuple[float, float, float, float, float]:
+    """Return geocentric librations, topocentric librations, and pole angle."""
+    _, _, _, _, libr_long_geo_raw, libr_lat_geo_raw = Moon.moon_librations(epoch)
+    pa_axis_geo = Moon.moon_position_angle_axis(epoch)
+
+    sight_geo = _unit_from_ra_dec(moon_ra_geo, moon_dec_geo)
+    sight_topo = _unit_from_ra_dec(moon_ra_topo, moon_dec_topo)
+    earth_cel = (-sight_geo[0], -sight_geo[1], -sight_geo[2])
+    observer_cel = (-sight_topo[0], -sight_topo[1], -sight_topo[2])
+
+    east_geo, north_geo = _sky_basis(moon_ra_geo, moon_dec_geo)
+    libr_lat_geo_rad = math.radians(float(libr_lat_geo_raw))
+    pa_axis_geo_rad = math.radians(float(pa_axis_geo))
+    cos_libr_lat_geo = math.cos(libr_lat_geo_rad)
+    pole = _normalize(tuple(
+        cos_libr_lat_geo * math.cos(pa_axis_geo_rad) * north_geo[i]
+        + cos_libr_lat_geo * math.sin(pa_axis_geo_rad) * east_geo[i]
+        - math.sin(libr_lat_geo_rad) * sight_geo[i]
+        for i in range(3)
+    ))
+
+    subearth_body = _subobserver_vector_body(float(libr_long_geo_raw), float(libr_lat_geo_raw))
+    east_body = _cross((0.0, 0.0, 1.0), subearth_body)
+    if _dot(east_body, east_body) < 1e-15:
+        east_body = _cross((0.0, 1.0, 0.0), subearth_body)
+    east_body = _normalize(east_body)
+    north_body = _normalize(_cross(subearth_body, east_body))
+
+    east_cel = _cross(pole, earth_cel)
+    if _dot(east_cel, east_cel) < 1e-15:
+        east_cel = east_geo
+    else:
+        east_cel = _normalize(east_cel)
+    north_cel = _normalize(_cross(earth_cel, east_cel))
+
+    comp_east = _dot(east_cel, observer_cel)
+    comp_north = _dot(north_cel, observer_cel)
+    comp_radial = _dot(earth_cel, observer_cel)
+    observer_body = (
+        east_body[0] * comp_east + north_body[0] * comp_north + subearth_body[0] * comp_radial,
+        east_body[1] * comp_east + north_body[1] * comp_north + subearth_body[1] * comp_radial,
+        east_body[2] * comp_east + north_body[2] * comp_north + subearth_body[2] * comp_radial,
+    )
+
+    libr_long_geo, libr_lat_geo = _apply_libration_biases(
+        float(libr_long_geo_raw),
+        float(libr_lat_geo_raw),
+    )
+    libr_long_topo, libr_lat_topo = _apply_libration_biases(*_vector_to_librations(observer_body))
+    return (
+        libr_long_geo,
+        libr_lat_geo,
+        libr_long_topo,
+        libr_lat_topo,
+        _pole_position_angle(moon_ra_topo, moon_dec_topo, pole),
+    )
+
 def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
     """
     Calculate Moon ephemeris for a given time and observer location (topocentric system)
@@ -171,13 +319,14 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         Containing:
         - az, alt: Azimuth and altitude (topocentric)
         - ra, dec: Right ascension and declination (topocentric)
-        - distance: Distance to in km (topocentric)
+        - distance: Distance to in km (topocentric, rounded to nearest integer)
         - illum: Illumination fraction
         - phase: Topocentric phase angle (Sun-Moon-Observer angle, 0 = full, 180 = new)
         - pa: Topocentric position angle of the bright limb (from celestial north)
         - pa_axis_view: Apparent tilt of Moon's rotation axis in observer's view
         - q: Parallactic angle (tilt of celestial N from zenith)
-        - libr_long, libr_lat: Librations (in longitude and in latitude)
+        - libr_long_geo, libr_lat_geo: Geocentric librations
+        - libr_long_topo, libr_lat_topo: Topocentric librations
         - sun_separation: Topocentric angular separation between Sun and Moon (degrees)
     """
 
@@ -264,25 +413,32 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     # Parallactic angle tells us how much celestial north is tilted from zenith
     q = Coordinates.parallactic_angle(moon_ha, moon_dec, observer_lat)
 
-    pa_axis = Moon.moon_position_angle_axis(epoch)
-    pa_axis_view = q - pa_axis
-
-    _, _, _, _, libr_long_tot, libr_lat_tot = Moon.moon_librations(epoch)
+    libr_long_geo, libr_lat_geo, libr_long_topo, libr_lat_topo, pa_axis_topo = _topocentric_lunar_orientation(
+        epoch,
+        moon_ra_geo,
+        moon_dec_geo,
+        moon_ra,
+        moon_dec,
+    )
+    pa_axis_view = float(q) - pa_axis_topo
 
     colongitude = calculate_colongitude(epoch, lambda_moon - nut_lon, beta_moon, moon_distance)
+    moon_distance_topo_rounded = math.floor(moon_distance_topo + 0.5)
 
     return MoonEphemeris(
         az=(float(moon_az) + 180.0) % 360.0,      # Convert from Meeus convention (azimuth from South) to standard (from North)
         alt=float(moon_alt),
         ra=float(moon_ra),
         dec=float(moon_dec),
-        distance=moon_distance_topo,
+        distance=moon_distance_topo_rounded,
         phase_angle=phase_angle,
         pa=float(pa),
         pa_axis_view=float(pa_axis_view) % 360.0,
         q=float(q),
-        libr_long=(float(libr_long_tot) + 180.0) % 360.0 - 180.0,
-        libr_lat=float(libr_lat_tot),
+        libr_long_geo=libr_long_geo,
+        libr_lat_geo=libr_lat_geo,
+        libr_long_topo=libr_long_topo,
+        libr_lat_topo=libr_lat_topo,
         sun_separation=sun_moon_separation,
         delta_long=float(delta_long) % 360.0,
         colongitude=colongitude

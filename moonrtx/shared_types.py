@@ -10,8 +10,10 @@ class MoonEphemeris(NamedTuple):
     pa: float
     pa_axis_view: float
     q: float
-    libr_long: float
-    libr_lat: float
+    libr_long_geo: float
+    libr_lat_geo: float
+    libr_long_topo: float
+    libr_lat_topo: float
     sun_separation: float  # Topocentric angular separation between Sun and Moon centers (degrees)
     delta_long: float  # Ecliptical longitude difference (degrees, 0-360)
     colongitude: float  # Selenographic colongitude of the Sun (degrees, 0-360)

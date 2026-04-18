@@ -107,10 +107,14 @@ class StatusMixin:
         if self._info_illum_var:
             illum_fraction = (1.0 + math.cos(math.radians(e.phase_angle))) * 50.0
             self._info_illum_var.set(f"💡:        {illum_fraction:6.2f}%")
-        if self._info_libr_l_var:
-            self._info_libr_l_var.set(f"Libr L:    {e.libr_long:+5.2f}°")
-        if self._info_libr_b_var:
-            self._info_libr_b_var.set(f"Libr B:    {e.libr_lat:+5.2f}°")
+        if self._info_geo_libr_l_var:
+            self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
+        if self._info_geo_libr_b_var:
+            self._info_geo_libr_b_var.set(f"⊕ Libr B: {e.libr_lat_geo:+6.3f}°")
+        if self._info_topo_libr_l_var:
+            self._info_topo_libr_l_var.set(f"⌖ Libr L: {e.libr_long_topo:+6.3f}°")
+        if self._info_topo_libr_b_var:
+            self._info_topo_libr_b_var.set(f"⌖ Libr B: {e.libr_lat_topo:+6.3f}°")
         if self._info_colong_var:
             self._info_colong_var.set(f"Colongit: {e.colongitude:6.2f}°")
 
@@ -324,8 +328,10 @@ class StatusMixin:
                     self._info_ra_var = tk.StringVar(value="RA:")
                     self._info_dec_var = tk.StringVar(value="DEC:")
                     self._info_distance_var = tk.StringVar(value="Dist:")
-                    self._info_libr_l_var = tk.StringVar(value="LbL:")
-                    self._info_libr_b_var = tk.StringVar(value="LbB:")
+                    self._info_geo_libr_l_var = tk.StringVar(value="Geo LbL:")
+                    self._info_geo_libr_b_var = tk.StringVar(value="Geo LbB:")
+                    self._info_topo_libr_l_var = tk.StringVar(value="Topo LbL:")
+                    self._info_topo_libr_b_var = tk.StringVar(value="Topo LbB:")
                     self._info_colong_var = tk.StringVar(value="Colongit:")
                     self._info_illum_var = tk.StringVar(value="Illuminated:")
                     self._info_sun_sep_var = tk.StringVar(value="Sun:")
@@ -340,8 +346,10 @@ class StatusMixin:
                         self._info_ra_var,
                         self._info_dec_var,
                         self._info_distance_var,
-                        self._info_libr_l_var,
-                        self._info_libr_b_var,
+                        self._info_geo_libr_l_var,
+                        self._info_geo_libr_b_var,
+                        self._info_topo_libr_l_var,
+                        self._info_topo_libr_b_var,
                         self._info_colong_var,
                         self._info_illum_var,
                         self._info_sun_sep_var,

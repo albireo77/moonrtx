@@ -393,7 +393,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
-        self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
+        self.moon_rotation = calculate_rotation(-eph.libr_long_topo, eph.libr_lat_topo, eph.pa_axis_view)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
 
@@ -458,7 +458,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
-        self.moon_rotation = calculate_rotation(-eph.libr_long, eph.libr_lat, eph.pa_axis_view)
+        self.moon_rotation = calculate_rotation(-eph.libr_long_topo, eph.libr_lat_topo, eph.pa_axis_view)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
 
