@@ -132,6 +132,7 @@ def _rotation_matrix_and_axis_angle(
 
 
 def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
+    
     dt_utc = _validate_supported_datetime(dt_utc)
 
     time = _skyfield_timescale().from_datetime(dt_utc)
@@ -166,8 +167,8 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     moon_alt, moon_az, _ = moon_topo.altaz(temperature_C="standard")
     moon_alt_deg = moon_alt.degrees
 
-    sun_moon_separation = float(moon_topo.separation_from(sun_topo).degrees)
-    phase_angle = float(moon_topo.phase_angle(sun).degrees)
+    sun_moon_separation = moon_topo.separation_from(sun_topo).degrees
+    phase_angle = moon_topo.phase_angle(sun).degrees
     bright_limb_pa = topocentric_bright_limb_pa(
         sun_ra_deg,
         sun_dec_deg,
