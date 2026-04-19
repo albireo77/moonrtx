@@ -132,7 +132,7 @@ def _rotation_matrix_and_axis_angle(
 
 
 def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
-    
+
     dt_utc = _validate_supported_datetime(dt_utc)
 
     time = _skyfield_timescale().from_datetime(dt_utc)
@@ -148,10 +148,15 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         elevation_m=float(observer_elevation),
     )
 
-    moon_geo = earth.at(time).observe(moon).apparent()
-    moon_topo = observer.at(time).observe(moon).apparent()
-    sun_geo = earth.at(time).observe(sun).apparent()
-    sun_topo = observer.at(time).observe(sun).apparent()
+    earth_at = earth.at(time)
+    moon_at = moon.at(time)
+    sun_at = sun.at(time)
+    observer_at = observer.at(time)
+
+    moon_geo = earth_at.observe(moon).apparent()
+    moon_topo = observer_at.observe(moon).apparent()
+    sun_geo = earth_at.observe(sun).apparent()
+    sun_topo = observer_at.observe(sun).apparent()
 
     moon_ra, moon_dec, _ = moon_topo.radec(epoch="date")
     sun_ra, sun_dec, _ = sun_topo.radec(epoch="date")
@@ -180,11 +185,11 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     _, sun_geo_lon, _ = sun_geo.frame_latlon(ecliptic_frame)
     delta_long = (moon_geo_lon.degrees - sun_geo_lon.degrees) % 360.0
 
-    earth_from_moon = earth.at(time) - moon.at(time)
-    observer_from_moon = observer.at(time) - moon.at(time)
+    earth_from_moon = earth_at - moon_at
+    observer_from_moon = observer_at - moon_at
     libr_lat_geo, libr_lon_geo, _ = earth_from_moon.frame_latlon(moon_frame)
     libr_lat_topo, libr_lon_topo, _ = observer_from_moon.frame_latlon(moon_frame)
-    topocentric_distance_km = (moon.at(time) - observer.at(time)).distance().km
+    topocentric_distance_km = (moon_at - observer_at).distance().km
 
     rotation_matrix, pa_axis_topo = _rotation_matrix_and_axis_angle(
         time,
@@ -195,7 +200,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     )
     pa_axis_view = (q_deg - pa_axis_topo) % 360.0
 
-    sun_from_moon = sun.at(time) - moon.at(time)
+    sun_from_moon = sun_at - moon_at
     _, sun_lon_moon, _ = sun_from_moon.frame_latlon(moon_frame)
     colongitude = _colongitude_from_subsolar_longitude(float(sun_lon_moon.degrees))
 
