@@ -184,7 +184,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     observer_from_moon = observer.at(time) - moon.at(time)
     libr_lat_geo, libr_lon_geo, _ = earth_from_moon.frame_latlon(moon_frame)
     libr_lat_topo, libr_lon_topo, _ = observer_from_moon.frame_latlon(moon_frame)
-    topocentric_distance_km = float((moon.at(time) - observer.at(time)).distance().km)
+    topocentric_distance_km = (moon.at(time) - observer.at(time)).distance().km
 
     rotation_matrix, pa_axis_topo = _rotation_matrix_and_axis_angle(
         time,
@@ -204,7 +204,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         alt=float(moon_alt_deg),
         ra=float(moon_ra_deg),
         dec=float(moon_dec_deg),
-        distance=math.floor(topocentric_distance_km + 0.5),
+        distance=math.floor(float(topocentric_distance_km) + 0.5),
         phase_angle=float(phase_angle),
         pa=float(bright_limb_pa),
         pa_axis_view=float(pa_axis_view),
