@@ -1,5 +1,4 @@
 import ssl
-import sys
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -23,14 +22,9 @@ SKYFIELD_MOON_FRAME_START_UTC = datetime(1900, 1, 1, tzinfo=timezone.utc)
 SKYFIELD_MOON_FRAME_END_UTC = datetime(2051, 1, 1, tzinfo=timezone.utc)
 
 
-def _base_path() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parents[1]
-
-
 def _skyfield_data_dir() -> Path:
-    data_dir = _base_path() / "skyfield_data"
+    from moonrtx.main import DATA_DIRECTORY_PATH
+    data_dir = Path(DATA_DIRECTORY_PATH) / "skyfield"
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
