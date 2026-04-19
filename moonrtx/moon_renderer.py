@@ -3,7 +3,8 @@ MoonRenderer: core renderer class (composing mixins) and run_renderer entry poin
 """
 
 import numpy as np
-from typing import Optional
+from numpy.typing import NDArray
+from typing import Optional, NamedTuple
 from datetime import datetime, timezone, timedelta
 
 import plotoptix
@@ -19,7 +20,6 @@ from moonrtx.constants import (
     CAMERA_TYPE,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
-from moonrtx.scene_math import calculate_camera_and_light
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin
@@ -27,6 +27,12 @@ from moonrtx.renderer_dialogs import DialogsMixin
 from moonrtx.renderer_labels import LabelsMixin
 from moonrtx.renderer_pins import PinsMixin
 from moonrtx.renderer_navigation import NavigationMixin
+
+class Scene(NamedTuple):
+    eye: NDArray
+    target: NDArray
+    up: NDArray
+    light_pos: NDArray
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin):
@@ -376,6 +382,125 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     # ---- view update ----
 
+    def calculate_camera_and_light(self, zoom: float) -> Scene:
+        """
+        Calculate camera position and light direction for the renderer.
+        
+        Scene coordinate system:
+        - Moon is at origin
+        - Camera looks along +Y axis toward the Moon
+        - +X is to the RIGHT in the view
+        - +Z is UP in the view (toward zenith)
+        
+        Parameters
+        ----------
+        zoom : float
+            Camera zoom factor (distance multiplier)
+            
+        Returns
+        -------
+        Scene
+            Camera eye position, target, up vector, and light position
+        """
+        camera_distance = self.moon_radius * (zoom / 100)
+        
+        # Camera setup - looking along +Y axis toward Moon at origin
+        camera_eye = np.array([0, -camera_distance, 0])
+        camera_target = np.array([0, 0, 0])
+        camera_up = np.array([0, 0, 1])
+        
+        # Calculate bright limb angle in observer's view
+        # Position angle: direction from Moon to Sun, measured from celestial North toward East
+        # Parallactic angle: how much celestial North is rotated from zenith
+        # bright_limb_angle = position_angle - parallactic_angle
+        # This gives us the angle from ZENITH (top of view) to the bright limb
+        # Positive angles go toward EAST (counterclockwise as seen from behind camera)
+        
+        # The surface is rotated by (parallactic - PA_axis) around Y.
+        # The light direction in celestial coords is PA (from celestial north).
+        # To get light direction in view coords (from zenith), subtract parallactic.
+        # This puts light in the same reference frame as the rotated surface.
+        bright_limb_angle_deg = self.moon_ephem.pa - self.moon_ephem.q
+        
+        # Normalize to -180 to 180
+        while bright_limb_angle_deg > 180: bright_limb_angle_deg -= 360
+        while bright_limb_angle_deg < -180: bright_limb_angle_deg += 360
+        
+        bright_limb_angle = np.radians(bright_limb_angle_deg)
+        phase_angle = np.radians(self.moon_ephem.phase_angle)
+        light_distance = 100  # Far away for parallel rays
+        
+        # The bright limb angle tells us which edge of the Moon is illuminated
+        # The LIGHT source is in the OPPOSITE direction from the dark side
+        # 
+        # If bright_limb_angle = 0°: bright limb at TOP, Sun is ABOVE Moon
+        #    -> Light from +Z direction (above)
+        # If bright_limb_angle = 90°: bright limb on LEFT (east), Sun is to the LEFT
+        #    -> Light from -X direction (left)
+        # If bright_limb_angle = -90°: bright limb on RIGHT (west), Sun is to the RIGHT
+        #    -> Light from +X direction (right)  
+        # If bright_limb_angle = ±180°: bright limb at BOTTOM, Sun is BELOW
+        #    -> Light from -Z direction (below)
+        #
+        # In our scene, looking along +Y:
+        # Light X = -sin(angle) maps: 0° -> 0, 90° -> -1 (left), -90° -> +1 (right)
+        # Light Z = cos(angle) maps: 0° -> +1 (up), ±180° -> -1 (down)
+        
+        # Calculate light direction using proper 3D geometry
+        # 
+        # The Sun's position relative to the Moon-Earth line can be described as:
+        # - phase angle: angle between Sun-Moon and Earth-Moon directions (at Moon vertex)
+        #   This is the "elongation" of the Sun from Earth as seen from Moon
+        #   phase = 0° means Sun is in same direction as Earth (full moon for us)
+        #   phase = 180° means Sun is opposite to Earth (new moon for us)
+        # - bright_limb_angle: direction of Sun in the observer's view plane (XZ)
+        #   measured from +Z (up) toward +X (right) - but note the sign conventions
+        #
+        # In our scene coordinate system:
+        # - Camera at -Y looking toward Moon at origin
+        # - The Sun is at angle 'phase' from the -Y axis (camera direction)
+        # - The azimuthal direction of Sun in the XZ plane is given by bright_limb_angle
+        #
+        # Using spherical coordinates with -Y as the pole:
+        # - theta = phase (angle from -Y axis, 0° = behind camera, 180° = behind Moon)
+        # - phi = bright_limb_angle (angle in XZ plane, 0° = +Z direction)
+        #
+        # Converting to Cartesian:
+        # Y = -cos(theta) = -cos(phase)  [negative because -Y is our reference]
+        # X = sin(theta) * sin(phi) = sin(phase) * sin(bright_limb_angle)
+        # Z = sin(theta) * cos(phi) = sin(phase) * cos(bright_limb_angle)
+        #
+        # But bright_limb_angle convention: 0° = up (+Z), 90° = left (-X), -90° = right (+X)
+        # So: X = -sin(bright_limb_angle), Z = cos(bright_limb_angle)
+        
+        # When phase is very small (near full moon), sin(phase) approaches 0,
+        # which would place the light exactly behind the camera. This causes
+        # the Moon to appear completely dark in ray tracing because no light
+        # rays can illuminate the visible surface.
+        #
+        # To fix this, we ensure a minimum offset angle so the light is always
+        # slightly to the side, providing proper illumination even at full moon.
+        #
+        # This offset is only applied near full moon (phase < 6°), not near new moon
+        # (phase ≈ 180°) where the Moon should actually be dark.
+        #
+        # Consequences of 6 degree offset:
+        # - Only affects when phase_angle < 6.0° (very close to full moon)
+        # - At 6° phase, illumination = (1 + cos(6.0°))/2 ≈ 99.7% (vs 100% at true full)
+        # - A ~0.3% sliver at the Moon's edge would be in shadow, visually imperceptible
+        # - Most of the lunar cycle (phase_angle > 6.0°) is completely unaffected
+        min_phase_offset = np.radians(6.0)
+        # Only apply minimum offset near full moon (phase_angle < 6.0°), not near new moon
+        effective_sin_phase = np.sin(min_phase_offset if phase_angle < min_phase_offset else phase_angle)
+        
+        light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
+        light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
+        light_y = -np.cos(phase_angle) * light_distance
+        
+        light_pos = np.array([light_x, light_y, light_z])
+
+        return Scene(eye=camera_eye, target=camera_target, up=camera_up, light_pos=light_pos)
+
     def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0, zoom: float = 1000):
         """
         Update the view for a specific time and location.
@@ -402,7 +527,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lon = lon
         self.observer_elevation = elevation
 
-        scene = calculate_camera_and_light(self.moon_ephem, zoom, self.moon_radius)
+        scene = self.calculate_camera_and_light(zoom)
         self.light_pos = scene.light_pos
 
         u_new = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
@@ -467,7 +592,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lon = lon
         self.observer_elevation = elevation
 
-        scene = calculate_camera_and_light(self.moon_ephem, 1000, self.moon_radius)
+        scene = self.calculate_camera_and_light(1000)
         self.light_pos = scene.light_pos
 
         current_fov = self.default_camera_params.fov if self.default_camera_params else 45.0

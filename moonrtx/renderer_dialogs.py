@@ -3,11 +3,44 @@ DialogsMixin: dialog windows (help, search, save, datetime) for MoonRenderer.
 """
 
 import os
+import base64
+import struct
 import tkinter as tk
 from tkinter import filedialog
 from datetime import datetime
 
-from moonrtx.scene_math import encode_camera_params
+def encode_camera_params(eye: list, target: list, up: list, fov: float) -> str:
+    """
+    Encode camera parameters into a compact base64 string.
+    
+    Packs 10 floats (eye[3], target[3], up[3], fov) into binary and base64 encodes.
+    Uses URL-safe base64 (- and _ instead of + and /) for filename compatibility.
+    
+    Parameters
+    ----------
+    eye : list
+        Camera eye position [x, y, z]
+    target : list
+        Camera target position [x, y, z]
+    up : list
+        Camera up vector [x, y, z]
+    fov : float
+        Field of view in degrees
+        
+    Returns
+    -------
+    str
+        Base64-encoded camera parameters (URL-safe, no padding)
+    """
+    # Pack 10 floats: eye(3) + target(3) + up(3) + fov(1)
+    packed = struct.pack('<10f', 
+                         eye[0], eye[1], eye[2],
+                         target[0], target[1], target[2],
+                         up[0], up[1], up[2],
+                         fov)
+    # URL-safe base64 without padding (= chars)
+    encoded = base64.urlsafe_b64encode(packed).decode('ascii').rstrip('=')
+    return encoded
 
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
