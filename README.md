@@ -4,7 +4,7 @@ MoonRTX is ray-traced, ultra-realistic Moon observatory developed in Python. It 
 ## Requirements
 - Python
 - pip (Python package manager)
-- **NVIDIA RTX graphics card with installed NVIDIA drivers**
+- **NVIDIA RTX graphics card with installed latest NVIDIA drivers**
 - As of now application was tested only on Windows. I have no possibility to test it under Linux. Nevertheless, it should run on Linux when PlotOptiX prerequisites for this OS are met. More details [here](https://github.com/rnd-team-dev/plotoptix?tab=readme-ov-file#linux-prerequisites)
 
 ## Install
@@ -85,6 +85,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ![Maria](images/maria.jpg)
 **Mare Smythii in 2 projections (standard and Blue Steel)**
 ![Mare Smythii](images/mare_smythii.jpg)
+**Measuring the depth (Δh) of Theophilus**
+![Theophilus](images/theophilus.jpg)
 
 
 
