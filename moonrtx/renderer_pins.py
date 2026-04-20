@@ -2,8 +2,6 @@
 PinsMixin: pin creation, removal, toggle, and orientation for MoonRenderer.
 """
 
-import numpy as np
-
 from plotoptix.materials import m_flat
 
 from moonrtx.constants import (

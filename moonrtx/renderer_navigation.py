@@ -6,7 +6,7 @@ distance measurement, and feature lookup for MoonRenderer.
 import numpy as np
 from typing import Optional
 
-from moonrtx.shared_types import MoonFeature, CameraParams
+from moonrtx.shared_types import MoonFeature
 
 
 class NavigationMixin:
