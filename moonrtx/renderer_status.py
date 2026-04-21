@@ -120,12 +120,9 @@ class StatusMixin:
 
     def _update_status_measured(self):
         if self._status_measured_var:
-            if self.measured_distance is None and self.measured_height_diff is None:
-                self._status_measured_var.set("")
-            else:
-                text = "              " if self.measured_distance is None else f"Δs: {self.measured_distance:7.2f} km"
-                text += "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:5.0f} m"
-                self._status_measured_var.set(text)
+            measured_text = "             " if self.measured_distance is None else f"d: {self.measured_distance:7.2f} km"
+            measured_text += "" if self.measured_height_diff is None else f"   Δh: {self.measured_height_diff:5.0f} m"
+            self._status_measured_var.set(measured_text)
 
     def _update_info_coords(self, lat=None, lon=None):
         """Update selenographic coordinates in the status bar coords panel."""
@@ -142,9 +139,7 @@ class StatusMixin:
         """Update feature name in the status bar and remember the active feature."""
         self._status_feature = feature
         if self._status_feature_var:
-            feature_text = ""
-            if feature is not None:
-                feature_text = f"{feature.name} (⌀ = {feature.diameter_km:.2f} km)"
+            feature_text = "" if feature is None else f"{feature.name} (⌀ = {feature.diameter_km:.2f} km)"
             self._status_feature_var.set(feature_text)
 
     def open_status_feature_usgs_page(self) -> bool:
