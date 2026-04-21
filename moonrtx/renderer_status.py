@@ -121,7 +121,7 @@ class StatusMixin:
     def _update_status_measured(self):
         if self._status_measured_var:
             measured_text = "             " if self.measured_distance is None else f"d: {self.measured_distance:7.2f} km"
-            measured_text += "" if self.measured_height_diff is None else f"   Δh: {self.measured_height_diff:5.0f} m"
+            measured_text += "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:6.0f} m"
             self._status_measured_var.set(measured_text)
 
     def _update_info_coords(self, lat=None, lon=None):
