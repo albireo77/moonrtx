@@ -173,7 +173,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     moon_alt_deg = moon_alt.degrees
 
     sun_moon_separation = moon_topo.separation_from(sun_topo).degrees
-    phase_angle = moon_topo.phase_angle(sun).degrees
     bright_limb_pa = topocentric_bright_limb_pa(
         sun_ra_deg,
         sun_dec_deg,
@@ -204,6 +203,9 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     _, sun_lon_moon, _ = sun_from_moon.frame_latlon(moon_frame)
     colongitude = _colongitude_from_subsolar_longitude(float(sun_lon_moon.degrees))
 
+    phase_angle = moon_topo.phase_angle(sun).degrees
+    illuminated_fraction = moon_geo.fraction_illuminated(sun) * 100.0
+
     return MoonEphemeris(
         az=float(moon_az.degrees),
         alt=float(moon_alt_deg),
@@ -221,5 +223,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         sun_separation=float(sun_moon_separation),
         delta_long=float(delta_long),
         colongitude=float(colongitude),
+        illuminated_fraction=illuminated_fraction,
         rotation_matrix=_matrix_to_tuple(rotation_matrix),
     )

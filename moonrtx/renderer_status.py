@@ -2,7 +2,6 @@
 StatusMixin: status bar and info panel update methods for MoonRenderer.
 """
 
-import math
 import tkinter as tk
 import webbrowser
 from typing import Optional
@@ -105,8 +104,7 @@ class StatusMixin:
         if self._info_distance_var:
             self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
         if self._info_illum_var:
-            illum_fraction = (1.0 + math.cos(math.radians(e.phase_angle))) * 50.0
-            self._info_illum_var.set(f"💡:        {illum_fraction:6.2f}%")
+            self._info_illum_var.set(f"💡:        {e.illuminated_fraction:6.2f}%")
         if self._info_geo_libr_l_var:
             self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
         if self._info_geo_libr_b_var:
