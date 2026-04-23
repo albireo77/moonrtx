@@ -88,13 +88,13 @@ def _parallactic_angle_deg(hour_angle_deg: float, dec_deg: float, lat_deg: float
     ))
 
 
-def _rotation_matrix_and_axis_angle(
+def _rotation_matrix(
     time,
     moon_frame,
     moon_ra_deg: float,
     moon_dec_deg: float,
     q_deg: float,
-) -> tuple[np.ndarray, float]:
+) -> np.ndarray:
     moon_sight_date = np.array(_unit_from_ra_dec(moon_ra_deg, moon_dec_deg), dtype=float)
     east_cel, north_cel = _sky_basis(moon_ra_deg, moon_dec_deg)
 
@@ -105,13 +105,7 @@ def _rotation_matrix_and_axis_angle(
 
     body_to_date = true_equator_and_equinox_of_date.rotation_at(time) @ moon_frame.rotation_at(time).T
     rotation_matrix = view_basis @ body_to_date @ RENDERER_TO_SKYFIELD_BODY_MATRIX
-
-    pole_date = body_to_date @ np.array([0.0, 0.0, 1.0], dtype=float)
-    pa_axis_topo = _wrap_signed_degrees(math.degrees(math.atan2(
-        float(np.dot(pole_date, east_cel)),
-        float(np.dot(pole_date, north_cel)),
-    )))
-    return rotation_matrix, pa_axis_topo
+    return rotation_matrix
 
 
 def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
@@ -167,14 +161,13 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     libr_lat_topo, libr_lon_topo, _ = observer_from_moon.frame_latlon(moon_frame)
     topocentric_distance_km = (moon_at - observer_at).distance().km
 
-    rotation_matrix, pa_axis_topo = _rotation_matrix_and_axis_angle(
+    rotation_matrix = _rotation_matrix(
         time,
         moon_frame,
         moon_ra_deg,
         moon_dec_deg,
         q_deg,
     )
-    pa_axis_view = (q_deg - pa_axis_topo) % 360.0
 
     sun_from_moon = sun_at - moon_at
     _, sun_lon_moon, _ = sun_from_moon.frame_latlon(moon_frame)
@@ -191,7 +184,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         distance=math.floor(float(topocentric_distance_km) + 0.5),
         phase_angle=float(phase_angle),
         pa=float(bright_limb_pa),
-        pa_axis_view=float(pa_axis_view),
         q=float(q_deg),
         libr_long_geo=float(_wrap_signed_degrees(libr_lon_geo.degrees)),
         libr_lat_geo=float(libr_lat_geo.degrees),
