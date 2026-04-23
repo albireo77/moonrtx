@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import numpy as np
 from skyfield.api import wgs84
 from skyfield.framelib import ecliptic_frame, true_equator_and_equinox_of_date
+from skyfield.trigonometry import position_angle_of
 
 from moonrtx.skyfield_utils import (
     SKYFIELD_MOON_FRAME_END_UTC,
@@ -87,24 +88,6 @@ def _parallactic_angle_deg(hour_angle_deg: float, dec_deg: float, lat_deg: float
     ))
 
 
-def topocentric_bright_limb_pa(
-    sun_ra_deg: float,
-    sun_dec_deg: float,
-    moon_ra_deg: float,
-    moon_dec_deg: float,
-) -> float:
-    sun_ra_rad = math.radians(sun_ra_deg)
-    sun_dec_rad = math.radians(sun_dec_deg)
-    moon_ra_rad = math.radians(moon_ra_deg)
-    moon_dec_rad = math.radians(moon_dec_deg)
-
-    return math.degrees(math.atan2(
-        math.cos(sun_dec_rad) * math.sin(sun_ra_rad - moon_ra_rad),
-        math.sin(sun_dec_rad) * math.cos(moon_dec_rad)
-        - math.cos(sun_dec_rad) * math.sin(moon_dec_rad) * math.cos(sun_ra_rad - moon_ra_rad),
-    )) % 360.0
-
-
 def _rotation_matrix_and_axis_angle(
     time,
     moon_frame,
@@ -158,12 +141,11 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     sun_geo = earth_at.observe(sun).apparent()
     sun_topo = observer_at.observe(sun).apparent()
 
-    moon_ra, moon_dec, _ = moon_topo.radec(epoch="date")
-    sun_ra, sun_dec, _ = sun_topo.radec(epoch="date")
+    moon_radec = moon_topo.radec(epoch="date")
+    sun_radec = sun_topo.radec(epoch="date")
+    moon_ra, moon_dec, _ = moon_radec
     moon_ra_deg = moon_ra.hours * 15.0
     moon_dec_deg = moon_dec.degrees
-    sun_ra_deg = sun_ra.hours * 15.0
-    sun_dec_deg = sun_dec.degrees
 
     moon_hour_angle, _, _ = moon_topo.hadec()
     moon_hour_angle_deg = moon_hour_angle.hours * 15.0
@@ -173,12 +155,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     moon_alt_deg = moon_alt.degrees
 
     sun_moon_separation = moon_topo.separation_from(sun_topo).degrees
-    bright_limb_pa = topocentric_bright_limb_pa(
-        sun_ra_deg,
-        sun_dec_deg,
-        moon_ra_deg,
-        moon_dec_deg,
-    )
+    bright_limb_pa = position_angle_of(moon_radec, sun_radec).degrees % 360.0
 
     _, moon_geo_lon, _ = moon_geo.frame_latlon(ecliptic_frame)
     _, sun_geo_lon, _ = sun_geo.frame_latlon(ecliptic_frame)
