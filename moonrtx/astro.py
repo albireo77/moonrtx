@@ -204,7 +204,7 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     colongitude = _colongitude_from_subsolar_longitude(float(sun_lon_moon.degrees))
 
     phase_angle = moon_topo.phase_angle(sun).degrees
-    illuminated_fraction = moon_geo.fraction_illuminated(sun) * 100.0
+    fraction_illuminated = moon_geo.fraction_illuminated(sun)
 
     return MoonEphemeris(
         az=float(moon_az.degrees),
@@ -223,6 +223,6 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
         sun_separation=float(sun_moon_separation),
         delta_long=float(delta_long),
         colongitude=float(colongitude),
-        illuminated_fraction=illuminated_fraction,
+        fraction_illuminated=fraction_illuminated,
         rotation_matrix=_matrix_to_tuple(rotation_matrix),
     )

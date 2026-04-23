@@ -104,7 +104,8 @@ class StatusMixin:
         if self._info_distance_var:
             self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
         if self._info_illum_var:
-            self._info_illum_var.set(f"💡:        {e.illuminated_fraction:6.2f}%")
+            percent_illuminated = e.fraction_illuminated * 100
+            self._info_illum_var.set(f"💡:        {percent_illuminated:6.2f}%")
         if self._info_geo_libr_l_var:
             self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
         if self._info_geo_libr_b_var:
