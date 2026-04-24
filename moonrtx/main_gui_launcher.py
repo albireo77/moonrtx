@@ -17,6 +17,7 @@ from moonrtx.main import (
     check_color_file,
     check_starmap_file,
     check_gpu_architecture,
+    win_title,
     DEFAULT_ELEVATION_FILE_LOCAL_PATH,
     APP_NAME,
     DEFAULT_COLOR_FILE_LOCAL_PATH,
@@ -152,7 +153,8 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Gamma:").grid(row=8, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Time step (minutes):").grid(row=9, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="View orientation:").grid(row=10, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=11, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Parallactic mode:").grid(row=11, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=12, column=0, sticky=tk.E, pady=2)
 
         self.lat_dir_var = tk.StringVar(value="N")
         self.lon_dir_var = tk.StringVar(value="E")
@@ -237,9 +239,16 @@ class MainWindow(tk.Tk):
         self.init_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VALID_ORIENTATIONS)
         self.init_orientation.grid(row=10, column=1, sticky=tk.EW, pady=2)
         self.init_orientation.set(ORIENTATION_NSWE)
-        
+
+        self.parallactic_mode_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            frm,
+            text="(maintains Moon aligned to celestial north)",
+            variable=self.parallactic_mode_var,
+        ).grid(row=11, column=1, sticky=tk.W, pady=2)
+
         self.init_view = tk.Entry(frm, width=5)
-        self.init_view.grid(row=11, column=1, sticky=tk.EW, pady=2)
+        self.init_view.grid(row=12, column=1, sticky=tk.EW, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
@@ -383,6 +392,7 @@ class MainWindow(tk.Tk):
             "gamma": self.gamma_entry.get(),
             "time_step_minutes": self.time_step_minutes.get(),
             "init_orientation": self.init_orientation.get(),
+            "parallactic_mode": bool(self.parallactic_mode_var.get()),
             "init_view": self.init_view.get(),
         }
 
@@ -513,6 +523,8 @@ class MainWindow(tk.Tk):
 
             self.init_orientation.set(settings.get("init_orientation", ORIENTATION_NSWE))
 
+            self.parallactic_mode_var.set(bool(settings.get("parallactic_mode", False)))
+
             self.init_view.delete(0, tk.END)
             self.init_view.insert(0, settings.get("init_view", ""))
 
@@ -592,6 +604,9 @@ class MainWindow(tk.Tk):
                 messagebox.showerror("Error", "Invalid latitude. Must be between -90 and 90 degrees.")
                 return
             init_orientation = init_view.orientation
+            # A restored screenshot carries its own parallactic-mode flag;
+            # reflect it in the checkbox so the renderer starts in the same mode.
+            self.parallactic_mode_var.set(bool(init_view.parallactic_mode))
             init_camera_params = CameraParams(
                 eye=init_view.eye,
                 target=init_view.target,
@@ -677,6 +692,8 @@ class MainWindow(tk.Tk):
         if not (0 <= elevation <= 100000):
             messagebox.showerror("Error", "Invalid elevation. Must be between 0 and 100000 meters.")
             return
+        
+        window_title = win_title(lat, lon, elevation)
 
         try:
             downscale = int(self.downscale.get().strip())
@@ -744,6 +761,8 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "Starmap file is not present and download failed.")
             return
         
+        parallactic_mode = bool(self.parallactic_mode_var.get())
+        
         self._set_status("Starting renderer...")
         self.update_idletasks()
         
@@ -763,11 +782,12 @@ class MainWindow(tk.Tk):
                 MOON_FEATURES_FILE_LOCAL_PATH,
                 downscale,
                 brightness,
-                APP_NAME,
+                window_title,
                 init_camera_params,
                 time_step_minutes,
                 init_orientation,
-                gamma)
+                gamma,
+                parallactic_mode)
         )
         p.start()
         

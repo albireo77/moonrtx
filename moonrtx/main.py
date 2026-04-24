@@ -47,6 +47,7 @@ class InitView(NamedTuple):
     lat: float
     lon: float
     orientation: str
+    parallactic_mode: bool
     eye: list
     target: list
     up: list
@@ -79,6 +80,8 @@ def parse_args():
                         help="Brightness")
     parser.add_argument("--gamma", type=float, default=2.8,
                         help="Gamma correction value (0.5 - 5.0, default 2.8)")
+    parser.add_argument("--parallactic-mode", action="store_true",
+                        help="Turn on parallactic mode (maintains Moon aligned to celestial north)")
     parser.add_argument("--time-step-minutes", type=int, default=15,
                         help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
@@ -194,56 +197,66 @@ def decode_camera_params(encoded: str) -> Optional[tuple]:
         print(f"Error decoding camera params: {e}")
         return None
 
-
 def parse_init_view(init_view_str: str) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
     
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>_cam<base64>
-    
+    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>[_par<0|1>]_cam<base64>
+
+    The _par<0|1> segment is optional for backwards compatibility with
+    filenames saved before the parallactic-mode flag was introduced; when
+    absent it defaults to OFF.
+
     Parameters
     ----------
     init_view_str : str
         The init-view string to parse
-        
+
     Returns
     -------
     InitView or None
         Parsed data or None if parsing fails
     """
     try:
-        pattern = r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)_view([A-Z]+)_cam([A-Za-z0-9_-]+)$'
+        pattern = (
+            r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)'
+            r'_view([A-Z]+)(?:_par([01]))?_cam([A-Za-z0-9_-]+)$'
+        )
         match = re.match(pattern, init_view_str)
-        
+
         if not match:
             return None
-        
+
         dt_str = match.group(1)
         lat = float(match.group(2))
         lon = float(match.group(3))
         orientation = match.group(4)
-        cam_encoded = match.group(5)
-        
+        par_flag = match.group(5)
+        cam_encoded = match.group(6)
+
         # Validate orientation
         if orientation not in VALID_ORIENTATIONS:
             print(f"Invalid orientation in init-view: {orientation}")
             return None
-        
+
+        parallactic_mode = par_flag == '1'
+
         decoded = decode_camera_params(cam_encoded)
         if decoded is None:
             return None
         eye, target, up, fov = decoded
-        
+
         dt_local, error = get_date_time_local(dt_str.replace('.', ':'))
         if error is not None:
             print(f"Incorrect time: {error}")
             return None
-        
+
         return InitView(
             dt_local=dt_local,
             lat=lat,
             lon=lon,
             orientation=orientation,
+            parallactic_mode=parallactic_mode,
             eye=eye,
             target=target,
             up=up,
@@ -252,6 +265,11 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
     except Exception as e:
         print(f"Error parsing init-view string: {e}")
         return None
+
+def win_title(lat: float, lon: float, elevation: int) -> str:
+    lat_dir = 'N' if lat >= 0 else 'S'
+    lon_dir = 'E' if lon >= 0 else 'W'
+    return f"{APP_NAME}        👁️ {abs(lat):.4f}°{lat_dir}   {abs(lon):.4f}°{lon_dir}   (elevation: {elevation} m)"
 
 def main():
 
@@ -271,6 +289,9 @@ def main():
         lat = init_view.lat
         lon = init_view.lon
         init_view_orientation = init_view.orientation
+        # Restored screenshots carry their own parallactic-mode flag, which
+        # overrides the --parallactic-mode CLI argument.
+        args.parallactic_mode = init_view.parallactic_mode
         init_camera_params = CameraParams(
             eye=init_view.eye,
             target=init_view.target,
@@ -338,21 +359,24 @@ def main():
     if not check_starmap_file():
         sys.exit(1)
 
+    window_title = win_title(lat, lon, args.elevation)
+
     run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
-                 lat=lat,
-                 lon=lon,
+                 observer_lat=lat,
+                 observer_lon=lon,
                  observer_elevation=args.elevation,
                  downscale=args.downscale,
                  brightness=args.brightness,
-                 app_name=APP_NAME,
+                 window_title=window_title,
                  color_file=args.color_file,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
                  init_camera_params=init_camera_params,
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
-                 gamma=args.gamma)
+                 gamma=args.gamma,
+                 parallactic_mode=args.parallactic_mode)
 
 if __name__ == "__main__":
     main()

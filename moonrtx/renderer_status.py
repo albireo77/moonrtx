@@ -39,15 +39,10 @@ class StatusMixin:
 
     # ---- Status panel update methods ----
 
-    def _update_status_observer(self):
-        if self._status_observer_var:
-            if self.observer_lat is not None and self.observer_lon is not None:
-                lat_dir = 'N' if self.observer_lat >= 0 else 'S'
-                lon_dir = 'E' if self.observer_lon >= 0 else 'W'
-                self._status_observer_var.set(
-                    f"Observer: {abs(self.observer_lat):.4f}\u00b0{lat_dir} {abs(self.observer_lon):.4f}\u00b0{lon_dir}")
-            else:
-                self._status_observer_var.set("Observer:")
+    def _update_status_parallactic(self):
+        if self._status_parallactic_var:
+            state = "ON" if self.parallactic_mode else "OFF"
+            self._status_parallactic_var.set(f"Parallactic Mode: {state}")
 
     def _update_status_view(self):
         if self._status_view_var:
@@ -205,7 +200,7 @@ class StatusMixin:
             return "New Moon"
 
     def _update_all_status_panels(self):
-        self._update_status_observer()
+        self._update_status_parallactic()
         self._update_status_view()
         self._update_status_time()
         self._update_status_measured()
@@ -232,7 +227,7 @@ class StatusMixin:
             # Schedule maximize and title change on the main thread
             def init_window():
                 rt._root.state('zoomed')
-                rt._root.title(self.app_name)
+                rt._root.title(self.window_title)
 
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
@@ -246,7 +241,7 @@ class StatusMixin:
 
                     status_frame = tk.Frame(parent)
 
-                    self._status_observer_var = tk.StringVar()
+                    self._status_parallactic_var = tk.StringVar()
                     self._status_view_var = tk.StringVar()
                     self._status_time_var = tk.StringVar()
                     self._status_measured_var = tk.StringVar()
@@ -263,12 +258,12 @@ class StatusMixin:
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
                         (self._status_gamma_var,      10),
-                        (self._status_feature_var,    37),
+                        (self._status_feature_var,    46),
                         (self._status_coords_var,     26),
                         (self._status_measured_var,   27),
                         (None,                        47),  # placeholder for time panel
                         (self._status_view_var,       10),
-                        (self._status_observer_var,   30)
+                        (self._status_parallactic_var, 21)
                     ]
                     for var, w in panels:
                         if var is None:

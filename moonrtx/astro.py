@@ -108,7 +108,13 @@ def _rotation_matrix(
     return rotation_matrix
 
 
-def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_elevation: int = 0) -> MoonEphemeris:
+def calculate_moon_ephemeris(
+    dt_utc: datetime,
+    lat: float,
+    lon: float,
+    observer_elevation: int,
+    parallactic_mode: bool
+) -> MoonEphemeris:
 
     dt_utc = _validate_supported_datetime(dt_utc)
 
@@ -161,12 +167,17 @@ def calculate_moon_ephemeris(dt_utc: datetime, lat: float, lon: float, observer_
     libr_lat_topo, libr_lon_topo, _ = observer_from_moon.frame_latlon(moon_frame)
     topocentric_distance_km = (moon_at - observer_at).distance().km
 
+    # In parallactic-mount mode we keep celestial north "up" in the view frame
+    # (no field rotation to follow the zenith), so the view-basis rotation is
+    # computed with q = 0. The returned q_deg below is still the true
+    # topocentric parallactic angle for UI / light-direction use.
+    rotation_q_deg = 0.0 if parallactic_mode else q_deg
     rotation_matrix = _rotation_matrix(
         time,
         moon_frame,
         moon_ra_deg,
         moon_dec_deg,
-        q_deg,
+        rotation_q_deg,
     )
 
     sun_from_moon = sun_at - moon_at

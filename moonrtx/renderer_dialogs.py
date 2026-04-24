@@ -78,6 +78,7 @@ class DialogsMixin:
         aligned_lines = [
             ("F1", "Help"),
             ("F2", "Toggle Moon ephemeris panel"),
+            ("F4", "Toggle parallactic mode (maintains Moon aligned to celestial north)"),
             ("F5", "NSWE view orientation"),
             ("F6", "NSEW view orientation"),
             ("F7", "SNEW view orientation"),
@@ -212,8 +213,11 @@ class DialogsMixin:
         
         # 4. View orientation
         parts.append(f"view{self.orientation_mode}")
-        
-        # 5. Current camera parameters (at the time of screenshot) - encoded as base64
+
+        # 5. Parallactic mode flag (0 = OFF, 1 = ON)
+        parts.append(f"par{1 if self.parallactic_mode else 0}")
+
+        # 6. Current camera parameters (at the time of screenshot) - encoded as base64
         if self.rt is not None:
             try:
                 cam = self.rt.get_camera("cam1")

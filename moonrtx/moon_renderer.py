@@ -42,7 +42,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     """
 
     def __init__(self,
-                 app_name: str,
+                 window_title: str,
                  elevation_file: str,
                  color_file: str,
                  features_file: str,
@@ -54,14 +54,15 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
                  observer_elevation: int = 0,
-                 gamma: float = 2.8):
+                 gamma: float = 2.8,
+                 parallactic_mode: bool = False):
         """
         Initialize the planetarium.
 
         Parameters
         ----------
-        app_name : str
-            Application name
+        window_title : str
+            Window title
         elevation_file : str
             Path to Moon elevation data TIFF
         color_file : str
@@ -84,12 +85,15 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Observer elevation in meters above sea level
         gamma : float
             Gamma correction value (default 2.8)
+        parallactic_mode : bool
+            Whether to use parallactic projection mode (default False)
         """
         self.width = width
         self.height = height
         self.downscale = downscale
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
+        self.parallactic_mode = parallactic_mode
 
         # Load data
         self.elevation, self._elev_scale, self._elev_rv, self._elev_displacement_range = load_elevation_data(elevation_file, downscale)
@@ -98,7 +102,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
-        self.app_name = app_name
+        self.window_title = window_title
         self.brightness = brightness
 
         # Renderer
@@ -166,7 +170,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.measured_height_diff = None
 
         # Status bar panel variables (set up as StringVars after renderer is created)
-        self._status_observer_var = None
+        self._status_parallactic_var = None
         self._status_view_var = None
         self._status_time_var = None
         self._status_measured_var = None
@@ -420,7 +424,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # The light direction in celestial coords is PA (from celestial north).
         # To get light direction in view coords (from zenith), subtract parallactic.
         # This puts light in the same reference frame as the rotated surface.
-        bright_limb_angle_deg = self.moon_ephem.pa - self.moon_ephem.q
+        #
+        # In parallactic-mount mode the view frame keeps celestial north up
+        # (rotation matrix was built with q=0), so PA is already measured from
+        # the view's "up" direction and no q subtraction is needed.
+        if self.parallactic_mode:
+            bright_limb_angle_deg = self.moon_ephem.pa
+        else:
+            bright_limb_angle_deg = self.moon_ephem.pa - self.moon_ephem.q
         
         # Normalize to -180 to 180
         while bright_limb_angle_deg > 180: bright_limb_angle_deg -= 360
@@ -517,7 +528,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Camera zoom factor
         """
         dt_utc = dt_local.astimezone(timezone.utc)
-        eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
+        eph = calculate_moon_ephemeris(
+            dt_utc, lat, lon, elevation, self.parallactic_mode
+        )
         self.moon_rotation = np.asarray(eph.rotation_matrix, dtype=float)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
@@ -582,7 +595,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Observer elevation in meters above sea level
         """
         dt_utc = dt_local.astimezone(timezone.utc)
-        eph = calculate_moon_ephemeris(dt_utc, lat, lon, elevation)
+        eph = calculate_moon_ephemeris(
+            dt_utc, lat, lon, elevation, self.parallactic_mode
+        )
         self.moon_rotation = np.asarray(eph.rotation_matrix, dtype=float)
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
@@ -658,8 +673,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 # ---------------------------------------------------------------------------
 
 def run_renderer(dt_local: datetime,
-                 lat: float,
-                 lon: float,
+                 observer_lat: float,
+                 observer_lon: float,
                  observer_elevation: int,
                  elevation_file: str,
                  color_file: str,
@@ -667,11 +682,12 @@ def run_renderer(dt_local: datetime,
                  features_file: str,
                  downscale: int,
                  brightness: int,
-                 app_name: str,
+                 window_title: str,
                  init_camera_params: Optional[CameraParams] = None,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
-                 gamma: float = 2.8) -> TkOptiX:
+                 gamma: float = 2.8,
+                 parallactic_mode: bool = False) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 
@@ -679,7 +695,7 @@ def run_renderer(dt_local: datetime,
     ----------
     dt_local : datetime
         Local time
-    lat, lon : float
+    observer_lat, observer_lon : float
         Observer latitude and longitude in degrees
     observer_elevation : int
         Observer elevation in meters above sea level
@@ -689,8 +705,8 @@ def run_renderer(dt_local: datetime,
         Elevation downscale factor
     brightness : int
         Brightness
-    app_name : str
-        Application name
+    window_title : str
+        Window title
     init_camera_params : CameraParams, optional
         Initial camera parameters to restore a specific view
     time_step_minutes : int
@@ -699,6 +715,8 @@ def run_renderer(dt_local: datetime,
         Initial view orientation mode.
     gamma : float
         Gamma correction value (default 2.2)
+    parallactic_mode : bool
+        Whether to use parallactic projection mode (default False)
 
     Returns
     -------
@@ -708,7 +726,7 @@ def run_renderer(dt_local: datetime,
     print()
     print("Used PlotOptiX version:", plotoptix.__version__)
     print("Renderer started with parameters:")
-    print(f"  Geographical Location: Lat {lat}°, Lon {lon}°, Elevation {observer_elevation} m")
+    print(f"  Geographical Location: Lat {observer_lat}°, Lon {observer_lon}°, Elevation {observer_elevation} m")
     print(f"  Local Time: {dt_local}")
     print(f"  Elevation File: {elevation_file}")
     print(f"  Color File: {color_file}")
@@ -717,12 +735,13 @@ def run_renderer(dt_local: datetime,
     print(f"  Downscale Factor: {downscale}")
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
+    print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
     if init_camera_params:
         print("  Init View: Restoring camera from screenshot filename")
     print()
 
     moon_renderer = MoonRenderer(
-        app_name=app_name,
+        window_title=window_title,
         elevation_file=elevation_file,
         color_file=color_file,
         starmap_file=starmap_file,
@@ -732,14 +751,15 @@ def run_renderer(dt_local: datetime,
         time_step_minutes=time_step_minutes,
         init_view_orientation=init_view_orientation,
         observer_elevation=observer_elevation,
-        gamma=gamma
+        gamma=gamma,
+        parallactic_mode=parallactic_mode
     )
 
     # Setup renderer
     moon_renderer.setup_renderer()
 
     # Set view
-    moon_renderer.update_view(dt_local=dt_local, lat=lat, lon=lon, elevation=observer_elevation)
+    moon_renderer.update_view(dt_local=dt_local, lat=observer_lat, lon=observer_lon, elevation=observer_elevation)
 
     # Apply custom camera parameters if provided (to restore a saved view)
     if init_camera_params is not None:
@@ -759,6 +779,22 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_standard_labels()
         elif event.keysym.lower() == 's':
             moon_renderer.toggle_spot_labels()
+        elif event.keysym == 'F4':
+            moon_renderer.parallactic_mode = not moon_renderer.parallactic_mode
+            moon_renderer.update_moon_for_time(
+                moon_renderer.dt_local,
+                moon_renderer.observer_lat,
+                moon_renderer.observer_lon,
+                moon_renderer.observer_elevation,
+            )
+            if moon_renderer.moon_grid_visible:
+                moon_renderer.update_moon_grid_orientation()
+            if moon_renderer.standard_labels_visible:
+                moon_renderer.update_standard_labels_orientation()
+            if moon_renderer.spot_labels_visible:
+                moon_renderer.update_spot_labels_orientation()
+            moon_renderer.update_pins_orientation()
+            moon_renderer._update_status_parallactic()
         elif event.keysym == 'F5':
             moon_renderer.set_orientation(ORIENTATION_NSWE)
             original_key_handler(event)
