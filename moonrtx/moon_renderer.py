@@ -358,7 +358,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Create Moon sphere with displacement
         self.rt.set_data("moon", geom="ParticleSetTextured", geom_attr="DisplacedSurface",
-                        pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=10)
+                        pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.moon_radius)
 
         # Apply displacement map
         self.rt.set_displacement("moon", self.elevation, refresh=True)
