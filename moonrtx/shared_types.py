@@ -1,5 +1,7 @@
 from typing import NamedTuple, Optional
 
+from numpy.typing import NDArray
+
 class MoonEphemeris(NamedTuple):
     az: float
     alt: float
@@ -17,7 +19,7 @@ class MoonEphemeris(NamedTuple):
     delta_long: float  # Ecliptical longitude difference (degrees, 0-360)
     colongitude: float  # Selenographic colongitude of the Sun (degrees, 0-360)
     fraction_illuminated: float
-    rotation_matrix: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
+    rotation_matrix: NDArray
 
 class MoonFeature(NamedTuple):
     name: str

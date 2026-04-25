@@ -508,7 +508,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         eph = calculate_moon_ephemeris(
             dt_utc, lat, lon, elevation, self.parallactic_mode
         )
-        self.moon_rotation = np.asarray(eph.rotation_matrix, dtype=float)
+        self.moon_rotation = eph.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
 
@@ -526,10 +526,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         camera, light_pos = self.calculate_camera_and_light(fov)
         self.light_pos = light_pos
 
-        u_new = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
-        v_new = self.moon_rotation @ np.array([0.0, -1.0, 0.0])
+        u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
+        v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
-        self.rt.update_data("moon", u=u_new.tolist(), v=v_new.tolist())
+        self.rt.update_data("moon", u=u_new, v=v_new)
 
         self.rt.setup_camera("cam1",
                              cam_type=CAMERA_TYPE,
@@ -567,7 +567,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         eph = calculate_moon_ephemeris(
             dt_utc, lat, lon, elevation, self.parallactic_mode
         )
-        self.moon_rotation = np.asarray(eph.rotation_matrix, dtype=float)
+        self.moon_rotation = eph.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
 
@@ -582,9 +582,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.light_pos = light_pos
         self.default_camera_params = camera
 
-        u_new = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
-        v_new = self.moon_rotation @ np.array([0.0, -1.0, 0.0])
-        self.rt.update_data("moon", u=u_new.tolist(), v=v_new.tolist())
+        u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
+        v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
+        self.rt.update_data("moon", u=u_new, v=v_new)
 
         self.rt.setup_light("sun", pos=light_pos, color=self.brightness, radius=SUN_RADIUS)
 

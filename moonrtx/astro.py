@@ -14,6 +14,7 @@ from moonrtx.skyfield_utils import (
     skyfield_timescale as _skyfield_timescale,
 )
 from moonrtx.shared_types import MoonEphemeris
+
 RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
     [[0.0, -1.0, 0.0],
      [1.0, 0.0, 0.0],
@@ -70,12 +71,6 @@ def _sky_basis(ra_deg: float, dec_deg: float) -> tuple[np.ndarray, np.ndarray]:
 
 def _normalize_np(vector: np.ndarray) -> np.ndarray:
     return vector / np.linalg.norm(vector)
-
-
-def _matrix_to_tuple(
-    matrix: np.ndarray,
-) -> tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
-    return tuple(tuple(float(value) for value in row) for row in matrix)
 
 
 def _parallactic_angle_deg(hour_angle_deg: float, dec_deg: float, lat_deg: float) -> float:
@@ -204,5 +199,5 @@ def calculate_moon_ephemeris(
         delta_long=float(delta_long),
         colongitude=float(colongitude),
         fraction_illuminated=fraction_illuminated,
-        rotation_matrix=_matrix_to_tuple(rotation_matrix),
+        rotation_matrix=rotation_matrix,
     )
