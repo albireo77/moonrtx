@@ -491,7 +491,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if self.pins_visible:
             self.update_pins_orientation()
 
-    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0):
+    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int):
         """
         Update the view for a specific time and location.
 
