@@ -371,7 +371,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     # ---- view update ----
 
-    def calculate_camera_and_light(self, zoom: float) -> Scene:
+    def calculate_camera_and_light(self) -> Scene:
         """
         Calculate camera position and light direction for the renderer.
         
@@ -381,17 +381,12 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         - +X is to the RIGHT in the view
         - +Z is UP in the view (toward zenith)
         
-        Parameters
-        ----------
-        zoom : float
-            Camera zoom factor (distance multiplier)
-            
         Returns
         -------
         Scene
             Camera eye position, target, up vector, and light position
         """
-        camera_distance = self.moon_radius * (zoom / 100)
+        camera_distance = self.moon_radius * 10
         
         # Camera setup - looking along +Y axis toward Moon at origin
         camera_eye = np.array([0, -camera_distance, 0])
@@ -507,7 +502,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if self.pins_visible:
             self.update_pins_orientation()
 
-    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0, zoom: float = 1000):
+    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0):
         """
         Update the view for a specific time and location.
 
@@ -519,8 +514,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Observer latitude and longitude in degrees
         elevation : int
             Observer elevation in meters above sea level
-        zoom : float
-            Camera zoom factor
         """
         dt_utc = dt_local.astimezone(timezone.utc)
         eph = calculate_moon_ephemeris(
@@ -535,7 +528,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lon = lon
         self.observer_elevation = elevation
 
-        scene = self.calculate_camera_and_light(zoom)
+        scene = self.calculate_camera_and_light()
         self.light_pos = scene.light_pos
 
         u_new = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
@@ -544,7 +537,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.update_data("moon", u=u_new.tolist(), v=v_new.tolist())
 
         # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
-        camera_distance = self.moon_radius * (zoom / 100)
+        camera_distance = self.moon_radius * 10
         moon_diameter = 2 * self.moon_radius
         visible_height = moon_diameter / MOON_FILL_FRACTION
         fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
@@ -599,7 +592,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lon = lon
         self.observer_elevation = elevation
 
-        scene = self.calculate_camera_and_light(1000)
+        scene = self.calculate_camera_and_light()
         self.light_pos = scene.light_pos
 
         current_fov = self.default_camera_params.fov if self.default_camera_params else 45.0
