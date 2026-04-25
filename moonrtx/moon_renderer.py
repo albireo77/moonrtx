@@ -295,14 +295,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
 
-        if self.moon_grid_visible:
-            self.update_moon_grid_orientation()
-        if self.standard_labels_visible:
-            self.update_standard_labels_orientation()
-        if self.spot_labels_visible:
-            self.update_spot_labels_orientation()
-
-        self.update_pins_orientation()
+        self.update_overlays()
         self._update_all_status_panels()
 
     def set_time_to_now_and_auto_advance(self):
@@ -331,15 +324,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
 
-        if self.moon_grid_visible:
-            self.update_moon_grid_orientation()
-        if self.standard_labels_visible:
-            self.update_standard_labels_orientation()
-        if self.spot_labels_visible:
-            self.update_spot_labels_orientation()
-
-        self.update_pins_orientation()
-
+        self.update_overlays()
         self._update_status_time()
         self._update_info_moon()
 
@@ -511,6 +496,16 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         light_pos = np.array([light_x, light_y, light_z])
 
         return Scene(eye=camera_eye, target=camera_target, up=camera_up, light_pos=light_pos)
+    
+    def update_overlays(self):
+        if self.moon_grid_visible:
+            self.update_moon_grid_orientation()
+        if self.standard_labels_visible:
+            self.update_standard_labels_orientation()
+        if self.spot_labels_visible:
+            self.update_spot_labels_orientation()
+        if self.pins_visible:
+            self.update_pins_orientation()
 
     def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0, zoom: float = 1000):
         """
@@ -575,11 +570,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         self.rt.setup_light("sun", pos=scene.light_pos.tolist(),
                             color=self.brightness, radius=SUN_RADIUS)
-
-        if self.moon_grid_visible:
-            self.update_moon_grid_orientation()
-        if self.standard_labels_visible:
-            self.update_standard_labels_orientation()
+        
+        self.update_overlays()
 
     def update_moon_for_time(self, dt_local: datetime, lat: float, lon: float, elevation: int = 0):
         """
@@ -787,13 +779,7 @@ def run_renderer(dt_local: datetime,
                 moon_renderer.observer_lon,
                 moon_renderer.observer_elevation,
             )
-            if moon_renderer.moon_grid_visible:
-                moon_renderer.update_moon_grid_orientation()
-            if moon_renderer.standard_labels_visible:
-                moon_renderer.update_standard_labels_orientation()
-            if moon_renderer.spot_labels_visible:
-                moon_renderer.update_spot_labels_orientation()
-            moon_renderer.update_pins_orientation()
+            moon_renderer.update_overlays()
             moon_renderer._update_status_parallactic()
         elif event.keysym == 'F5':
             moon_renderer.set_orientation(ORIENTATION_NSWE)
