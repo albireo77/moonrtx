@@ -9,24 +9,19 @@ import tkinter as tk
 from tkinter import filedialog
 from datetime import datetime
 
-def encode_camera_params(eye: list, target: list, up: list, fov: float) -> str:
+from moonrtx.shared_types import Camera
+
+def encode_camera(camera: Camera) -> str:
     """
-    Encode camera parameters into a compact base64 string.
+    Encode camera into a compact base64 string.
     
     Packs 10 floats (eye[3], target[3], up[3], fov) into binary and base64 encodes.
     Uses URL-safe base64 (- and _ instead of + and /) for filename compatibility.
     
     Parameters
     ----------
-    eye : list
-        Camera eye position [x, y, z]
-    target : list
-        Camera target position [x, y, z]
-    up : list
-        Camera up vector [x, y, z]
-    fov : float
-        Field of view in degrees
-        
+    camera : Camera
+        Camera object with eye, target, up, and fov attributes
     Returns
     -------
     str
@@ -34,10 +29,10 @@ def encode_camera_params(eye: list, target: list, up: list, fov: float) -> str:
     """
     # Pack 10 floats: eye(3) + target(3) + up(3) + fov(1)
     packed = struct.pack('<10f', 
-                         eye[0], eye[1], eye[2],
-                         target[0], target[1], target[2],
-                         up[0], up[1], up[2],
-                         fov)
+                         camera.eye[0], camera.eye[1], camera.eye[2],
+                         camera.target[0], camera.target[1], camera.target[2],
+                         camera.up[0], camera.up[1], camera.up[2],
+                         camera.fov)
     # URL-safe base64 without padding (= chars)
     encoded = base64.urlsafe_b64encode(packed).decode('ascii').rstrip('=')
     return encoded
@@ -222,15 +217,9 @@ class DialogsMixin:
             try:
                 cam = self.rt.get_camera("cam1")
                 if cam is not None:
-                    eye = cam["Eye"]
-                    target = cam["Target"]
-                    up = cam["Up"]
-                    # Get FOV using the internal method (more reliable than dictionary lookup)
-                    fov = self.rt._optix.get_camera_fov(0)
-                    
-                    # Encode camera params into compact base64 string
-                    cam_encoded = encode_camera_params(eye, target, up, fov)
-                    parts.append(f"cam{cam_encoded}")
+                    camera = Camera(eye=cam["Eye"], target=cam["Target"], up=cam["Up"], fov=self.rt._optix.get_camera_fov(0))
+                    camera_encoded = encode_camera(camera)
+                    parts.append(f"cam{camera_encoded}")
                 else:
                     parts.append("nocam")
             except Exception as e:

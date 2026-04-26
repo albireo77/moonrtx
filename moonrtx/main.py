@@ -48,10 +48,7 @@ class InitView(NamedTuple):
     lon: float
     orientation: str
     parallactic_mode: bool
-    eye: list
-    target: list
-    up: list
-    fov: float
+    camera: Camera
 
 def parse_args():
 
@@ -164,9 +161,9 @@ def get_date_time_local(time_iso: str):
         return None, ValueError("Time without timezone information.")
     return dt, None
 
-def decode_camera_params(encoded: str) -> Optional[tuple]:
+def decode_camera(encoded: str) -> Optional[Camera]:
     """
-    Decode camera parameters from a base64 string.
+    Decode camera from a base64 string.
     
     Parameters
     ----------
@@ -175,8 +172,8 @@ def decode_camera_params(encoded: str) -> Optional[tuple]:
         
     Returns
     -------
-    tuple or None
-        (eye, target, up, fov) or None if decoding fails
+    Camera or None
+        Camera object or None if decoding fails
     """
     try:
         # Add padding if needed
@@ -191,10 +188,9 @@ def decode_camera_params(encoded: str) -> Optional[tuple]:
         target = [values[3], values[4], values[5]]
         up = [values[6], values[7], values[8]]
         fov = values[9]
-        
-        return eye, target, up, fov
+        return Camera(eye=eye, target=target, up=up, fov=fov)
     except Exception as e:
-        print(f"Error decoding camera params: {e}")
+        print(f"Error decoding camera: {e}")
         return None
 
 def parse_init_view(init_view_str: str) -> Optional[InitView]:
@@ -232,7 +228,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         lon = float(match.group(3))
         orientation = match.group(4)
         par_flag = match.group(5)
-        cam_encoded = match.group(6)
+        camera_encoded = match.group(6)
 
         # Validate orientation
         if orientation not in VALID_ORIENTATIONS:
@@ -241,10 +237,9 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
 
         parallactic_mode = par_flag == '1'
 
-        decoded = decode_camera_params(cam_encoded)
-        if decoded is None:
+        camera = decode_camera(camera_encoded)
+        if camera is None:
             return None
-        eye, target, up, fov = decoded
 
         dt_local, error = get_date_time_local(dt_str.replace('.', ':'))
         if error is not None:
@@ -257,10 +252,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
             lon=lon,
             orientation=orientation,
             parallactic_mode=parallactic_mode,
-            eye=eye,
-            target=target,
-            up=up,
-            fov=fov
+            camera=camera
         )
     except Exception as e:
         print(f"Error parsing init-view string: {e}")
@@ -292,12 +284,7 @@ def main():
         # Restored screenshots carry their own parallactic-mode flag, which
         # overrides the --parallactic-mode CLI argument.
         args.parallactic_mode = init_view.parallactic_mode
-        init_camera = Camera(
-            eye=init_view.eye,
-            target=init_view.target,
-            up=init_view.up,
-            fov=init_view.fov
-        )
+        init_camera = init_view.camera
     else:
         time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
         dt_local, error = get_date_time_local(time_iso)

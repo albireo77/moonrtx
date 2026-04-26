@@ -8,7 +8,6 @@ import os
 import json
 
 from moonrtx.moon_renderer import run_renderer
-from moonrtx.shared_types import Camera
 
 from moonrtx.main import (
     get_date_time_local,
@@ -607,12 +606,7 @@ class MainWindow(tk.Tk):
             # A restored screenshot carries its own parallactic-mode flag;
             # reflect it in the checkbox so the renderer starts in the same mode.
             self.parallactic_mode_var.set(bool(init_view.parallactic_mode))
-            init_camera = Camera(
-                eye=init_view.eye,
-                target=init_view.target,
-                up=init_view.up,
-                fov=init_view.fov,
-            )
+            init_camera = init_view.camera
         else:
             time_iso = self._get_time_iso()
             dt_local, error = get_date_time_local(time_iso)
