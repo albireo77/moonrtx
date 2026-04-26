@@ -33,7 +33,7 @@ class MoonFeature(NamedTuple):
     feature_id: Optional[int]
     www_address: Optional[str]
 
-class CameraParams(NamedTuple):
+class Camera(NamedTuple):
     eye: list
     target: list
     up: list

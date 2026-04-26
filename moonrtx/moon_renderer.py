@@ -10,7 +10,7 @@ import plotoptix
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
 
-from moonrtx.shared_types import CameraParams
+from moonrtx.shared_types import Camera
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
@@ -113,14 +113,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.orientation_mode = init_view_orientation
         self.initial_orientation_mode = init_view_orientation  # For reset with R/V keys
 
-        # Initial camera parameters (for reset with R key)
-        self.initial_camera_params = None
+        # Initial camera (for reset with R key)
+        self.initial_camera = None
+
+        # Default camera calculated from ephemeris (for reset with V key)
+        self.default_camera = None
 
         # Initial time for reset with R key
         self.initial_dt_local = None
-
-        # Default camera parameters calculated from ephemeris (for reset with V key)
-        self.default_camera_params = None
 
         # Flag to track if window has been maximized
         self._window_maximized = False
@@ -365,7 +365,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     # ---- view update ----
 
-    def calculate_camera_and_light(self, fov: float) -> tuple[CameraParams, list]:
+    def calculate_camera_and_light(self, fov: float) -> tuple[Camera, list]:
         """
         Calculate camera position and light direction for the renderer.
         
@@ -377,7 +377,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         
         # Camera setup - looking along +Y axis toward Moon at origin
-        camera = CameraParams(
+        camera = Camera(
             eye=[0, -self.camera_distance, 0],
             target=[0, 0, 0],
             up=[0, 0, 1],
@@ -538,10 +538,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                              focal_scale=0.7,
                              fov=fov)
 
-        self.default_camera_params = camera
+        self.default_camera = camera
 
-        if self.initial_camera_params is None:
-            self.initial_camera_params = self.default_camera_params
+        if self.initial_camera is None:
+            self.initial_camera = self.default_camera
             self.initial_dt_local = dt_local
 
         self.rt.setup_light("sun", pos=light_pos, color=self.brightness, radius=SUN_RADIUS)
@@ -570,11 +570,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lon = lon
         self.observer_elevation = elevation
 
-        current_fov = self.default_camera_params.fov if self.default_camera_params else 45.0
+        current_fov = self.default_camera.fov if self.default_camera else 45.0
 
         camera, light_pos = self.calculate_camera_and_light(current_fov)
         self.light_pos = light_pos
-        self.default_camera_params = camera
+        self.default_camera = camera
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
@@ -601,28 +601,28 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.rt.save_image(filename)
             print(f"Saved: {filename}")
 
-    def apply_camera_params(self, params: CameraParams):
+    def apply_camera(self, camera: Camera):
         """
         Apply camera parameters to restore a specific view.
 
         Parameters
         ----------
-        params : CameraParams
+        camera : Camera
             Camera parameters (eye, target, up, fov)
         """
         if self.rt is None:
             return
 
         self.rt.setup_camera("cam1",
-                             eye=params.eye,
-                             target=params.target,
-                             up=params.up,
-                             fov=params.fov)
+                             eye=camera.eye,
+                             target=camera.target,
+                             up=camera.up,
+                             fov=camera.fov)
 
-        self.initial_camera_params = params
+        self.initial_camera = camera
 
-        print(f"Applied camera params: eye={params.eye}, target={params.target}, "
-              f"up={params.up}, fov={params.fov:.2f}")
+        print(f"Applied camera: eye={camera.eye}, target={camera.target}, "
+              f"up={camera.up}, fov={camera.fov:.2f}")
 
 
 # ---------------------------------------------------------------------------
@@ -640,7 +640,7 @@ def run_renderer(dt_local: datetime,
                  downscale: int,
                  brightness: int,
                  window_title: str,
-                 init_camera_params: Optional[CameraParams] = None,
+                 init_camera: Optional[Camera] = None,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
                  gamma: float = 2.8,
@@ -664,8 +664,8 @@ def run_renderer(dt_local: datetime,
         Brightness
     window_title : str
         Window title
-    init_camera_params : CameraParams, optional
-        Initial camera parameters to restore a specific view
+    init_camera : Camera, optional
+        Initial camera to restore a specific view
     time_step_minutes : int
         Time step in minutes for Q/W keys (default 15)
     init_view_orientation : str
@@ -693,7 +693,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
-    if init_camera_params:
+    if init_camera:
         print("  Init View: Restoring camera from screenshot filename")
     print()
 
@@ -718,9 +718,9 @@ def run_renderer(dt_local: datetime,
     # Set view
     moon_renderer.update_view(dt_local=dt_local, lat=observer_lat, lon=observer_lon, elevation=observer_elevation)
 
-    # Apply custom camera parameters if provided (to restore a saved view)
-    if init_camera_params is not None:
-        moon_renderer.apply_camera_params(init_camera_params)
+    # Apply custom camera if provided (to restore a saved view)
+    if init_camera is not None:
+        moon_renderer.apply_camera(init_camera)
 
     original_key_handler = moon_renderer.rt._gui_key_pressed
 

@@ -120,7 +120,7 @@ class NavigationMixin:
         undoing any mouse rotation/panning performed by the user.
         Also resets the time back to the initial time.
         """
-        cp = self.initial_camera_params
+        cp = self.initial_camera
 
         if self.rt is None or cp is None:
             return
@@ -162,7 +162,7 @@ class NavigationMixin:
         without any --init-view parameter. Use this to get back to the
         standard Moon-centered view after using --init-view.
         """
-        cp = self.default_camera_params
+        cp = self.default_camera
 
         if self.rt is None or cp is None:
             return

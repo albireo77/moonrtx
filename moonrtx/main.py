@@ -14,7 +14,7 @@ from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.moon_renderer import run_renderer, ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
-from moonrtx.shared_types import CameraParams
+from moonrtx.shared_types import Camera
 
 VALID_ORIENTATIONS = [ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE]
 
@@ -276,7 +276,7 @@ def main():
     args = parse_args()
 
     init_view = None
-    init_camera_params = None
+    init_camera = None
     if args.init_view:
         init_view = parse_init_view(args.init_view)
         if init_view is None:
@@ -292,7 +292,7 @@ def main():
         # Restored screenshots carry their own parallactic-mode flag, which
         # overrides the --parallactic-mode CLI argument.
         args.parallactic_mode = init_view.parallactic_mode
-        init_camera_params = CameraParams(
+        init_camera = Camera(
             eye=init_view.eye,
             target=init_view.target,
             up=init_view.up,
@@ -372,7 +372,7 @@ def main():
                  color_file=args.color_file,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
-                 init_camera_params=init_camera_params,
+                 init_camera=init_camera,
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
                  gamma=args.gamma,
