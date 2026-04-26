@@ -284,7 +284,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """Set the observation time to the current (now) time."""
         now_local = datetime.now().astimezone()
 
-        self.update_moon_for_time(now_local, self.observer_lat, self.observer_lon, self.observer_elevation)
+        self.update_view(now_local, self.observer_lat, self.observer_lon, self.observer_elevation)
 
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
@@ -316,7 +316,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         new_dt_local = self.dt_local + timedelta(minutes=delta_minutes)
 
-        self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
+        self.update_view(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
 
         self.update_overlays()
         self._update_status_time()
@@ -514,73 +514,42 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lon = lon
         self.observer_elevation = elevation
 
-        # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
-        moon_diameter = 2 * self.moon_radius
-        visible_height = moon_diameter / MOON_FILL_FRACTION
-        fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
-        fov = max(1, min(90, fov))
+        first_run = self.default_camera is None
+
+        if first_run:
+            # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
+            moon_diameter = 2 * self.moon_radius
+            visible_height = moon_diameter / MOON_FILL_FRACTION
+            fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
+            fov = max(1, min(90, fov))
+        else:
+            fov = self.default_camera.fov
 
         camera, light_pos = self.calculate_camera_and_light(fov)
         self.light_pos = light_pos
+        self.default_camera = camera
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
         self.rt.update_data("moon", u=u_new, v=v_new)
 
-        self.rt.setup_camera("cam1",
-                             cam_type=CAMERA_TYPE,
-                             eye=camera.eye,
-                             target=camera.target,
-                             up=camera.up,
-                             aperture_radius=0.01,
-                             aperture_fract=0.2,
-                             focal_scale=0.7,
-                             fov=fov)
-
-        self.default_camera = camera
-
-        if self.initial_camera is None:
+        if first_run:
+            self.rt.setup_camera("cam1",
+                                cam_type=CAMERA_TYPE,
+                                eye=camera.eye,
+                                target=camera.target,
+                                up=camera.up,
+                                aperture_radius=0.01,
+                                aperture_fract=0.2,
+                                focal_scale=0.7,
+                                fov=fov)
             self.initial_camera = self.default_camera
             self.initial_dt_local = dt_local
 
         self.rt.setup_light("sun", pos=light_pos, color=self.brightness, radius=SUN_RADIUS)
         self.update_overlays()
 
-    def update_moon_for_time(self, dt_local: datetime, lat: float, lon: float, elevation: int):
-        """
-        Update Moon orientation and lighting for a new time without changing camera.
-
-        Parameters
-        ----------
-        dt_local : datetime
-            Local time
-        lat, lon : float
-            Observer latitude and longitude in degrees
-        elevation : int
-            Observer elevation in meters above sea level
-        """
-        eph = calculate_moon_ephemeris(dt_local, lat, lon, elevation, self.parallactic_mode)
-        self.moon_rotation = eph.rotation_matrix
-        self.moon_rotation_inv = self.moon_rotation.T
-        self.moon_ephem = eph
-
-        self.dt_local = dt_local
-        self.observer_lat = lat
-        self.observer_lon = lon
-        self.observer_elevation = elevation
-
-        current_fov = self.default_camera.fov if self.default_camera else 45.0
-
-        camera, light_pos = self.calculate_camera_and_light(current_fov)
-        self.light_pos = light_pos
-        self.default_camera = camera
-
-        u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
-        v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
-        self.rt.update_data("moon", u=u_new, v=v_new)
-
-        self.rt.setup_light("sun", pos=light_pos, color=self.brightness, radius=SUN_RADIUS)
 
     # ---- lifecycle ----
 
@@ -738,7 +707,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_spot_labels()
         elif event.keysym == 'F4':
             moon_renderer.parallactic_mode = not moon_renderer.parallactic_mode
-            moon_renderer.update_moon_for_time(
+            moon_renderer.update_moon_view(
                 moon_renderer.dt_local,
                 moon_renderer.observer_lat,
                 moon_renderer.observer_lon,

@@ -420,22 +420,13 @@ class DialogsMixin:
                 new_dt_local = new_dt_naive.replace(tzinfo=local_tz)
                 
                 # Update the view
-                self.update_moon_for_time(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
+                self.update_view(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
                 
                 # Reset auto-advance counter when time is manually set
                 if self._auto_advance_var and self._auto_advance_var.get():
                     self._auto_advance_elapsed = 0
-                
-                # Regenerate grid and labels with new orientation
-                if self.moon_grid_visible:
-                    self.update_moon_grid_orientation()
-                if self.standard_labels_visible:
-                    self.update_standard_labels_orientation()
-                if self.spot_labels_visible:
-                    self.update_spot_labels_orientation()
-                
-                # Update pins positions
-                self.update_pins_orientation()
+
+                self.update_overlays()
                 
                 # Update status bar
                 self._update_all_status_panels()

@@ -133,18 +133,8 @@ class NavigationMixin:
         # Reset time back to initial time if it was changed
         if self.initial_dt_local is not None and self.dt_local != self.initial_dt_local:
             # Reset to initial time - this will restore Moon orientation and lighting
-            self.update_moon_for_time(self.initial_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
-            
-            # Update grid and labels with restored orientation
-            if self.moon_grid_visible:
-                self.update_moon_grid_orientation()
-            if self.standard_labels_visible:
-                self.update_standard_labels_orientation()
-            if self.spot_labels_visible:
-                self.update_spot_labels_orientation()
-            
-            # Update pins positions
-            self.update_pins_orientation()
+            self.update_view(self.initial_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
+            self.update_overlays()
         
         # Restore initial camera parameters
         up = cp.up[:]
