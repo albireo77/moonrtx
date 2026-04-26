@@ -23,8 +23,8 @@ RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
 )
 
 
-def _validate_supported_datetime(dt_utc: datetime) -> datetime:
-    dt_utc = dt_utc.astimezone(timezone.utc)
+def _validate_supported_datetime(dt: datetime) -> datetime:
+    dt_utc = dt.astimezone(timezone.utc)
     if dt_utc < SKYFIELD_MOON_FRAME_START_UTC or dt_utc > SKYFIELD_MOON_FRAME_END_UTC:
         raise ValueError(
             "Moon ephemeris supports dates from "
@@ -104,14 +104,14 @@ def _rotation_matrix(
 
 
 def calculate_moon_ephemeris(
-    dt_utc: datetime,
+    dt: datetime,
     lat: float,
     lon: float,
     observer_elevation: int,
     parallactic_mode: bool
 ) -> MoonEphemeris:
 
-    dt_utc = _validate_supported_datetime(dt_utc)
+    dt_utc = _validate_supported_datetime(dt)
 
     time = _skyfield_timescale().from_datetime(dt_utc)
     ephemeris = _skyfield_ephemeris()

@@ -4,7 +4,7 @@ MoonRenderer: core renderer class (composing mixins) and run_renderer entry poin
 
 import numpy as np
 from typing import Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 import plotoptix
 from plotoptix import TkOptiX
@@ -504,10 +504,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         elevation : int
             Observer elevation in meters above sea level
         """
-        dt_utc = dt_local.astimezone(timezone.utc)
-        eph = calculate_moon_ephemeris(
-            dt_utc, lat, lon, elevation, self.parallactic_mode
-        )
+        eph = calculate_moon_ephemeris(dt_local, lat, lon, elevation, self.parallactic_mode)
         self.moon_rotation = eph.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
@@ -563,10 +560,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         elevation : int
             Observer elevation in meters above sea level
         """
-        dt_utc = dt_local.astimezone(timezone.utc)
-        eph = calculate_moon_ephemeris(
-            dt_utc, lat, lon, elevation, self.parallactic_mode
-        )
+        eph = calculate_moon_ephemeris(dt_local, lat, lon, elevation, self.parallactic_mode)
         self.moon_rotation = eph.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
         self.moon_ephem = eph
