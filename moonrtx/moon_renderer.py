@@ -707,7 +707,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_spot_labels()
         elif event.keysym == 'F4':
             moon_renderer.parallactic_mode = not moon_renderer.parallactic_mode
-            moon_renderer.update_moon_view(
+            moon_renderer.update_view(
                 moon_renderer.dt_local,
                 moon_renderer.observer_lat,
                 moon_renderer.observer_lon,
