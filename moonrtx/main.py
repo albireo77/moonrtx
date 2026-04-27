@@ -183,12 +183,13 @@ def decode_camera(encoded: str) -> Optional[Camera]:
         
         packed = base64.urlsafe_b64decode(encoded)
         values = struct.unpack('<10f', packed)
-        
-        eye = [values[0], values[1], values[2]]
-        target = [values[3], values[4], values[5]]
-        up = [values[6], values[7], values[8]]
-        fov = values[9]
-        return Camera(eye=eye, target=target, up=up, fov=fov)
+    
+        return Camera(
+            eye=[values[0], values[1], values[2]],
+            target=[values[3], values[4], values[5]],
+            up=[values[6], values[7], values[8]],
+            fov=values[9]
+            )
     except Exception as e:
         print(f"Error decoding camera: {e}")
         return None
@@ -246,14 +247,8 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
             print(f"Incorrect time: {error}")
             return None
 
-        return InitView(
-            dt_local=dt_local,
-            lat=lat,
-            lon=lon,
-            orientation=orientation,
-            parallactic_mode=parallactic_mode,
-            camera=camera
-        )
+        return InitView(dt_local, lat, lon, orientation, parallactic_mode, camera)
+    
     except Exception as e:
         print(f"Error parsing init-view string: {e}")
         return None

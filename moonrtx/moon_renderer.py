@@ -363,7 +363,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Apply displacement map
         self.rt.set_displacement("moon", self.elevation, refresh=True)
 
-    # ---- view update ----
 
     def calculate_camera_and_light(self, fov: float) -> tuple[Camera, list]:
         """
@@ -480,6 +479,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         light_y = -np.cos(phase_angle) * light_distance
 
         return camera, [light_x, light_y, light_z]
+    
 
     def update_overlays(self):
         if self.moon_grid_visible:
@@ -490,6 +490,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_spot_labels_orientation()
         if self.pins_visible:
             self.update_pins_orientation()
+
 
     def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int):
         """
@@ -589,9 +590,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                              fov=camera.fov)
 
         self.initial_camera = camera
-
-        print(f"Applied camera: eye={camera.eye}, target={camera.target}, "
-              f"up={camera.up}, fov={camera.fov:.2f}")
 
 
 # ---------------------------------------------------------------------------
