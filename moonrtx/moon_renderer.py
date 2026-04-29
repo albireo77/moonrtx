@@ -541,10 +541,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                                 eye=camera.eye,
                                 target=camera.target,
                                 up=camera.up,
+                                fov=camera.fov,
                                 aperture_radius=0.01,
                                 aperture_fract=0.2,
-                                focal_scale=0.7,
-                                fov=fov)
+                                focal_scale=0.7)
             self.initial_camera = self.default_camera
             self.initial_dt_local = dt_local
 
