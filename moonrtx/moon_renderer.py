@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 import plotoptix
-from plotoptix import TkOptiX
+from plotoptix import DenoiserKind, TkOptiX
 from plotoptix.materials import m_diffuse
 
 from moonrtx.shared_types import Camera
@@ -15,7 +15,7 @@ from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
 from moonrtx.constants import (
-    MOON_FILL_FRACTION, SUN_RADIUS, MOON_RADIUS,
+    MOON_FILL_FRACTION, SUN_RADIUS, SUN_LIGHT_DISTANCE, SUN_BRIGHTNESS_SCALE, MOON_RADIUS,
     CAMERA_TYPE,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
@@ -207,7 +207,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             return
         self.brightness += delta
         self.brightness = max(0, min(500, self.brightness))
-        self.rt.setup_light("sun", color=self.brightness)
+        self.rt.setup_light("sun", color=self.brightness * SUN_BRIGHTNESS_SCALE)
         self._update_status_brightness()
 
     def change_gamma(self, delta: float):
@@ -337,12 +337,17 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         )
 
         # Rendering parameters
-        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=100)
+        self.rt.set_param(min_accumulation_step=4, max_accumulation_frames=32)
 
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
         self.rt.set_float("tonemap_gamma", self.gamma)
-        self.rt.add_postproc("Gamma")
+        # self.rt.add_postproc("Gamma")
+
+        self.rt.set_uint("denoiser_start", 4)
+        self.rt.set_int("denoiser_kind", DenoiserKind.RgbAlbedo.value)
+        self.rt.set_float("denoiser_blend", 0.8)
+        self.rt.add_postproc("OIDenoiser")
 
         # Background (stars)
         if self.star_map is not None:
@@ -409,7 +414,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         
         bright_limb_angle = np.radians(bright_limb_angle_deg)
         phase_angle = np.radians(self.moon_ephem.phase_angle)
-        light_distance = 100  # Far away for parallel rays
+        light_distance = SUN_LIGHT_DISTANCE
         
         # The bright limb angle tells us which edge of the Moon is illuminated
         # The LIGHT source is in the OPPOSITE direction from the dark side
@@ -541,14 +546,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                                 eye=camera.eye,
                                 target=camera.target,
                                 up=camera.up,
+                                fov=camera.fov,
                                 aperture_radius=0.01,
                                 aperture_fract=0.2,
-                                focal_scale=0.7,
-                                fov=fov)
+                                focal_scale=0.7)
             self.initial_camera = self.default_camera
             self.initial_dt_local = dt_local
 
-        self.rt.setup_light("sun", pos=light_pos, color=self.brightness, radius=SUN_RADIUS)
+        self.rt.setup_light("sun", pos=light_pos, color=self.brightness * SUN_BRIGHTNESS_SCALE, radius=SUN_RADIUS)
         self.update_overlays()
 
 
