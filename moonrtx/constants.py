@@ -18,9 +18,6 @@ STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
 SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
 PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
 
-# Camera
-CAMERA_TYPE = "Pinhole"
-
 # View orientation modes for different telescope configurations
 # Each mode specifies: (vertical_flip, horizontal_flip)
 # vertical_flip=True means S is up (N is down)

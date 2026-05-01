@@ -16,7 +16,6 @@ from moonrtx.data_loader import load_moon_features, load_elevation_data, load_co
 
 from moonrtx.constants import (
     MOON_FILL_FRACTION, SUN_RADIUS, MOON_RADIUS,
-    CAMERA_TYPE,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
 
@@ -537,7 +536,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         if first_run:
             self.rt.setup_camera("cam1",
-                                cam_type=CAMERA_TYPE,
+                                cam_type=camera.type,
                                 eye=camera.eye,
                                 target=camera.target,
                                 up=camera.up,
