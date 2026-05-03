@@ -13,6 +13,7 @@ PIN_COLOR = [1.0, 0.0, 0.0]
 
 CAMERA_NAME = "cam1"
 LIGHT_NAME = "sun"
+MOON_OBJECT_NAME = "moon"
 
 # Line radii
 GRID_LINE_RADIUS = 0.006    # Thin lines for grid

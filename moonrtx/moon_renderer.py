@@ -15,7 +15,7 @@ from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
 from moonrtx.constants import (
-    CAMERA_NAME, LIGHT_NAME, MOON_FILL_FRACTION, SUN_RADIUS, MOON_RADIUS,
+    CAMERA_NAME, LIGHT_NAME, MOON_FILL_FRACTION, MOON_OBJECT_NAME, SUN_RADIUS, MOON_RADIUS,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
 
@@ -356,11 +356,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.update_material("diffuse", m_diffuse)
 
         # Create Moon sphere with displacement
-        self.rt.set_data("moon", geom="ParticleSetTextured", geom_attr="DisplacedSurface",
+        self.rt.set_data(MOON_OBJECT_NAME, geom="ParticleSetTextured", geom_attr="DisplacedSurface",
                         pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.moon_radius)
 
         # Apply displacement map
-        self.rt.set_displacement("moon", self.elevation, refresh=True)
+        self.rt.set_displacement(MOON_OBJECT_NAME, self.elevation, refresh=True)
 
 
     def calculate_camera_and_light(self, fov: float) -> tuple[Camera, list]:
@@ -532,7 +532,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
-        self.rt.update_data("moon", u=u_new, v=v_new)
+        self.rt.update_data(MOON_OBJECT_NAME, u=u_new, v=v_new)
 
         if first_update:
             self.initial_dt_local = dt_local
