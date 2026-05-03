@@ -11,6 +11,9 @@ MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
 GRID_COLOR = [0.50, 0.50, 0.50]
 PIN_COLOR = [1.0, 0.0, 0.0]
 
+CAMERA_NAME = "cam1"
+LIGHT_NAME = "sun"
+
 # Line radii
 GRID_LINE_RADIUS = 0.006    # Thin lines for grid
 GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels

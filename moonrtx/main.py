@@ -354,7 +354,7 @@ def main():
                  color_file=args.color_file,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
-                 init_camera=init_camera,
+                 initial_camera=init_camera,
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
                  gamma=args.gamma,
