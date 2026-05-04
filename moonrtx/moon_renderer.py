@@ -336,7 +336,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         )
 
         # Rendering parameters
-        self.rt.set_param(min_accumulation_step=4, max_accumulation_frames=32)
+        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=20)
 
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
