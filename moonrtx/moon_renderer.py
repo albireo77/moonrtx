@@ -363,9 +363,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.set_displacement(MOON_OBJECT_NAME, self.elevation, refresh=True)
 
 
-    def calculate_camera_and_light(self, fov: float) -> tuple[Camera, list]:
+    def calculate_light_pos(self) -> list:
         """
-        Calculate camera position and light direction for the renderer.
+        Calculate light direction for the renderer.
         
         Scene coordinate system:
         - Moon is at origin
@@ -373,14 +373,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         - +X is to the RIGHT in the view
         - +Z is UP in the view (toward zenith)
         """
-        
-        # Camera setup - looking along +Y axis toward Moon at origin
-        camera = Camera(
-            eye=[0, -self.camera_distance, 0],
-            target=[0, 0, 0],
-            up=[0, 0, 1],
-            fov=fov
-        )
         
         # Calculate bright limb angle in observer's view
         # Position angle: direction from Moon to Sun, measured from celestial North toward East
@@ -477,7 +469,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
         light_y = -np.cos(phase_angle) * light_distance
 
-        return camera, [light_x, light_y, light_z]
+        return [light_x, light_y, light_z]
     
 
     def update_overlays(self):
@@ -515,26 +507,24 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lat = lat
         self.observer_lon = lon
         self.observer_elevation = elevation
-
-        first_update = self.default_camera is None
-
-        if first_update:
-            # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
-            moon_diameter = 2 * self.moon_radius
-            visible_height = moon_diameter / MOON_FILL_FRACTION
-            fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
-            fov = max(1, min(90, fov))
-        else:
-            fov = self.default_camera.fov
-
-        self.default_camera, self.light_pos = self.calculate_camera_and_light(fov)
+        self.light_pos = self.calculate_light_pos()
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
         self.rt.update_data(MOON_OBJECT_NAME, u=u_new, v=v_new)
 
-        if first_update:
+        if self.default_camera is None:
+            # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
+            moon_diameter = 2 * self.moon_radius
+            visible_height = moon_diameter / MOON_FILL_FRACTION
+            fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
+            self.default_camera = Camera(
+                eye=[0, -self.camera_distance, 0],
+                target=[0, 0, 0],
+                up=[0, 0, 1],
+                fov=max(1, min(90, fov))
+            )
             self.initial_dt_local = dt_local
             self.initial_camera = self.default_camera if initial_camera is None else initial_camera
             self.rt.setup_camera(CAMERA_NAME,
@@ -548,10 +538,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                                  focal_scale=0.7)
             self.rt.setup_light(LIGHT_NAME, pos=self.light_pos, color=self.brightness, radius=SUN_RADIUS)
         else:
-            self.rt.update_camera(CAMERA_NAME,
-                                  eye=self.default_camera.eye,
-                                  target=self.default_camera.target,
-                                  up=self.default_camera.up)
             self.rt.update_light(LIGHT_NAME, pos=self.light_pos)
 
         self.update_overlays()
