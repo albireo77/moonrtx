@@ -15,9 +15,8 @@ from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
 from moonrtx.constants import (
-    MOON_FILL_FRACTION, SUN_RADIUS, SUN_LIGHT_DISTANCE, SUN_BRIGHTNESS_SCALE, MOON_RADIUS,
-    CAMERA_TYPE,
-    ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
+    CAMERA_NAME, LIGHT_NAME, MOON_FILL_FRACTION, SUN_LIGHT_DISTANCE, SUN_BRIGHTNESS_SCALE, MOON_OBJECT_NAME,
+    SUN_RADIUS, MOON_RADIUS, ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
 )
 
 # Mixins – each adds a focused group of methods
@@ -207,7 +206,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             return
         self.brightness += delta
         self.brightness = max(0, min(500, self.brightness))
-        self.rt.setup_light("sun", color=self.brightness * SUN_BRIGHTNESS_SCALE)
+        self.rt.update_light(LIGHT_NAME, color=self.brightness * SUN_BRIGHTNESS_SCALE)
         self._update_status_brightness()
 
     def change_gamma(self, delta: float):
@@ -362,16 +361,16 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.update_material("diffuse", m_diffuse)
 
         # Create Moon sphere with displacement
-        self.rt.set_data("moon", geom="ParticleSetTextured", geom_attr="DisplacedSurface",
+        self.rt.set_data(MOON_OBJECT_NAME, geom="ParticleSetTextured", geom_attr="DisplacedSurface",
                         pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.moon_radius)
 
         # Apply displacement map
-        self.rt.set_displacement("moon", self.elevation, refresh=True)
+        self.rt.set_displacement(MOON_OBJECT_NAME, self.elevation, refresh=True)
 
 
-    def calculate_camera_and_light(self, fov: float) -> tuple[Camera, list]:
+    def calculate_light_pos(self) -> list:
         """
-        Calculate camera position and light direction for the renderer.
+        Calculate light direction for the renderer.
         
         Scene coordinate system:
         - Moon is at origin
@@ -379,14 +378,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         - +X is to the RIGHT in the view
         - +Z is UP in the view (toward zenith)
         """
-        
-        # Camera setup - looking along +Y axis toward Moon at origin
-        camera = Camera(
-            eye=[0, -self.camera_distance, 0],
-            target=[0, 0, 0],
-            up=[0, 0, 1],
-            fov=fov
-        )
         
         # Calculate bright limb angle in observer's view
         # Position angle: direction from Moon to Sun, measured from celestial North toward East
@@ -483,7 +474,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
         light_y = -np.cos(phase_angle) * light_distance
 
-        return camera, [light_x, light_y, light_z]
+        return [light_x, light_y, light_z]
     
 
     def update_overlays(self):
@@ -497,7 +488,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_pins_orientation()
 
 
-    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int):
+    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int, initial_camera: Optional[Camera] = None):
         """
         Update the view for a specific time and location.
 
@@ -509,6 +500,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Observer latitude and longitude in degrees
         elevation : int
             Observer elevation in meters above sea level
+        initial_camera : Camera, optional
+            If provided, this camera will be used as the initial camera for resets with R key.
         """
         eph = calculate_moon_ephemeris(dt_local, lat, lon, elevation, self.parallactic_mode)
         self.moon_rotation = eph.rotation_matrix
@@ -519,41 +512,39 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer_lat = lat
         self.observer_lon = lon
         self.observer_elevation = elevation
-
-        first_run = self.default_camera is None
-
-        if first_run:
-            # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
-            moon_diameter = 2 * self.moon_radius
-            visible_height = moon_diameter / MOON_FILL_FRACTION
-            fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
-            fov = max(1, min(90, fov))
-        else:
-            fov = self.default_camera.fov
-
-        camera, light_pos = self.calculate_camera_and_light(fov)
-        self.light_pos = light_pos
-        self.default_camera = camera
+        self.light_pos = self.calculate_light_pos()
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
-        self.rt.update_data("moon", u=u_new, v=v_new)
+        self.rt.update_data(MOON_OBJECT_NAME, u=u_new, v=v_new)
 
-        if first_run:
-            self.rt.setup_camera("cam1",
-                                cam_type=CAMERA_TYPE,
-                                eye=camera.eye,
-                                target=camera.target,
-                                up=camera.up,
-                                fov=camera.fov,
-                                aperture_radius=0.01,
-                                aperture_fract=0.2,
-                                focal_scale=0.7)
-            self.initial_camera = self.default_camera
+        if self.default_camera is None:
+            # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
+            moon_diameter = 2 * self.moon_radius
+            visible_height = moon_diameter / MOON_FILL_FRACTION
+            fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
+            self.default_camera = Camera(
+                eye=[0, -self.camera_distance, 0],
+                target=[0, 0, 0],
+                up=[0, 0, 1],
+                fov=max(1, min(90, fov))
+            )
             self.initial_dt_local = dt_local
+            self.initial_camera = self.default_camera if initial_camera is None else initial_camera
+            self.rt.setup_camera(CAMERA_NAME,
+                                 cam_type=self.initial_camera.type,
+                                 eye=self.initial_camera.eye,
+                                 target=self.initial_camera.target,
+                                 up=self.initial_camera.up,
+                                 fov=self.initial_camera.fov,
+                                 aperture_radius=0.01,
+                                 aperture_fract=0.2,
+                                 focal_scale=0.7)
+            self.rt.setup_light(LIGHT_NAME, pos=self.light_pos, color=self.brightness * SUN_BRIGHTNESS_SCALE, radius=SUN_RADIUS)
+        else:
+            self.rt.update_light(LIGHT_NAME, pos=self.light_pos)
 
-        self.rt.setup_light("sun", pos=light_pos, color=self.brightness * SUN_BRIGHTNESS_SCALE, radius=SUN_RADIUS)
         self.update_overlays()
 
 
@@ -576,27 +567,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.rt.save_image(filename)
             print(f"Saved: {filename}")
 
-    def apply_camera(self, camera: Camera):
-        """
-        Apply camera parameters to restore a specific view.
-
-        Parameters
-        ----------
-        camera : Camera
-            Camera parameters (eye, target, up, fov)
-        """
-        if self.rt is None:
-            return
-
-        self.rt.setup_camera("cam1",
-                             eye=camera.eye,
-                             target=camera.target,
-                             up=camera.up,
-                             fov=camera.fov)
-
-        self.initial_camera = camera
-
-
 # ---------------------------------------------------------------------------
 # Public entry-point
 # ---------------------------------------------------------------------------
@@ -612,7 +582,7 @@ def run_renderer(dt_local: datetime,
                  downscale: int,
                  brightness: int,
                  window_title: str,
-                 init_camera: Optional[Camera] = None,
+                 initial_camera: Optional[Camera] = None,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
                  gamma: float = 2.8,
@@ -636,7 +606,7 @@ def run_renderer(dt_local: datetime,
         Brightness
     window_title : str
         Window title
-    init_camera : Camera, optional
+    initial_camera : Camera, optional
         Initial camera to restore a specific view
     time_step_minutes : int
         Time step in minutes for Q/W keys (default 15)
@@ -665,8 +635,8 @@ def run_renderer(dt_local: datetime,
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
-    if init_camera:
-        print("  Init View: Restoring camera from screenshot filename")
+    if initial_camera is not None:
+        print("  Location, time and view set from --init-view parameter value")
     print()
 
     moon_renderer = MoonRenderer(
@@ -688,11 +658,7 @@ def run_renderer(dt_local: datetime,
     moon_renderer.setup_renderer()
 
     # Set view
-    moon_renderer.update_view(dt_local=dt_local, lat=observer_lat, lon=observer_lon, elevation=observer_elevation)
-
-    # Apply custom camera if provided (to restore a saved view)
-    if init_camera is not None:
-        moon_renderer.apply_camera(init_camera)
+    moon_renderer.update_view(dt_local=dt_local, lat=observer_lat, lon=observer_lon, elevation=observer_elevation, initial_camera=initial_camera)
 
     original_key_handler = moon_renderer.rt._gui_key_pressed
 

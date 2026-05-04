@@ -38,6 +38,7 @@ class Camera(NamedTuple):
     target: list
     up: list
     fov: float
+    type: str = "Pinhole"
 
 class MoonLabel(NamedTuple):
     segments: list[list]

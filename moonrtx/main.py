@@ -263,7 +263,7 @@ def main():
     args = parse_args()
 
     init_view = None
-    init_camera = None
+    initial_camera = None
     if args.init_view:
         init_view = parse_init_view(args.init_view)
         if init_view is None:
@@ -279,7 +279,7 @@ def main():
         # Restored screenshots carry their own parallactic-mode flag, which
         # overrides the --parallactic-mode CLI argument.
         args.parallactic_mode = init_view.parallactic_mode
-        init_camera = init_view.camera
+        initial_camera = init_view.camera
     else:
         time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
         dt_local, error = get_date_time_local(time_iso)
@@ -354,7 +354,7 @@ def main():
                  color_file=args.color_file,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
-                 init_camera=init_camera,
+                 initial_camera=initial_camera,
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
                  gamma=args.gamma,
