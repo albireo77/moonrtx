@@ -40,6 +40,11 @@ class Camera(NamedTuple):
     fov: float
     type: str = "Pinhole"
 
+class Observer(NamedTuple):
+    lat: float
+    lon: float
+    elevation_m: int
+
 class MoonLabel(NamedTuple):
     segments: list[list]
     anchor_point: tuple[float, float]

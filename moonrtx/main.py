@@ -14,7 +14,7 @@ from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.moon_renderer import run_renderer, ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
-from moonrtx.shared_types import Camera
+from moonrtx.shared_types import Camera, Observer
 
 VALID_ORIENTATIONS = [ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE]
 
@@ -345,9 +345,7 @@ def main():
 
     run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
-                 observer_lat=lat,
-                 observer_lon=lon,
-                 observer_elevation=args.elevation,
+                 observer=Observer(lat, lon, args.elevation),
                  downscale=args.downscale,
                  brightness=args.brightness,
                  window_title=window_title,
