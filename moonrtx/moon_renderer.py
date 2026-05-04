@@ -644,8 +644,8 @@ def run_renderer(dt_local: datetime,
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
-    if initial_camera:
-        print("  Init View: Restoring camera from screenshot filename")
+    if initial_camera is not None:
+        print("  Location, time and view set from --init-view parameter value")
     print()
 
     moon_renderer = MoonRenderer(
