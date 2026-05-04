@@ -41,7 +41,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  brightness: int,
                  observer: Observer,
                  initial_camera: Optional[Camera],
-                 initial_dt_local: datetime,
+                 dt_local: datetime,
                  starmap_file: Optional[str],
                  downscale: int = 3,
                  width: int = 1400,
@@ -67,8 +67,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Brightness
         initial_camera : Camera
             Optional initial camera for resets with R key (if None, a default camera will be calculated from ephemeris)
-        initial_dt_local : datetime
-            Initial local datetime for the view 
+        dt_local : datetime
+            Local datetime for the view 
         starmap_file : str, optional
             Path to star map TIFF for background
         downscale : int
@@ -128,13 +128,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             fov=max(1, min(90, fov))
         )
 
-        # Initial camera (for reset with R key)
+        self.dt_local = dt_local
+
+        # Initial camera for reset with R key
         self.initial_camera = self.default_camera if initial_camera is None else initial_camera
 
         # Initial time for reset with R key
-        self.initial_dt_local = initial_dt_local
-
-        self.dt_local = self.initial_dt_local
+        self.initial_dt_local = self.dt_local
 
         # Flag to track if window has been maximized
         self._window_maximized = False
@@ -624,7 +624,7 @@ def run_renderer(dt_local: datetime,
         observer=observer,
         gamma=gamma,
         parallactic_mode=parallactic_mode,
-        initial_dt_local=dt_local,
+        dt_local=dt_local,
         initial_camera=initial_camera
     )
 
