@@ -134,6 +134,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Initial time for reset with R key
         self.initial_dt_local = initial_dt_local
 
+        self.dt_local = self.initial_dt_local
+
         # Flag to track if window has been maximized
         self._window_maximized = False
 
@@ -150,8 +152,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
 
-        # Store view parameters for filename generation
-        self.dt_local = None
         self.observer = observer
 
         # Flag to track if search dialog is open
@@ -292,9 +292,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     def set_time_to_now(self):
         """Set the observation time to the current (now) time."""
-        now_local = datetime.now().astimezone()
 
-        self.update_view(now_local)
+        self.update_view(datetime.now().astimezone())
 
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
@@ -506,20 +505,15 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_pins_orientation()
 
 
-    def update_view(self, dt_local: datetime):
-        """
-        Update the view for a specific time.
+    def update_view(self, dt_local: datetime = None):
 
-        Parameters
-        ----------
-        dt_local : datetime
-            Local time
-        """
-        self.moon_ephem = calculate_moon_ephemeris(dt_local, self.observer, self.parallactic_mode)
+        if dt_local is not None:
+            self.dt_local = dt_local
+
+        self.moon_ephem = calculate_moon_ephemeris(self.dt_local, self.observer, self.parallactic_mode)
         self.moon_rotation = self.moon_ephem.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
 
-        self.dt_local = dt_local
         self.light_pos = self.calculate_light_pos()
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
@@ -638,7 +632,7 @@ def run_renderer(dt_local: datetime,
     moon_renderer.setup_renderer()
 
     # Set view
-    moon_renderer.update_view(dt_local)
+    moon_renderer.update_view()
 
     original_key_handler = moon_renderer.rt._gui_key_pressed
 
@@ -656,7 +650,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_spot_labels()
         elif event.keysym == 'F4':
             moon_renderer.parallactic_mode = not moon_renderer.parallactic_mode
-            moon_renderer.update_view(moon_renderer.dt_local)
+            moon_renderer.update_view()
             moon_renderer.update_overlays()
             moon_renderer._update_status_parallactic()
         elif event.keysym == 'F5':
