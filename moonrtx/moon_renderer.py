@@ -298,7 +298,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
 
-        self.update_overlays()
         self._update_all_status_panels()
 
     def set_time_to_now_and_auto_advance(self):
@@ -327,7 +326,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         self.update_view(new_dt_local)
 
-        self.update_overlays()
         self._update_status_time()
         self._update_info_moon()
 
@@ -651,7 +649,6 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'F4':
             moon_renderer.parallactic_mode = not moon_renderer.parallactic_mode
             moon_renderer.update_view()
-            moon_renderer.update_overlays()
             moon_renderer._update_status_parallactic()
         elif event.keysym == 'F5':
             moon_renderer.set_orientation(ORIENTATION_NSWE)

@@ -417,8 +417,6 @@ class DialogsMixin:
                 # Reset auto-advance counter when time is manually set
                 if self._auto_advance_var and self._auto_advance_var.get():
                     self._auto_advance_elapsed = 0
-
-                self.update_overlays()
                 
                 # Update status bar
                 self._update_all_status_panels()
