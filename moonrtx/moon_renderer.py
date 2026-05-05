@@ -190,6 +190,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._auto_advance_id = None
         self._auto_advance_elapsed = 0
         self._auto_advance_interval = 1000  # tick interval in ms
+        self._auto_advance_target_ms = time_step_minutes * 60 * 1000
 
         # Info panel variables (bottom-left overlay)
         self._info_frame = None
@@ -211,12 +212,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     def change_brightness(self, delta: int):
         if delta == 0:
             return
-        if self.brightness <= 0 and delta < 0:
+        new_brightness = max(0, min(500, self.brightness + delta))
+        if new_brightness == self.brightness:
             return
-        if self.brightness >= 500 and delta > 0:
-            return
-        self.brightness += delta
-        self.brightness = max(0, min(500, self.brightness))
+        self.brightness = new_brightness
         self.rt.update_light(LIGHT_NAME, color=self.brightness)
         self._update_status_brightness()
 
@@ -251,12 +250,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         if delta == 0:
             return
-        if self.time_step_minutes <= 1 and delta < 0:
+        new_step = max(1, min(1440, self.time_step_minutes + delta))
+        if new_step == self.time_step_minutes:
             return
-        if self.time_step_minutes >= 1440 and delta > 0:
-            return
-        self.time_step_minutes += delta
-        self.time_step_minutes = max(1, min(1440, self.time_step_minutes))
+        self.time_step_minutes = new_step
+        self._auto_advance_target_ms = new_step * 60 * 1000
         # Reset auto-advance counter when time step changes while active
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
@@ -284,8 +282,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self._auto_advance_id = None
             return
         self._auto_advance_elapsed += self._auto_advance_interval
-        target_ms = self.time_step_minutes * 60 * 1000
-        if self._auto_advance_elapsed >= target_ms:
+        if self._auto_advance_elapsed >= self._auto_advance_target_ms:
             self._auto_advance_elapsed = 0
             self.change_time(self.time_step_minutes)
         self._schedule_auto_advance()
@@ -415,8 +412,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             bright_limb_angle_deg = self.moon_ephem.pa - self.moon_ephem.q
         
         # Normalize to -180 to 180
-        while bright_limb_angle_deg > 180: bright_limb_angle_deg -= 360
-        while bright_limb_angle_deg < -180: bright_limb_angle_deg += 360
+        bright_limb_angle_deg = (bright_limb_angle_deg + 180) % 360 - 180
         
         bright_limb_angle = np.radians(bright_limb_angle_deg)
         phase_angle = np.radians(self.moon_ephem.phase_angle)
@@ -483,7 +479,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # - Most of the lunar cycle (phase_angle > 6.0°) is completely unaffected
         min_phase_offset = np.radians(6.0)
         # Only apply minimum offset near full moon (phase_angle < 6.0°), not near new moon
-        effective_sin_phase = np.sin(min_phase_offset if phase_angle < min_phase_offset else phase_angle)
+        effective_sin_phase = np.sin(max(min_phase_offset, phase_angle))
         
         light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
         light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
@@ -503,7 +499,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_pins_orientation()
 
 
-    def update_view(self, dt_local: datetime = None):
+    def update_view(self, dt_local: Optional[datetime] = None):
 
         if dt_local is not None:
             self.dt_local = dt_local
@@ -582,7 +578,7 @@ def run_renderer(dt_local: datetime,
     init_view_orientation : str
         Initial view orientation mode.
     gamma : float
-        Gamma correction value (default 2.2)
+        Gamma correction value (default 2.8)
     parallactic_mode : bool
         Whether to use parallactic projection mode (default False)
 
