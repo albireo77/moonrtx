@@ -113,16 +113,16 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.moon_grid_visible = False
         self.moon_grid = None
         self.moon_radius = MOON_RADIUS
-        self.camera_distance = self.moon_radius * 10
 
         self.orientation_mode = init_view_orientation
         self.initial_orientation_mode = init_view_orientation  # For reset with R/V keys
 
         # Default camera calculated from ephemeris (for reset with V key)
         visible_height = 2 * self.moon_radius / MOON_FILL_FRACTION
-        fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
+        camera_distance = self.moon_radius * 10
+        fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
         self.default_camera = Camera(
-            eye=[0, -self.camera_distance, 0],
+            eye=[0, -camera_distance, 0],
             target=[0, 0, 0],
             up=[0, 0, 1],
             fov=max(1, min(90, fov))
@@ -130,11 +130,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         self.dt_local = dt_local
 
-        # Initial camera for reset with R key
-        self.initial_camera = self.default_camera if initial_camera is None else initial_camera
-
         # Initial time for reset with R key
         self.initial_dt_local = self.dt_local
+
+        # Initial camera for reset with R key
+        self.initial_camera = self.default_camera if initial_camera is None else initial_camera
 
         # Flag to track if window has been maximized
         self._window_maximized = False
@@ -511,7 +511,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.moon_ephem = calculate_moon_ephemeris(self.dt_local, self.observer, self.parallactic_mode)
         self.moon_rotation = self.moon_ephem.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
-
         self.light_pos = self.calculate_light_pos()
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
