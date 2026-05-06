@@ -43,32 +43,6 @@ def _colongitude_from_subsolar_longitude(subsolar_lon_deg: float) -> float:
     return (90.0 - _wrap_signed_degrees(subsolar_lon_deg)) % 360.0
 
 
-def _unit_from_ra_dec(ra_deg: float, dec_deg: float) -> tuple[float, float, float]:
-    ra_rad = math.radians(ra_deg)
-    dec_rad = math.radians(dec_deg)
-    cos_dec = math.cos(dec_rad)
-    return (
-        cos_dec * math.cos(ra_rad),
-        cos_dec * math.sin(ra_rad),
-        math.sin(dec_rad),
-    )
-
-
-def _sky_basis(ra_deg: float, dec_deg: float) -> tuple[np.ndarray, np.ndarray]:
-    ra_rad = math.radians(ra_deg)
-    dec_rad = math.radians(dec_deg)
-    east = np.array((-math.sin(ra_rad), math.cos(ra_rad), 0.0), dtype=float)
-    north = np.array(
-        (
-            -math.sin(dec_rad) * math.cos(ra_rad),
-            -math.sin(dec_rad) * math.sin(ra_rad),
-            math.cos(dec_rad),
-        ),
-        dtype=float,
-    )
-    return east, north
-
-
 def _normalize_np(vector: np.ndarray) -> np.ndarray:
     return vector / np.linalg.norm(vector)
 
@@ -83,22 +57,38 @@ def _parallactic_angle_deg(hour_angle_deg: float, dec_deg: float, lat_deg: float
     ))
 
 
+def _latlon_from_icrf(pos_au: np.ndarray, R_icrf_to_body: np.ndarray) -> tuple[float, float]:
+    """Convert an ICRF position vector (AU) to body-frame (lat_deg, lon_deg)."""
+    body_vec = R_icrf_to_body @ pos_au
+    r = np.linalg.norm(body_vec)
+    return (
+        math.degrees(math.asin(body_vec[2] / r)),
+        math.degrees(math.atan2(body_vec[1], body_vec[0])),
+    )
+
+
 def _rotation_matrix(
-    time,
-    moon_frame,
+    R_moon: np.ndarray,
+    R_equator: np.ndarray,
     moon_ra_deg: float,
     moon_dec_deg: float,
     q_deg: float,
 ) -> np.ndarray:
-    moon_sight_date = np.array(_unit_from_ra_dec(moon_ra_deg, moon_dec_deg), dtype=float)
-    east_cel, north_cel = _sky_basis(moon_ra_deg, moon_dec_deg)
+    ra_rad = math.radians(moon_ra_deg)
+    dec_rad = math.radians(moon_dec_deg)
+    sin_ra, cos_ra = math.sin(ra_rad), math.cos(ra_rad)
+    sin_dec, cos_dec = math.sin(dec_rad), math.cos(dec_rad)
+
+    moon_sight_date = np.array([cos_dec * cos_ra, cos_dec * sin_ra, sin_dec], dtype=float)
+    east_cel = np.array([-sin_ra, cos_ra, 0.0], dtype=float)
+    north_cel = np.array([-sin_dec * cos_ra, -sin_dec * sin_ra, cos_dec], dtype=float)
 
     q_rad = math.radians(q_deg)
     up_view = _normalize_np(math.sin(q_rad) * east_cel + math.cos(q_rad) * north_cel)
     right_view = _normalize_np(np.cross(moon_sight_date, up_view))
     view_basis = np.vstack([right_view, moon_sight_date, up_view])
 
-    body_to_date = true_equator_and_equinox_of_date.rotation_at(time) @ moon_frame.rotation_at(time).T
+    body_to_date = R_equator @ R_moon.T
     rotation_matrix = view_basis @ body_to_date @ RENDERER_TO_SKYFIELD_BODY_MATRIX
     return rotation_matrix
 
@@ -117,7 +107,7 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     observer = earth + wgs84.latlon(
         latitude_degrees=observer_geo.lat,
         longitude_degrees=observer_geo.lon,
-        elevation_m=float(observer_geo.elevation_m),
+        elevation_m=observer_geo.elevation_m,
     )
 
     earth_at = earth.at(time)
@@ -151,29 +141,27 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     moon_alt_deg = moon_alt.degrees
 
     sun_moon_separation = moon_topo.separation_from(sun_topo).degrees
-    bright_limb_angle_deg = position_angle_of(moon_radec, sun_radec).degrees % 360.0 - q_deg
+    bright_limb_angle_deg = position_angle_of(moon_radec, sun_radec).degrees - q_deg
 
     _, moon_geo_lon, _ = moon_geo.frame_latlon(ecliptic_frame)
     _, sun_geo_lon, _ = sun_geo.frame_latlon(ecliptic_frame)
     delta_long = (moon_geo_lon.degrees - sun_geo_lon.degrees) % 360.0
 
+    # Pre-compute rotation matrices once; reused for libration, colongitude, and view matrix.
+    R_moon = moon_frame.rotation_at(time)
+    R_equator = true_equator_and_equinox_of_date.rotation_at(time)
+
     earth_from_moon = earth_at - moon_at
     observer_from_moon = observer_at - moon_at
-    libr_lat_geo, libr_lon_geo, _ = earth_from_moon.frame_latlon(moon_frame)
-    libr_lat_topo, libr_lon_topo, _ = observer_from_moon.frame_latlon(moon_frame)
+    sun_from_moon = sun_at - moon_at
+    libr_lat_geo, libr_lon_geo = _latlon_from_icrf(earth_from_moon.position.au, R_moon)
+    libr_lat_topo, libr_lon_topo = _latlon_from_icrf(observer_from_moon.position.au, R_moon)
+    _, sun_lon_moon = _latlon_from_icrf(sun_from_moon.position.au, R_moon)
     topocentric_distance_km = (moon_at - observer_at).distance().km
 
-    rotation_matrix = _rotation_matrix(
-        time,
-        moon_frame,
-        moon_ra_deg,
-        moon_dec_deg,
-        q_deg,
-    )
+    rotation_matrix = _rotation_matrix(R_moon, R_equator, moon_ra_deg, moon_dec_deg, q_deg)
 
-    sun_from_moon = sun_at - moon_at
-    _, sun_lon_moon, _ = sun_from_moon.frame_latlon(moon_frame)
-    colongitude = _colongitude_from_subsolar_longitude(sun_lon_moon.degrees)
+    colongitude = _colongitude_from_subsolar_longitude(sun_lon_moon)
 
     phase_angle_deg = moon_topo.phase_angle(sun).degrees
 
@@ -185,10 +173,10 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
         distance=math.floor(float(topocentric_distance_km) + 0.5),
         phase_angle=phase_angle_deg,
         bright_limb_angle=_wrap_signed_degrees(bright_limb_angle_deg),
-        libr_long_geo=_wrap_signed_degrees(libr_lon_geo.degrees),
-        libr_lat_geo=libr_lat_geo.degrees,
-        libr_long_topo=_wrap_signed_degrees(libr_lon_topo.degrees),
-        libr_lat_topo=libr_lat_topo.degrees,
+        libr_long_geo=_wrap_signed_degrees(libr_lon_geo),
+        libr_lat_geo=libr_lat_geo,
+        libr_long_topo=_wrap_signed_degrees(libr_lon_topo),
+        libr_lat_topo=libr_lat_topo,
         sun_separation=sun_moon_separation,
         delta_long=delta_long,
         colongitude=colongitude,
