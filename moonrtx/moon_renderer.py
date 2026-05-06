@@ -402,19 +402,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # The light direction in celestial coords is PA (from celestial north).
         # To get light direction in view coords (from zenith), subtract parallactic.
         # This puts light in the same reference frame as the rotated surface.
-        #
-        # In parallactic-mount mode the view frame keeps celestial north up
-        # (rotation matrix was built with q=0), so PA is already measured from
-        # the view's "up" direction and no q subtraction is needed.
-        if self.parallactic_mode:
-            bright_limb_angle_deg = self.moon_ephem.pa
-        else:
-            bright_limb_angle_deg = self.moon_ephem.pa - self.moon_ephem.q
         
-        # Normalize to -180 to 180
-        bright_limb_angle_deg = (bright_limb_angle_deg + 180) % 360 - 180
-        
-        bright_limb_angle = np.radians(bright_limb_angle_deg)
+        bright_limb_angle = np.radians(self.moon_ephem.bright_limb_angle)
         phase_angle = np.radians(self.moon_ephem.phase_angle)
         light_distance = 100  # Far away for parallel rays
         

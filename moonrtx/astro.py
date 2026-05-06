@@ -136,15 +136,22 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     moon_ra_deg = moon_ra.hours * 15.0
     moon_dec_deg = moon_dec.degrees
 
-    moon_hour_angle, _, _ = moon_topo.hadec()
-    moon_hour_angle_deg = moon_hour_angle.hours * 15.0
-    q_deg = _parallactic_angle_deg(moon_hour_angle_deg, moon_dec_deg, observer_geo.lat)
+    # In non-parallactic-mount mode we rotate the view basis to follow the zenith, so the
+    # parallactic angle q is applied as a rotation of the Moon-relative view basis. In
+    # parallactic-mount mode we keep celestial north "up" in the view frame (no field
+    # rotation to follow the zenith), so the view-basis rotation is computed with q = 0.
+    if parallactic_mode:
+        q_deg = 0.0
+    else:
+        moon_hour_angle, _, _ = moon_topo.hadec()
+        moon_hour_angle_deg = moon_hour_angle.hours * 15.0
+        q_deg = _parallactic_angle_deg(moon_hour_angle_deg, moon_dec_deg, observer_geo.lat)
 
     moon_alt, moon_az, _ = moon_topo.altaz(temperature_C="standard")
     moon_alt_deg = moon_alt.degrees
 
     sun_moon_separation = moon_topo.separation_from(sun_topo).degrees
-    bright_limb_pa = position_angle_of(moon_radec, sun_radec).degrees % 360.0
+    bright_limb_angle_deg = position_angle_of(moon_radec, sun_radec).degrees % 360.0 - q_deg
 
     _, moon_geo_lon, _ = moon_geo.frame_latlon(ecliptic_frame)
     _, sun_geo_lon, _ = sun_geo.frame_latlon(ecliptic_frame)
@@ -156,40 +163,34 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     libr_lat_topo, libr_lon_topo, _ = observer_from_moon.frame_latlon(moon_frame)
     topocentric_distance_km = (moon_at - observer_at).distance().km
 
-    # In parallactic-mount mode we keep celestial north "up" in the view frame
-    # (no field rotation to follow the zenith), so the view-basis rotation is
-    # computed with q = 0. The returned q_deg below is still the true
-    # topocentric parallactic angle for UI / light-direction use.
-    rotation_q_deg = 0.0 if parallactic_mode else q_deg
     rotation_matrix = _rotation_matrix(
         time,
         moon_frame,
         moon_ra_deg,
         moon_dec_deg,
-        rotation_q_deg,
+        q_deg,
     )
 
     sun_from_moon = sun_at - moon_at
     _, sun_lon_moon, _ = sun_from_moon.frame_latlon(moon_frame)
-    colongitude = _colongitude_from_subsolar_longitude(float(sun_lon_moon.degrees))
+    colongitude = _colongitude_from_subsolar_longitude(sun_lon_moon.degrees)
 
-    phase_angle = moon_topo.phase_angle(sun).degrees
+    phase_angle_deg = moon_topo.phase_angle(sun).degrees
 
     return MoonEphemeris(
-        az=float(moon_az.degrees),
-        alt=float(moon_alt_deg),
-        ra=float(moon_ra_deg),
-        dec=float(moon_dec_deg),
+        az=moon_az.degrees,
+        alt=moon_alt_deg,
+        ra=moon_ra_deg,
+        dec=moon_dec_deg,
         distance=math.floor(float(topocentric_distance_km) + 0.5),
-        phase_angle=float(phase_angle),
-        pa=float(bright_limb_pa),
-        q=float(q_deg),
-        libr_long_geo=float(_wrap_signed_degrees(libr_lon_geo.degrees)),
-        libr_lat_geo=float(libr_lat_geo.degrees),
-        libr_long_topo=float(_wrap_signed_degrees(libr_lon_topo.degrees)),
-        libr_lat_topo=float(libr_lat_topo.degrees),
-        sun_separation=float(sun_moon_separation),
-        delta_long=float(delta_long),
-        colongitude=float(colongitude),
+        phase_angle=phase_angle_deg,
+        bright_limb_angle=_wrap_signed_degrees(bright_limb_angle_deg),
+        libr_long_geo=_wrap_signed_degrees(libr_lon_geo.degrees),
+        libr_lat_geo=libr_lat_geo.degrees,
+        libr_long_topo=_wrap_signed_degrees(libr_lon_topo.degrees),
+        libr_lat_topo=libr_lat_topo.degrees,
+        sun_separation=sun_moon_separation,
+        delta_long=delta_long,
+        colongitude=colongitude,
         rotation_matrix=rotation_matrix,
     )
