@@ -10,6 +10,7 @@ import plotoptix
 from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
 
+from moonrtx import astro
 from moonrtx.shared_types import Camera, Observer
 from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
@@ -332,6 +333,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """Handle mouse wheel events for zooming."""
         self.zoom_with_wheel(event)
 
+    def setup_astro(self):
+        astro.init(self.observer)
+
     def setup_renderer(self):
         """Initialize the PlotOptiX renderer."""
         self.rt = TkOptiX(
@@ -493,7 +497,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if dt_local is not None:
             self.dt_local = dt_local
 
-        self.moon_ephem = calculate_moon_ephemeris(self.dt_local, self.observer, self.parallactic_mode)
+        self.moon_ephem = calculate_moon_ephemeris(self.dt_local, self.parallactic_mode)
         self.moon_rotation = self.moon_ephem.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
         self.light_pos = self.calculate_light_pos()
@@ -610,10 +614,9 @@ def run_renderer(dt_local: datetime,
         initial_camera=initial_camera
     )
 
-    # Setup renderer
+    moon_renderer.setup_astro()
     moon_renderer.setup_renderer()
 
-    # Set view
     moon_renderer.update_view()
 
     original_key_handler = moon_renderer.rt._gui_key_pressed

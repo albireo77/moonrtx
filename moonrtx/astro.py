@@ -1,6 +1,5 @@
 import math
 from datetime import datetime, timezone
-from functools import cache
 
 import numpy as np
 from skyfield.api import wgs84
@@ -10,9 +9,9 @@ from skyfield.trigonometry import position_angle_of
 from moonrtx.skyfield_utils import (
     SKYFIELD_MOON_FRAME_END_UTC,
     SKYFIELD_MOON_FRAME_START_UTC,
-    skyfield_ephemeris as _skyfield_ephemeris,
-    skyfield_moon_frame as _skyfield_moon_frame,
-    skyfield_timescale as _skyfield_timescale,
+    skyfield_ephemeris,
+    skyfield_moon_frame,
+    skyfield_timescale,
 )
 from moonrtx.shared_types import MoonEphemeris, Observer
 
@@ -24,8 +23,23 @@ RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
 )
 
 
-def _validate_supported_datetime(dt: datetime) -> datetime:
-    dt_utc = dt.astimezone(timezone.utc)
+def init(observer: Observer):
+    global _observer, _observer_lat, _earth, _moon, _sun, _moon_frame, _timescale
+    ephemeris = skyfield_ephemeris()
+    _moon_frame = skyfield_moon_frame()
+    _timescale = skyfield_timescale()
+    _earth = ephemeris["earth"]
+    _moon = ephemeris["moon"]
+    _sun = ephemeris["sun"]
+    _observer = _earth + wgs84.latlon(
+        latitude_degrees=observer.lat,
+        longitude_degrees=observer.lon,
+        elevation_m=observer.elevation_m
+    )
+    _observer_lat = observer.lat
+
+def _validate_supported_datetime(dt_local: datetime) -> datetime:
+    dt_utc = dt_local.astimezone(timezone.utc)
     if dt_utc < SKYFIELD_MOON_FRAME_START_UTC or dt_utc > SKYFIELD_MOON_FRAME_END_UTC:
         raise ValueError(
             "Moon ephemeris supports dates from "
@@ -117,34 +131,20 @@ def _phase_name(moon_ecl_lon_deg: float, sun_ecl_lon_deg: float) -> str:
         return "New Moon"
 
 
-@cache
-def _build_observer(observer: Observer):
-    earth = _skyfield_ephemeris()["earth"]
-    return earth + wgs84.latlon(latitude_degrees=observer.lat, longitude_degrees=observer.lon, elevation_m=observer.elevation_m)
+def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> MoonEphemeris:
 
+    dt_utc = _validate_supported_datetime(dt_local)
+    time = _timescale.from_datetime(dt_utc)
 
-def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_mode: bool) -> MoonEphemeris:
+    earth_at = _earth.at(time)
+    moon_at = _moon.at(time)
+    sun_at = _sun.at(time)
+    observer_at = _observer.at(time)
 
-    dt_utc = _validate_supported_datetime(dt)
-
-    time = _skyfield_timescale().from_datetime(dt_utc)
-    ephemeris = _skyfield_ephemeris()
-    moon_frame = _skyfield_moon_frame()
-
-    earth = ephemeris["earth"]
-    moon = ephemeris["moon"]
-    sun = ephemeris["sun"]
-    observer = _build_observer(observer_geo)
-
-    earth_at = earth.at(time)
-    moon_at = moon.at(time)
-    sun_at = sun.at(time)
-    observer_at = observer.at(time)
-
-    moon_geo = earth_at.observe(moon).apparent()
-    moon_topo = observer_at.observe(moon).apparent()
-    sun_geo = earth_at.observe(sun).apparent()
-    sun_topo = observer_at.observe(sun).apparent()
+    moon_geo = earth_at.observe(_moon).apparent()
+    moon_topo = observer_at.observe(_moon).apparent()
+    sun_geo = earth_at.observe(_sun).apparent()
+    sun_topo = observer_at.observe(_sun).apparent()
 
     moon_radec = moon_topo.radec(epoch="date")
     sun_radec = sun_topo.radec(epoch="date")
@@ -161,7 +161,7 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     else:
         moon_hour_angle, _, _ = moon_topo.hadec()
         moon_hour_angle_deg = moon_hour_angle.hours * 15.0
-        q_deg = _parallactic_angle_deg(moon_hour_angle_deg, moon_dec_deg, observer_geo.lat)
+        q_deg = _parallactic_angle_deg(moon_hour_angle_deg, moon_dec_deg, _observer_lat)
 
     moon_alt, moon_az, _ = moon_topo.altaz(temperature_C="standard")
     moon_alt_deg = moon_alt.degrees
@@ -174,7 +174,7 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     phase_name = _phase_name(moon_ecl_lon.degrees, sun_ecl_lon.degrees)
 
     # Pre-compute rotation matrices once; reused for libration, colongitude, and view matrix.
-    R_moon = moon_frame.rotation_at(time)
+    R_moon = _moon_frame.rotation_at(time)
     R_equator = true_equator_and_equinox_of_date.rotation_at(time)
 
     earth_from_moon = earth_at - moon_at
@@ -189,7 +189,7 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
 
     colongitude = _colongitude_from_subsolar_longitude(sun_lon_moon)
 
-    phase_angle_deg = moon_topo.phase_angle(sun).degrees
+    phase_angle_deg = moon_topo.phase_angle(_sun).degrees
 
     return MoonEphemeris(
         az=moon_az.degrees,
