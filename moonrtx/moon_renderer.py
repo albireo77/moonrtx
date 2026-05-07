@@ -12,7 +12,6 @@ from plotoptix.materials import m_diffuse
 
 from moonrtx import astro
 from moonrtx.shared_types import Camera, Observer
-from moonrtx.astro import calculate_moon_ephemeris
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
 from moonrtx.constants import (
@@ -497,7 +496,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if dt_local is not None:
             self.dt_local = dt_local
 
-        self.moon_ephem = calculate_moon_ephemeris(self.dt_local, self.parallactic_mode)
+        self.moon_ephem = astro.calculate_moon_ephemeris(self.dt_local, self.parallactic_mode)
         self.moon_rotation = self.moon_ephem.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
         self.light_pos = self.calculate_light_pos()
