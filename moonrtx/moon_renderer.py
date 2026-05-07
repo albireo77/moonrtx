@@ -332,11 +332,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """Handle mouse wheel events for zooming."""
         self.zoom_with_wheel(event)
 
-    def setup_astro(self):
+    def init_astro(self):
         astro.init(self.observer)
 
-    def setup_renderer(self):
-        """Initialize the PlotOptiX renderer."""
+    def init_renderer(self):
         self.rt = TkOptiX(
             width=self.width,
             height=self.height,
@@ -613,8 +612,8 @@ def run_renderer(dt_local: datetime,
         initial_camera=initial_camera
     )
 
-    moon_renderer.setup_astro()
-    moon_renderer.setup_renderer()
+    moon_renderer.init_astro()
+    moon_renderer.init_renderer()
 
     moon_renderer.update_view()
 
