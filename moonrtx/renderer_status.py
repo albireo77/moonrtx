@@ -95,8 +95,8 @@ class StatusMixin:
             self._info_phase_name_var.set(f"{self._get_lunar_phase_name(e.delta_long):>17}")
         if self._info_phase_var:
             self._info_phase_var.set(f"Phase ∠: {e.phase_angle:7.3f}°")
-        if self._info_sun_sep_var:
-            self._info_sun_sep_var.set(f"Sun ∠:   {e.sun_separation:7.3f}°")
+        if self._info_elongation_var:
+            self._info_elongation_var.set(f"Sun ∠:   {e.elongation:7.3f}°")
         if self._info_distance_var:
             self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
         if self._info_illum_var:
@@ -324,7 +324,7 @@ class StatusMixin:
                     self._info_topo_libr_b_var = tk.StringVar(value="Topo LbB:")
                     self._info_colong_var = tk.StringVar(value="Colongit:")
                     self._info_illum_var = tk.StringVar(value="Illuminated:")
-                    self._info_sun_sep_var = tk.StringVar(value="Sun:")
+                    self._info_elongation_var = tk.StringVar(value="Elongation:")
                     self._info_phase_var = tk.StringVar(value="Ph:")
                     self._info_phase_name_var = tk.StringVar(value="Phase:")
 
@@ -342,7 +342,7 @@ class StatusMixin:
                         self._info_topo_libr_b_var,
                         self._info_colong_var,
                         self._info_illum_var,
-                        self._info_sun_sep_var,
+                        self._info_elongation_var,
                         self._info_phase_var,
                         self._info_phase_name_var,
                     ]
