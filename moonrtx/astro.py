@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timezone
-from functools import lru_cache
+from functools import cache
 
 import numpy as np
 from skyfield.api import wgs84
@@ -117,10 +117,10 @@ def _phase_name(moon_ecl_lon_deg: float, sun_ecl_lon_deg: float) -> str:
         return "New Moon"
 
 
-@lru_cache(maxsize=None)
-def _build_observer(lat: float, lon: float, elevation_m: int):
+@cache
+def _build_observer(observer: Observer):
     earth = _skyfield_ephemeris()["earth"]
-    return earth + wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon, elevation_m=elevation_m)
+    return earth + wgs84.latlon(latitude_degrees=observer.lat, longitude_degrees=observer.lon, elevation_m=observer.elevation_m)
 
 
 def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_mode: bool) -> MoonEphemeris:
@@ -134,7 +134,7 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     earth = ephemeris["earth"]
     moon = ephemeris["moon"]
     sun = ephemeris["sun"]
-    observer = _build_observer(observer_geo.lat, observer_geo.lon, observer_geo.elevation_m)
+    observer = _build_observer(observer_geo)
 
     earth_at = earth.at(time)
     moon_at = moon.at(time)

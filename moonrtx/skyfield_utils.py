@@ -1,6 +1,6 @@
 import ssl
 from datetime import datetime, timezone
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -75,12 +75,12 @@ def _ensure_skyfield_support_file(file_name: str, url: str) -> Path:
     return path
 
 
-@lru_cache(maxsize=1)
+@cache
 def skyfield_timescale():
     return Loader(str(_skyfield_data_dir()), verbose=False).timescale()
 
 
-@lru_cache(maxsize=1)
+@cache
 def skyfield_ephemeris():
     ephemeris_path = _skyfield_data_dir() / SKYFIELD_EPHEMERIS_NAME
     if not ephemeris_path.exists():
@@ -92,7 +92,7 @@ def skyfield_ephemeris():
     return load_file(str(ephemeris_path))
 
 
-@lru_cache(maxsize=1)
+@cache
 def skyfield_moon_frame():
     planetary_constants = PlanetaryConstants()
 
