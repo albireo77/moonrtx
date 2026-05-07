@@ -92,7 +92,7 @@ class StatusMixin:
             dec_s = (dec_abs - dec_d - dec_m / 60) * 3600
             self._info_dec_var.set(f"DEC: {dec_sign}{dec_d:02d}°{dec_m:02d}'{dec_s:04.1f}\"")
         if self._info_phase_name_var:
-            self._info_phase_name_var.set(f"{self._get_lunar_phase_name(e.delta_long):>17}")
+            self._info_phase_name_var.set(f"{e.phase_name:>17}")
         if self._info_phase_var:
             self._info_phase_var.set(f"Phase ∠: {e.phase_angle:7.3f}°")
         if self._info_elongation_var:
@@ -178,27 +178,6 @@ class StatusMixin:
     def _update_status_pins(self):
         if self._status_pins_var:
             self._status_pins_var.set(f"Pins {'ON' if self.pins_visible else 'OFF'}")
-        
-    def _get_lunar_phase_name(self, delta_long):
-        
-        if (delta_long < 0.5) or (delta_long > 359.5):
-            return "New Moon"
-        elif delta_long < 89.5:
-            return "Waxing Crescent"
-        elif delta_long < 90.5:
-            return "First Quarter"
-        elif delta_long < 179.5:
-            return "Waxing Gibbous"
-        elif delta_long < 180.5:
-            return "Full Moon"
-        elif delta_long < 269.5:
-            return "Waning Gibbous"
-        elif delta_long < 270.5:
-            return "Last Quarter"
-        elif delta_long < 359.5:
-            return "Waning Crescent"
-        else:
-            return "New Moon"
 
     def _update_all_status_panels(self):
         self._update_status_parallactic()

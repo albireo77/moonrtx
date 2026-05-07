@@ -15,8 +15,8 @@ class MoonEphemeris(NamedTuple):
     libr_long_topo: float
     libr_lat_topo: float
     elongation: float
-    delta_long: float  # Ecliptical longitude difference (degrees, 0-360)
-    colongitude: float  # Selenographic colongitude of the Sun (degrees, 0-360)
+    phase_name: str
+    colongitude: float
     rotation_matrix: NDArray
 
 class MoonFeature(NamedTuple):

@@ -92,6 +92,29 @@ def _rotation_matrix(
     rotation_matrix = view_basis @ body_to_date @ RENDERER_TO_SKYFIELD_BODY_MATRIX
     return rotation_matrix
 
+def _phase_name(moon_ecl_lon_deg: float, sun_ecl_lon_deg: float) -> str:
+
+    delta = (moon_ecl_lon_deg - sun_ecl_lon_deg) % 360.0
+    
+    if (delta < 0.5) or (delta > 359.5):
+        return "New Moon"
+    elif delta < 89.5:
+        return "Waxing Crescent"
+    elif delta < 90.5:
+        return "First Quarter"
+    elif delta < 179.5:
+        return "Waxing Gibbous"
+    elif delta < 180.5:
+        return "Full Moon"
+    elif delta < 269.5:
+        return "Waning Gibbous"
+    elif delta < 270.5:
+        return "Last Quarter"
+    elif delta < 359.5:
+        return "Waning Crescent"
+    else:
+        return "New Moon"
+
 
 def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_mode: bool) -> MoonEphemeris:
 
@@ -143,9 +166,9 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
     elongation = moon_topo.separation_from(sun_topo).degrees
     bright_limb_angle_deg = position_angle_of(moon_radec, sun_radec).degrees - q_deg
 
-    _, moon_geo_lon, _ = moon_geo.frame_latlon(ecliptic_frame)
-    _, sun_geo_lon, _ = sun_geo.frame_latlon(ecliptic_frame)
-    delta_long = (moon_geo_lon.degrees - sun_geo_lon.degrees) % 360.0
+    _, moon_ecl_lon, _ = moon_geo.frame_latlon(ecliptic_frame)
+    _, sun_ecl_lon, _ = sun_geo.frame_latlon(ecliptic_frame)
+    phase_name = _phase_name(moon_ecl_lon.degrees, sun_ecl_lon.degrees)
 
     # Pre-compute rotation matrices once; reused for libration, colongitude, and view matrix.
     R_moon = moon_frame.rotation_at(time)
@@ -178,7 +201,7 @@ def calculate_moon_ephemeris(dt: datetime, observer_geo: Observer, parallactic_m
         libr_long_topo=_wrap_signed_degrees(libr_lon_topo),
         libr_lat_topo=libr_lat_topo,
         elongation=elongation,
-        delta_long=delta_long,
+        phase_name=phase_name,
         colongitude=colongitude,
         rotation_matrix=rotation_matrix,
     )
