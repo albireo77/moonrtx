@@ -13,7 +13,7 @@ MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bo
 # Keeping SUN_RADIUS=10 and moving distance 100→1000 reduces irradiance by (1000/100)²=100×,
 # which SUN_BRIGHTNESS_SCALE compensates.
 SUN_RADIUS = 10
-SUN_LIGHT_DISTANCE = 1000
+SUN_LIGHT_DISTANCE = 1300
 SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
 MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
 

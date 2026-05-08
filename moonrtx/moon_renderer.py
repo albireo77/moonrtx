@@ -338,7 +338,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         )
 
         # Rendering parameters
-        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=20)
+        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=20, save_albedo=True)
 
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
@@ -347,7 +347,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         
         self.rt.set_uint("denoiser_start", 4)
         self.rt.set_int("denoiser_kind", DenoiserKind.RgbAlbedo.value)
-        self.rt.set_float("denoiser_blend", 0.8)
+        self.rt.set_float("denoiser_blend", 0.6)
         self.rt.add_postproc("OIDenoiser")
 
         # Background (stars)
