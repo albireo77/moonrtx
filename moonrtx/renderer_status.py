@@ -200,6 +200,17 @@ class StatusMixin:
             else:
                 self._info_frame.place_forget()
 
+    def window_title(self) -> str:
+        lat = self.observer.lat
+        lon = self.observer.lon
+        elevation_m = self.observer.elevation_m
+        lat_dir = 'N' if lat >= 0 else 'S'
+        lon_dir = 'E' if lon >= 0 else 'W'
+        lat_str = f"{abs(lat):.4f}".rstrip('0').rstrip('.')
+        lon_str = f"{abs(lon):.4f}".rstrip('0').rstrip('.')
+        from moonrtx.main import APP_NAME
+        return f"{APP_NAME}        👁️ {lat_str}°{lat_dir}   {lon_str}°{lon_dir}   (elevation: {elevation_m} m)"
+
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""
         if not self._window_maximized:

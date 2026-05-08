@@ -202,17 +202,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._info_libr_b_var = None
         self._info_colong_var = None
 
-    def window_title(self) -> str:
-        lat = self.observer.lat
-        lon = self.observer.lon
-        elevation_m = self.observer.elevation_m
-        lat_dir = 'N' if lat >= 0 else 'S'
-        lon_dir = 'E' if lon >= 0 else 'W'
-        lat_str = f"{abs(lat):.4f}".rstrip('0').rstrip('.')
-        lon_str = f"{abs(lon):.4f}".rstrip('0').rstrip('.')
-        from moonrtx.main import APP_NAME
-        return f"{APP_NAME}        👁️ {lat_str}°{lat_dir}   {lon_str}°{lon_dir}   (elevation: {elevation_m} m)"
-
     # ---- brightness / time-step / auto-advance ----
 
     def change_brightness(self, delta: int):
