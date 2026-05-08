@@ -107,9 +107,11 @@ def _rotation_matrix(
     rotation_matrix = view_basis @ body_to_date @ RENDERER_TO_SKYFIELD_BODY_MATRIX
     return rotation_matrix
 
-def _phase_name(moon_ecl_lon_deg: float, sun_ecl_lon_deg: float) -> str:
+def _phase_name(moon, sun) -> str:
 
-    delta = (moon_ecl_lon_deg - sun_ecl_lon_deg) % 360.0
+    _, moon_ecl_lon, _ = moon.frame_latlon(ecliptic_frame)
+    _, sun_ecl_lon, _ = sun.frame_latlon(ecliptic_frame)
+    delta = (moon_ecl_lon.degrees - sun_ecl_lon.degrees) % 360.0
     
     if (delta < 0.5) or (delta > 359.5):
         return "New Moon"
@@ -168,10 +170,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
 
     elongation = moon_topo.separation_from(sun_topo).degrees
     bright_limb_angle_deg = position_angle_of(moon_radec, sun_radec).degrees - q_deg
-
-    _, moon_ecl_lon, _ = moon_geo.frame_latlon(ecliptic_frame)
-    _, sun_ecl_lon, _ = sun_geo.frame_latlon(ecliptic_frame)
-    phase_name = _phase_name(moon_ecl_lon.degrees, sun_ecl_lon.degrees)
+    phase_name = _phase_name(moon_geo, sun_geo)
 
     # Pre-compute rotation matrices once; reused for libration, colongitude, and view matrix.
     R_moon = _moon_frame.rotation_at(time)
