@@ -34,7 +34,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     """
 
     def __init__(self,
-                 window_title: str,
                  elevation_file: str,
                  color_file: str,
                  features_file: str,
@@ -55,8 +54,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         Parameters
         ----------
-        window_title : str
-            Window title
         elevation_file : str
             Path to Moon elevation data TIFF
         color_file : str
@@ -92,6 +89,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
         self.parallactic_mode = parallactic_mode
+        self.observer = observer
 
         # Load data
         self.elevation, self._elev_scale, self._elev_rv, self._elev_displacement_range = load_elevation_data(elevation_file, downscale)
@@ -100,7 +98,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
-        self.window_title = window_title
         self.brightness = brightness
 
         # Renderer
@@ -151,8 +148,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
-
-        self.observer = observer
 
         # Flag to track if search dialog is open
         self.search_dialog_open = False
@@ -206,6 +201,17 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._info_libr_l_var = None
         self._info_libr_b_var = None
         self._info_colong_var = None
+
+    def window_title(self) -> str:
+        lat = self.observer.lat
+        lon = self.observer.lon
+        elevation_m = self.observer.elevation_m
+        lat_dir = 'N' if lat >= 0 else 'S'
+        lon_dir = 'E' if lon >= 0 else 'W'
+        lat_str = f"{abs(lat):.4f}".rstrip('0').rstrip('.')
+        lon_str = f"{abs(lon):.4f}".rstrip('0').rstrip('.')
+        from moonrtx.main import APP_NAME
+        return f"{APP_NAME}        👁️ {lat_str}°{lat_dir}   {lon_str}°{lon_dir}   (elevation: {elevation_m} m)"
 
     # ---- brightness / time-step / auto-advance ----
 
@@ -539,7 +545,6 @@ def run_renderer(dt_local: datetime,
                  features_file: str,
                  downscale: int,
                  brightness: int,
-                 window_title: str,
                  initial_camera: Optional[Camera],
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
@@ -560,8 +565,6 @@ def run_renderer(dt_local: datetime,
         Elevation downscale factor
     brightness : int
         Brightness
-    window_title : str
-        Window title
     initial_camera : Camera, optional
         Initial camera to restore a specific view
     time_step_minutes : int
@@ -596,7 +599,6 @@ def run_renderer(dt_local: datetime,
     print()
 
     moon_renderer = MoonRenderer(
-        window_title=window_title,
         elevation_file=elevation_file,
         color_file=color_file,
         starmap_file=starmap_file,

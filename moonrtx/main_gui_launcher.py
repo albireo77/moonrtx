@@ -16,7 +16,6 @@ from moonrtx.main import (
     check_color_file,
     check_starmap_file,
     check_gpu_architecture,
-    win_title,
     DEFAULT_ELEVATION_FILE_LOCAL_PATH,
     APP_NAME,
     DEFAULT_COLOR_FILE_LOCAL_PATH,
@@ -687,8 +686,6 @@ class MainWindow(tk.Tk):
         if not (0 <= elevation <= 100000):
             messagebox.showerror("Error", "Invalid elevation. Must be between 0 and 100000 meters.")
             return
-        
-        window_title = win_title(lat, lon, elevation)
 
         try:
             downscale = int(self.downscale.get().strip())
@@ -775,7 +772,6 @@ class MainWindow(tk.Tk):
                 MOON_FEATURES_FILE_LOCAL_PATH,
                 downscale,
                 brightness,
-                window_title,
                 init_camera,
                 time_step_minutes,
                 init_orientation,

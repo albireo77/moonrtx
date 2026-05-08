@@ -253,13 +253,6 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         print(f"Error parsing init-view string: {e}")
         return None
 
-def win_title(lat: float, lon: float, elevation: int) -> str:
-    lat_dir = 'N' if lat >= 0 else 'S'
-    lon_dir = 'E' if lon >= 0 else 'W'
-    lat_str = f"{abs(lat):.4f}".rstrip('0').rstrip('.')
-    lon_str = f"{abs(lon):.4f}".rstrip('0').rstrip('.')
-    return f"{APP_NAME}        👁️ {lat_str}°{lat_dir}   {lon_str}°{lon_dir}   (elevation: {elevation} m)"
-
 def main():
 
     args = parse_args()
@@ -343,14 +336,11 @@ def main():
     if not check_starmap_file():
         sys.exit(1)
 
-    window_title = win_title(lat, lon, args.elevation)
-
     run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
                  observer=Observer(lat, lon, args.elevation),
                  downscale=args.downscale,
                  brightness=args.brightness,
-                 window_title=window_title,
                  color_file=args.color_file,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,

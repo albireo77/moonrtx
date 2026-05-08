@@ -207,7 +207,7 @@ class StatusMixin:
             # Schedule maximize and title change on the main thread
             def init_window():
                 rt._root.state('zoomed')
-                rt._root.title(self.window_title)
+                rt._root.title(self.window_title())
 
                 # Hide FPS panel from status bar
                 if hasattr(rt, '_status_fps'):
