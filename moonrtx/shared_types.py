@@ -38,6 +38,9 @@ class Camera(NamedTuple):
     up: list
     fov: float
     type: str = "Pinhole"
+    aperture_radius: float = 0.01
+    aperture_fract: float = 0.2
+    focal_scale: float = 0.7
 
 class Observer(NamedTuple):
     lat: float

@@ -369,15 +369,16 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Apply displacement map
         self.rt.set_displacement(MOON_OBJECT_NAME, self.elevation, refresh=True)
 
+        cam = self.initial_camera
         self.rt.setup_camera(CAMERA_NAME,
-                             cam_type=self.initial_camera.type,
-                             eye=self.initial_camera.eye,
-                             target=self.initial_camera.target,
-                             up=self.initial_camera.up,
-                             fov=self.initial_camera.fov,
-                             aperture_radius=0.01,
-                             aperture_fract=0.2,
-                             focal_scale=0.7)
+                             cam_type=cam.type,
+                             eye=cam.eye,
+                             target=cam.target,
+                             up=cam.up,
+                             fov=cam.fov,
+                             aperture_radius=cam.aperture_radius,
+                             aperture_fract=cam.aperture_fract,
+                             focal_scale=cam.focal_scale)
         
         self.rt.setup_light(LIGHT_NAME, color=self.brightness * SUN_BRIGHTNESS_SCALE, radius=SUN_RADIUS)
 
