@@ -187,25 +187,16 @@ class DialogsMixin:
         parts = []
         
         # 1. Local time in ISO format (replace colons with dots for filename compatibility)
-        if self.dt_local is not None:
-            # Format: YYYY-MM-DDTHH.MM.SS+HH.MM (colons replaced with dots)
-            iso_str = self.dt_local.isoformat()
-            iso_str = iso_str.replace(':', '.')
-            parts.append(iso_str)
-        else:
-            parts.append("notime")
+        # Format: YYYY-MM-DDTHH.MM.SS+HH.MM (colons replaced with dots)
+        iso_str = self.dt_local.isoformat()
+        iso_str = iso_str.replace(':', '.')
+        parts.append(iso_str)
         
         # 2. Latitude
-        if self.observer_lat is not None:
-            parts.append(f"lat{self.observer_lat:+.6f}")
-        else:
-            parts.append("latnone")
+        parts.append(f"lat{self.observer.lat:+.6f}")
         
         # 3. Longitude
-        if self.observer_lon is not None:
-            parts.append(f"lon{self.observer_lon:+.6f}")
-        else:
-            parts.append("lonnone")
+        parts.append(f"lon{self.observer.lon:+.6f}")
         
         # 4. View orientation
         parts.append(f"view{self.orientation_mode}")
@@ -421,13 +412,11 @@ class DialogsMixin:
                 new_dt_local = new_dt_naive.replace(tzinfo=local_tz)
                 
                 # Update the view
-                self.update_view(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
+                self.update_view(new_dt_local)
                 
                 # Reset auto-advance counter when time is manually set
                 if self._auto_advance_var and self._auto_advance_var.get():
                     self._auto_advance_elapsed = 0
-
-                self.update_overlays()
                 
                 # Update status bar
                 self._update_all_status_panels()

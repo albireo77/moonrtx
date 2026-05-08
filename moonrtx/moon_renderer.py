@@ -10,8 +10,8 @@ import plotoptix
 from plotoptix import DenoiserKind, TkOptiX
 from plotoptix.materials import m_diffuse
 
-from moonrtx.shared_types import Camera
-from moonrtx.astro import calculate_moon_ephemeris
+from moonrtx import astro
+from moonrtx.shared_types import Camera, Observer
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
 from moonrtx.constants import (
@@ -34,18 +34,19 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     """
 
     def __init__(self,
-                 window_title: str,
                  elevation_file: str,
                  color_file: str,
                  features_file: str,
                  brightness: int,
-                 starmap_file: Optional[str] = None,
+                 observer: Observer,
+                 initial_camera: Optional[Camera],
+                 dt_local: datetime,
+                 starmap_file: Optional[str],
                  downscale: int = 3,
                  width: int = 1400,
                  height: int = 900,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
-                 observer_elevation: int = 0,
                  gamma: float = 2.8,
                  parallactic_mode: bool = False):
         """
@@ -53,8 +54,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         Parameters
         ----------
-        window_title : str
-            Window title
         elevation_file : str
             Path to Moon elevation data TIFF
         color_file : str
@@ -63,6 +62,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Moon features CSV file with craters, mounts etc.
         brightness : int
             Brightness
+        initial_camera : Camera
+            Optional initial camera for resets with R key (if None, a default camera will be calculated from ephemeris)
+        dt_local : datetime
+            Local datetime for the view 
         starmap_file : str, optional
             Path to star map TIFF for background
         downscale : int
@@ -73,8 +76,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Time step in minutes for Q/W keys
         init_view_orientation : str
             Initial view orientation (ORIENTATION_NSWE, ORIENTATION_NSEW, etc.)
-        observer_elevation : int
-            Observer elevation in meters above sea level
+        observer : Observer
+            Observer latitude, longitude, and elevation
         gamma : float
             Gamma correction value (default 2.8)
         parallactic_mode : bool
@@ -86,6 +89,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
         self.parallactic_mode = parallactic_mode
+        self.observer = observer
 
         # Load data
         self.elevation, self._elev_scale, self._elev_rv, self._elev_displacement_range = load_elevation_data(elevation_file, downscale)
@@ -94,7 +98,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
         self.star_map = load_starmap(starmap_file) if starmap_file else None
 
-        self.window_title = window_title
         self.brightness = brightness
 
         # Renderer
@@ -107,19 +110,28 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.moon_grid_visible = False
         self.moon_grid = None
         self.moon_radius = MOON_RADIUS
-        self.camera_distance = self.moon_radius * 10
 
         self.orientation_mode = init_view_orientation
         self.initial_orientation_mode = init_view_orientation  # For reset with R/V keys
 
-        # Initial camera (for reset with R key)
-        self.initial_camera = None
-
         # Default camera calculated from ephemeris (for reset with V key)
-        self.default_camera = None
+        visible_height = 2 * self.moon_radius / MOON_FILL_FRACTION
+        camera_distance = self.moon_radius * 10
+        fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
+        self.default_camera = Camera(
+            eye=[0, -camera_distance, 0],
+            target=[0, 0, 0],
+            up=[0, 0, 1],
+            fov=max(1, min(90, fov))
+        )
+
+        self.dt_local = dt_local
 
         # Initial time for reset with R key
-        self.initial_dt_local = None
+        self.initial_dt_local = self.dt_local
+
+        # Initial camera for reset with R key
+        self.initial_camera = self.default_camera if initial_camera is None else initial_camera
 
         # Flag to track if window has been maximized
         self._window_maximized = False
@@ -136,12 +148,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
-
-        # Store view parameters for filename generation
-        self.dt_local = None
-        self.observer_lat = None
-        self.observer_lon = None
-        self.observer_elevation = observer_elevation
 
         # Flag to track if search dialog is open
         self.search_dialog_open = False
@@ -179,6 +185,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._auto_advance_id = None
         self._auto_advance_elapsed = 0
         self._auto_advance_interval = 1000  # tick interval in ms
+        self._auto_advance_target_ms = time_step_minutes * 60 * 1000
 
         # Info panel variables (bottom-left overlay)
         self._info_frame = None
@@ -188,7 +195,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._info_ra_var = None
         self._info_dec_var = None
         self._info_phase_var = None
-        self._info_sun_sep_var = None
+        self._info_elongation_var = None
         self._info_distance_var = None
         self._info_illum_var = None
         self._info_libr_l_var = None
@@ -200,12 +207,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     def change_brightness(self, delta: int):
         if delta == 0:
             return
-        if self.brightness <= 0 and delta < 0:
+        new_brightness = max(0, min(500, self.brightness + delta))
+        if new_brightness == self.brightness:
             return
-        if self.brightness >= 500 and delta > 0:
-            return
-        self.brightness += delta
-        self.brightness = max(0, min(500, self.brightness))
+        self.brightness = new_brightness
         self.rt.update_light(LIGHT_NAME, color=self.brightness * SUN_BRIGHTNESS_SCALE)
         self._update_status_brightness()
 
@@ -240,12 +245,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         if delta == 0:
             return
-        if self.time_step_minutes <= 1 and delta < 0:
+        new_step = max(1, min(1440, self.time_step_minutes + delta))
+        if new_step == self.time_step_minutes:
             return
-        if self.time_step_minutes >= 1440 and delta > 0:
-            return
-        self.time_step_minutes += delta
-        self.time_step_minutes = max(1, min(1440, self.time_step_minutes))
+        self.time_step_minutes = new_step
+        self._auto_advance_target_ms = new_step * 60 * 1000
         # Reset auto-advance counter when time step changes while active
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
@@ -273,22 +277,19 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self._auto_advance_id = None
             return
         self._auto_advance_elapsed += self._auto_advance_interval
-        target_ms = self.time_step_minutes * 60 * 1000
-        if self._auto_advance_elapsed >= target_ms:
+        if self._auto_advance_elapsed >= self._auto_advance_target_ms:
             self._auto_advance_elapsed = 0
             self.change_time(self.time_step_minutes)
         self._schedule_auto_advance()
 
     def set_time_to_now(self):
         """Set the observation time to the current (now) time."""
-        now_local = datetime.now().astimezone()
 
-        self.update_view(now_local, self.observer_lat, self.observer_lon, self.observer_elevation)
+        self.update_view(datetime.now().astimezone())
 
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
 
-        self.update_overlays()
         self._update_all_status_panels()
 
     def set_time_to_now_and_auto_advance(self):
@@ -315,9 +316,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         new_dt_local = self.dt_local + timedelta(minutes=delta_minutes)
 
-        self.update_view(new_dt_local, self.observer_lat, self.observer_lon, self.observer_elevation)
+        self.update_view(new_dt_local)
 
-        self.update_overlays()
         self._update_status_time()
         self._update_info_moon()
 
@@ -327,8 +327,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """Handle mouse wheel events for zooming."""
         self.zoom_with_wheel(event)
 
-    def setup_renderer(self):
-        """Initialize the PlotOptiX renderer."""
+    def init_astro(self):
+        astro.init(self.observer)
+
+    def init_renderer(self):
         self.rt = TkOptiX(
             width=self.width,
             height=self.height,
@@ -342,7 +344,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.set_float("tonemap_exposure", 0.9)
         self.rt.set_float("tonemap_gamma", self.gamma)
         # self.rt.add_postproc("Gamma")
-
+        
         self.rt.set_uint("denoiser_start", 4)
         self.rt.set_int("denoiser_kind", DenoiserKind.RgbAlbedo.value)
         self.rt.set_float("denoiser_blend", 0.8)
@@ -367,6 +369,18 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Apply displacement map
         self.rt.set_displacement(MOON_OBJECT_NAME, self.elevation, refresh=True)
 
+        self.rt.setup_camera(CAMERA_NAME,
+                             cam_type=self.initial_camera.type,
+                             eye=self.initial_camera.eye,
+                             target=self.initial_camera.target,
+                             up=self.initial_camera.up,
+                             fov=self.initial_camera.fov,
+                             aperture_radius=0.01,
+                             aperture_fract=0.2,
+                             focal_scale=0.7)
+        
+        self.rt.setup_light(LIGHT_NAME, color=self.brightness * SUN_BRIGHTNESS_SCALE, radius=SUN_RADIUS)
+
 
     def calculate_light_pos(self) -> list:
         """
@@ -390,20 +404,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # The light direction in celestial coords is PA (from celestial north).
         # To get light direction in view coords (from zenith), subtract parallactic.
         # This puts light in the same reference frame as the rotated surface.
-        #
-        # In parallactic-mount mode the view frame keeps celestial north up
-        # (rotation matrix was built with q=0), so PA is already measured from
-        # the view's "up" direction and no q subtraction is needed.
-        if self.parallactic_mode:
-            bright_limb_angle_deg = self.moon_ephem.pa
-        else:
-            bright_limb_angle_deg = self.moon_ephem.pa - self.moon_ephem.q
         
-        # Normalize to -180 to 180
-        while bright_limb_angle_deg > 180: bright_limb_angle_deg -= 360
-        while bright_limb_angle_deg < -180: bright_limb_angle_deg += 360
-        
-        bright_limb_angle = np.radians(bright_limb_angle_deg)
+        bright_limb_angle = np.radians(self.moon_ephem.bright_limb_angle)
         phase_angle = np.radians(self.moon_ephem.phase_angle)
         light_distance = SUN_LIGHT_DISTANCE
         
@@ -468,7 +470,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # - Most of the lunar cycle (phase_angle > 6.0°) is completely unaffected
         min_phase_offset = np.radians(6.0)
         # Only apply minimum offset near full moon (phase_angle < 6.0°), not near new moon
-        effective_sin_phase = np.sin(min_phase_offset if phase_angle < min_phase_offset else phase_angle)
+        effective_sin_phase = np.sin(max(min_phase_offset, phase_angle))
         
         light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
         light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
@@ -488,63 +490,21 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_pins_orientation()
 
 
-    def update_view(self, dt_local: datetime, lat: float, lon: float, elevation: int, initial_camera: Optional[Camera] = None):
-        """
-        Update the view for a specific time and location.
+    def update_view(self, dt_local: Optional[datetime] = None):
 
-        Parameters
-        ----------
-        dt_local : datetime
-            Local time
-        lat, lon : float
-            Observer latitude and longitude in degrees
-        elevation : int
-            Observer elevation in meters above sea level
-        initial_camera : Camera, optional
-            If provided, this camera will be used as the initial camera for resets with R key.
-        """
-        eph = calculate_moon_ephemeris(dt_local, lat, lon, elevation, self.parallactic_mode)
-        self.moon_rotation = eph.rotation_matrix
+        if dt_local is not None:
+            self.dt_local = dt_local
+
+        self.moon_ephem = astro.calculate_moon_ephemeris(self.dt_local, self.parallactic_mode)
+        self.moon_rotation = self.moon_ephem.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
-        self.moon_ephem = eph
-
-        self.dt_local = dt_local
-        self.observer_lat = lat
-        self.observer_lon = lon
-        self.observer_elevation = elevation
         self.light_pos = self.calculate_light_pos()
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
         self.rt.update_data(MOON_OBJECT_NAME, u=u_new, v=v_new)
-
-        if self.default_camera is None:
-            # Calculate FOV so moon fills MOON_FILL_FRACTION of window height
-            moon_diameter = 2 * self.moon_radius
-            visible_height = moon_diameter / MOON_FILL_FRACTION
-            fov = np.degrees(2 * np.arctan(visible_height / (2 * self.camera_distance)))
-            self.default_camera = Camera(
-                eye=[0, -self.camera_distance, 0],
-                target=[0, 0, 0],
-                up=[0, 0, 1],
-                fov=max(1, min(90, fov))
-            )
-            self.initial_dt_local = dt_local
-            self.initial_camera = self.default_camera if initial_camera is None else initial_camera
-            self.rt.setup_camera(CAMERA_NAME,
-                                 cam_type=self.initial_camera.type,
-                                 eye=self.initial_camera.eye,
-                                 target=self.initial_camera.target,
-                                 up=self.initial_camera.up,
-                                 fov=self.initial_camera.fov,
-                                 aperture_radius=0.01,
-                                 aperture_fract=0.2,
-                                 focal_scale=0.7)
-            self.rt.setup_light(LIGHT_NAME, pos=self.light_pos, color=self.brightness * SUN_BRIGHTNESS_SCALE, radius=SUN_RADIUS)
-        else:
-            self.rt.update_light(LIGHT_NAME, pos=self.light_pos)
-
+        self.rt.update_light(LIGHT_NAME, pos=self.light_pos)
         self.update_overlays()
 
 
@@ -572,17 +532,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 # ---------------------------------------------------------------------------
 
 def run_renderer(dt_local: datetime,
-                 observer_lat: float,
-                 observer_lon: float,
-                 observer_elevation: int,
+                 observer: Observer,
                  elevation_file: str,
                  color_file: str,
                  starmap_file: str,
                  features_file: str,
                  downscale: int,
                  brightness: int,
-                 window_title: str,
-                 initial_camera: Optional[Camera] = None,
+                 initial_camera: Optional[Camera],
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
                  gamma: float = 2.8,
@@ -594,18 +551,14 @@ def run_renderer(dt_local: datetime,
     ----------
     dt_local : datetime
         Local time
-    observer_lat, observer_lon : float
-        Observer latitude and longitude in degrees
-    observer_elevation : int
-        Observer elevation in meters above sea level
+    observer : Observer
+        Observer latitude, longitude, and elevation
     elevation_file, color_file, starmap_file, features_file : str
         Paths to data files
     downscale : int
         Elevation downscale factor
     brightness : int
         Brightness
-    window_title : str
-        Window title
     initial_camera : Camera, optional
         Initial camera to restore a specific view
     time_step_minutes : int
@@ -613,7 +566,7 @@ def run_renderer(dt_local: datetime,
     init_view_orientation : str
         Initial view orientation mode.
     gamma : float
-        Gamma correction value (default 2.2)
+        Gamma correction value (default 2.8)
     parallactic_mode : bool
         Whether to use parallactic projection mode (default False)
 
@@ -625,7 +578,7 @@ def run_renderer(dt_local: datetime,
     print()
     print("Used PlotOptiX version:", plotoptix.__version__)
     print("Renderer started with parameters:")
-    print(f"  Geographical Location: Lat {observer_lat}°, Lon {observer_lon}°, Elevation {observer_elevation} m")
+    print(f"  Observer Location: Lat {observer.lat}°, Lon {observer.lon}°, Elevation {observer.elevation_m} m")
     print(f"  Local Time: {dt_local}")
     print(f"  Elevation File: {elevation_file}")
     print(f"  Color File: {color_file}")
@@ -640,7 +593,6 @@ def run_renderer(dt_local: datetime,
     print()
 
     moon_renderer = MoonRenderer(
-        window_title=window_title,
         elevation_file=elevation_file,
         color_file=color_file,
         starmap_file=starmap_file,
@@ -649,16 +601,17 @@ def run_renderer(dt_local: datetime,
         brightness=brightness,
         time_step_minutes=time_step_minutes,
         init_view_orientation=init_view_orientation,
-        observer_elevation=observer_elevation,
+        observer=observer,
         gamma=gamma,
-        parallactic_mode=parallactic_mode
+        parallactic_mode=parallactic_mode,
+        dt_local=dt_local,
+        initial_camera=initial_camera
     )
 
-    # Setup renderer
-    moon_renderer.setup_renderer()
+    moon_renderer.init_astro()
+    moon_renderer.init_renderer()
 
-    # Set view
-    moon_renderer.update_view(dt_local=dt_local, lat=observer_lat, lon=observer_lon, elevation=observer_elevation, initial_camera=initial_camera)
+    moon_renderer.update_view()
 
     original_key_handler = moon_renderer.rt._gui_key_pressed
 
@@ -676,13 +629,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_spot_labels()
         elif event.keysym == 'F4':
             moon_renderer.parallactic_mode = not moon_renderer.parallactic_mode
-            moon_renderer.update_view(
-                moon_renderer.dt_local,
-                moon_renderer.observer_lat,
-                moon_renderer.observer_lon,
-                moon_renderer.observer_elevation,
-            )
-            moon_renderer.update_overlays()
+            moon_renderer.update_view()
             moon_renderer._update_status_parallactic()
         elif event.keysym == 'F5':
             moon_renderer.set_orientation(ORIENTATION_NSWE)

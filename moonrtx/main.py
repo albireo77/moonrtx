@@ -14,7 +14,7 @@ from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.moon_renderer import run_renderer, ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
-from moonrtx.shared_types import Camera
+from moonrtx.shared_types import Camera, Observer
 
 VALID_ORIENTATIONS = [ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE]
 
@@ -253,11 +253,6 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         print(f"Error parsing init-view string: {e}")
         return None
 
-def win_title(lat: float, lon: float, elevation: int) -> str:
-    lat_dir = 'N' if lat >= 0 else 'S'
-    lon_dir = 'E' if lon >= 0 else 'W'
-    return f"{APP_NAME}        👁️ {abs(lat):.4f}°{lat_dir}   {abs(lon):.4f}°{lon_dir}   (elevation: {elevation} m)"
-
 def main():
 
     args = parse_args()
@@ -341,16 +336,11 @@ def main():
     if not check_starmap_file():
         sys.exit(1)
 
-    window_title = win_title(lat, lon, args.elevation)
-
     run_renderer(dt_local=dt_local,
                  elevation_file=args.elevation_file,
-                 observer_lat=lat,
-                 observer_lon=lon,
-                 observer_elevation=args.elevation,
+                 observer=Observer(lat, lon, args.elevation),
                  downscale=args.downscale,
                  brightness=args.brightness,
-                 window_title=window_title,
                  color_file=args.color_file,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,

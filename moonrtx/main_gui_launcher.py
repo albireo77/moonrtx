@@ -16,7 +16,6 @@ from moonrtx.main import (
     check_color_file,
     check_starmap_file,
     check_gpu_architecture,
-    win_title,
     DEFAULT_ELEVATION_FILE_LOCAL_PATH,
     APP_NAME,
     DEFAULT_COLOR_FILE_LOCAL_PATH,
@@ -27,6 +26,7 @@ from moonrtx.main import (
     VALID_ORIENTATIONS,
     ORIENTATION_NSWE
 )
+from moonrtx.shared_types import Observer
 
 # Generate UTC offset values for the timezone combobox (-12:00 to +14:00, 30-min steps)
 _TZ_OFFSETS = []
@@ -686,8 +686,6 @@ class MainWindow(tk.Tk):
         if not (0 <= elevation <= 100000):
             messagebox.showerror("Error", "Invalid elevation. Must be between 0 and 100000 meters.")
             return
-        
-        window_title = win_title(lat, lon, elevation)
 
         try:
             downscale = int(self.downscale.get().strip())
@@ -767,16 +765,13 @@ class MainWindow(tk.Tk):
             target=run_renderer,
             args=(
                 dt_local,
-                lat,
-                lon,
-                elevation,
+                Observer(lat, lon, elevation),
                 elevation_file,
                 color_file,
                 STARMAP_FILE_LOCAL_PATH,
                 MOON_FEATURES_FILE_LOCAL_PATH,
                 downscale,
                 brightness,
-                window_title,
                 init_camera,
                 time_step_minutes,
                 init_orientation,

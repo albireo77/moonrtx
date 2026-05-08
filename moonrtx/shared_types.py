@@ -9,15 +9,14 @@ class MoonEphemeris(NamedTuple):
     dec: float
     distance: int
     phase_angle: float
-    pa: float
-    q: float
+    bright_limb_angle: float
     libr_long_geo: float
     libr_lat_geo: float
     libr_long_topo: float
     libr_lat_topo: float
-    sun_separation: float  # Topocentric angular separation between Sun and Moon centers (degrees)
-    delta_long: float  # Ecliptical longitude difference (degrees, 0-360)
-    colongitude: float  # Selenographic colongitude of the Sun (degrees, 0-360)
+    elongation: float
+    phase_name: str
+    colongitude: float
     rotation_matrix: NDArray
 
 class MoonFeature(NamedTuple):
@@ -39,6 +38,11 @@ class Camera(NamedTuple):
     up: list
     fov: float
     type: str = "Pinhole"
+
+class Observer(NamedTuple):
+    lat: float
+    lon: float
+    elevation_m: int
 
 class MoonLabel(NamedTuple):
     segments: list[list]
