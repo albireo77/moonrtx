@@ -256,7 +256,9 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
 def win_title(lat: float, lon: float, elevation: int) -> str:
     lat_dir = 'N' if lat >= 0 else 'S'
     lon_dir = 'E' if lon >= 0 else 'W'
-    return f"{APP_NAME}        👁️ {abs(lat):.4f}°{lat_dir}   {abs(lon):.4f}°{lon_dir}   (elevation: {elevation} m)"
+    lat_str = f"{abs(lat):.4f}".rstrip('0').rstrip('.')
+    lon_str = f"{abs(lon):.4f}".rstrip('0').rstrip('.')
+    return f"{APP_NAME}        👁️ {lat_str}°{lat_dir}   {lon_str}°{lon_dir}   (elevation: {elevation} m)"
 
 def main():
 
