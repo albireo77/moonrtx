@@ -10,8 +10,8 @@ MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bo
 # PlotOptiX color is radiance (per sphere area), so irradiance ∝ (radius/distance)².
 # SUN_BRIGHTNESS_SCALE compensates for the increased distance vs. the original 100-unit baseline.
 SUN_RADIUS = 10
-SUN_LIGHT_DISTANCE = 2146       # (physically accurate)
-# SUN_LIGHT_DISTANCE = 1300     # (physically not accurate but without meshes visible when = 2146)
+# SUN_LIGHT_DISTANCE = 2146       # (physically accurate)
+SUN_LIGHT_DISTANCE = 1600         # (physically not accurate but with much less meshes visible than with = 2146)
 SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
 MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
 
