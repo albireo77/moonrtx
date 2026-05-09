@@ -5,15 +5,13 @@ Constants used across the Moon renderer modules.
 # Scene geometry
 MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 # Real Sun angular radius ≈ 0.267°.  SUN_RADIUS/SUN_LIGHT_DISTANCE = tan(0.267°) ≈ 0.00466.
-# Original scene had light_distance=100 (10 Moon-radii) — rays diverged 5.7° across the Moon,
-# and SUN_RADIUS=10 accidentally masked that error via wide penumbra.
-# SUN_LIGHT_DISTANCE=1000 gives angular radius 0.573° (2.1× real Sun), divergence error 0.57°,
-# and enough shadow-ray spread to prevent mesh-face aliasing (squares) at high zoom.
+# SUN_LIGHT_DISTANCE = 10 / tan(0.267°) ≈ 2146 gives physically accurate angular size and
+# parallel rays (divergence across Moon disk ≈ 0.27°, vs. ~0.001° physical — acceptable).
 # PlotOptiX color is radiance (per sphere area), so irradiance ∝ (radius/distance)².
-# Keeping SUN_RADIUS=10 and moving distance 100→1000 reduces irradiance by (1000/100)²=100×,
-# which SUN_BRIGHTNESS_SCALE compensates.
+# SUN_BRIGHTNESS_SCALE compensates for the increased distance vs. the original 100-unit baseline.
 SUN_RADIUS = 10
-SUN_LIGHT_DISTANCE = 1300
+SUN_LIGHT_DISTANCE = 2146       # (physically accurate)
+# SUN_LIGHT_DISTANCE = 1300     # (physically not accurate but without meshes visible when = 2146)
 SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
 MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
 
