@@ -38,6 +38,13 @@ class _ToolTip:
 class StatusMixin:
     """Mixin providing status bar and info panel methods for MoonRenderer."""
 
+    @staticmethod
+    def _dms(value: float) -> tuple[int, int, float]:
+        d = int(value)
+        m = int((value - d) * 60)
+        s = (value - d - m / 60) * 3600
+        return d, m, s
+
     # ---- Status panel update methods ----
 
     def _update_status_parallactic(self):
@@ -58,60 +65,36 @@ class StatusMixin:
 
     def _update_info_moon(self):
         """Update the info panel with current Moon ephemeris data."""
-        if self.moon_ephem is None:
+        if self.moon_ephem is None or self._info_az_var is None:
             return
         e = self.moon_ephem
-        if self._info_az_var:
-            az_d = int(e.az)
-            az_m = int((e.az - az_d) * 60)
-            az_s = (e.az - az_d - az_m / 60) * 3600
-            self._info_az_var.set(f"Az:  {az_d:3d}\u00b0{az_m:02d}'{az_s:04.1f}\"")
-        if self._info_alt_var:
-            alt_sign = '+' if e.alt >= 0 else '-'
-            alt_abs = abs(e.alt)
-            alt_d = int(alt_abs)
-            alt_m = int((alt_abs - alt_d) * 60)
-            alt_s = (alt_abs - alt_d - alt_m / 60) * 3600
-            self._info_alt_var.set(f"Alt: {alt_sign}{alt_d:02d}\u00b0{alt_m:02d}'{alt_s:04.1f}\"")
-            if getattr(self, '_info_alt_label', None) is not None:
-                alt_fg = self._info_alt_negative_fg if e.alt < 0 else self._info_fg
-                self._info_alt_label.configure(fg=alt_fg)
-        if self._info_ra_var:
-            ra_total_h = e.ra / 15.0
-            if ra_total_h < 0:
-                ra_total_h += 24
-            ra_h = int(ra_total_h)
-            ra_m = int((ra_total_h - ra_h) * 60)
-            ra_s = (ra_total_h - ra_h - ra_m / 60) * 3600
-            self._info_ra_var.set(f"RA:   {ra_h:02d}h{ra_m:02d}m{ra_s:04.1f}s")
-        if self._info_dec_var:
-            dec_sign = '+' if e.dec >= 0 else '-'
-            dec_abs = abs(e.dec)
-            dec_d = int(dec_abs)
-            dec_m = int((dec_abs - dec_d) * 60)
-            dec_s = (dec_abs - dec_d - dec_m / 60) * 3600
-            self._info_dec_var.set(f"DEC: {dec_sign}{dec_d:02d}°{dec_m:02d}'{dec_s:04.1f}\"")
-        if self._info_phase_name_var:
-            self._info_phase_name_var.set(f"{e.phase_name:>17}")
-        if self._info_phase_var:
-            self._info_phase_var.set(f"Phase ∠: {e.phase_angle:7.3f}°")
-        if self._info_elongation_var:
-            self._info_elongation_var.set(f"Sun ∠:   {e.elongation:7.3f}°")
-        if self._info_distance_var:
-            self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
-        if self._info_illum_var:
-            percent_illuminated = (1 + math.cos(math.radians(e.phase_angle))) * 50.0
-            self._info_illum_var.set(f"💡:        {percent_illuminated:6.2f}%")
-        if self._info_geo_libr_l_var:
-            self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
-        if self._info_geo_libr_b_var:
-            self._info_geo_libr_b_var.set(f"⊕ Libr B: {e.libr_lat_geo:+6.3f}°")
-        if self._info_topo_libr_l_var:
-            self._info_topo_libr_l_var.set(f"⌖ Libr L: {e.libr_long_topo:+6.3f}°")
-        if self._info_topo_libr_b_var:
-            self._info_topo_libr_b_var.set(f"⌖ Libr B: {e.libr_lat_topo:+6.3f}°")
-        if self._info_colong_var:
-            self._info_colong_var.set(f"Colongit: {e.colongitude:6.2f}°")
+
+        az_d, az_m, az_s = self._dms(e.az)
+        self._info_az_var.set(f"Az:  {az_d:3d}°{az_m:02d}'{az_s:04.1f}\"")
+
+        alt_sign = '+' if e.alt >= 0 else '-'
+        alt_d, alt_m, alt_s = self._dms(abs(e.alt))
+        self._info_alt_var.set(f"Alt: {alt_sign}{alt_d:02d}°{alt_m:02d}'{alt_s:04.1f}\"")
+        if self._info_alt_label is not None:
+            self._info_alt_label.configure(fg=self._info_alt_negative_fg if e.alt < 0 else self._info_fg)
+
+        ra_h, ra_m, ra_s = self._dms(e.ra / 15.0 % 24)
+        self._info_ra_var.set(f"RA:   {ra_h:02d}h{ra_m:02d}m{ra_s:04.1f}s")
+
+        dec_sign = '+' if e.dec >= 0 else '-'
+        dec_d, dec_m, dec_s = self._dms(abs(e.dec))
+        self._info_dec_var.set(f"DEC: {dec_sign}{dec_d:02d}°{dec_m:02d}'{dec_s:04.1f}\"")
+
+        self._info_phase_name_var.set(f"{e.phase_name:>17}")
+        self._info_phase_var.set(f"Phase ∠: {e.phase_angle:7.3f}°")
+        self._info_elongation_var.set(f"Sun ∠:   {e.elongation:7.3f}°")
+        self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
+        self._info_illum_var.set(f"💡:        {(1 + math.cos(math.radians(e.phase_angle))) * 50.0:6.2f}%")
+        self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
+        self._info_geo_libr_b_var.set(f"⊕ Libr B: {e.libr_lat_geo:+6.3f}°")
+        self._info_topo_libr_l_var.set(f"⌖ Libr L: {e.libr_long_topo:+6.3f}°")
+        self._info_topo_libr_b_var.set(f"⌖ Libr B: {e.libr_lat_topo:+6.3f}°")
+        self._info_colong_var.set(f"Colongit: {e.colongitude:6.2f}°")
 
     def _update_status_measured(self):
         if self._status_measured_var:
@@ -137,35 +120,32 @@ class StatusMixin:
             feature_text = "" if feature is None else f"{feature.name} (⌀ = {feature.diameter_km:.2f} km)"
             self._status_feature_var.set(feature_text)
 
+    def _open_feature_url(self, url: str, feature_name: str) -> bool:
+        try:
+            return bool(webbrowser.open_new_tab(url))
+        except Exception as exc:
+            print(f"Failed to open page for {feature_name}: {exc}")
+            return False
+
     def open_status_feature_usgs_page(self) -> bool:
         """Open the USGS page for the feature currently shown in the status bar."""
         feature = self._status_feature
         if feature is None or feature.feature_id is None:
             return False
-
-        url = f"https://planetarynames.wr.usgs.gov/Feature/{feature.feature_id}"
-
-        try:
-            return bool(webbrowser.open_new_tab(url))
-        except Exception as exc:
-            print(f"Failed to open USGS page for {feature.name}: {exc}")
-            return False
+        return self._open_feature_url(
+            f"https://planetarynames.wr.usgs.gov/Feature/{feature.feature_id}",
+            feature.name,
+        )
 
     def open_status_feature_www_page(self) -> bool:
         """Open the user-defined web page for the feature shown in the status bar."""
         feature = self._status_feature
         if feature is None or not feature.www_address:
             return False
-
         url = feature.www_address
         if not url.startswith(('http://', 'https://')):
             url = f"https://{url}"
-
-        try:
-            return bool(webbrowser.open_new_tab(url))
-        except Exception as exc:
-            print(f"Failed to open www page for {feature.name}: {exc}")
-            return False
+        return self._open_feature_url(url, feature.name)
 
     def _update_status_brightness(self):
         if self._status_brightness_var:
@@ -270,7 +250,7 @@ class StatusMixin:
                             bg = time_panel.cget('bg')
                             cb = tk.Checkbutton(
                                 time_panel,
-                                text='\u25B6',
+                                text='▶',
                                 variable=self._auto_advance_var,
                                 font=font,
                                 indicatoron=False,
@@ -371,13 +351,13 @@ class StatusMixin:
                     self.set_time_to_now_and_auto_advance()
                     return 'break'
                 rt._root.bind('<F10>', _f10_handler)
-                
+
                 # Apply initial view orientation to plotoptix
                 if self.orientation_mode != ORIENTATION_NSWE:
                     rt._view_orientation = self.orientation_mode
                     # Update grid labels for initial orientation if grid exists
                     if self.moon_grid is not None and self.moon_grid_visible:
                         self.update_grid_labels_for_orientation()
-                
+
                 self._update_all_status_panels()
             rt._root.after_idle(init_window)
