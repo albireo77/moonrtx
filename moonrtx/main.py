@@ -89,6 +89,12 @@ def parse_args():
                              "Valid values: NSWE (default), NSEW, SNEW, SNWE. ")
     return parser.parse_args()
 
+def _urlretrieve(url: str, dest: str):
+    opener = urllib.request.build_opener()
+    opener.addheaders = [('User-Agent', APP_NAME)]
+    urllib.request.install_opener(opener)
+    urllib.request.urlretrieve(url, dest)
+
 def check_elevation_file(elevation_file: str) -> bool:
     if not os.path.isfile(elevation_file):
         if elevation_file == DEFAULT_ELEVATION_FILE_LOCAL_PATH:
@@ -99,7 +105,7 @@ def check_elevation_file(elevation_file: str) -> bool:
             print(f"Downloading default elevation file (size {DEFAULT_ELEVATION_FILE_SIZE_GB} GB). It can take some time but must be done only once.")
             try:
                 os.makedirs(os.path.dirname(elevation_file), exist_ok=True)
-                urllib.request.urlretrieve(DEFAULT_ELEVATION_FILE_REMOTE_PATH, elevation_file)
+                _urlretrieve(DEFAULT_ELEVATION_FILE_REMOTE_PATH, elevation_file)
             except Exception as e:
                 print(f"Error downloading default elevation file: {e}")
                 return False
@@ -117,7 +123,7 @@ def check_starmap_file() -> bool:
         print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB). It can take some time but must be done only once.")
         try:
             os.makedirs(os.path.dirname(STARMAP_FILE_LOCAL_PATH), exist_ok=True)
-            urllib.request.urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH)
+            _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH)
         except Exception as e:
             print(f"Error downloading starmap file: {e}")
             return False
