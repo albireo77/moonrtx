@@ -185,7 +185,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
     colongitude = _colongitude_from_subsolar_longitude(sun_lon_moon)
 
     phase_angle_deg = moon_topo.phase_angle(_sun).degrees
-    moon_distance_km = (moon_at - observer_at).distance().km
+    moon_distance_km = observer_from_moon.distance().km
     rotation_matrix = _rotation_matrix(R_moon, R_equator, moon_ra_deg, moon_dec_deg, q_deg)
 
     return MoonEphemeris(
