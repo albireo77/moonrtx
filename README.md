@@ -35,7 +35,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - On first Moon ephemeris calculation, MoonRTX may download a small Skyfield data set into `moonrtx/data/skyfield`: the JPL `de421.bsp` ephemeris (about 16 MB) plus three small Moon orientation kernels used for the direct lunar body-frame rotation.
 - The bundled Skyfield Moon orientation kernels support dates from `1900-01-01T00:00:00+00:00` through `2051-01-01T00:00:00+00:00`.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
-- If you don't like default Moon colors, you can download file with more realistic (though bland) colors from [NASA site](https://svs.gsfc.nasa.gov/4720) and load it with `--color-file` parameter on program start.
+- If you don't like default Moon colors in MoonRTX, you can download file with more realistic (though bland) colors from [NASA site](https://svs.gsfc.nasa.gov/4720) and load it with `--color-file` parameter on program start.
 - There's [experimental_light](https://github.com/albireo77/moonrtx/tree/experimental_light) branch with scene parameters closer to real Sun-Moon geometry. It results in sharper shadows and narrower penumbra but also much more noise when rendering view.
 
 ## Keyboard and Mouse Actions
