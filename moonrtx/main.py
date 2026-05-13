@@ -274,9 +274,6 @@ def main():
         if init_view is None:
             print(f"Error: Could not parse --init-view value: {args.init_view}")
             sys.exit(1)
-
-    # Use datetime from init_view if provided, otherwise use --time argument
-    if init_view is not None:
         dt_local = init_view.dt_local
         lat = init_view.lat
         lon = init_view.lon
@@ -325,7 +322,7 @@ def main():
         sys.exit(1)
 
     if init_view_orientation not in VALID_ORIENTATIONS:
-        print(f"Invalid view orientation '{args.init_view_orientation}'. Must be one of: {', '.join(VALID_ORIENTATIONS)}")
+        print(f"Invalid view orientation '{init_view_orientation}'. Must be one of: {', '.join(VALID_ORIENTATIONS)}")
         sys.exit(1)
 
     if not check_gpu_architecture():
