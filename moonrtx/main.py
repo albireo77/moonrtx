@@ -267,6 +267,8 @@ def main():
     initial_camera = None
     init_view_orientation = args.init_view_orientation.upper()
     parallactic_mode = args.parallactic_mode
+    lat = args.lat
+    lon = args.lon
     if args.init_view:
         init_view = parse_init_view(args.init_view)
         if init_view is None:
@@ -287,14 +289,12 @@ def main():
         if error is not None:
             print(f"Incorrect time: {error}")
             sys.exit(1)
-        if args.lat is None:
+        if lat is None:
             print("Error: --lat parameter is mandatory.")
             sys.exit(1)
-        if args.lon is None:
+        if lon is None:
             print("Error: --lon parameter is mandatory.")
             sys.exit(1)
-        lat = args.lat
-        lon = args.lon
 
     if not (-180.0 <= lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
