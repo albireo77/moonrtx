@@ -265,6 +265,8 @@ def main():
 
     init_view = None
     initial_camera = None
+    init_view_orientation = args.init_view_orientation.upper()
+    parallactic_mode = args.parallactic_mode
     if args.init_view:
         init_view = parse_init_view(args.init_view)
         if init_view is None:
@@ -277,9 +279,7 @@ def main():
         lat = init_view.lat
         lon = init_view.lon
         init_view_orientation = init_view.orientation
-        # Restored screenshots carry their own parallactic-mode flag, which
-        # overrides the --parallactic-mode CLI argument.
-        args.parallactic_mode = init_view.parallactic_mode
+        parallactic_mode = init_view.parallactic_mode
         initial_camera = init_view.camera
     else:
         time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
@@ -295,7 +295,6 @@ def main():
             sys.exit(1)
         lat = args.lat
         lon = args.lon
-        init_view_orientation = args.init_view_orientation.upper()
 
     if not (-180.0 <= lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
@@ -354,7 +353,7 @@ def main():
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
                  gamma=args.gamma,
-                 parallactic_mode=args.parallactic_mode)
+                 parallactic_mode=parallactic_mode)
 
 if __name__ == "__main__":
     main()
