@@ -263,7 +263,6 @@ def main():
 
     args = parse_args()
 
-    init_view = None
     initial_camera = None
     init_view_orientation = args.init_view_orientation.upper()
     parallactic_mode = args.parallactic_mode
