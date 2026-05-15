@@ -92,7 +92,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer = observer
 
         # Load data
-        self.elevation, self._elev_scale, self._elev_rv, self._elev_displacement_range = load_elevation_data(elevation_file, downscale)
+        self.elevation, self.elevation_displacement_range = load_elevation_data(elevation_file, downscale)
         self.color_data = load_color_data(color_file, self.gamma)
         # Sort features by angular_radius (smallest first) for efficient lookup
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)

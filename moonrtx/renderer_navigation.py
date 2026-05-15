@@ -518,7 +518,7 @@ class NavigationMixin:
         # Stored elevation is a displacement factor of moon radius [~0.9885, ~1.0]
         # The mean of the full range maps to the nominal radius.
         displacement = self.elevation[row, col]
-        mid = 1.0 - self._elev_displacement_range / 2.0
+        mid = 1.0 - self.elevation_displacement_range / 2.0
         return (displacement - mid) * self.MOON_RADIUS_KM * 1000.0
 
     def _seleno_to_scene_position(self, lat: float, lon: float, radius: float = None) -> np.ndarray:
