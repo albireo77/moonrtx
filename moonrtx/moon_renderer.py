@@ -2,6 +2,7 @@
 MoonRenderer: core renderer class (composing mixins) and run_renderer entry point.
 """
 
+import tkinter as tk
 import numpy as np
 from typing import Optional
 from datetime import datetime, timedelta
@@ -96,7 +97,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.color_data = load_color_data(color_file, self.gamma)
         # Sort features by angular_radius (smallest first) for efficient lookup
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
-        self.star_map = load_starmap(starmap_file) if starmap_file else None
+        if starmap_file:
+            _tmp = tk.Tk()
+            _tmp.withdraw()
+            screen_width = _tmp.winfo_screenwidth()
+            _tmp.destroy()
+            self.star_map = load_starmap(starmap_file, screen_width * 6)
+        else:
+            self.star_map = None
 
         self.brightness = brightness
 

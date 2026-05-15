@@ -171,7 +171,7 @@ def load_color_data(filepath: str, gamma: float = 2.8) -> np.ndarray:
     return color_data.astype(np.uint8)
 
 
-def load_starmap(filepath: str, target_width: int = 10240) -> Optional[np.ndarray]:
+def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
     """
     Load and process the star map for background.
     
