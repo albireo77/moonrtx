@@ -38,6 +38,7 @@ def init(observer: Observer):
     )
     _observer_lat = observer.lat
 
+
 def _validate_supported_datetime(dt_local: datetime) -> datetime:
     dt_utc = dt_local.astimezone(timezone.utc)
     if dt_utc < SKYFIELD_MOON_FRAME_START_UTC or dt_utc > SKYFIELD_MOON_FRAME_END_UTC:
@@ -106,6 +107,7 @@ def _rotation_matrix(
     body_to_date = R_equator @ R_moon.T
     rotation_matrix = view_basis @ body_to_date @ RENDERER_TO_SKYFIELD_BODY_MATRIX
     return rotation_matrix
+
 
 def _phase_name(moon, sun) -> str:
 

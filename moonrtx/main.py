@@ -156,7 +156,7 @@ def check_gpu_architecture() -> bool:
         print("WARNING: Unrecognized GPU RTX architecture")
         return True
     
-def get_date_time_local(time_iso: str):
+def get_date_time_local(time_iso: str) -> tuple[Optional[datetime], Optional[Exception]]:
     if time_iso.endswith("Z"):
         time_iso = time_iso.replace("Z", "+00:00")
     try:
