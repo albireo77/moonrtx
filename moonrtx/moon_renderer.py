@@ -15,10 +15,7 @@ from moonrtx import astro
 from moonrtx.shared_types import Camera, Observer
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
-from moonrtx.constants import (
-    CAMERA_NAME, LIGHT_NAME, MOON_FILL_FRACTION, SUN_LIGHT_DISTANCE, SUN_BRIGHTNESS_SCALE, MOON_OBJECT_NAME,
-    SUN_RADIUS, MOON_RADIUS, ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
-)
+from moonrtx.constants import (ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE)
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin
@@ -33,6 +30,18 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
     """
+
+    # Scene geometry
+    SUN_RADIUS = 10             # affects Moon surface illumination
+    MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
+    MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
+    # SUN_LIGHT_DISTANCE = 2146       # (physically accurate)
+    SUN_LIGHT_DISTANCE = 1300         # (physically not accurate but with less meshes visible comparing to 2146)
+    SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
+
+    CAMERA_NAME = "cam1"
+    LIGHT_NAME = "sun"
+    MOON_OBJECT_NAME = "moon"
 
     def __init__(self,
                  elevation_file: str,
@@ -109,14 +118,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Grid settings
         self.moon_grid_visible = False
         self.moon_grid = None
-        self.moon_radius = MOON_RADIUS
 
         self.orientation_mode = init_view_orientation
         self.initial_orientation_mode = init_view_orientation  # For reset with R/V keys
 
         # Default camera calculated from ephemeris (for reset with V key)
-        visible_height = 2 * self.moon_radius / MOON_FILL_FRACTION
-        camera_distance = self.moon_radius * 10
+        visible_height = 2 * self.MOON_RADIUS / self.MOON_FILL_FRACTION
+        camera_distance = self.MOON_RADIUS * 10
         fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
         self.default_camera = Camera(
             eye=[0, -camera_distance, 0],
@@ -211,7 +219,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if new_brightness == self.brightness:
             return
         self.brightness = new_brightness
-        self.rt.update_light(LIGHT_NAME, color=self.brightness * SUN_BRIGHTNESS_SCALE)
+        self.rt.update_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE)
         self._update_status_brightness()
 
     def change_gamma(self, delta: float):
@@ -363,14 +371,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.update_material("diffuse", m_diffuse)
 
         # Create Moon sphere with displacement
-        self.rt.set_data(MOON_OBJECT_NAME, geom="ParticleSetTextured", geom_attr="DisplacedSurface",
-                        pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.moon_radius)
+        self.rt.set_data(self.MOON_OBJECT_NAME, geom="ParticleSetTextured", geom_attr="DisplacedSurface",
+                        pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.MOON_RADIUS)
 
         # Apply displacement map
-        self.rt.set_displacement(MOON_OBJECT_NAME, self.elevation, refresh=True)
+        self.rt.set_displacement(self.MOON_OBJECT_NAME, self.elevation, refresh=True)
 
         cam = self.initial_camera
-        self.rt.setup_camera(CAMERA_NAME,
+        self.rt.setup_camera(self.CAMERA_NAME,
                              cam_type=cam.type,
                              eye=cam.eye,
                              target=cam.target,
@@ -380,7 +388,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                              aperture_fract=cam.aperture_fract,
                              focal_scale=cam.focal_scale)
         
-        self.rt.setup_light(LIGHT_NAME, color=self.brightness * SUN_BRIGHTNESS_SCALE, radius=SUN_RADIUS)
+        self.rt.setup_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE, radius=self.SUN_RADIUS)
 
 
     def calculate_light_pos(self) -> list:
@@ -408,7 +416,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         
         bright_limb_angle = np.radians(self.moon_ephem.bright_limb_angle)
         phase_angle = np.radians(self.moon_ephem.phase_angle)
-        light_distance = SUN_LIGHT_DISTANCE
+        light_distance = self.SUN_LIGHT_DISTANCE
         
         # The bright limb angle tells us which edge of the Moon is illuminated
         # The LIGHT source is in the OPPOSITE direction from the dark side
@@ -504,10 +512,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
-        self.rt.update_data(MOON_OBJECT_NAME, u=u_new, v=v_new)
-        self.rt.update_light(LIGHT_NAME, pos=self.light_pos)
+        self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
+        self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos)
         self.update_overlays()
-
 
     # ---- lifecycle ----
 

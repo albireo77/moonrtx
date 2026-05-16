@@ -6,7 +6,6 @@ distance measurement, and feature lookup for MoonRenderer.
 import numpy as np
 from typing import Optional
 
-from moonrtx.constants import CAMERA_NAME
 from moonrtx.shared_types import MoonFeature
 
 
@@ -36,22 +35,22 @@ class NavigationMixin:
         # - +Z is north pole
         # - -Y is prime meridian (lon=0)
         # - +X is east (lon=90)
-        x = self.moon_radius * np.cos(lat_rad) * np.sin(lon_rad)
-        y = -self.moon_radius * np.cos(lat_rad) * np.cos(lon_rad)
-        z = self.moon_radius * np.sin(lat_rad)
+        x = self.MOON_RADIUS * np.cos(lat_rad) * np.sin(lon_rad)
+        y = -self.MOON_RADIUS * np.cos(lat_rad) * np.cos(lon_rad)
+        z = self.MOON_RADIUS * np.sin(lat_rad)
         
         # Apply Moon rotation to get scene coordinates
         original_pos = np.array([x, y, z])
         scene_pos = self.moon_rotation @ original_pos
         
         # Get current camera
-        cam = self.rt.get_camera(CAMERA_NAME)
+        cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
         target = np.array(cam["Target"])
         
         # Calculate new camera distance based on feature size
         # Aim to have feature fill about 30% of the view
-        feature_radius_scene = feature.angular_radius * (self.moon_radius / 90)  # Rough conversion
+        feature_radius_scene = feature.angular_radius * (self.MOON_RADIUS / 90)  # Rough conversion
         current_fov = self.rt._optix.get_camera_fov(0)
         
         # Calculate distance to make feature appear at desired size
@@ -59,8 +58,8 @@ class NavigationMixin:
         new_distance = feature_radius_scene / np.tan(np.radians(desired_angular_size / 2))
         
         # Clamp distance to reasonable range
-        min_dist = self.moon_radius * 1.1
-        max_dist = self.moon_radius * 15
+        min_dist = self.MOON_RADIUS * 1.1
+        max_dist = self.MOON_RADIUS * 15
         new_distance = np.clip(new_distance, min_dist, max_dist)
         
         # Direction from target to eye
@@ -72,7 +71,7 @@ class NavigationMixin:
         new_eye = new_target + direction * new_distance
         
         # Update camera
-        self.rt.update_camera(CAMERA_NAME, eye=new_eye.tolist(), target=new_target.tolist())
+        self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), target=new_target.tolist())
 
     def find_feature_for_status_bar(self, lat: float, lon: float) -> Optional[MoonFeature]:
         """
@@ -139,7 +138,7 @@ class NavigationMixin:
         # Restore initial camera parameters
         up = cp.up[:]
 
-        self.rt.update_camera(CAMERA_NAME, eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
+        self.rt.update_camera(self.CAMERA_NAME, eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
         
         # Update status bar
         self._update_all_status_panels()
@@ -165,7 +164,7 @@ class NavigationMixin:
         # Restore default camera parameters
         up = cp.up[:]
 
-        self.rt.update_camera(CAMERA_NAME, eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
+        self.rt.update_camera(self.CAMERA_NAME, eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
 
     def center_view_on_cursor(self, event):
         """
@@ -194,7 +193,7 @@ class NavigationMixin:
             return
         
         # Get current camera parameters using PlotOptix internal state
-        cam = self.rt.get_camera(CAMERA_NAME)
+        cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
         target = np.array(cam["Target"])
         
@@ -212,7 +211,7 @@ class NavigationMixin:
         new_eye = new_target + direction * current_distance
         
         # Update camera with new eye and target
-        self.rt.update_camera(CAMERA_NAME, eye=new_eye.tolist(), target=new_target.tolist())
+        self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), target=new_target.tolist())
 
     def navigate_view(self, direction: str, step_factor: float = 0.05):
         """
@@ -231,7 +230,7 @@ class NavigationMixin:
             return
         
         # Get current camera parameters
-        cam = self.rt.get_camera(CAMERA_NAME)
+        cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
         target = np.array(cam["Target"])
         up = np.array(cam["Up"])
@@ -283,9 +282,9 @@ class NavigationMixin:
             new_up = (up * cos_a + 
                       np.cross(axis, up) * sin_a + 
                       axis * np.dot(axis, up) * (1 - cos_a))
-            self.rt.update_camera(CAMERA_NAME, eye=new_eye.tolist(), up=new_up.tolist())
+            self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), up=new_up.tolist())
         else:
-            self.rt.update_camera(CAMERA_NAME, eye=new_eye.tolist())
+            self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist())
 
     def rotate_around_moon_axis(self, direction: str, step_deg: float = 1.0):
         """
@@ -328,7 +327,7 @@ class NavigationMixin:
             return
         
         # Get current camera parameters
-        cam = self.rt.get_camera(CAMERA_NAME)
+        cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
         target = np.array(cam["Target"])
         up = np.array(cam["Up"])
@@ -347,7 +346,7 @@ class NavigationMixin:
                   np.cross(axis, up) * sin_a + 
                   axis * np.dot(axis, up) * (1 - cos_a))
         
-        self.rt.update_camera(CAMERA_NAME, eye=new_eye.tolist(), up=new_up.tolist())
+        self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), up=new_up.tolist())
 
     def rotate_around_view_direction(self, direction: str, step_deg: float = 1.0):
         """
@@ -363,7 +362,7 @@ class NavigationMixin:
         if self.rt is None:
             return
 
-        cam = self.rt.get_camera(CAMERA_NAME)
+        cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
         target = np.array(cam["Target"])
         up = np.array(cam["Up"])
@@ -384,7 +383,7 @@ class NavigationMixin:
                   np.cross(axis, up) * sin_a +
                   axis * np.dot(axis, up) * (1 - cos_a))
 
-        self.rt.update_camera(CAMERA_NAME, up=new_up.tolist())
+        self.rt.update_camera(self.CAMERA_NAME, up=new_up.tolist())
 
     def hit_to_selenographic(self, hx: float, hy: float, hz: float) -> tuple:
         """
@@ -409,7 +408,7 @@ class NavigationMixin:
         
         # Check if hit is on the Moon surface
         r = np.linalg.norm(hit_pos)
-        if r < self.moon_radius * 0.9 or r > self.moon_radius * 1.15:
+        if r < self.MOON_RADIUS * 0.9 or r > self.MOON_RADIUS * 1.15:
             return None, None
         
         hit_normalized = hit_pos / r
@@ -540,7 +539,7 @@ class NavigationMixin:
             3D position in scene coordinates
         """
         if radius is None:
-            r = self.moon_radius
+            r = self.MOON_RADIUS
         else:
             r = radius
         

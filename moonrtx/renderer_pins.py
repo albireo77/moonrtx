@@ -5,7 +5,6 @@ PinsMixin: pin creation, removal, toggle, and orientation for MoonRenderer.
 from plotoptix.materials import m_flat
 
 from moonrtx.constants import (
-    PIN_COLOR, PIN_LABEL_RADIUS,
     ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
 from moonrtx.moon_grid import create_single_digit_on_sphere
@@ -13,6 +12,9 @@ from moonrtx.moon_grid import create_single_digit_on_sphere
 
 class PinsMixin:
     """Mixin providing pin management methods for MoonRenderer."""
+
+    PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
+    PIN_COLOR = [1.0, 0.0, 0.0]
 
     def create_pin(self, digit: int, lat: float, lon: float):
         """
@@ -39,7 +41,7 @@ class PinsMixin:
             digit=digit,
             lat=lat,
             lon=lon,
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             offset=0.0,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
@@ -53,7 +55,7 @@ class PinsMixin:
         self.rt.update_material("pin_material", m_pin)
         
         # Line thickness for pins
-        pin_radius = PIN_LABEL_RADIUS
+        pin_radius = self.PIN_LABEL_RADIUS
         
         # Apply Moon rotation to segments and add to renderer
         R = self.moon_rotation
@@ -65,7 +67,7 @@ class PinsMixin:
             else:
                 rotated = seg
             self.rt.set_data(name, pos=rotated, r=pin_radius,
-                            c=PIN_COLOR, geom="SegmentChain", mat="pin_material")
+                            c=self.PIN_COLOR, geom="SegmentChain", mat="pin_material")
 
     def remove_pin(self, digit: int):
         """
@@ -150,7 +152,7 @@ class PinsMixin:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        pin_radius = PIN_LABEL_RADIUS if visible else 0.0
+        pin_radius = self.PIN_LABEL_RADIUS if visible else 0.0
         
         for digit, pin_segments in self.pins.items():
             for j in range(len(pin_segments)):
