@@ -14,7 +14,7 @@ from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.moon_renderer import run_renderer
-from moonrtx.constants import VIEW_ORIENTATIONS
+from moonrtx.orientations import VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, Observer
 
 APP_NAME = "MoonRTX"
@@ -45,7 +45,7 @@ class InitView(NamedTuple):
     dt_local: datetime
     lat: float
     lon: float
-    orientation: str
+    view_orientation: str
     parallactic_mode: bool
     camera: Camera
 
@@ -232,13 +232,13 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         dt_str = match.group(1)
         lat = float(match.group(2))
         lon = float(match.group(3))
-        orientation = match.group(4)
+        view_orientation = match.group(4)
         par_flag = match.group(5)
         camera_encoded = match.group(6)
 
-        # Validate orientation
-        if orientation not in VIEW_ORIENTATIONS:
-            print(f"Invalid orientation in init-view: {orientation}")
+        # Validate view orientation
+        if view_orientation not in VIEW_ORIENTATIONS:
+            print(f"Invalid view orientation in init-view: {view_orientation}")
             return None
 
         parallactic_mode = par_flag == '1'
@@ -252,7 +252,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
             print(f"Incorrect time: {error}")
             return None
 
-        return InitView(dt_local, lat, lon, orientation, parallactic_mode, camera)
+        return InitView(dt_local, lat, lon, view_orientation, parallactic_mode, camera)
     
     except Exception as e:
         print(f"Error parsing init-view string: {e}")
@@ -275,7 +275,7 @@ def main():
         dt_local = init_view.dt_local
         lat = init_view.lat
         lon = init_view.lon
-        init_view_orientation = init_view.orientation
+        init_view_orientation = init_view.view_orientation
         parallactic_mode = init_view.parallactic_mode
         initial_camera = init_view.camera
     else:

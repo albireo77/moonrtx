@@ -4,7 +4,7 @@ PinsMixin: pin creation, removal, toggle, and orientation for MoonRenderer.
 
 from plotoptix.materials import m_flat
 
-from moonrtx.constants import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
+from moonrtx.orientations import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
 from moonrtx.moon_grid import create_single_digit_on_sphere
 
 class PinsMixin:

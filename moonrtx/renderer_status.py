@@ -7,7 +7,7 @@ import tkinter as tk
 import webbrowser
 from typing import Optional
 
-from moonrtx.constants import VIEW_ORIENTATIONS
+from moonrtx.orientations import VIEW_ORIENTATIONS
 from moonrtx.shared_types import MoonFeature
 
 
