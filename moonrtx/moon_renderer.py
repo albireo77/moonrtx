@@ -44,8 +44,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  dt_local: datetime,
                  starmap_file: Optional[str],
                  downscale: int = 3,
-                 width: int = 1400,
-                 height: int = 900,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = ORIENTATION_NSWE,
                  gamma: float = 2.8,
@@ -71,8 +69,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Path to star map TIFF for background
         downscale : int
             Elevation map downscale factor
-        width, height : int
-            Render window size
         time_step_minutes : int
             Time step in minutes for Q/W keys
         init_view_orientation : str
@@ -84,8 +80,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         parallactic_mode : bool
             Whether to use parallactic projection mode (default False)
         """
-        self.width = width
-        self.height = height
         self.downscale = downscale
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
@@ -97,14 +91,12 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.color_data = load_color_data(color_file, self.gamma)
         # Sort features by angular_radius (smallest first) for efficient lookup
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
-        if starmap_file:
-            _tmp = tk.Tk()
-            _tmp.withdraw()
-            screen_width = _tmp.winfo_screenwidth()
-            _tmp.destroy()
-            self.star_map = load_starmap(starmap_file, screen_width * 6)
-        else:
-            self.star_map = None
+        _tmp = tk.Tk()
+        _tmp.withdraw()
+        self.width = _tmp.winfo_screenwidth()
+        self.height = _tmp.winfo_screenheight() - 40
+        _tmp.destroy()
+        self.star_map = load_starmap(starmap_file, self.width * 6) if starmap_file else None
 
         self.brightness = brightness
 
