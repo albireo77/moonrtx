@@ -9,7 +9,7 @@ import json
 
 from moonrtx.shared_types import Observer
 from moonrtx.moon_renderer import run_renderer
-from moonrtx.constants import VIEW_ORIENTATIONS
+from moonrtx.orientations import VIEW_ORIENTATIONS
 from moonrtx.main import (
     get_date_time_local,
     parse_init_view,
@@ -233,9 +233,9 @@ class MainWindow(tk.Tk):
         self.time_step_minutes.grid(row=9, column=1, sticky=tk.EW, pady=2)
         self.time_step_minutes.insert(0, 15)
         
-        self.init_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VIEW_ORIENTATIONS)
-        self.init_orientation.grid(row=10, column=1, sticky=tk.EW, pady=2)
-        self.init_orientation.set(VIEW_ORIENTATIONS[0])
+        self.init_view_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VIEW_ORIENTATIONS)
+        self.init_view_orientation.grid(row=10, column=1, sticky=tk.EW, pady=2)
+        self.init_view_orientation.set(VIEW_ORIENTATIONS[0])
 
         self.parallactic_mode_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
@@ -388,7 +388,7 @@ class MainWindow(tk.Tk):
             "brightness": self.brightness.get(),
             "gamma": self.gamma_entry.get(),
             "time_step_minutes": self.time_step_minutes.get(),
-            "init_orientation": self.init_orientation.get(),
+            "init_view_orientation": self.init_view_orientation.get(),
             "parallactic_mode": bool(self.parallactic_mode_var.get()),
             "init_view": self.init_view.get(),
         }
@@ -518,7 +518,7 @@ class MainWindow(tk.Tk):
             self.time_step_minutes.delete(0, tk.END)
             self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))
 
-            self.init_orientation.set(settings.get("init_orientation", VIEW_ORIENTATIONS[0]))
+            self.init_view_orientation.set(settings.get("init_view_orientation", VIEW_ORIENTATIONS[0]))
 
             self.parallactic_mode_var.set(bool(settings.get("parallactic_mode", False)))
 
@@ -600,7 +600,7 @@ class MainWindow(tk.Tk):
             if not (-90.0 <= lat <= 90.0):
                 messagebox.showerror("Error", "Invalid latitude. Must be between -90 and 90 degrees.")
                 return
-            init_orientation = init_view.orientation
+            init_view_orientation = init_view.view_orientation
             # A restored screenshot carries its own parallactic-mode flag;
             # reflect it in the checkbox so the renderer starts in the same mode.
             self.parallactic_mode_var.set(bool(init_view.parallactic_mode))
@@ -611,7 +611,7 @@ class MainWindow(tk.Tk):
             if error is not None:
                 messagebox.showerror("Error", f"Incorrect time: {error}")
                 return
-            init_orientation = self.init_orientation.get()
+            init_view_orientation = self.init_view_orientation.get()
             # Read latitude/longitude according to selected coordinate format
             def parse_sexa_fields(deg_w, min_w, sec_w, name, deg_min, deg_max):
                 try:
@@ -772,7 +772,7 @@ class MainWindow(tk.Tk):
                 brightness,
                 init_camera,
                 time_step_minutes,
-                init_orientation,
+                init_view_orientation,
                 gamma,
                 parallactic_mode)
         )
