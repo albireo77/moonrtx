@@ -73,7 +73,7 @@ class LabelsMixin:
         
         # Generate new labels with proper orientation
         lat_labels, lat_label_values, lon_labels, lon_label_values = create_grid_labels_for_orientation(
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             lat_step=15.0,
             lon_step=15.0,
             offset=0.0,
@@ -135,7 +135,7 @@ class LabelsMixin:
         # Regenerate labels with proper orientation
         self.standard_labels = create_standard_labels(
             self.standard_label_features,
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             offset=0.0,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
@@ -176,7 +176,7 @@ class LabelsMixin:
         # Regenerate labels with proper orientation
         self.spot_labels = create_spot_labels(
             self.spot_label_features,
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             offset=0.0,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
@@ -219,7 +219,7 @@ class LabelsMixin:
             
         # Generate grid data
         self.moon_grid = create_moon_grid(
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             lat_step=lat_step,
             lon_step=lon_step,
             points_per_line=100,
@@ -361,7 +361,7 @@ class LabelsMixin:
         self.standard_label_features = [f for f in self.moon_features if f.standard_label]
         self.standard_labels = create_standard_labels(
             self.standard_label_features,
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             offset=0.0,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
@@ -452,7 +452,7 @@ class LabelsMixin:
         self.spot_label_features = [f for f in self.moon_features if f.spot_label]
         self.spot_labels = create_spot_labels(
             self.spot_label_features,
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             offset=0.0,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
@@ -628,7 +628,7 @@ class LabelsMixin:
         Applies Moon rotation so result is in scene coordinates.
         """
         if radius is None:
-            r = self.moon_radius
+            r = self.MOON_RADIUS
         else:
             r = radius
 
@@ -655,7 +655,7 @@ class LabelsMixin:
             return True
 
         # Position of feature on unit sphere in scene coordinates
-        pos = self._feature_scene_position(feature, radius=self.moon_radius)
+        pos = self._feature_scene_position(feature, radius=self.MOON_RADIUS)
         norm = np.linalg.norm(pos)
         if norm == 0:
             return True

@@ -36,9 +36,9 @@ class NavigationMixin:
         # - +Z is north pole
         # - -Y is prime meridian (lon=0)
         # - +X is east (lon=90)
-        x = self.moon_radius * np.cos(lat_rad) * np.sin(lon_rad)
-        y = -self.moon_radius * np.cos(lat_rad) * np.cos(lon_rad)
-        z = self.moon_radius * np.sin(lat_rad)
+        x = self.MOON_RADIUS * np.cos(lat_rad) * np.sin(lon_rad)
+        y = -self.MOON_RADIUS * np.cos(lat_rad) * np.cos(lon_rad)
+        z = self.MOON_RADIUS * np.sin(lat_rad)
         
         # Apply Moon rotation to get scene coordinates
         original_pos = np.array([x, y, z])
@@ -51,7 +51,7 @@ class NavigationMixin:
         
         # Calculate new camera distance based on feature size
         # Aim to have feature fill about 30% of the view
-        feature_radius_scene = feature.angular_radius * (self.moon_radius / 90)  # Rough conversion
+        feature_radius_scene = feature.angular_radius * (self.MOON_RADIUS / 90)  # Rough conversion
         current_fov = self.rt._optix.get_camera_fov(0)
         
         # Calculate distance to make feature appear at desired size
@@ -59,8 +59,8 @@ class NavigationMixin:
         new_distance = feature_radius_scene / np.tan(np.radians(desired_angular_size / 2))
         
         # Clamp distance to reasonable range
-        min_dist = self.moon_radius * 1.1
-        max_dist = self.moon_radius * 15
+        min_dist = self.MOON_RADIUS * 1.1
+        max_dist = self.MOON_RADIUS * 15
         new_distance = np.clip(new_distance, min_dist, max_dist)
         
         # Direction from target to eye
@@ -409,7 +409,7 @@ class NavigationMixin:
         
         # Check if hit is on the Moon surface
         r = np.linalg.norm(hit_pos)
-        if r < self.moon_radius * 0.9 or r > self.moon_radius * 1.15:
+        if r < self.MOON_RADIUS * 0.9 or r > self.MOON_RADIUS * 1.15:
             return None, None
         
         hit_normalized = hit_pos / r
@@ -540,7 +540,7 @@ class NavigationMixin:
             3D position in scene coordinates
         """
         if radius is None:
-            r = self.moon_radius
+            r = self.MOON_RADIUS
         else:
             r = radius
         

@@ -16,7 +16,7 @@ from moonrtx.shared_types import Camera, Observer
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 
 from moonrtx.constants import (
-    CAMERA_NAME, LIGHT_NAME, MOON_FILL_FRACTION, MOON_OBJECT_NAME, SUN_RADIUS, MOON_RADIUS,
+    CAMERA_NAME, LIGHT_NAME, MOON_OBJECT_NAME,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
 
@@ -33,6 +33,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
     """
+
+    # Scene geometry
+    SUN_RADIUS = 10             # affects Moon surface illumination
+    MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
+    MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
 
     def __init__(self,
                  elevation_file: str,
@@ -109,14 +114,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Grid settings
         self.moon_grid_visible = False
         self.moon_grid = None
-        self.moon_radius = MOON_RADIUS
 
         self.orientation_mode = init_view_orientation
         self.initial_orientation_mode = init_view_orientation  # For reset with R/V keys
 
         # Default camera calculated from ephemeris (for reset with V key)
-        visible_height = 2 * self.moon_radius / MOON_FILL_FRACTION
-        camera_distance = self.moon_radius * 10
+        visible_height = 2 * self.MOON_RADIUS / self.MOON_FILL_FRACTION
+        camera_distance = self.MOON_RADIUS * 10
         fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
         self.default_camera = Camera(
             eye=[0, -camera_distance, 0],
@@ -359,7 +363,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Create Moon sphere with displacement
         self.rt.set_data(MOON_OBJECT_NAME, geom="ParticleSetTextured", geom_attr="DisplacedSurface",
-                        pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.moon_radius)
+                        pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.MOON_RADIUS)
 
         # Apply displacement map
         self.rt.set_displacement(MOON_OBJECT_NAME, self.elevation, refresh=True)
@@ -375,7 +379,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                              aperture_fract=cam.aperture_fract,
                              focal_scale=cam.focal_scale)
         
-        self.rt.setup_light(LIGHT_NAME, color=self.brightness, radius=SUN_RADIUS)
+        self.rt.setup_light(LIGHT_NAME, color=self.brightness, radius=self.SUN_RADIUS)
 
 
     def calculate_light_pos(self) -> list:

@@ -39,7 +39,7 @@ class PinsMixin:
             digit=digit,
             lat=lat,
             lon=lon,
-            moon_radius=self.moon_radius,
+            moon_radius=self.MOON_RADIUS,
             offset=0.0,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
