@@ -4,11 +4,8 @@ PinsMixin: pin creation, removal, toggle, and orientation for MoonRenderer.
 
 from plotoptix.materials import m_flat
 
-from moonrtx.constants import (
-    ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
-)
+from moonrtx.constants import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
 from moonrtx.moon_grid import create_single_digit_on_sphere
-
 
 class PinsMixin:
     """Mixin providing pin management methods for MoonRenderer."""
@@ -33,8 +30,8 @@ class PinsMixin:
             return
         
         # Determine flip flags based on current orientation
-        flip_horizontal = self.orientation_mode in (ORIENTATION_NSEW, ORIENTATION_SNEW)
-        flip_vertical = self.orientation_mode in (ORIENTATION_SNEW, ORIENTATION_SNWE)
+        flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
+        flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
         
         # Generate pin digit segments (left-bottom corner at cursor position)
         pin_segments = create_single_digit_on_sphere(

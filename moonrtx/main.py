@@ -13,10 +13,9 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.moon_renderer import run_renderer, ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE
+from moonrtx.moon_renderer import run_renderer
+from moonrtx.constants import VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, Observer
-
-VALID_ORIENTATIONS = [ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE]
 
 APP_NAME = "MoonRTX"
 
@@ -84,9 +83,9 @@ def parse_args():
     parser.add_argument("--init-view", type=str, default=None,
                         help="Initialize view from a screenshot default filename (without extension). "
                              "This restores the exact camera position from time when attempt to take a screenshot was made. ")
-    parser.add_argument("--init-view-orientation", type=str, default=ORIENTATION_NSWE,
+    parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATIONS[0],
                         help="View orientation for specific telescope design. For example, SNEW is orientation of refractor telescopes. "
-                             "Valid values: NSWE (default), NSEW, SNEW, SNWE. ")
+                             "Valid values: NSWE, NSEW, SNEW, SNWE. ")
     return parser.parse_args()
 
 def _urlretrieve(url: str, dest: str):
@@ -238,7 +237,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         camera_encoded = match.group(6)
 
         # Validate orientation
-        if orientation not in VALID_ORIENTATIONS:
+        if orientation not in VIEW_ORIENTATIONS:
             print(f"Invalid orientation in init-view: {orientation}")
             return None
 
@@ -320,8 +319,8 @@ def main():
         print("Invalid time step. Must be between 1 and 1440 minutes.")
         sys.exit(1)
 
-    if init_view_orientation not in VALID_ORIENTATIONS:
-        print(f"Invalid view orientation '{init_view_orientation}'. Must be one of: {', '.join(VALID_ORIENTATIONS)}")
+    if init_view_orientation not in VIEW_ORIENTATIONS:
+        print(f"Invalid view orientation '{init_view_orientation}'. Must be one of: {', '.join(VIEW_ORIENTATIONS)}")
         sys.exit(1)
 
     if not check_gpu_architecture():
