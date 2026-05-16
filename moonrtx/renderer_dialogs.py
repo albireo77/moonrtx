@@ -9,7 +9,6 @@ import tkinter as tk
 from tkinter import filedialog
 from datetime import datetime
 
-from moonrtx.constants import CAMERA_NAME
 from moonrtx.shared_types import Camera
 
 def encode_camera(camera: Camera) -> str:
@@ -207,7 +206,7 @@ class DialogsMixin:
         # 6. Current camera parameters (at the time of screenshot) - encoded as base64
         if self.rt is not None:
             try:
-                cam = self.rt.get_camera(CAMERA_NAME)
+                cam = self.rt.get_camera(self.CAMERA_NAME)
                 if cam is not None:
                     camera = Camera(eye=cam["Eye"], target=cam["Target"], up=cam["Up"], fov=self.rt._optix.get_camera_fov(0))
                     camera_encoded = encode_camera(camera)

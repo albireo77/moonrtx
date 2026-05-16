@@ -1,11 +1,3 @@
-"""
-Constants used across the Moon renderer modules.
-"""
-
-CAMERA_NAME = "cam1"
-LIGHT_NAME = "sun"
-MOON_OBJECT_NAME = "moon"
-
 # View orientation modes for different telescope configurations
 # Each mode specifies: (vertical_flip, horizontal_flip)
 # vertical_flip=True means S is up (N is down)
