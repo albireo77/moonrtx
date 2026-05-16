@@ -2,20 +2,9 @@
 Constants used across the Moon renderer modules.
 """
 
-# Colors
-GRID_COLOR = [0.50, 0.50, 0.50]
-PIN_COLOR = [1.0, 0.0, 0.0]
-
 CAMERA_NAME = "cam1"
 LIGHT_NAME = "sun"
 MOON_OBJECT_NAME = "moon"
-
-# Line radii
-GRID_LINE_RADIUS = 0.006    # Thin lines for grid
-GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
-STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
-SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
-PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
 
 # View orientation modes for different telescope configurations
 # Each mode specifies: (vertical_flip, horizontal_flip)

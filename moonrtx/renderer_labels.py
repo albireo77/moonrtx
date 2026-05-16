@@ -10,8 +10,6 @@ from plotoptix import TkOptiX
 from plotoptix.materials import m_flat
 
 from moonrtx.constants import (
-    GRID_COLOR, GRID_LINE_RADIUS, GRID_LABEL_RADIUS,
-    STANDARD_LABEL_RADIUS, SPOT_LABEL_RADIUS,
     ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE,
 )
 from moonrtx.shared_types import MoonFeature
@@ -23,6 +21,12 @@ from moonrtx.moon_grid import (
 
 class LabelsMixin:
     """Mixin providing grid, label, and illumination methods for MoonRenderer."""
+
+    GRID_LINE_RADIUS = 0.006    # Thin lines for grid
+    GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
+    STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
+    SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
+    GRID_COLOR = [0.50, 0.50, 0.50]
 
     # ---- orientation helpers ----
 
@@ -147,7 +151,7 @@ class LabelsMixin:
         # Update labels in renderer
         for i, label in enumerate(self.standard_labels):
             feature = self.standard_label_features[i]
-            label_radius = STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            label_radius = self.STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, seg in enumerate(label.segments):
                 name = f"standard_label_{i}_{j}"
                 if R is not None:
@@ -188,7 +192,7 @@ class LabelsMixin:
         # Update labels in renderer
         for i, label in enumerate(self.spot_labels):
             feature = self.spot_label_features[i]
-            label_radius = SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            label_radius = self.SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, seg in enumerate(label.segments):
                 name = f"spot_label_{i}_{j}"
                 if R is not None:
@@ -233,34 +237,34 @@ class LabelsMixin:
         # Add latitude lines
         for i, points in enumerate(self.moon_grid.lat_lines):
             name = f"grid_lat_{i}"
-            self.rt.set_data(name, pos=points, r=GRID_LINE_RADIUS, 
-                            c=GRID_COLOR, geom="BezierChain", mat="grid_material")
+            self.rt.set_data(name, pos=points, r=self.GRID_LINE_RADIUS, 
+                            c=self.GRID_COLOR, geom="BezierChain", mat="grid_material")
         
         # Add longitude lines
         for i, points in enumerate(self.moon_grid.lon_lines):
             name = f"grid_lon_{i}"
-            self.rt.set_data(name, pos=points, r=GRID_LINE_RADIUS,
-                            c=GRID_COLOR, geom="BezierChain", mat="grid_material")
+            self.rt.set_data(name, pos=points, r=self.GRID_LINE_RADIUS,
+                            c=self.GRID_COLOR, geom="BezierChain", mat="grid_material")
         
         # Add latitude labels
         for i, segments in enumerate(self.moon_grid.lat_labels):
             for j, seg in enumerate(segments):
                 name = f"grid_lat_label_{i}_{j}"
-                self.rt.set_data(name, pos=seg, r=GRID_LABEL_RADIUS,
-                                c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
+                self.rt.set_data(name, pos=seg, r=self.GRID_LABEL_RADIUS,
+                                c=self.GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         # Add longitude labels
         for i, segments in enumerate(self.moon_grid.lon_labels):
             for j, seg in enumerate(segments):
                 name = f"grid_lon_label_{i}_{j}"
-                self.rt.set_data(name, pos=seg, r=GRID_LABEL_RADIUS,
-                                c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
+                self.rt.set_data(name, pos=seg, r=self.GRID_LABEL_RADIUS,
+                                c=self.GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         # Add north pole "N" label
         for j, seg in enumerate(self.moon_grid.N):
             name = f"grid_north_label_{j}"
-            self.rt.set_data(name, pos=seg, r=GRID_LABEL_RADIUS,
-                            c=GRID_COLOR, geom="SegmentChain", mat="grid_material")
+            self.rt.set_data(name, pos=seg, r=self.GRID_LABEL_RADIUS,
+                            c=self.GRID_COLOR, geom="SegmentChain", mat="grid_material")
         
         self.moon_grid_visible = True
         
@@ -288,7 +292,7 @@ class LabelsMixin:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        line_radius = GRID_LINE_RADIUS if visible else 0.0
+        line_radius = self.GRID_LINE_RADIUS if visible else 0.0
         
         for i in range(len(self.moon_grid.lat_lines)):
             name = f"grid_lat_{i}"
@@ -305,7 +309,7 @@ class LabelsMixin:
                 pass
         
         # Toggle label visibility
-        label_radius = GRID_LABEL_RADIUS if visible else 0.0
+        label_radius = self.GRID_LABEL_RADIUS if visible else 0.0
         
         for i, segments in enumerate(self.moon_grid.lat_labels):
             for j in range(len(segments)):
@@ -372,7 +376,7 @@ class LabelsMixin:
         self.rt.update_material("standard_label_material", m_label)
         
         # Line thickness for labels
-        label_radius = STANDARD_LABEL_RADIUS
+        label_radius = self.STANDARD_LABEL_RADIUS
         
         # Color for standard labels (white/light gray for visibility)
         label_color = [0.85, 0.85, 0.85]
@@ -413,7 +417,7 @@ class LabelsMixin:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        label_radius = STANDARD_LABEL_RADIUS if visible else 0.0
+        label_radius = self.STANDARD_LABEL_RADIUS if visible else 0.0
         
         for i, label in enumerate(self.standard_labels):
             for j in range(len(label.segments)):
@@ -463,7 +467,7 @@ class LabelsMixin:
         self.rt.update_material("spot_label_material", m_label)
         
         # Line thickness for labels
-        label_radius = SPOT_LABEL_RADIUS
+        label_radius = self.SPOT_LABEL_RADIUS
         
         # Color for spot labels (yellow/gold for visibility)
         label_color = [1.0, 0.9, 0.3]
@@ -504,7 +508,7 @@ class LabelsMixin:
             return
         
         # Toggle visibility by setting zero radius (hide) or restoring (show)
-        label_radius = SPOT_LABEL_RADIUS if visible else 0.0
+        label_radius = self.SPOT_LABEL_RADIUS if visible else 0.0
         
         for i, label in enumerate(self.spot_labels):
             for j in range(len(label.segments)):
@@ -543,7 +547,7 @@ class LabelsMixin:
         
         for i, label in enumerate(self.spot_labels):
             feature = self.spot_label_features[i]
-            label_radius = SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            label_radius = self.SPOT_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, orig_seg in enumerate(label.segments):
                 name = f"spot_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
@@ -568,7 +572,7 @@ class LabelsMixin:
         
         for i, label in enumerate(self.standard_labels):
             feature = self.standard_label_features[i]
-            label_radius = STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
+            label_radius = self.STANDARD_LABEL_RADIUS if self._is_feature_illuminated(feature) else 0.0
             for j, orig_seg in enumerate(label.segments):
                 name = f"standard_label_{i}_{j}"
                 rotated = (R @ orig_seg.T).T
