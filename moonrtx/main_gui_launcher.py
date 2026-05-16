@@ -7,8 +7,9 @@ from datetime import datetime
 import os
 import json
 
+from moonrtx.shared_types import Observer
 from moonrtx.moon_renderer import run_renderer
-
+from moonrtx.constants import VIEW_ORIENTATIONS
 from moonrtx.main import (
     get_date_time_local,
     parse_init_view,
@@ -22,11 +23,8 @@ from moonrtx.main import (
     STARMAP_FILE_LOCAL_PATH,
     MOON_FEATURES_FILE_LOCAL_PATH,
     DATA_DIRECTORY_PATH,
-    BASE_PATH,
-    VALID_ORIENTATIONS,
-    ORIENTATION_NSWE
+    BASE_PATH
 )
-from moonrtx.shared_types import Observer
 
 # Generate UTC offset values for the timezone combobox (-12:00 to +14:00, 30-min steps)
 _TZ_OFFSETS = []
@@ -235,9 +233,9 @@ class MainWindow(tk.Tk):
         self.time_step_minutes.grid(row=9, column=1, sticky=tk.EW, pady=2)
         self.time_step_minutes.insert(0, 15)
         
-        self.init_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VALID_ORIENTATIONS)
+        self.init_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VIEW_ORIENTATIONS)
         self.init_orientation.grid(row=10, column=1, sticky=tk.EW, pady=2)
-        self.init_orientation.set(ORIENTATION_NSWE)
+        self.init_orientation.set(VIEW_ORIENTATIONS[0])
 
         self.parallactic_mode_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
@@ -520,7 +518,7 @@ class MainWindow(tk.Tk):
             self.time_step_minutes.delete(0, tk.END)
             self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))
 
-            self.init_orientation.set(settings.get("init_orientation", ORIENTATION_NSWE))
+            self.init_orientation.set(settings.get("init_orientation", VIEW_ORIENTATIONS[0]))
 
             self.parallactic_mode_var.set(bool(settings.get("parallactic_mode", False)))
 

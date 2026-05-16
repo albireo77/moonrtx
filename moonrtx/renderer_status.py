@@ -7,7 +7,7 @@ import tkinter as tk
 import webbrowser
 from typing import Optional
 
-from moonrtx.constants import ORIENTATION_NSWE
+from moonrtx.constants import VIEW_ORIENTATIONS
 from moonrtx.shared_types import MoonFeature
 
 
@@ -353,7 +353,7 @@ class StatusMixin:
                 rt._root.bind('<F10>', _f10_handler)
 
                 # Apply initial view orientation to plotoptix
-                if self.orientation_mode != ORIENTATION_NSWE:
+                if self.orientation_mode != VIEW_ORIENTATIONS[0]:
                     rt._view_orientation = self.orientation_mode
                     # Update grid labels for initial orientation if grid exists
                     if self.moon_grid is not None and self.moon_grid_visible:

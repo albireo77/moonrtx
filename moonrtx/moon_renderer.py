@@ -14,8 +14,7 @@ from plotoptix.materials import m_diffuse
 from moonrtx import astro
 from moonrtx.shared_types import Camera, Observer
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
-
-from moonrtx.constants import (ORIENTATION_NSWE, ORIENTATION_NSEW, ORIENTATION_SNEW, ORIENTATION_SNWE)
+from moonrtx.constants import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin
@@ -51,7 +50,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  starmap_file: Optional[str],
                  downscale: int = 3,
                  time_step_minutes: int = 15,
-                 init_view_orientation: str = ORIENTATION_NSWE,
+                 init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.8,
                  parallactic_mode: bool = False):
         """
@@ -78,7 +77,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         time_step_minutes : int
             Time step in minutes for Q/W keys
         init_view_orientation : str
-            Initial view orientation (ORIENTATION_NSWE, ORIENTATION_NSEW, etc.)
+            Initial view orientation
         observer : Observer
             Observer latitude, longitude, and elevation
         gamma : float
@@ -541,7 +540,7 @@ def run_renderer(dt_local: datetime,
                  brightness: int,
                  initial_camera: Optional[Camera],
                  time_step_minutes: int = 15,
-                 init_view_orientation: str = ORIENTATION_NSWE,
+                 init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.8,
                  parallactic_mode: bool = False) -> TkOptiX:
     """
@@ -632,16 +631,16 @@ def run_renderer(dt_local: datetime,
             moon_renderer.update_view()
             moon_renderer._update_status_parallactic()
         elif event.keysym == 'F5':
-            moon_renderer.set_orientation(ORIENTATION_NSWE)
+            moon_renderer.set_orientation(VIEW_ORIENTATION_NSWE)
             original_key_handler(event)
         elif event.keysym == 'F6':
-            moon_renderer.set_orientation(ORIENTATION_NSEW)
+            moon_renderer.set_orientation(VIEW_ORIENTATION_NSEW)
             original_key_handler(event)
         elif event.keysym == 'F7':
-            moon_renderer.set_orientation(ORIENTATION_SNEW)
+            moon_renderer.set_orientation(VIEW_ORIENTATION_SNEW)
             original_key_handler(event)
         elif event.keysym == 'F8':
-            moon_renderer.set_orientation(ORIENTATION_SNWE)
+            moon_renderer.set_orientation(VIEW_ORIENTATION_SNWE)
             original_key_handler(event)
         elif event.keysym.lower() == 'r':
             moon_renderer.reset_camera_position()
