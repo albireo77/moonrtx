@@ -198,7 +198,7 @@ class DialogsMixin:
         parts.append(f"lon{self.observer.lon:+.6f}")
         
         # 4. View orientation
-        parts.append(f"view{self.orientation_mode}")
+        parts.append(f"view{self.view_orientation}")
 
         # 5. Parallactic mode flag (0 = OFF, 1 = ON)
         parts.append(f"par{1 if self.parallactic_mode else 0}")

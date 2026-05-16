@@ -10,7 +10,7 @@ from plotoptix import TkOptiX
 from plotoptix.materials import m_flat
 
 from moonrtx.shared_types import MoonFeature
-from moonrtx.constants import VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE, VIEW_ORIENTATIONS
+from moonrtx.constants import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS, VIEW_ORIENTATIONS
 from moonrtx.moon_grid import (
     create_moon_grid, create_standard_labels, create_spot_labels, create_grid_labels_for_orientation
 )
@@ -26,7 +26,7 @@ class LabelsMixin:
 
     # ---- orientation helpers ----
 
-    def set_orientation(self, orientation: str):
+    def set_view_orientation(self, view_orientation: str):
         """
         Set the view orientation mode and update the status bar.
         
@@ -34,9 +34,9 @@ class LabelsMixin:
         
         Parameters
         ----------
-        orientation : str
+        view_orientation : str
         """
-        self.orientation_mode = orientation
+        self.view_orientation = view_orientation
         
         # Update grid labels if grid is visible
         if self.moon_grid is not None and self.moon_grid_visible:
@@ -67,8 +67,8 @@ class LabelsMixin:
         # NSEW: N up, E left - horizontal flip
         # SNEW: S up, E left - both flips (180° rotation)
         # SNWE: S up, W left - vertical flip
-        flip_horizontal = self.orientation_mode in (VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW)
-        flip_vertical = self.orientation_mode in (VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE)
+        flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
+        flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
         
         # Generate new labels with proper orientation
         lat_labels, lat_label_values, lon_labels, lon_label_values = create_grid_labels_for_orientation(
@@ -128,8 +128,8 @@ class LabelsMixin:
             return
         
         # Determine flip flags based on orientation
-        flip_horizontal = self.orientation_mode in (VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW)
-        flip_vertical = self.orientation_mode in (VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE)
+        flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
+        flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
         
         # Regenerate labels with proper orientation
         self.standard_labels = create_standard_labels(
@@ -169,8 +169,8 @@ class LabelsMixin:
             return
         
         # Determine flip flags based on orientation
-        flip_horizontal = self.orientation_mode in (VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW)
-        flip_vertical = self.orientation_mode in (VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE)
+        flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
+        flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
         
         # Regenerate labels with proper orientation
         self.spot_labels = create_spot_labels(
@@ -264,7 +264,7 @@ class LabelsMixin:
         self.moon_grid_visible = True
         
         # Update labels for current view orientation if not default
-        if self.orientation_mode != VIEW_ORIENTATIONS[0]:
+        if self.view_orientation != VIEW_ORIENTATIONS[0]:
             self.update_grid_labels_for_orientation()
         
         self.update_moon_grid_orientation()
@@ -353,8 +353,8 @@ class LabelsMixin:
             return
 
         # Determine flip flags based on current orientation
-        flip_horizontal = self.orientation_mode in (VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW)
-        flip_vertical = self.orientation_mode in (VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE)
+        flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
+        flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
 
         # Get ALL features with standard_label=True (illumination checked during rendering)
         self.standard_label_features = [f for f in self.moon_features if f.standard_label]
@@ -444,8 +444,8 @@ class LabelsMixin:
             return
 
         # Determine flip flags based on current orientation
-        flip_horizontal = self.orientation_mode in (VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW)
-        flip_vertical = self.orientation_mode in (VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE)
+        flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
+        flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
 
         # Get ALL features with spot_label=True (illumination checked during rendering)
         self.spot_label_features = [f for f in self.moon_features if f.spot_label]

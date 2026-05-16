@@ -115,8 +115,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.moon_grid_visible = False
         self.moon_grid = None
 
-        self.orientation_mode = init_view_orientation
-        self.initial_orientation_mode = init_view_orientation  # For reset with R/V keys
+        self.view_orientation = init_view_orientation
+        self.initial_view_orientation = init_view_orientation  # For reset with R/V keys
 
         # Default camera calculated from ephemeris (for reset with V key)
         visible_height = 2 * self.MOON_RADIUS / self.MOON_FILL_FRACTION
@@ -631,16 +631,16 @@ def run_renderer(dt_local: datetime,
             moon_renderer.update_view()
             moon_renderer._update_status_parallactic()
         elif event.keysym == 'F5':
-            moon_renderer.set_orientation(VIEW_ORIENTATION_NSWE)
+            moon_renderer.set_view_orientation(VIEW_ORIENTATION_NSWE)
             original_key_handler(event)
         elif event.keysym == 'F6':
-            moon_renderer.set_orientation(VIEW_ORIENTATION_NSEW)
+            moon_renderer.set_view_orientation(VIEW_ORIENTATION_NSEW)
             original_key_handler(event)
         elif event.keysym == 'F7':
-            moon_renderer.set_orientation(VIEW_ORIENTATION_SNEW)
+            moon_renderer.set_view_orientation(VIEW_ORIENTATION_SNEW)
             original_key_handler(event)
         elif event.keysym == 'F8':
-            moon_renderer.set_orientation(VIEW_ORIENTATION_SNWE)
+            moon_renderer.set_view_orientation(VIEW_ORIENTATION_SNWE)
             original_key_handler(event)
         elif event.keysym.lower() == 'r':
             moon_renderer.reset_camera_position()
