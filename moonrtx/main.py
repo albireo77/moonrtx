@@ -14,7 +14,7 @@ from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.moon_renderer import run_renderer
-from moonrtx.orientations import VIEW_ORIENTATIONS
+from moonrtx.orientations import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, Observer
 
 APP_NAME = "MoonRTX"
@@ -83,9 +83,8 @@ def parse_args():
     parser.add_argument("--init-view", type=str, default=None,
                         help="Initialize view from a screenshot default filename (without extension). "
                              "This restores the exact camera position from time when attempt to take a screenshot was made. ")
-    parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATIONS[0],
-                        help="View orientation for specific telescope type (e.g. SNEW for refractor). "
-                             f"Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
+    parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATION_NSWE,
+                        help=f"View orientation for specific telescope type (e.g. {VIEW_ORIENTATION_SNEW} for refractor). Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
     return parser.parse_args()
 
 def _urlretrieve(url: str, dest: str):
