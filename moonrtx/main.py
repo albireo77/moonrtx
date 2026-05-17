@@ -14,7 +14,7 @@ from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.moon_renderer import run_renderer
-from moonrtx.orientations import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
+from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, Observer
 
 APP_NAME = "MoonRTX"

@@ -9,7 +9,7 @@ import json
 
 from moonrtx.shared_types import Observer
 from moonrtx.moon_renderer import run_renderer
-from moonrtx.orientations import VIEW_ORIENTATIONS
+from moonrtx.view_orientation import VIEW_ORIENTATIONS
 from moonrtx.main import (
     get_date_time_local,
     parse_init_view,

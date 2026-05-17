@@ -10,7 +10,7 @@ from plotoptix import TkOptiX
 from plotoptix.materials import m_flat
 
 from moonrtx.shared_types import MoonFeature
-from moonrtx.orientations import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS, VIEW_ORIENTATIONS
+from moonrtx.view_orientation import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS, VIEW_ORIENTATIONS
 from moonrtx.moon_grid import (
     create_moon_grid, create_standard_labels, create_spot_labels, create_grid_labels_for_orientation
 )

@@ -14,7 +14,7 @@ from plotoptix.materials import m_diffuse
 from moonrtx import astro
 from moonrtx.shared_types import Camera, Observer
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
-from moonrtx.orientations import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
+from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin
