@@ -127,7 +127,7 @@ class NavigationMixin:
         
         # Reset orientation mode to initial
         if self.view_orientation != self.initial_view_orientation:
-            self.set_orientation(self.initial_view_orientation)
+            self.set_view_orientation(self.initial_view_orientation)
             self.rt._view_orientation = self.initial_view_orientation
         
         # Reset time back to initial time if it was changed
@@ -158,7 +158,7 @@ class NavigationMixin:
         
         # Reset orientation mode to initial
         if self.view_orientation != self.initial_view_orientation:
-            self.set_orientation(self.initial_view_orientation)
+            self.set_view_orientation(self.initial_view_orientation)
             self.rt._view_orientation = self.initial_view_orientation
         
         # Restore default camera parameters
