@@ -112,10 +112,15 @@ class NavigationMixin:
         
         return None
 
+    def _reset_view_orientation_if_needed(self):
+        if self.view_orientation != self.initial_view_orientation:
+            self.set_view_orientation(self.initial_view_orientation)
+            self.rt._view_orientation = self.initial_view_orientation
+
     def reset_camera_position(self):
         """
         Reset the camera to its initial position.
-        
+
         Restores the camera to the position it had when the view was first set up,
         undoing any mouse rotation/panning performed by the user.
         Also resets the time back to the initial time.
@@ -124,29 +129,26 @@ class NavigationMixin:
 
         if self.rt is None or cp is None:
             return
-        
-        # Reset orientation mode to initial
-        if self.view_orientation != self.initial_view_orientation:
-            self.set_view_orientation(self.initial_view_orientation)
-            self.rt._view_orientation = self.initial_view_orientation
-        
+
+        self._reset_view_orientation_if_needed()
+
         # Reset time back to initial time if it was changed
         if self.initial_dt_local is not None and self.dt_local != self.initial_dt_local:
             # Reset to initial time - this will restore Moon orientation and lighting
             self.update_view(self.initial_dt_local)
-        
+
         # Restore initial camera parameters
         up = cp.up[:]
 
         self.rt.update_camera(self.CAMERA_NAME, eye=cp.eye, target=cp.target, up=up, fov=cp.fov)
-        
+
         # Update status bar
         self._update_all_status_panels()
 
     def reset_to_default_view(self):
         """
         Reset the camera to the default view calculated from ephemeris.
-        
+
         This is the view that would be shown when starting the renderer
         without any --init-view parameter. Use this to get back to the
         standard Moon-centered view after using --init-view.
@@ -155,12 +157,9 @@ class NavigationMixin:
 
         if self.rt is None or cp is None:
             return
-        
-        # Reset orientation mode to initial
-        if self.view_orientation != self.initial_view_orientation:
-            self.set_view_orientation(self.initial_view_orientation)
-            self.rt._view_orientation = self.initial_view_orientation
-        
+
+        self._reset_view_orientation_if_needed()
+
         # Restore default camera parameters
         up = cp.up[:]
 
@@ -305,10 +304,7 @@ class NavigationMixin:
         
         # Get the Moon's axes in scene coordinates
         moon_polar_axis = self.moon_rotation @ np.array([0.0, 0.0, 1.0])
-        moon_polar_axis = moon_polar_axis / np.linalg.norm(moon_polar_axis)
-        
         moon_equatorial_axis = self.moon_rotation @ np.array([1.0, 0.0, 0.0])
-        moon_equatorial_axis = moon_equatorial_axis / np.linalg.norm(moon_equatorial_axis)
         
         # Determine rotation axis and angle based on direction
         if direction == 'Left':
