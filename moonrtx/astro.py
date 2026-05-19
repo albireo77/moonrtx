@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 from skyfield.api import wgs84
+from skyfield.positionlib import Apparent
 from skyfield.framelib import ecliptic_frame, true_equator_and_equinox_of_date
 from skyfield.trigonometry import position_angle_of
 
@@ -109,7 +110,7 @@ def _rotation_matrix(
     return rotation_matrix
 
 
-def _phase_name(moon, sun) -> str:
+def _phase_name(moon: Apparent, sun: Apparent) -> str:
 
     _, moon_ecl_lon, _ = moon.frame_latlon(ecliptic_frame)
     _, sun_ecl_lon, _ = sun.frame_latlon(ecliptic_frame)
@@ -129,10 +130,8 @@ def _phase_name(moon, sun) -> str:
         return "Waning Gibbous"
     elif delta < 270.5:
         return "Last Quarter"
-    elif delta < 359.5:
-        return "Waning Crescent"
     else:
-        return "New Moon"
+        return "Waning Crescent"
 
 
 def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> MoonEphemeris:
