@@ -520,41 +520,6 @@ class NavigationMixin:
         mid = 1.0 - self.elevation_displacement_range / 2.0
         return (displacement - mid) * self.MOON_RADIUS_KM * 1000.0
 
-    def _seleno_to_scene_position(self, lat: float, lon: float, radius: float = None) -> np.ndarray:
-        """
-        Convert selenographic coordinates to 3D scene position.
-        
-        Parameters
-        ----------
-        lat : float
-            Selenographic latitude in degrees
-        lon : float
-            Selenographic longitude in degrees
-        radius : float, optional
-            Radius at which to place the point. If None, uses moon_radius.
-            
-        Returns
-        -------
-        np.ndarray
-            3D position in scene coordinates
-        """
-        if radius is None:
-            r = self.MOON_RADIUS
-        else:
-            r = radius
-        
-        lat_rad = np.radians(lat)
-        lon_rad = np.radians(lon)
-        
-        x = r * np.cos(lat_rad) * np.sin(lon_rad)
-        y = -r * np.cos(lat_rad) * np.cos(lon_rad)
-        z = r * np.sin(lat_rad)
-        original_pos = np.array([x, y, z])
-        
-        if self.moon_rotation is None:
-            return original_pos
-        return self.moon_rotation @ original_pos
-
     def start_measurement(self, event):
         """
         Start distance measurement on Ctrl+B1 press.
