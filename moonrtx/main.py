@@ -82,7 +82,7 @@ def parse_args():
                         help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
                         help="Initialize view from a screenshot default filename (without extension). "
-                             "This restores the exact camera position from time when attempt to take a screenshot was made. ")
+                             "This restores exact camera position, observation time and location when attempt to take a screenshot was made. ")
     parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATION_NSWE,
                         help=f"View orientation for specific telescope type (e.g. {VIEW_ORIENTATION_SNEW} for refractor). Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
     return parser.parse_args()
