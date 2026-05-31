@@ -96,7 +96,7 @@ class DialogsMixin:
             ("A/Z", "Increase/Decrease brightness"),
             ("E/D", "Increase/Decrease gamma correction (0.5 - 5.0)"),
             ("H/J", "Roll view around current view direction"),
-            ("Q/W", "Go back/forward in time by step minutes"),
+            ("Q/W", "Go back/forward in time by step minutes (hold the key to get an animation effect)"),
             ("M/N", "Increase/Decrease time step by 1 minute (max is 1440 - 1 day)"),
         ]
 
