@@ -396,10 +396,7 @@ class NavigationMixin:
             (latitude, longitude) in degrees, or (None, None) if not on Moon
         """
         if self.moon_rotation_inv is None:
-            if self.moon_rotation is None:
-                return None, None
-            self.moon_rotation_inv = self.moon_rotation.T
-            
+            return None, None
         
         # The hit position is on the rotated Moon surface
         # We need to transform it back to the original Moon coordinates
