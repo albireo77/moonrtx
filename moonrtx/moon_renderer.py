@@ -497,7 +497,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         self.moon_ephem = astro.calculate_moon_ephemeris(self.dt_local, self.parallactic_mode)
         self.moon_rotation = self.moon_ephem.rotation_matrix
-        self.moon_rotation_inv = self.moon_rotation.T
+        self.moon_rotation_inv = None
         self.light_pos = self.calculate_light_pos()
 
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
