@@ -1,5 +1,5 @@
 # Lunar Features Database
-# Format: name:latitude:longitude:diameter in km:standard label:spot label:statusbar[:Feature ID in USGS database][:web page address]
+# Format: name:latitude:longitude:diameter in km:is standard label:is spot label:is for statusbar[:Feature ID in USGS database][:web page address]
 
 # === MARIA (Lunar Seas) ===
 Mare Tranquillitatis:8.35:30.83:875.75:true:false:false:3691:en.wikipedia.org/wiki/Mare_Tranquillitatis
