@@ -34,8 +34,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     SUN_RADIUS = 10             # affects Moon surface illumination
     MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
-    # SUN_LIGHT_DISTANCE = 2146       # (physically accurate)
-    SUN_LIGHT_DISTANCE = 1300         # (physically not accurate but with less meshes visible comparing to 2146)
+    SUN_LIGHT_DISTANCE = 2146   # (physically accurate)
+    # SUN_LIGHT_DISTANCE = 1300 # (physically inaccurate but with less meshes visible comparing to 2146)
     SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
 
     CAMERA_NAME = "cam1"
