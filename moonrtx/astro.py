@@ -187,6 +187,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
 
     phase_angle_deg = moon_topo.phase_angle(_sun).degrees
     moon_distance_km = observer_from_moon.distance().km
+    sun_distance_km = sun_topo.distance().km
     rotation_matrix = _rotation_matrix(R_moon, R_equator, moon_ra_deg, moon_dec_deg, q_deg)
 
     return MoonEphemeris(
@@ -195,6 +196,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
         ra=moon_ra_deg,
         dec=moon_dec_deg,
         distance=math.floor(moon_distance_km + 0.5),
+        sun_distance=sun_distance_km,
         phase_angle=phase_angle_deg,
         bright_limb_angle=_wrap_signed_degrees(bright_limb_angle_deg),
         libr_long_geo=_wrap_signed_degrees(libr_lon_geo),

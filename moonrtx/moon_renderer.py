@@ -8,8 +8,8 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 import plotoptix
-from plotoptix import DenoiserKind, TkOptiX
-from plotoptix.materials import m_diffuse
+from plotoptix import TkOptiX
+from plotoptix.materials import m_diffuse, m_flat
 
 from moonrtx import astro
 from moonrtx.shared_types import Camera, Observer
@@ -34,9 +34,18 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     SUN_RADIUS = 10             # affects Moon surface illumination
     MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
-    SUN_LIGHT_DISTANCE = 2146   # (physically accurate)
-    # SUN_LIGHT_DISTANCE = 1300 # (physically inaccurate but with less meshes visible comparing to 2146)
+    CAMERA_DISTANCE = MOON_RADIUS * 10  # Default camera distance in scene units
+    SUN_LIGHT_DISTANCE = 2146
     SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
+
+    # Visible Sun disk, decoupled from the light source (see calculate_sun_disk).
+    # Placed always farther than the light so it never shadows the Moon.
+    SUN_RADIUS_KM = 695_700.0
+    SUN_DISK_NAME = "sun_disk"
+    SUN_DISK_DISTANCE = 3100    # distance from the default camera position
+    # Flat radiance: >= 1.12 renders as pure white for any gamma in the 0.5-5.0 range,
+    # while keeping the stray light the disk bounces onto the Moon negligible
+    SUN_DISK_COLOR = 2.0
 
     CAMERA_NAME = "cam1"
     LIGHT_NAME = "sun"
@@ -123,10 +132,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Default camera calculated from ephemeris (for reset with V key)
         visible_height = 2 * self.MOON_RADIUS / self.MOON_FILL_FRACTION
-        camera_distance = self.MOON_RADIUS * 10
-        fov = np.degrees(2 * np.arctan(visible_height / (2 * camera_distance)))
+        fov = np.degrees(2 * np.arctan(visible_height / (2 * self.CAMERA_DISTANCE)))
         self.default_camera = Camera(
-            eye=[0, -camera_distance, 0],
+            eye=[0, -self.CAMERA_DISTANCE, 0],
             target=[0, 0, 0],
             up=[0, 0, 1],
             fov=max(1, min(90, fov))
@@ -345,17 +353,12 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         )
 
         # Rendering parameters
-        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=20, save_albedo=True)
+        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=32)
 
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
         self.rt.set_float("tonemap_gamma", self.gamma)
-        # self.rt.add_postproc("Gamma")
-        
-        self.rt.set_uint("denoiser_start", 4)
-        self.rt.set_int("denoiser_kind", DenoiserKind.RgbAlbedo.value)
-        self.rt.set_float("denoiser_blend", 0.6)
-        self.rt.add_postproc("OIDenoiser")
+        self.rt.add_postproc("Gamma")
 
         # Background (stars)
         if self.star_map is not None:
@@ -387,7 +390,17 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                              aperture_fract=cam.aperture_fract,
                              focal_scale=cam.focal_scale)
         
-        self.rt.setup_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE, radius=self.SUN_RADIUS)
+        # The light itself is hidden: its radius is chosen for correct illumination
+        # (shadow softness), not for the Sun's visible size. The visible Sun is the
+        # separate flat-shaded disk below.
+        self.rt.setup_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE,
+                            radius=self.SUN_RADIUS, in_geometry=False)
+
+        # Visible Sun disk: unlit white sphere; position and radius are set on update_view
+        self.rt.setup_material("flat", m_flat)
+        self.rt.set_data(self.SUN_DISK_NAME, geom="ParticleSet", mat="flat",
+                         pos=[[0.0, self.SUN_DISK_DISTANCE, 0.0]],
+                         r=self.SUN_RADIUS, c=self.SUN_DISK_COLOR)
 
 
     def calculate_light_pos(self) -> list:
@@ -485,7 +498,53 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         light_y = -np.cos(phase_angle) * light_distance
 
         return [light_x, light_y, light_z]
-    
+
+
+    def calculate_sun_disk(self) -> tuple[list, float]:
+        """
+        Calculate position and radius of the visible Sun disk.
+
+        The disk is decoupled from the light source: the light keeps the Sun's real
+        angular size as seen from the Moon (correct illumination and shadow softness),
+        while this disk reproduces what the observer would see. The rendered Moon is
+        magnified ~21x (it fills the window although the real Moon subtends only
+        ~0.5 degree), so the disk's apparent size and its apparent separation from
+        the Moon are scaled by the same magnification, as in a telescope view. This
+        keeps solar eclipse views (Sun size, coverage, total vs annular character)
+        consistent with reality.
+
+        Both angles vary with the date: the magnification with the real Moon distance,
+        the Sun's apparent size with the Sun distance.
+        """
+        # Magnification of the rendered Moon relative to its real apparent size
+        magnification = np.arcsin(self.MOON_RADIUS / self.CAMERA_DISTANCE) / \
+            np.arcsin(self.MOON_RADIUS_KM / self.moon_ephem.distance)
+
+        sun_angular_radius = magnification * np.arcsin(self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)
+
+        # Apparent Moon-Sun separation, seen from the default camera position
+        separation = magnification * np.radians(self.moon_ephem.elongation)
+
+        # Beyond 90 degrees the disk cannot be in any view together with the Moon and
+        # would start facing the Moon's night side, brightening it with bounced light
+        # and producing speckle noise. Park it behind the camera with negligible size
+        # (still farther than the light, so it never shadows the Moon).
+        in_view = separation <= np.pi / 2
+        if not in_view:
+            separation = np.radians(175.0)
+
+        # Same view-plane direction convention as in calculate_light_pos
+        bright_limb_angle = np.radians(self.moon_ephem.bright_limb_angle)
+        sin_sep = np.sin(separation)
+        direction = np.array([
+            -np.sin(bright_limb_angle) * sin_sep,
+            np.cos(separation),
+            np.cos(bright_limb_angle) * sin_sep,
+        ])
+        center = np.array([0.0, -self.CAMERA_DISTANCE, 0.0]) + self.SUN_DISK_DISTANCE * direction
+        radius = self.SUN_DISK_DISTANCE * np.tan(sun_angular_radius) if in_view else 0.01
+        return center.tolist(), float(radius)
+
 
     def update_overlays(self):
         if self.moon_grid_visible:
@@ -511,7 +570,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         u_new = self.moon_rotation[:, 2]        # Z axis of the rotated surface
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
+        sun_disk_pos, sun_disk_radius = self.calculate_sun_disk()
+
         self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
+        self.rt.update_data(self.SUN_DISK_NAME, pos=[sun_disk_pos], r=sun_disk_radius)
         self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos)
         self.update_overlays()
 

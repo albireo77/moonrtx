@@ -8,6 +8,7 @@ class MoonEphemeris(NamedTuple):
     ra: float
     dec: float
     distance: int
+    sun_distance: float
     phase_angle: float
     bright_limb_angle: float
     libr_long_geo: float
