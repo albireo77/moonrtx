@@ -483,28 +483,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # But bright_limb_angle convention: 0° = up (+Z), 90° = left (-X), -90° = right (+X)
         # So: X = -sin(bright_limb_angle), Z = cos(bright_limb_angle)
         
-        # When phase is very small (near full moon), sin(phase) approaches 0,
-        # which would place the light exactly behind the camera. This causes
-        # the Moon to appear completely dark in ray tracing because no light
-        # rays can illuminate the visible surface.
-        #
-        # To fix this, we ensure a minimum offset angle so the light is always
-        # slightly to the side, providing proper illumination even at full moon.
-        #
-        # This offset is only applied near full moon (phase < 6°), not near new moon
-        # (phase ≈ 180°) where the Moon should actually be dark.
-        #
-        # Consequences of 6 degree offset:
-        # - Only affects when phase_angle < 6.0° (very close to full moon)
-        # - At 6° phase, illumination = (1 + cos(6.0°))/2 ≈ 99.7% (vs 100% at true full)
-        # - A ~0.3% sliver at the Moon's edge would be in shadow, visually imperceptible
-        # - Most of the lunar cycle (phase_angle > 6.0°) is completely unaffected
-        min_phase_offset = np.radians(6.0)
-        # Only apply minimum offset near full moon (phase_angle < 6.0°), not near new moon
-        effective_sin_phase = np.sin(max(min_phase_offset, phase_angle))
-        
-        light_x = -np.sin(bright_limb_angle) * effective_sin_phase * light_distance
-        light_z = np.cos(bright_limb_angle) * effective_sin_phase * light_distance
+        light_x = -np.sin(bright_limb_angle) * np.sin(phase_angle) * light_distance
+        light_z = np.cos(bright_limb_angle) * np.sin(phase_angle) * light_distance
         light_y = -np.cos(phase_angle) * light_distance
 
         return [light_x, light_y, light_z]
