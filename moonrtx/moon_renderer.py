@@ -360,6 +360,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Rendering parameters
         self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=32)
 
+        # Single diffuse body with one light: long multi-bounce paths add mostly
+        # noise, so cap path length for faster, cleaner frames. Trade-off is
+        # slightly darker shadowed crater floors (less bounced light).
+        self.rt.set_uint("path_seg_range", 2, 4)
+
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
         self.rt.set_float("tonemap_gamma", self.gamma)
