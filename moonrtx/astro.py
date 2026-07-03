@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 from skyfield.api import wgs84
-from skyfield.positionlib import Apparent
+from skyfield.positionlib import ICRF
 from skyfield.framelib import ecliptic_frame, true_equator_and_equinox_of_date
 from skyfield.trigonometry import position_angle_of
 
@@ -110,7 +110,7 @@ def _rotation_matrix(
     return rotation_matrix
 
 
-def _phase_name(moon: Apparent, sun: Apparent) -> str:
+def _phase_name(moon: ICRF, sun: ICRF) -> str:
 
     _, moon_ecl_lon, _ = moon.frame_latlon(ecliptic_frame)
     _, sun_ecl_lon, _ = sun.frame_latlon(ecliptic_frame)
@@ -144,9 +144,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
     sun_at = _sun.at(time)
     observer_at = _observer.at(time)
 
-    moon_geo = earth_at.observe(_moon).apparent()
     moon_topo = observer_at.observe(_moon).apparent()
-    sun_geo = earth_at.observe(_sun).apparent()
     sun_topo = observer_at.observe(_sun).apparent()
 
     moon_radec = moon_topo.radec(epoch="date")
@@ -170,7 +168,9 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
 
     elongation = moon_topo.separation_from(sun_topo).degrees
     bright_limb_angle_deg = position_angle_of(moon_radec, sun_radec).degrees - q_deg
-    phase_name = _phase_name(moon_geo, sun_geo)
+    # Geometric geocentric positions differ from apparent ones by arcseconds,
+    # far below the 0.5-degree phase-name bins, and skip two observe() chains.
+    phase_name = _phase_name(moon_at - earth_at, sun_at - earth_at)
 
     # Pre-compute rotation matrices once; reused for libration, colongitude, and view matrix.
     R_moon = _moon_frame.rotation_at(time)
@@ -185,7 +185,14 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
     _, sun_lon_moon = _latlon_from_icrf(sun_from_moon.position.au, R_moon)
     colongitude = _colongitude_from_subsolar_longitude(sun_lon_moon)
 
-    phase_angle_deg = moon_topo.phase_angle(_sun).degrees
+    # Phase angle is the Sun-Moon-observer angle; both direction vectors are
+    # already available, so avoid phase_angle()'s internal Sun re-evaluation.
+    sun_dir_au = sun_from_moon.position.au
+    observer_dir_au = observer_from_moon.position.au
+    phase_angle_deg = math.degrees(math.atan2(
+        np.linalg.norm(np.cross(sun_dir_au, observer_dir_au)),
+        np.dot(sun_dir_au, observer_dir_au),
+    ))
     moon_distance_km = observer_from_moon.distance().km
     sun_distance_km = sun_topo.distance().km
     rotation_matrix = _rotation_matrix(R_moon, R_equator, moon_ra_deg, moon_dec_deg, q_deg)

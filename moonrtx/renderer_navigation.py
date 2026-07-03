@@ -186,11 +186,15 @@ class NavigationMixin:
         
         # Get hit position at mouse location
         hx, hy, hz, hd = self.rt._get_hit_at(x, y)
-        
+
         # Check if we hit something (distance > 0 means valid hit)
         if hd <= 0:
             return
-        
+
+        # Ignore hits on non-Moon geometry (e.g. the visible Sun disk)
+        if np.linalg.norm([hx, hy, hz]) > self.MOON_RADIUS * 1.15:
+            return
+
         # Get current camera parameters using PlotOptix internal state
         cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
@@ -284,6 +288,63 @@ class NavigationMixin:
             self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), up=new_up.tolist())
         else:
             self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist())
+
+    def pan_tilt_view(self, dx_px: float, dy_px: float):
+        """
+        Pan/tilt the view (rotate the camera view direction around the eye).
+
+        Replaces the built-in right-mouse-drag handler, which rotates by fixed
+        angles per pixel and is therefore far too sensitive for narrow FOVs.
+        Here the rotation is scaled to the current FOV so the image content
+        follows the mouse cursor 1:1 at any zoom level.
+
+        Parameters
+        ----------
+        dx_px, dy_px : float
+            Mouse move in image pixels
+        """
+        if self.rt is None:
+            return
+
+        cam = self.rt.get_camera(self.CAMERA_NAME)
+        eye = np.array(cam["Eye"])
+        target = np.array(cam["Target"])
+        up = np.array(cam["Up"])
+
+        view = target - eye
+        distance = np.linalg.norm(view)
+        view_dir = view / distance
+
+        right = np.cross(view_dir, up)
+        right = right / np.linalg.norm(right)
+        actual_up = np.cross(right, view_dir)
+        actual_up = actual_up / np.linalg.norm(actual_up)
+
+        # FOV is vertical; one pixel of drag = one pixel of content movement
+        fov = self.rt._optix.get_camera_fov(0)
+        angle_per_px = np.radians(fov) / self.rt._height
+
+        # Drag right -> look right (content moves left), drag down -> look down
+        yaw = -dx_px * angle_per_px
+        pitch = -dy_px * angle_per_px
+
+        # Yaw: rotate the view direction around the view-up axis
+        cos_a, sin_a = np.cos(yaw), np.sin(yaw)
+        view_dir = (view_dir * cos_a +
+                    np.cross(actual_up, view_dir) * sin_a +
+                    actual_up * np.dot(actual_up, view_dir) * (1 - cos_a))
+
+        # Pitch: rotate the view direction and up around the right axis (no roll)
+        cos_a, sin_a = np.cos(pitch), np.sin(pitch)
+        new_up = (up * cos_a +
+                  np.cross(right, up) * sin_a +
+                  right * np.dot(right, up) * (1 - cos_a))
+        view_dir = (view_dir * cos_a +
+                    np.cross(right, view_dir) * sin_a +
+                    right * np.dot(right, view_dir) * (1 - cos_a))
+
+        new_target = eye + view_dir * distance
+        self.rt.update_camera(self.CAMERA_NAME, target=new_target.tolist(), up=new_up.tolist())
 
     def rotate_around_moon_axis(self, direction: str, step_deg: float = 1.0):
         """
@@ -445,8 +506,10 @@ class NavigationMixin:
         # Apply zoom by changing FOV
         new_fov = current_fov * zoom_factor
         
-        # Clamp FOV to reasonable range
-        new_fov = max(1, min(90, new_fov))
+        # Clamp FOV to reasonable range. The lower bound keeps the maximum zoom-in
+        # (relative to the ~4.2 degree default FOV of the camera at 30 Moon radii)
+        # similar to the previous 10-radii/1-degree setup.
+        new_fov = max(0.3, min(90, new_fov))
         
         self.rt._optix.set_camera_fov(new_fov)
 
@@ -499,7 +562,8 @@ class NavigationMixin:
         Returns
         -------
         float
-            Elevation in meters relative to the mean surface (positive = above, negative = below)
+            Elevation in meters relative to the 1737.4 km reference radius
+            (positive = above, negative = below)
         """
         h, w = self.elevation.shape
 
@@ -510,11 +574,11 @@ class NavigationMixin:
         row = int(np.clip(row, 0, h - 1))
         col = int(np.clip(col, 0, w - 1))
 
-        # Stored elevation is a displacement factor of moon radius [~0.9885, ~1.0]
-        # The mean of the full range maps to the nominal radius.
-        displacement = self.elevation[row, col]
-        mid = 1.0 - self.elevation_displacement_range / 2.0
-        return (displacement - mid) * self.MOON_RADIUS_KM * 1000.0
+        # Stored elevation is a displacement factor normalized so that the highest
+        # peak is 1.0; elevation_radius_scale converts it back to a factor of the
+        # 1737.4 km reference radius
+        displacement = self.elevation[row, col] * self.elevation_radius_scale
+        return (displacement - 1.0) * self.MOON_RADIUS_KM * 1000.0
 
     def start_measurement(self, event):
         """

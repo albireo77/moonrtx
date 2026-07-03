@@ -73,35 +73,46 @@ def load_moon_features(filepath: str) -> list:
     
     return moon_features
 
-def load_elevation_data(filepath: str, downscale: int):
+# LOLA LDEM products store elevation as signed 16-bit integers, 0.5 m per unit,
+# relative to the reference Moon radius of 1737.4 km.
+LDEM_METERS_PER_UNIT = 0.5
+MOON_REFERENCE_RADIUS_M = 1_737_400.0
+
+
+def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, float]:
     """
-    Load and process the Moon elevation data.
-    
+    Load and process the Moon elevation data (LOLA LDEM TIFF).
+
     Parameters
     ----------
     filepath : str
         Path to the elevation TIFF file
     downscale : int
         Downscale factor (2-3 recommended for most GPUs)
-        
+
     Returns
     -------
-    tuple
-        Processed elevation data normalized for displacement mapping and scaling factors (displacement_range)
+    tuple[np.ndarray, float]
+        Elevation as displacement factors using the physical LDEM value scale of
+        0.5 m per unit, so the relief amplitude is exact, and the radius scale
+        needed to convert the factors back to physical elevation. The factors are
+        normalized so that the highest peak is exactly 1.0: the displaced surface
+        must not extend beyond the geometry bounding sphere, otherwise ray
+        intersection tests miss the terrain (light leaks onto the night side).
     """
     print(f"Loading elevation data from {filepath}...")
     elev_src = read_image(filepath)
-    
+
     if elev_src is None:
         raise ValueError(f"Failed to read elevation file: {filepath}")
-    
+
     print(f"  Original dimensions: {elev_src.shape}")
     print(f"  Size: {elev_src.nbytes / (1024**3):.2f} GB")
-    
-    # Convert to signed 16-bit and normalize
+
+    # Reinterpret as signed 16-bit and convert to displacement factor of the radius
     elev_src.dtype = np.int16
-    scale = 1. / np.iinfo(np.int16).max
-    
+    scale = LDEM_METERS_PER_UNIT / MOON_REFERENCE_RADIUS_M
+
     if downscale == 1:
         # No downscaling needed, just convert to float
         elevation = elev_src.astype(np.float32) * scale
@@ -112,30 +123,26 @@ def load_elevation_data(filepath: str, downscale: int):
         elevation = elev_src.reshape(1, h, downscale, w, downscale).mean(
             4, dtype=np.float32).mean(2, dtype=np.float32).reshape(h, w)
         elevation *= scale
-    
+
     # Release source memory
     elev_src = None
-    
+
+    elevation += 1.0
+
     print(f"  Downscaled dimensions: {elevation.shape}")
     print(f"  Downscaled size: {elevation.nbytes / (1024**3):.2f} GB")
-    
-    # Normalize for displacement mapping
-    # Real Moon: radius ~1737 km, max relief ~20 km = ~1.15% of radius
-    # Increase this value for more dramatic terrain, decrease for flatter appearance
-    displacement_range = 0.0115  # 1.15% of radius
-    
-    rmin = np.min(elevation)
-    rmax = np.max(elevation)
-    rv = rmax - rmin
-    
-    elevation -= rmin
-    elevation *= displacement_range / rv
-    elevation += (1.0 - displacement_range)
-    
-    return elevation, displacement_range
+    print("  Relief range: {:.0f} m to {:+.0f} m relative to the 1737.4 km reference radius".format(
+        (elevation.min() - 1.0) * MOON_REFERENCE_RADIUS_M,
+        (elevation.max() - 1.0) * MOON_REFERENCE_RADIUS_M))
+
+    # Keep the surface inside the bounding sphere: highest peak = exactly 1.0
+    radius_scale = float(elevation.max())
+    elevation /= radius_scale
+
+    return elevation, radius_scale
 
 
-def load_color_data(filepath: str, gamma: float = 2.8) -> np.ndarray:
+def load_color_data(filepath: str, gamma: float = 2.2) -> np.ndarray:
     """
     Load and process the Moon color/albedo data.
     

@@ -34,7 +34,12 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     SUN_RADIUS = 10             # affects Moon surface illumination
     MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
-    CAMERA_DISTANCE = MOON_RADIUS * 10  # Default camera distance in scene units
+    # Default camera distance in scene units. Larger distance renders the limb closer
+    # to what a real observer sees (at 30 radii the visible cap reaches 88.1 degrees
+    # from the disk center vs 84.3 at 10 radii and 89.7 in reality). The value is a
+    # trade-off: much larger distances degrade float32 ray precision and produce
+    # contour/tessellation artifacts on the displaced surface (visible at ~220 radii).
+    CAMERA_DISTANCE = MOON_RADIUS * 30
     SUN_LIGHT_DISTANCE = 2146
     SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
 
@@ -63,7 +68,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  downscale: int = 3,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
-                 gamma: float = 2.8,
+                 gamma: float = 2.2,
                  parallactic_mode: bool = False):
         """
         Initialize the planetarium.
@@ -93,7 +98,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         observer : Observer
             Observer latitude, longitude, and elevation
         gamma : float
-            Gamma correction value (default 2.8)
+            Gamma correction value (default 2.2)
         parallactic_mode : bool
             Whether to use parallactic projection mode (default False)
         """
@@ -104,7 +109,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.observer = observer
 
         # Load data
-        self.elevation, self.elevation_displacement_range = load_elevation_data(elevation_file, downscale)
+        self.elevation, self.elevation_radius_scale = load_elevation_data(elevation_file, downscale)
         self.color_data = load_color_data(color_file, self.gamma)
         # Sort features by angular_radius (smallest first) for efficient lookup
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
@@ -507,8 +512,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         The disk is decoupled from the light source: the light keeps the Sun's real
         angular size as seen from the Moon (correct illumination and shadow softness),
         while this disk reproduces what the observer would see. The rendered Moon is
-        magnified ~21x (it fills the window although the real Moon subtends only
-        ~0.5 degree), so the disk's apparent size and its apparent separation from
+        magnified (it fills the window although the real Moon subtends only ~0.5
+        degree), so the disk's apparent size and its apparent separation from
         the Moon are scaled by the same magnification, as in a telescope view. This
         keeps solar eclipse views (Sun size, coverage, total vs annular character)
         consistent with reality.
@@ -611,7 +616,7 @@ def run_renderer(dt_local: datetime,
                  initial_camera: Optional[Camera],
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
-                 gamma: float = 2.8,
+                 gamma: float = 2.2,
                  parallactic_mode: bool = False) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
@@ -635,7 +640,7 @@ def run_renderer(dt_local: datetime,
     init_view_orientation : str
         Initial view orientation mode.
     gamma : float
-        Gamma correction value (default 2.8)
+        Gamma correction value (default 2.2)
     parallactic_mode : bool
         Whether to use parallactic projection mode (default False)
 
@@ -819,6 +824,27 @@ def run_renderer(dt_local: datetime,
     moon_renderer.rt._gui_pressed_left = custom_pressed_left
     moon_renderer.rt._gui_released_left = custom_released_left
     moon_renderer.rt._gui_motion_pressed = custom_motion_pressed
+
+    # Override camera pan/tilt (right mouse drag, no modifier keys): the built-in
+    # handler rotates by fixed angles per pixel, which is far too sensitive with a
+    # narrow FOV. pan_tilt_view scales the rotation to the current FOV instead.
+    # All other gestures are passed to the original handler.
+    original_apply_scene_edits = moon_renderer.rt._gui_apply_scene_edits
+
+    def custom_apply_scene_edits(*args):
+        rt = moon_renderer.rt
+        if rt._selection_handle == -1 and rt._right_mouse and not rt._any_key:
+            dx = rt._mouse_to_x - rt._mouse_from_x
+            dy = rt._mouse_to_y - rt._mouse_from_y
+            if dx != 0 or dy != 0:
+                rt._status_action_text.set("camera pan/tilt")
+                moon_renderer.pan_tilt_view(dx, dy)
+            rt._mouse_from_x = rt._mouse_to_x
+            rt._mouse_from_y = rt._mouse_to_y
+            return
+        original_apply_scene_edits(*args)
+
+    moon_renderer.rt._gui_apply_scene_edits = custom_apply_scene_edits
 
     moon_renderer.start()
     return moon_renderer.rt

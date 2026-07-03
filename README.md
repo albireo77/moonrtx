@@ -36,6 +36,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - The bundled Skyfield Moon orientation kernels support dates from `1900-01-01T00:00:00+00:00` through `2051-01-01T00:00:00+00:00`.
 - Rendering Moon scene can take around 1 minute depending on `--downscale` parameter  value.
 - If you don't like default Moon colors in MoonRTX, you can download file with more realistic (though bland) colors from [NASA site](https://svs.gsfc.nasa.gov/4720) and load it with `--color-file` parameter on program start.
+- Do not move the mouse cursor during time animation (holding Q or W key). This will improve animation smoothness.
 
 ## Keyboard and Mouse Actions
 **F1** - Help  
