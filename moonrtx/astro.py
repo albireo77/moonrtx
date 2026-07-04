@@ -202,7 +202,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
         alt=moon_alt.degrees,
         ra=moon_ra_deg,
         dec=moon_dec_deg,
-        distance=math.floor(moon_distance_km + 0.5),
+        distance=moon_distance_km,
         sun_distance=sun_distance_km,
         phase_angle=phase_angle_deg,
         bright_limb_angle=_wrap_signed_degrees(bright_limb_angle_deg),

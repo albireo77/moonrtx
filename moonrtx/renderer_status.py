@@ -88,7 +88,7 @@ class StatusMixin:
         self._info_phase_name_var.set(f"{e.phase_name:>17}")
         self._info_phase_var.set(f"Phase ∠: {e.phase_angle:7.3f}°")
         self._info_elongation_var.set(f"Sun ∠:   {e.elongation:7.3f}°")
-        self._info_distance_var.set(f"Dist:  {e.distance:,.0f} km".replace(",", " "))
+        self._info_distance_var.set(f"Dist:  {math.floor(e.distance + 0.5):,.0f} km".replace(",", " "))
         self._info_illum_var.set(f"💡:        {(1 + math.cos(math.radians(e.phase_angle))) * 50.0:6.2f}%")
         self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
         self._info_geo_libr_b_var.set(f"⊕ Libr B: {e.libr_lat_geo:+6.3f}°")
