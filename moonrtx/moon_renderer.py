@@ -131,6 +131,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Grid settings
         self.moon_grid_visible = False
         self.moon_grid = None
+        # Merged grid graphs: body-frame vertices and edge indices
+        self._grid_lines_pos = None
+        self._grid_lines_edges = None
+        self._grid_labels_pos = None
+        self._grid_labels_edges = None
 
         self.view_orientation = init_view_orientation
         self.initial_view_orientation = init_view_orientation  # For reset with R/V keys
@@ -160,11 +165,21 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.standard_labels_visible = False
         self.standard_labels = None
         self.standard_label_features = []
+        # Merged label graph: body-frame vertices, edges, per-label vertex
+        # counts and feature unit vectors (for vectorized illumination checks)
+        self._standard_labels_pos = None
+        self._standard_labels_edges = None
+        self._standard_labels_counts = None
+        self._standard_units = None
 
         # Spot labels settings
         self.spot_labels_visible = False
         self.spot_labels = None
         self.spot_label_features = []
+        self._spot_labels_pos = None
+        self._spot_labels_edges = None
+        self._spot_labels_counts = None
+        self._spot_units = None
 
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
@@ -178,7 +193,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Pins settings
         self.pins_visible = True  # Pins visible by default
-        self.pins = {}  # dict mapping digit (1-9) to pin segments
+        self.pins = {}  # dict mapping digit (1-9) to body-frame graph vertices
 
         # Distance measurement settings
         self.measuring = False
@@ -562,10 +577,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         sun_disk_pos, sun_disk_radius = self.calculate_sun_disk()
 
-        self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
-        self.rt.update_data(self.SUN_DISK_NAME, pos=[sun_disk_pos], r=sun_disk_radius)
-        self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos)
-        self.update_overlays()
+        # Hold the render padlock across all scene updates: the render thread
+        # cannot launch frames on a half-updated scene, and accumulation
+        # restarts once instead of once per update call.
+        with self.rt._padlock:
+            self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
+            self.rt.update_data(self.SUN_DISK_NAME, pos=[sun_disk_pos], r=sun_disk_radius)
+            self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos)
+            self.update_overlays()
 
     # ---- lifecycle ----
 

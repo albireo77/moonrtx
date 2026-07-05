@@ -10,6 +10,28 @@ LABEL_CHAR_SCALE = 0.12
 PIN_DIGIT_SCALE = 0.2
 
 
+def merge_segments_to_graph(polylines: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Merge polylines (arrays of consecutive points, 2-point segments included)
+    into a single vertex array and edge index array for one PlotOptiX graph
+    geometry, replacing one geometry object per line/segment.
+
+    Returns
+    -------
+    tuple
+        (pos, edges): vertices with shape (n, 3) and edge index doublets
+        with shape (m, 2)
+    """
+    pos = np.concatenate(polylines, axis=0)
+    edges = []
+    offset = 0
+    for line in polylines:
+        idx = np.arange(offset, offset + line.shape[0], dtype=np.int32)
+        edges.append(np.column_stack((idx[:-1], idx[1:])))
+        offset += line.shape[0]
+    return pos, np.concatenate(edges, axis=0)
+
+
 class MoonGrid(NamedTuple):
     lat_lines: list[np.ndarray]
     lon_lines: list[np.ndarray]

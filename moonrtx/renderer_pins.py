@@ -1,11 +1,12 @@
 """
 PinsMixin: pin creation, removal, toggle, and orientation for MoonRenderer.
+
+Each pin digit is a single graph geometry (all strokes merged), so rotating
+pins after a time change is one update_graph call per pin.
 """
 
-from plotoptix.materials import m_flat
-
 from moonrtx.view_orientation import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
-from moonrtx.moon_grid import create_single_digit_on_sphere
+from moonrtx.moon_grid import create_single_digit_on_sphere, merge_segments_to_graph
 
 class PinsMixin:
     """Mixin providing pin management methods for MoonRenderer."""
@@ -16,7 +17,7 @@ class PinsMixin:
     def create_pin(self, digit: int, lat: float, lon: float):
         """
         Create a pin with the given digit at the specified selenographic coordinates.
-        
+
         Parameters
         ----------
         digit : int
@@ -28,11 +29,11 @@ class PinsMixin:
         """
         if self.rt is None:
             return
-        
+
         # Determine flip flags based on current orientation
         flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
         flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
-        
+
         # Generate pin digit segments (left-bottom corner at cursor position)
         pin_segments = create_single_digit_on_sphere(
             digit=digit,
@@ -43,36 +44,21 @@ class PinsMixin:
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
         )
-        
-        # Store pin data (original segments for rotation updates)
-        self.pins[digit] = pin_segments
-        
-        # Create material for pins if not already created; shadow rays pass
-        # through (transparent occlusion + base_color alpha 0), so pins cast no shadow
-        m_pin = m_flat.copy()
-        m_pin["OcclusionProgram"] = "chit7_occlusion_transp.ptx::__closesthit__occlusion_transparency"
-        m_pin["VarFloat4"] = {"base_color": [1.0, 1.0, 1.0, 0.0]}
-        self.rt.update_material("pin_material", m_pin)
-        
-        # Line thickness for pins
-        pin_radius = self.PIN_LABEL_RADIUS
-        
-        # Apply Moon rotation to segments and add to renderer
-        R = self.moon_rotation
-        
-        for j, seg in enumerate(pin_segments):
-            name = f"pin_{digit}_{j}"
-            if R is not None:
-                rotated = (R @ seg.T).T
-            else:
-                rotated = seg
-            self.rt.set_data(name, pos=rotated, r=pin_radius,
-                            c=self.PIN_COLOR, geom="SegmentChain", mat="pin_material")
+
+        # All strokes of the digit merged into one graph geometry;
+        # body-frame vertices are kept for rotation updates
+        pos, edges = merge_segments_to_graph(pin_segments)
+        self.pins[digit] = pos
+
+        self.rt.update_material("pin_material", self._no_shadow_flat_material())
+
+        self.rt.set_graph(f"pin_{digit}", pos=self._rotate_to_scene(pos), edges=edges,
+                          r=self.PIN_LABEL_RADIUS, c=self.PIN_COLOR, mat="pin_material")
 
     def remove_pin(self, digit: int):
         """
         Remove a pin with the given digit.
-        
+
         Parameters
         ----------
         digit : int
@@ -80,27 +66,18 @@ class PinsMixin:
         """
         if self.rt is None or digit not in self.pins:
             return
-        
-        pin_segments = self.pins[digit]
-        
-        # Remove all segments from renderer
-        for j in range(len(pin_segments)):
-            name = f"pin_{digit}_{j}"
-            try:
-                self.rt.delete_geometry(name)
-            except:
-                pass
-        
+
+        self.rt.delete_geometry(f"pin_{digit}")
         del self.pins[digit]
 
     def toggle_pin_at_cursor(self, event, digit: int):
         """
         Toggle a pin at the cursor position.
-        
+
         If pins are not visible, do nothing.
         If a pin with this digit exists, remove it.
         Otherwise, create a new pin at the cursor position.
-        
+
         Parameters
         ----------
         event : tk.Event
@@ -110,39 +87,39 @@ class PinsMixin:
         """
         if self.rt is None:
             return
-        
+
         # Do nothing if pins are not visible
         if not self.pins_visible:
             return
-        
+
         # If pin already exists, remove it
         if digit in self.pins:
             self.remove_pin(digit)
             return
-        
+
         # Get mouse position in image coordinates
         x, y = self.rt._get_image_xy(event.x, event.y)
-        
+
         # Get hit position at mouse location
         hx, hy, hz, hd = self.rt._get_hit_at(x, y)
-        
+
         # Check if we hit something (distance > 0 means valid hit)
         if hd <= 0:
             return
-        
+
         # Convert hit position to selenographic coordinates
         lat, lon = self.hit_to_selenographic(hx, hy, hz)
-        
+
         if lat is None or lon is None:
             return
-        
+
         # Create the pin
         self.create_pin(digit, lat, lon)
 
     def show_pins(self, visible: bool = True):
         """
         Show or hide all pins.
-        
+
         Parameters
         ----------
         visible : bool
@@ -150,22 +127,20 @@ class PinsMixin:
         """
         if self.rt is None:
             return
-        
+
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         pin_radius = self.PIN_LABEL_RADIUS if visible else 0.0
-        
-        for digit, pin_segments in self.pins.items():
-            for j in range(len(pin_segments)):
-                name = f"pin_{digit}_{j}"
-                self.rt.update_data(name, r=pin_radius)
-        
+
+        for digit in self.pins:
+            self.rt.update_graph(f"pin_{digit}", r=pin_radius)
+
         self.pins_visible = visible
-        
+
         # When showing pins, update their orientation to match current Moon position
         # This is needed in case time changed while pins were hidden
         if visible:
             self.update_pins_orientation()
-        
+
         self._update_status_pins()
 
     def toggle_pins(self):
@@ -175,23 +150,15 @@ class PinsMixin:
     def update_pins_orientation(self):
         """
         Update pins to match current Moon orientation.
-        
+
         This should be called after update_view() to rotate the pins
         along with the Moon surface.
         """
         if self.rt is None or not self.pins or not self.pins_visible:
             return
-        
-        R = self.moon_rotation
-        
-        if R is None:
+
+        if self.moon_rotation is None:
             return
-        
-        for digit, pin_segments in self.pins.items():
-            for j, orig_seg in enumerate(pin_segments):
-                name = f"pin_{digit}_{j}"
-                rotated = (R @ orig_seg.T).T
-                try:
-                    self.rt.update_data(name, pos=rotated)
-                except:
-                    pass
+
+        for digit, pos in self.pins.items():
+            self.rt.update_graph(f"pin_{digit}", pos=self._rotate_to_scene(pos))
