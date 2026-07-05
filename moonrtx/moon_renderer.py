@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import plotoptix
 from plotoptix import TkOptiX
-from plotoptix.materials import m_diffuse, m_flat
+from plotoptix.materials import m_diffuse
 
 from moonrtx import astro
 from moonrtx.shared_types import Camera, Observer
@@ -31,7 +31,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     """
 
     # Scene geometry
-    SUN_RADIUS = 10             # affects Moon surface illumination
     MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
     # Default camera distance in scene units. Larger distance renders the limb closer
@@ -40,11 +39,29 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # trade-off: much larger distances degrade float32 ray precision and produce
     # contour/tessellation artifacts on the displaced surface (visible at ~220 radii).
     CAMERA_DISTANCE = MOON_RADIUS * 30
-    SUN_LIGHT_DISTANCE = 2146
-    SUN_BRIGHTNESS_SCALE = (SUN_LIGHT_DISTANCE / 100.0) ** 2
+    # Sun light distance and radius keep the real solar angular size seen from the
+    # Moon: arcsin(100/21460) = 0.267 degrees, so penumbra softness is realistic.
+    # The distance also sets the terminator parallax error: a light at distance D
+    # pulls the terminator toward the subsolar point by arcsin(MOON_RADIUS/D).
+    # At 2146 units that was 0.267 degrees of selenographic longitude (~30 minutes
+    # of crater sunrise/sunset timing at 0.508 deg/hour of colongitude); at 21460
+    # it is 0.027 degrees (~3 minutes), below other error sources of the app.
+    SUN_LIGHT_DISTANCE = 21460
+    # Radius of the light (not of the visible Sun disk) at the mean Sun distance;
+    # update_view rescales it to the true Sun distance of the date, so penumbra
+    # softness and illumination follow the +/-1.7% annual angular size variation
+    SUN_RADIUS = 100
+    # The light color is the emitting sphere's radiance: surface illumination
+    # depends only on radiance x angular size, NOT on light distance (verified
+    # against PlotOptiX 0.19.0), so this calibration constant must not change
+    # when SUN_LIGHT_DISTANCE changes. Value maps the user brightness setting
+    # (default 100) to a well-exposed surface; kept from the original tuning
+    # at light distance 2146.
+    SUN_BRIGHTNESS_SCALE = (2146.0 / 100.0) ** 2
 
     # Visible Sun disk, decoupled from the light source (see calculate_sun_disk).
-    # Placed always farther than the light so it never shadows the Moon.
+    # It sits closer than the light, but its material lets shadow rays pass
+    # through (see init_renderer), so it never shadows the Moon.
     SUN_RADIUS_KM = 695_700.0
     SUN_DISK_NAME = "sun_disk"
     SUN_DISK_DISTANCE = 3100    # distance from the default camera position
@@ -421,8 +438,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.setup_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE,
                             radius=self.SUN_RADIUS, in_geometry=False)
 
-        # Visible Sun disk: unlit white sphere; position and radius are set on update_view
-        self.rt.setup_material("flat", m_flat)
+        # Visible Sun disk: unlit white sphere; position and radius are set on
+        # update_view. Flat material with transparent occlusion (same recipe as
+        # the overlays), so the disk stays visible but never shadows the Moon
+        # even though it is closer than the light source.
+        self.rt.setup_material("flat", self._no_shadow_flat_material())
         self.rt.set_data(self.SUN_DISK_NAME, geom="ParticleSet", mat="flat",
                          pos=[[0.0, self.SUN_DISK_DISTANCE, 0.0]],
                          r=self.SUN_RADIUS, c=self.SUN_DISK_COLOR)
@@ -532,8 +552,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Beyond 90 degrees the disk cannot be in any view together with the Moon and
         # would start facing the Moon's night side, brightening it with bounced light
-        # and producing speckle noise. Park it behind the camera with negligible size
-        # (still farther than the light, so it never shadows the Moon).
+        # and producing speckle noise. Park it behind the camera with negligible size.
         in_view = separation <= np.pi / 2
         if not in_view:
             separation = np.radians(175.0)
@@ -583,7 +602,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         with self.rt._padlock:
             self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
             self.rt.update_data(self.SUN_DISK_NAME, pos=[sun_disk_pos], r=sun_disk_radius)
-            self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos)
+            # Light radius follows the true solar angular size seen from the Moon.
+            # Light color is radiance, so illumination scales with angular size
+            # squared, reproducing the real annual 1/d^2 brightness variation.
+            sun_light_radius = float(self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)
+            self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=sun_light_radius)
             self.update_overlays()
 
     # ---- lifecycle ----
