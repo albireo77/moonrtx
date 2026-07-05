@@ -225,8 +225,11 @@ class LabelsMixin:
             offset=0.0
         )
         
-        # Create an emissive material for the grid lines (so they glow and are visible in shadow)
+        # Flat material with shadow rays passing through (base_color alpha 0
+        # + transparent occlusion program), so grid lines cast no shadow on the surface
         m_grid = m_flat.copy()
+        m_grid["OcclusionProgram"] = "chit7_occlusion_transp.ptx::__closesthit__occlusion_transparency"
+        m_grid["VarFloat4"] = {"base_color": [1.0, 1.0, 1.0, 0.0]}
         self.rt.update_material("grid_material", m_grid)
         
         # Add latitude lines
@@ -366,8 +369,10 @@ class LabelsMixin:
             flip_vertical=flip_vertical
         )
         
-        # Create an emissive material for the labels (so they glow and are visible in shadow)
+        # Flat material with shadow rays passing through, so labels cast no shadow
         m_label = m_flat.copy()
+        m_label["OcclusionProgram"] = "chit7_occlusion_transp.ptx::__closesthit__occlusion_transparency"
+        m_label["VarFloat4"] = {"base_color": [1.0, 1.0, 1.0, 0.0]}
         self.rt.update_material("standard_label_material", m_label)
         
         # Line thickness for labels
@@ -457,8 +462,10 @@ class LabelsMixin:
             flip_vertical=flip_vertical
         )
         
-        # Create an emissive material for the labels (so they glow and are visible in shadow)
+        # Flat material with shadow rays passing through, so labels cast no shadow
         m_label = m_flat.copy()
+        m_label["OcclusionProgram"] = "chit7_occlusion_transp.ptx::__closesthit__occlusion_transparency"
+        m_label["VarFloat4"] = {"base_color": [1.0, 1.0, 1.0, 0.0]}
         self.rt.update_material("spot_label_material", m_label)
         
         # Line thickness for labels

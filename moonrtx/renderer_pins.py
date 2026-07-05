@@ -47,8 +47,11 @@ class PinsMixin:
         # Store pin data (original segments for rotation updates)
         self.pins[digit] = pin_segments
         
-        # Create material for pins if not already created
+        # Create material for pins if not already created; shadow rays pass
+        # through (transparent occlusion + base_color alpha 0), so pins cast no shadow
         m_pin = m_flat.copy()
+        m_pin["OcclusionProgram"] = "chit7_occlusion_transp.ptx::__closesthit__occlusion_transparency"
+        m_pin["VarFloat4"] = {"base_color": [1.0, 1.0, 1.0, 0.0]}
         self.rt.update_material("pin_material", m_pin)
         
         # Line thickness for pins
