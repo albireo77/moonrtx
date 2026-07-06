@@ -21,10 +21,13 @@ from moonrtx.moon_grid import (
 class LabelsMixin:
     """Mixin providing grid, label, and illumination methods for MoonRenderer."""
 
-    GRID_LINE_RADIUS = 0.006    # Thin lines for grid
-    GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
-    STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
-    SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
+    # Stroke radii as fractions of the Moon radius; MoonRenderer.__init__
+    # derives the scene-unit values (self.GRID_LINE_RADIUS etc.) from the
+    # scene scale
+    GRID_LINE_RADIUS_FRACTION = 0.0006      # Thin lines for grid
+    GRID_LABEL_RADIUS_FRACTION = 0.0012     # Slightly thicker lines for grid labels
+    STANDARD_LABEL_RADIUS_FRACTION = 0.0008 # Standard feature label thickness
+    SPOT_LABEL_RADIUS_FRACTION = 0.0008     # Spot feature label thickness
     GRID_COLOR = [0.50, 0.50, 0.50]
     STANDARD_LABEL_COLOR = [0.85, 0.85, 0.85]
     SPOT_LABEL_COLOR = [1.0, 0.9, 0.3]

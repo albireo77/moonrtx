@@ -30,33 +30,40 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     at a specific time, with accurate solar illumination.
     """
 
-    # Scene geometry
-    MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
+    # Scene proportions, expressed per unit of Moon radius. The absolute scene
+    # size (self.MOON_RADIUS, set from --scene-scale in __init__) is a
+    # quality/speed trade-off: PlotOptiX's displaced-surface intersector uses
+    # an ABSOLUTE self-intersection epsilon of ~1.5e-3 scene units, which lifts
+    # shadow-ray origins above the terrain and truncates every shadow tip by
+    # epsilon/tan(sun_alt) -- but its ray-marching cost also grows linearly
+    # with the scene size. Measured at 2.8 deg sun altitude: radius 10 renders
+    # shadows 6.3 km too short (~2 h of shadow evolution, clearly wrong next to
+    # real photographs), radius 50 ~1 km, radius 100 ~0.5 km; the render cost
+    # is ~(radius/10) times the radius-10 cost.
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
-    # Default camera distance in scene units. Larger distance renders the limb closer
+    # Default camera distance in Moon radii. Larger distance renders the limb closer
     # to what a real observer sees (at 30 radii the visible cap reaches 88.1 degrees
     # from the disk center vs 84.3 at 10 radii and 89.7 in reality). The value is a
     # trade-off: much larger distances degrade float32 ray precision and produce
     # contour/tessellation artifacts on the displaced surface (visible at ~220 radii).
-    CAMERA_DISTANCE = MOON_RADIUS * 30
+    CAMERA_DISTANCE_RADII = 30
     # Sun light distance and radius keep the real solar angular size seen from the
-    # Moon: arcsin(100/21460) = 0.267 degrees, so penumbra softness is realistic.
-    # The distance also sets the terminator parallax error: a light at distance D
-    # pulls the terminator toward the subsolar point by arcsin(MOON_RADIUS/D).
-    # At 2146 units that was 0.267 degrees of selenographic longitude (~30 minutes
-    # of crater sunrise/sunset timing at 0.508 deg/hour of colongitude); at 21460
-    # it is 0.027 degrees (~3 minutes), below other error sources of the app.
-    SUN_LIGHT_DISTANCE = 21460
+    # Moon: arcsin(10/2146) = 0.267 degrees, so penumbra softness is realistic.
+    # The distance also sets the terminator parallax error: the light pulls the
+    # terminator toward the subsolar point by arcsin(1/2146) = 0.027 degrees of
+    # selenographic longitude (~3 minutes of crater sunrise/sunset timing at
+    # 0.508 deg/hour of colongitude), below other error sources of the app.
+    SUN_LIGHT_DISTANCE_RADII = 2146
     # Radius of the light (not of the visible Sun disk) at the mean Sun distance;
     # update_view rescales it to the true Sun distance of the date, so penumbra
     # softness and illumination follow the +/-1.7% annual angular size variation
-    SUN_RADIUS = 100
+    SUN_RADIUS_RADII = 10
     # The light color is the emitting sphere's radiance: surface illumination
-    # depends only on radiance x angular size, NOT on light distance (verified
-    # against PlotOptiX 0.19.0), so this calibration constant must not change
-    # when SUN_LIGHT_DISTANCE changes. Value maps the user brightness setting
-    # (default 100) to a well-exposed surface; kept from the original tuning
-    # at light distance 2146.
+    # depends only on radiance x angular size, NOT on light distance or scene
+    # scale (verified against PlotOptiX 0.19.0), so this calibration constant
+    # must not change with the scene scale. Value maps the user brightness
+    # setting (default 100) to a well-exposed surface; kept from the original
+    # tuning at light distance 2146.
     SUN_BRIGHTNESS_SCALE = (2146.0 / 100.0) ** 2
 
     # Visible Sun disk, decoupled from the light source (see calculate_sun_disk).
@@ -64,7 +71,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # through (see init_renderer), so it never shadows the Moon.
     SUN_RADIUS_KM = 695_700.0
     SUN_DISK_NAME = "sun_disk"
-    SUN_DISK_DISTANCE = 3100    # distance from the default camera position
+    SUN_DISK_DISTANCE_RADII = 310   # distance from the default camera position, in Moon radii
     # Flat radiance: >= 1.12 renders as pure white for any gamma in the 0.5-5.0 range,
     # while keeping the stray light the disk bounces onto the Moon negligible
     SUN_DISK_COLOR = 2.0
@@ -86,7 +93,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False):
+                 parallactic_mode: bool = False,
+                 scene_scale: float = 10.0):
         """
         Initialize the planetarium.
 
@@ -118,7 +126,24 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Gamma correction value (default 2.2)
         parallactic_mode : bool
             Whether to use parallactic projection mode (default False)
+        scene_scale : float
+            Moon radius in scene units (default 10). Larger values render
+            terminator shadows more accurately but proportionally slower
+            (see the class comment on scene proportions).
         """
+        # Scene scale: all absolute scene dimensions derive from the Moon radius
+        self.MOON_RADIUS = float(scene_scale)
+        self.CAMERA_DISTANCE = self.MOON_RADIUS * self.CAMERA_DISTANCE_RADII
+        self.SUN_LIGHT_DISTANCE = self.MOON_RADIUS * self.SUN_LIGHT_DISTANCE_RADII
+        self.SUN_RADIUS = self.MOON_RADIUS * self.SUN_RADIUS_RADII
+        self.SUN_DISK_DISTANCE = self.MOON_RADIUS * self.SUN_DISK_DISTANCE_RADII
+        # Overlay stroke radii scale with the scene (fractions defined in the mixins)
+        self.GRID_LINE_RADIUS = self.GRID_LINE_RADIUS_FRACTION * self.MOON_RADIUS
+        self.GRID_LABEL_RADIUS = self.GRID_LABEL_RADIUS_FRACTION * self.MOON_RADIUS
+        self.STANDARD_LABEL_RADIUS = self.STANDARD_LABEL_RADIUS_FRACTION * self.MOON_RADIUS
+        self.SPOT_LABEL_RADIUS = self.SPOT_LABEL_RADIUS_FRACTION * self.MOON_RADIUS
+        self.PIN_LABEL_RADIUS = self.PIN_LABEL_RADIUS_FRACTION * self.MOON_RADIUS
+
         self.downscale = downscale
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
@@ -566,7 +591,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             np.cos(bright_limb_angle) * sin_sep,
         ])
         center = np.array([0.0, -self.CAMERA_DISTANCE, 0.0]) + self.SUN_DISK_DISTANCE * direction
-        radius = self.SUN_DISK_DISTANCE * np.tan(sun_angular_radius) if in_view else 0.01
+        radius = self.SUN_DISK_DISTANCE * np.tan(sun_angular_radius) if in_view else 0.001 * self.MOON_RADIUS
         return center.tolist(), float(radius)
 
 
@@ -608,7 +633,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             sun_light_radius = float(self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)
             self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=sun_light_radius)
             self.update_overlays()
-
     # ---- lifecycle ----
 
     def start(self):
@@ -644,7 +668,8 @@ def run_renderer(dt_local: datetime,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False) -> TkOptiX:
+                 parallactic_mode: bool = False,
+                 scene_scale: float = 10.0) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 
@@ -670,6 +695,9 @@ def run_renderer(dt_local: datetime,
         Gamma correction value (default 2.2)
     parallactic_mode : bool
         Whether to use parallactic projection mode (default False)
+    scene_scale : float
+        Moon radius in scene units (default 10); larger = more accurate
+        terminator shadows, proportionally slower rendering
 
     Returns
     -------
@@ -689,6 +717,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
+    print(f"  Scene Scale: {scene_scale:g}")
     if initial_camera is not None:
         print("  Location, time and view set from --init-view parameter value")
     print()
@@ -706,7 +735,8 @@ def run_renderer(dt_local: datetime,
         gamma=gamma,
         parallactic_mode=parallactic_mode,
         dt_local=dt_local,
-        initial_camera=initial_camera
+        initial_camera=initial_camera,
+        scene_scale=scene_scale
     )
 
     moon_renderer.init_astro()

@@ -11,7 +11,9 @@ from moonrtx.moon_grid import create_single_digit_on_sphere, merge_segments_to_g
 class PinsMixin:
     """Mixin providing pin management methods for MoonRenderer."""
 
-    PIN_LABEL_RADIUS = 0.012    # Pin digit label thickness
+    # Fraction of the Moon radius; MoonRenderer.__init__ derives the scene-unit
+    # value (self.PIN_LABEL_RADIUS) from the scene scale
+    PIN_LABEL_RADIUS_FRACTION = 0.0012  # Pin digit label thickness
     PIN_COLOR = [1.0, 0.0, 0.0]
 
     def create_pin(self, digit: int, lat: float, lon: float):

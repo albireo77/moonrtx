@@ -48,6 +48,10 @@ class InitView(NamedTuple):
     view_orientation: str
     parallactic_mode: bool
     camera: Camera
+    # True when the camera eye/target are stored in units of the Moon radius
+    # ("camn" segment); False for legacy "cam" segments holding absolute
+    # coordinates from the historical radius-10 scene
+    camera_normalized: bool
 
 def parse_args():
 
@@ -85,6 +89,9 @@ def parse_args():
                              "This restores exact camera position along with observation time and location when attempt to take a screenshot was made. ")
     parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATION_NSWE,
                         help=f"View orientation for specific telescope type (e.g. {VIEW_ORIENTATION_SNEW} for refractor). Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
+    parser.add_argument("--scene-scale", type=float, default=10,
+                        help="Moon radius in scene units (10-200). Larger values render shadows near the terminator more accurately"
+                             "(the ray tracer's fixed epsilon shrinks relative to the scene) but rendering slows down proportionally.")
     return parser.parse_args()
 
 def _urlretrieve(url: str, dest: str):
@@ -202,11 +209,13 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
     
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>[_par<0|1>]_cam<base64>
+    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>[_par<0|1>]_cam[n]<base64>
 
     The _par<0|1> segment is optional for backwards compatibility with
     filenames saved before the parallactic-mode flag was introduced; when
-    absent it defaults to OFF.
+    absent it defaults to OFF. A "camn" segment holds the camera normalized
+    to the Moon radius (scene-scale independent); a legacy "cam" segment
+    holds absolute coordinates from the historical radius-10 scene.
 
     Parameters
     ----------
@@ -221,7 +230,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
     try:
         pattern = (
             r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)'
-            r'_view([A-Z]+)(?:_par([01]))?_cam([A-Za-z0-9_-]+)$'
+            r'_view([A-Z]+)(?:_par([01]))?_cam(n?)([A-Za-z0-9_-]+)$'
         )
         match = re.match(pattern, init_view_str)
 
@@ -233,7 +242,8 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         lon = float(match.group(3))
         view_orientation = match.group(4)
         par_flag = match.group(5)
-        camera_encoded = match.group(6)
+        camera_normalized = match.group(6) == 'n'
+        camera_encoded = match.group(7)
 
         # Validate view orientation
         if view_orientation not in VIEW_ORIENTATIONS:
@@ -251,7 +261,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
             print(f"Incorrect time: {error}")
             return None
 
-        return InitView(dt_local, lat, lon, view_orientation, parallactic_mode, camera)
+        return InitView(dt_local, lat, lon, view_orientation, parallactic_mode, camera, camera_normalized)
     
     except Exception as e:
         print(f"Error parsing init-view string: {e}")
@@ -276,7 +286,12 @@ def main():
         lon = init_view.lon
         init_view_orientation = init_view.view_orientation
         parallactic_mode = init_view.parallactic_mode
-        initial_camera = init_view.camera
+        # Convert the stored camera to scene units: "camn" cameras are stored in
+        # Moon radii; legacy "cam" cameras are absolute radius-10-scene values
+        f = args.scene_scale if init_view.camera_normalized else args.scene_scale / 10.0
+        initial_camera = init_view.camera._replace(
+            eye=[v * f for v in init_view.camera.eye],
+            target=[v * f for v in init_view.camera.target])
     else:
         time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
         dt_local, error = get_date_time_local(time_iso)
@@ -322,6 +337,10 @@ def main():
         print(f"Invalid view orientation '{init_view_orientation}'. Must be one of: {', '.join(VIEW_ORIENTATIONS)}")
         sys.exit(1)
 
+    if not (10 <= args.scene_scale <= 200):
+        print("Invalid scene scale. Must be between 10 and 200.")
+        sys.exit(1)
+
     if not check_gpu_architecture():
         print("No RTX GPU found.")
         sys.exit(1)
@@ -347,7 +366,8 @@ def main():
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
                  gamma=args.gamma,
-                 parallactic_mode=parallactic_mode)
+                 parallactic_mode=parallactic_mode,
+                 scene_scale=args.scene_scale)
 
 if __name__ == "__main__":
     main()

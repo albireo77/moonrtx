@@ -203,14 +203,18 @@ class DialogsMixin:
         # 5. Parallactic mode flag (0 = OFF, 1 = ON)
         parts.append(f"par{1 if self.parallactic_mode else 0}")
 
-        # 6. Current camera parameters (at the time of screenshot) - encoded as base64
+        # 6. Current camera parameters (at the time of screenshot) - encoded as base64.
+        # Eye/target are stored normalized to the Moon radius ("camn" segment),
+        # so saved views restore correctly at any --scene-scale.
         if self.rt is not None:
             try:
                 cam = self.rt.get_camera(self.CAMERA_NAME)
                 if cam is not None:
-                    camera = Camera(eye=cam["Eye"], target=cam["Target"], up=cam["Up"], fov=self.rt._optix.get_camera_fov(0))
+                    camera = Camera(eye=[v / self.MOON_RADIUS for v in cam["Eye"]],
+                                    target=[v / self.MOON_RADIUS for v in cam["Target"]],
+                                    up=cam["Up"], fov=self.rt._optix.get_camera_fov(0))
                     camera_encoded = encode_camera(camera)
-                    parts.append(f"cam{camera_encoded}")
+                    parts.append(f"camn{camera_encoded}")
                 else:
                     parts.append("nocam")
             except Exception as e:

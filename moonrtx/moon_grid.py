@@ -1,13 +1,16 @@
 import math
 
 import numpy as np
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 from moonrtx.shared_types import MoonFeature, MoonLabel
 
 
-LABEL_CHAR_SCALE = 0.12
-PIN_DIGIT_SCALE = 0.2
+# Character sizes as fractions of the Moon radius (multiplied by moon_radius
+# where geometry is generated, so overlays scale with the scene scale)
+LABEL_CHAR_SCALE = 0.012
+PIN_DIGIT_SCALE = 0.02
+GRID_DIGIT_SCALE = 0.0125
 
 
 def merge_segments_to_graph(polylines: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
@@ -76,7 +79,7 @@ _LETTER_SEGMENTS_NORMALIZED: dict[str, list[tuple]] = {
 }
 
 
-def create_digit_segments(digit: str, scale: float = 0.1) -> list:
+def create_digit_segments(digit: str, scale: float = 1.0) -> list:
     """
     Create line segments for a digit (7-segment style display).
 
@@ -143,7 +146,7 @@ def create_single_digit_on_sphere(digit: int,
                                    lat: float, lon: float,
                                    moon_radius: float,
                                    offset: float = 0.0,
-                                   digit_scale: float = PIN_DIGIT_SCALE,
+                                   digit_scale: Optional[float] = None,
                                    flip_horizontal: bool = False,
                                    flip_vertical: bool = False) -> list:
     """
@@ -159,8 +162,8 @@ def create_single_digit_on_sphere(digit: int,
         Radius of the Moon
     offset : float
         Height above surface (fraction of radius)
-    digit_scale : float
-        Size of digit
+    digit_scale : float, optional
+        Size of digit in scene units (default: PIN_DIGIT_SCALE fraction of moon_radius)
     flip_horizontal : bool
         If True, mirror digit horizontally
     flip_vertical : bool
@@ -171,6 +174,8 @@ def create_single_digit_on_sphere(digit: int,
     list
         List of numpy arrays, each containing points for one line segment
     """
+    if digit_scale is None:
+        digit_scale = PIN_DIGIT_SCALE * moon_radius
     r = moon_radius * (1 + offset + 0.005)
 
     # Calculate offsets to position the left-bottom corner at the given lat/lon
@@ -225,7 +230,7 @@ def create_number_on_sphere(number: int,
                             lat: float, lon: float,
                             moon_radius: float,
                             offset: float,
-                            digit_scale: float = 0.3,
+                            digit_scale: Optional[float] = None,
                             spacing: float = 0.25,
                             flip_horizontal: bool = False,
                             flip_vertical: bool = False) -> list:
@@ -242,8 +247,8 @@ def create_number_on_sphere(number: int,
         Radius of the Moon
     offset : float
         Height above surface (fraction of radius)
-    digit_scale : float
-        Size of digits
+    digit_scale : float, optional
+        Size of digits in scene units (default: GRID_DIGIT_SCALE fraction of moon_radius)
     spacing : float
         Spacing between digits (as fraction of scale)
     flip_horizontal : bool
@@ -256,6 +261,8 @@ def create_number_on_sphere(number: int,
     list
         List of numpy arrays, each containing points for one line segment
     """
+    if digit_scale is None:
+        digit_scale = GRID_DIGIT_SCALE * moon_radius
     r = moon_radius * (1 + offset + 0.005)  # Slightly above grid lines
 
     num_str = str(number)
@@ -324,7 +331,7 @@ def create_text_on_sphere(text: str,
                           lat: float, lon: float,
                           moon_radius: float,
                           offset: float,
-                          char_scale: float = 0.15,
+                          char_scale: Optional[float] = None,
                           spacing: float = 0.15,
                           flip_horizontal: bool = False,
                           flip_vertical: bool = False) -> list:
@@ -334,11 +341,15 @@ def create_text_on_sphere(text: str,
 
     Parameters
     ----------
+    char_scale : float, optional
+        Character size in scene units (default: LABEL_CHAR_SCALE fraction of moon_radius)
     flip_horizontal : bool
         If True, mirror text horizontally (for NSEW, SNEW orientations)
     flip_vertical : bool
         If True, mirror text vertically (for SNEW, SNWE orientations)
     """
+    if char_scale is None:
+        char_scale = LABEL_CHAR_SCALE * moon_radius
     r = moon_radius * (1 + offset + 0.005)
     all_segments = []
 
@@ -401,7 +412,7 @@ def create_centered_text_on_sphere(text: str,
                                    lat: float, lon: float,
                                    moon_radius: float,
                                    offset: float,
-                                   char_scale: float = 0.15,
+                                   char_scale: Optional[float] = None,
                                    spacing: float = 0.15,
                                    flip_horizontal: bool = False,
                                    flip_vertical: bool = False) -> list:
@@ -418,8 +429,8 @@ def create_centered_text_on_sphere(text: str,
         Radius of the Moon
     offset : float
         Height above surface (fraction of radius)
-    char_scale : float
-        Size of characters
+    char_scale : float, optional
+        Character size in scene units (default: LABEL_CHAR_SCALE fraction of moon_radius)
     spacing : float
         Spacing between characters (as fraction of scale)
     flip_horizontal : bool
@@ -432,6 +443,8 @@ def create_centered_text_on_sphere(text: str,
     list
         List of numpy arrays, each containing points for one line segment
     """
+    if char_scale is None:
+        char_scale = LABEL_CHAR_SCALE * moon_radius
     r = moon_radius * (1 + offset + 0.005)  # Slightly above grid lines
 
     all_segments = []
@@ -535,7 +548,7 @@ def create_standard_labels(standard_label_features: list[MoonFeature], moon_radi
             lon=label_lon,
             moon_radius=moon_radius,
             offset=offset,
-            char_scale=LABEL_CHAR_SCALE,
+            char_scale=LABEL_CHAR_SCALE * moon_radius,
             spacing=0.1,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
@@ -589,7 +602,7 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
             lon=label_lon,
             moon_radius=moon_radius,
             offset=offset,
-            char_scale=LABEL_CHAR_SCALE,
+            char_scale=LABEL_CHAR_SCALE * moon_radius,
             spacing=0.1,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
@@ -642,7 +655,6 @@ def create_grid_labels_for_orientation(
             segments = create_number_on_sphere(
                 int(lat), lat=lat+1, lon=label_lon + lat_step/2-1,
                 moon_radius=moon_radius, offset=offset,
-                digit_scale=0.125,
                 flip_horizontal=flip_horizontal,
                 flip_vertical=flip_vertical
             )
@@ -658,7 +670,6 @@ def create_grid_labels_for_orientation(
         segments = create_number_on_sphere(
             int(display_lon), lat=lat_step/2-1, lon=display_lon+lon_offset,
             moon_radius=moon_radius, offset=offset,
-            digit_scale=0.125,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
         )
