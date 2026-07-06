@@ -567,17 +567,28 @@ class NavigationMixin:
         """
         h, w = self.elevation.shape
 
-        # Equirectangular projection: row 0 = +90° lat, last row = -90° lat
-        row = (90.0 - lat) / 180.0 * h
-        col = (lon + 180.0) / 360.0 * w
+        # Equirectangular projection: row 0 = +90° lat, last row = -90° lat.
+        # Bilinear interpolation between the four surrounding texel centers
+        # (-0.5 offset); a texel spans ~354 m of ground at downscale 3, so
+        # nearest-texel lookup would quantize measured height differences.
+        row = (90.0 - lat) / 180.0 * h - 0.5
+        col = ((lon + 180.0) / 360.0 * w - 0.5) % w
 
-        row = int(np.clip(row, 0, h - 1))
-        col = int(np.clip(col, 0, w - 1))
+        r0 = int(np.clip(np.floor(row), 0, h - 2))
+        fr = min(max(row - r0, 0.0), 1.0)
+        c0 = int(np.floor(col))
+        c1 = (c0 + 1) % w   # longitude wraps at the +/-180 seam
+        fc = col - c0
+
+        val = (self.elevation[r0, c0] * (1.0 - fr) * (1.0 - fc)
+               + self.elevation[r0 + 1, c0] * fr * (1.0 - fc)
+               + self.elevation[r0, c1] * (1.0 - fr) * fc
+               + self.elevation[r0 + 1, c1] * fr * fc)
 
         # Stored elevation is a displacement factor normalized so that the highest
         # peak is 1.0; elevation_radius_scale converts it back to a factor of the
         # 1737.4 km reference radius
-        displacement = self.elevation[row, col] * self.elevation_radius_scale
+        displacement = val * self.elevation_radius_scale
         return (displacement - 1.0) * self.MOON_RADIUS_KM * 1000.0
 
     def start_measurement(self, event):
