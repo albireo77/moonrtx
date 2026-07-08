@@ -58,6 +58,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **I** - Open USGS web page for Moon feature shown in status bar  
 **O** - Open user defined web page (Wiki by default) for Moon feature shown in status bar  
 **T** - Open date/time window  
+**X** - Toggle exact terminator shadows (rendering gets significantly slower while ON)  
 **A/Z** - Increase/Decrease brightness  
 **E/D** - Increase/Decrease gamma correction  
 **H/J** - Roll view around current view direction  

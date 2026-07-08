@@ -148,10 +148,11 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Downscale:").grid(row=6, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Brightness:").grid(row=7, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Gamma:").grid(row=8, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time step (minutes):").grid(row=9, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="View orientation:").grid(row=10, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Parallactic mode:").grid(row=11, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=12, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Shadow accuracy:").grid(row=9, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=10, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=11, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Parallactic mode:").grid(row=12, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=13, column=0, sticky=tk.E, pady=2)
 
         self.lat_dir_var = tk.StringVar(value="N")
         self.lon_dir_var = tk.StringVar(value="E")
@@ -229,12 +230,16 @@ class MainWindow(tk.Tk):
         self.gamma_entry.grid(row=8, column=1, sticky=tk.EW, pady=2)
         self.gamma_entry.insert(0, "2.2")
 
+        self.shadow_accuracy_entry = tk.Entry(frm, width=5)
+        self.shadow_accuracy_entry.grid(row=9, column=1, sticky=tk.EW, pady=2)
+        self.shadow_accuracy_entry.insert(0, "1")
+
         self.time_step_minutes = tk.Entry(frm, width=5)
-        self.time_step_minutes.grid(row=9, column=1, sticky=tk.EW, pady=2)
+        self.time_step_minutes.grid(row=10, column=1, sticky=tk.EW, pady=2)
         self.time_step_minutes.insert(0, 15)
-        
+
         self.init_view_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VIEW_ORIENTATIONS)
-        self.init_view_orientation.grid(row=10, column=1, sticky=tk.EW, pady=2)
+        self.init_view_orientation.grid(row=11, column=1, sticky=tk.EW, pady=2)
         self.init_view_orientation.set(VIEW_ORIENTATIONS[0])
 
         self.parallactic_mode_var = tk.BooleanVar(value=False)
@@ -242,16 +247,18 @@ class MainWindow(tk.Tk):
             frm,
             text="(maintains Moon aligned to celestial north)",
             variable=self.parallactic_mode_var,
-        ).grid(row=11, column=1, sticky=tk.W, pady=2)
+        ).grid(row=12, column=1, sticky=tk.W, pady=2)
 
         self.init_view = tk.Entry(frm, width=5)
-        self.init_view.grid(row=12, column=1, sticky=tk.EW, pady=2)
+        self.init_view.grid(row=13, column=1, sticky=tk.EW, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=8, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(1 - 20)",
+                 fg="gray").grid(row=9, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=6, column=2, sticky=tk.W, padx=(4, 0))
 
         def _set_time_now():
@@ -387,6 +394,7 @@ class MainWindow(tk.Tk):
             "downscale": self.downscale.get(),
             "brightness": self.brightness.get(),
             "gamma": self.gamma_entry.get(),
+            "shadow_accuracy": self.shadow_accuracy_entry.get(),
             "time_step_minutes": self.time_step_minutes.get(),
             "init_view_orientation": self.init_view_orientation.get(),
             "parallactic_mode": bool(self.parallactic_mode_var.get()),
@@ -514,6 +522,9 @@ class MainWindow(tk.Tk):
 
             self.gamma_entry.delete(0, tk.END)
             self.gamma_entry.insert(0, settings.get("gamma", "2.2"))
+
+            self.shadow_accuracy_entry.delete(0, tk.END)
+            self.shadow_accuracy_entry.insert(0, settings.get("shadow_accuracy", "1"))
 
             self.time_step_minutes.delete(0, tk.END)
             self.time_step_minutes.insert(0, settings.get("time_step_minutes", "15"))
@@ -713,6 +724,15 @@ class MainWindow(tk.Tk):
             return
 
         try:
+            shadow_accuracy = int(self.shadow_accuracy_entry.get().strip())
+        except ValueError:
+            messagebox.showerror("Error", "Shadow accuracy must be an integer.")
+            return
+        if not (1 <= shadow_accuracy <= 20):
+            messagebox.showerror("Error", "Invalid shadow accuracy. Must be between 1 and 20.")
+            return
+
+        try:
             time_step_minutes = int(self.time_step_minutes.get().strip())
         except ValueError:
             messagebox.showerror("Error", "Time step must be a positive integer.")
@@ -774,7 +794,8 @@ class MainWindow(tk.Tk):
                 time_step_minutes,
                 init_view_orientation,
                 gamma,
-                parallactic_mode)
+                parallactic_mode,
+                shadow_accuracy)
         )
         p.start()
         

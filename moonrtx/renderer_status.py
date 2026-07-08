@@ -56,6 +56,11 @@ class StatusMixin:
         if self._status_view_var:
             self._status_view_var.set(f"View: {self.view_orientation}")
 
+    def _update_status_shadows(self):
+        if self._status_shadows_var:
+            state = "EXACT" if self.shadow_accuracy_on else "FAST"
+            self._status_shadows_var.set(f"Shadows: {state}")
+
     def _update_status_time(self):
         if self._status_time_var and self.dt_local:
             offset = self.dt_local.strftime('%z')
@@ -167,6 +172,7 @@ class StatusMixin:
         self._update_status_feature()
         self._update_status_brightness()
         self._update_status_gamma()
+        self._update_status_shadows()
         self._update_status_pins()
         self._update_info_moon()
         self._update_info_coords()
@@ -221,15 +227,17 @@ class StatusMixin:
                     self._status_gamma_var = tk.StringVar()
                     self._status_pins_var = tk.StringVar()
                     self._status_coords_var = tk.StringVar()
+                    self._status_shadows_var = tk.StringVar()
 
                     self._auto_advance_var = tk.BooleanVar(value=False)
 
                     font = ("Consolas", 9)
                     panels = [
                         (self._status_pins_var,        8),
+                        (self._status_shadows_var,    14),
                         (self._status_brightness_var, 15),
                         (self._status_gamma_var,      10),
-                        (self._status_feature_var,    46),
+                        (self._status_feature_var,    38),
                         (self._status_coords_var,     26),
                         (self._status_measured_var,   27),
                         (None,                        47),  # placeholder for time panel
@@ -259,7 +267,7 @@ class StatusMixin:
                             )
                             cb.pack(side='right', padx=(2, 0))
                             _ToolTip(cb, 'Auto-advance time (every step minutes)')
-                            time_panel.pack(side='right', padx=16)
+                            time_panel.pack(side='right', padx=12)
                         else:
                             tk.Label(
                                 status_frame,
@@ -269,7 +277,7 @@ class StatusMixin:
                                 width=w,
                                 relief='sunken',
                                 borderwidth=1,
-                            ).pack(side='right', padx=16)
+                            ).pack(side='right', padx=12)
 
                 # Build info panel (bottom-left overlay on canvas)
                 if hasattr(rt, '_canvas'):

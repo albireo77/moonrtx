@@ -59,6 +59,22 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # at light distance 2146.
     SUN_BRIGHTNESS_SCALE = (2146.0 / 100.0) ** 2
 
+    # PlotOptiX's displaced-surface intersector applies an absolute
+    # self-intersection epsilon of 1.5e-3 scene units by default. It lifts
+    # shadow-ray origins ~265 m above the terrain and truncates every shadow
+    # tip by epsilon/tan(sun_alt): 5-7 km of missing shadow near the terminator
+    # (~2 h of shadow evolution), clearly visible next to real photographs.
+    # The undocumented "scene_epsilon" launch variable (verified present in
+    # rndSharpOptiX7.dll of PlotOptiX 0.19.0 and settable via set_float)
+    # controls it. Shrinking it by the shadow-accuracy factor restores physical
+    # shadow lengths, but rendering slows down ~linearly with the factor
+    # because the intersector's ray-marching step is proportional to the
+    # epsilon. Factor 10 leaves ~20 m of lift (~0.5 km of shadow at 3 deg sun
+    # altitude), below perception; measured with no self-intersection
+    # artifacts at that level.
+    DEFAULT_SCENE_EPSILON = 1.5e-3
+    ACCURATE_SHADOW_FACTOR = 10
+
     # Visible Sun disk, decoupled from the light source (see calculate_sun_disk).
     # It sits closer than the light, but its material lets shadow rays pass
     # through (see init_renderer), so it never shadows the Moon.
@@ -86,7 +102,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False):
+                 parallactic_mode: bool = False,
+                 shadow_accuracy: int = 1):
         """
         Initialize the planetarium.
 
@@ -118,11 +135,22 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Gamma correction value (default 2.2)
         parallactic_mode : bool
             Whether to use parallactic projection mode (default False)
+        shadow_accuracy : int
+            Shadow accuracy factor (default 1). Values > 1 shrink the ray
+            tracer's scene epsilon so shadow tips near the terminator reach
+            their physical length (see DEFAULT_SCENE_EPSILON); rendering
+            slows down roughly by this factor. The X key toggles it at runtime.
         """
         self.downscale = downscale
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
         self.parallactic_mode = parallactic_mode
+        # Shadow accuracy: X key toggles between fast (factor 1) and accurate
+        # shadows; when started with factor 1 the toggle uses the default
+        # accurate factor
+        self.shadow_accuracy = shadow_accuracy
+        self.accurate_shadow_factor = self.shadow_accuracy if self.shadow_accuracy > 1 else self.ACCURATE_SHADOW_FACTOR
+        self.shadow_accuracy_on = self.shadow_accuracy > 1
         self.observer = observer
 
         # Load data
@@ -230,6 +258,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._status_gamma_var = None
         self._status_pins_var = None
         self._status_coords_var = None
+        self._status_shadows_var = None
         self._status_feature = None
 
         # Auto-advance (real-time playback) settings
@@ -285,6 +314,22 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.gamma = new_gamma
         self.rt.set_float("tonemap_gamma", self.gamma)
         self._update_status_gamma()
+
+    def toggle_shadow_accuracy(self):
+        """
+        Toggle between fast and accurate shadow rendering (X key).
+
+        Accurate mode shrinks the ray tracer's scene epsilon so shadow tips
+        near the terminator reach their physical length (see the
+        DEFAULT_SCENE_EPSILON comment); rendering slows down roughly by the
+        accuracy factor while enabled.
+        """
+        if self.rt is None:
+            return
+        self.shadow_accuracy_on = not self.shadow_accuracy_on
+        factor = self.accurate_shadow_factor if self.shadow_accuracy_on else 1
+        self.rt.set_float("scene_epsilon", self.DEFAULT_SCENE_EPSILON / factor, refresh=True)
+        self._update_status_shadows()
 
     def change_time_step(self, delta: int):
         """
@@ -396,6 +441,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # noise, so cap path length for faster, cleaner frames. Trade-off is
         # slightly darker shadowed crater floors (less bounced light).
         self.rt.set_uint("path_seg_range", 2, 4)
+
+        # Shadow accuracy (see DEFAULT_SCENE_EPSILON comment)
+        if self.shadow_accuracy_on:
+            self.rt.set_float("scene_epsilon", self.DEFAULT_SCENE_EPSILON / self.shadow_accuracy)
 
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
@@ -644,7 +693,8 @@ def run_renderer(dt_local: datetime,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False) -> TkOptiX:
+                 parallactic_mode: bool = False,
+                 shadow_accuracy: int = 1) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 
@@ -670,6 +720,10 @@ def run_renderer(dt_local: datetime,
         Gamma correction value (default 2.2)
     parallactic_mode : bool
         Whether to use parallactic projection mode (default False)
+    shadow_accuracy : int
+        Shadow accuracy factor (default 1); values > 1 render physically
+        accurate terminator shadows at proportionally slower speed.
+        The X key toggles it at runtime.
 
     Returns
     -------
@@ -689,6 +743,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
+    print(f"  Shadow Accuracy: {shadow_accuracy}")
     if initial_camera is not None:
         print("  Location, time and view set from --init-view parameter value")
     print()
@@ -706,7 +761,8 @@ def run_renderer(dt_local: datetime,
         gamma=gamma,
         parallactic_mode=parallactic_mode,
         dt_local=dt_local,
-        initial_camera=initial_camera
+        initial_camera=initial_camera,
+        shadow_accuracy=shadow_accuracy
     )
 
     moon_renderer.init_astro()
@@ -775,6 +831,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_gamma(0.1)
         elif event.keysym.lower() == 'd':
             moon_renderer.change_gamma(-0.1)
+        elif event.keysym.lower() == 'x':
+            moon_renderer.toggle_shadow_accuracy()
         elif event.keysym.lower() == 'm':
             step = 60 if event.state & 0x1 else 1
             moon_renderer.change_time_step(step)

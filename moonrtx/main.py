@@ -85,6 +85,11 @@ def parse_args():
                              "This restores exact camera position along with observation time and location when attempt to take a screenshot was made. ")
     parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATION_NSWE,
                         help=f"View orientation for specific telescope type (e.g. {VIEW_ORIENTATION_SNEW} for refractor). Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
+    parser.add_argument("--shadow-accuracy", type=int, default=1,
+                        help="Shadow accuracy factor (1-20). With the default 1, shadows near the terminator render "
+                             "several km too short at grazing sun (a ray tracer limitation); higher values restore "
+                             "physical shadow lengths (10 is nearly exact) but rendering slows down significantly. "
+                             "The X key toggles exact shadows at runtime.")
     return parser.parse_args()
 
 def _urlretrieve(url: str, dest: str):
@@ -318,6 +323,10 @@ def main():
         print("Invalid time step. Must be between 1 and 1440 minutes.")
         sys.exit(1)
 
+    if not (1 <= args.shadow_accuracy <= 20):
+        print("Invalid shadow accuracy. Must be between 1 and 20.")
+        sys.exit(1)
+
     if init_view_orientation not in VIEW_ORIENTATIONS:
         print(f"Invalid view orientation '{init_view_orientation}'. Must be one of: {', '.join(VIEW_ORIENTATIONS)}")
         sys.exit(1)
@@ -347,7 +356,8 @@ def main():
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
                  gamma=args.gamma,
-                 parallactic_mode=parallactic_mode)
+                 parallactic_mode=parallactic_mode,
+                 shadow_accuracy=args.shadow_accuracy)
 
 if __name__ == "__main__":
     main()
