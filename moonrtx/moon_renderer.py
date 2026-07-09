@@ -153,9 +153,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.shadow_accuracy_on = self.shadow_accuracy > 1
         self.observer = observer
 
-        # Load data
+        # Load data (color and star map are loaded in init_renderer, where they
+        # are uploaded to GPU textures and not needed afterwards)
+        self.color_file = color_file
+        self.starmap_file = starmap_file
         self.elevation, self.elevation_radius_scale = load_elevation_data(elevation_file, downscale)
-        self.color_data = load_color_data(color_file, self.gamma)
         # Sort features by angular_radius (smallest first) for efficient lookup
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
         _tmp = tk.Tk()
@@ -163,7 +165,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.width = _tmp.winfo_screenwidth()
         self.height = _tmp.winfo_screenheight() - 40
         _tmp.destroy()
-        self.star_map = load_starmap(starmap_file, self.width * 6) if starmap_file else None
 
         self.brightness = brightness
 
@@ -451,15 +452,18 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.set_float("tonemap_gamma", self.gamma)
         self.rt.add_postproc("Gamma")
 
-        # Background (stars)
-        if self.star_map is not None:
+        # Background (stars). Loaded locally: uploaded to a GPU texture here and
+        # released when this method returns (the host copy is ~760 MB)
+        star_map = load_starmap(self.starmap_file, self.width * 6) if self.starmap_file else None
+        if star_map is not None:
             self.rt.set_background_mode("TextureEnvironment")
-            self.rt.set_background(self.star_map, gamma=self.gamma, rt_format="UByte4")
+            self.rt.set_background(star_map, gamma=self.gamma, rt_format="UByte4")
         else:
             self.rt.set_background(0)  # Black background
 
-        # Setup material with Moon texture
-        self.rt.set_texture_2d("moon_color", self.color_data)
+        # Setup material with Moon texture (local for the same reason, ~200 MB)
+        color_data = load_color_data(self.color_file, self.gamma)
+        self.rt.set_texture_2d("moon_color", color_data)
         m_diffuse["ColorTextures"] = ["moon_color"]
         self.rt.update_material("diffuse", m_diffuse)
 
