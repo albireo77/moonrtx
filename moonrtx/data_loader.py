@@ -1,3 +1,4 @@
+import json
 import os
 import cv2
 from typing import Optional
@@ -7,6 +8,45 @@ import numpy as np
 from moonrtx.shared_types import MoonFeature
 
 from plotoptix.utils import read_image, make_color_2d
+
+# Processed-array disk caches: reading the 7.9 GB elevation TIFF and block-mean
+# downscaling it takes about a minute on every start, while np.load of the
+# ready-made float32 result takes seconds. A cache is valid when the sidecar
+# JSON matches the source file (size, mtime) and the processing parameters;
+# any read or write problem silently falls back to the regular path, so a
+# broken cache can only cost time, never correctness. Bump the version when
+# the processing itself changes.
+_CACHE_VERSION = 1
+
+
+def _cache_fingerprint(filepath: str, **params) -> dict:
+    return {
+        "version": _CACHE_VERSION,
+        "source_size": os.path.getsize(filepath),
+        "source_mtime": int(os.path.getmtime(filepath)),
+        **params,
+    }
+
+
+def _load_cache(cache_base: str, fingerprint: dict) -> tuple[Optional[np.ndarray], dict]:
+    try:
+        with open(cache_base + ".json", "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        if all(meta.get(k) == v for k, v in fingerprint.items()):
+            return np.load(cache_base + ".npy"), meta
+    except Exception:
+        pass
+    return None, {}
+
+
+def _save_cache(cache_base: str, array: np.ndarray, meta: dict):
+    try:
+        np.save(cache_base + ".npy", array)
+        with open(cache_base + ".json", "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+        print(f"  Cached to {cache_base}.npy for faster next start")
+    except Exception as e:
+        print(f"Warning: could not write cache {cache_base}.npy: {e}")
 
 def load_moon_features(filepath: str) -> list:
     """
@@ -101,6 +141,18 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
         intersection tests miss the terrain (light leaks onto the night side).
     """
     print(f"Loading elevation data from {filepath}...")
+
+    # Disk cache of the processed result (skipped at downscale 1, where the
+    # cache would be a ~16 GB file for little gain over reading the source)
+    cache_base = f"{filepath}.ds{downscale}"
+    fingerprint = None
+    if downscale > 1:
+        fingerprint = _cache_fingerprint(filepath, downscale=downscale)
+        elevation, meta = _load_cache(cache_base, fingerprint)
+        if elevation is not None:
+            print(f"  Loaded from cache: {cache_base}.npy, dimensions {elevation.shape}")
+            return elevation, float(meta["radius_scale"])
+
     elev_src = read_image(filepath)
 
     if elev_src is None:
@@ -138,6 +190,9 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
     # Keep the surface inside the bounding sphere: highest peak = exactly 1.0
     radius_scale = float(elevation.max())
     elevation /= radius_scale
+
+    if fingerprint is not None:
+        _save_cache(cache_base, elevation, {**fingerprint, "radius_scale": radius_scale})
 
     return elevation, radius_scale
 
@@ -197,10 +252,20 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
     if not os.path.isfile(filepath):
         print(f"Star map not found: {filepath}")
         return None
-    
+
     print(f"Loading star map from {filepath}...")
+
+    # Disk cache of the processed result, keyed by the target width
+    # (screen-dependent), so the 16k source is decoded and resized only once
+    cache_base = f"{filepath}.w{target_width}"
+    fingerprint = _cache_fingerprint(filepath, target_width=target_width)
+    star_map, _ = _load_cache(cache_base, fingerprint)
+    if star_map is not None:
+        print(f"  Loaded from cache: {cache_base}.npy, dimensions {star_map.shape}")
+        return star_map
+
     star_src = cv2.imread(filepath)
-    
+
     if star_src is None:
         print(f"Failed to read star map: {filepath}")
         return None
@@ -217,7 +282,9 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
         np.clip(star_map, 0, 1, out=star_map)
     else:
         star_map = star_src
-    
+
     print(f"  Dimensions: {star_map.shape}")
-    
+
+    _save_cache(cache_base, star_map, fingerprint)
+
     return star_map
