@@ -89,14 +89,12 @@ def load_moon_features(filepath: str) -> list:
                     feature_id_str = parts[7].strip() if len(parts) >= 8 else ''
                     www_address_str = parts[8].strip() if len(parts) >= 9 else ''
                     try:
-                        lat = float(lat_str)
                         diameter_km = float(diameter_km_str)
                         moon_feature = MoonFeature(
                             name=name,
-                            lat=lat,
+                            lat=float(lat_str),
                             lon=float(lon_str),
                             angular_radius=diameter_km / 60.647,
-                            cos_lat=np.cos(np.radians(lat)),
                             diameter_km=diameter_km,
                             standard_label=standard_label,
                             spot_label=spot_label,

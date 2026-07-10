@@ -160,6 +160,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.elevation, self.elevation_radius_scale = load_elevation_data(elevation_file, downscale)
         # Sort features by angular_radius (smallest first) for efficient lookup
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
+        self._init_feature_lookup()
         _tmp = tk.Tk()
         _tmp.withdraw()
         self.width = _tmp.winfo_screenwidth()
