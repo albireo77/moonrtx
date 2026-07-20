@@ -9,6 +9,7 @@ import urllib.request
 from datetime import datetime
 from typing import NamedTuple, Optional
 
+import plotoptix
 from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
@@ -85,11 +86,6 @@ def parse_args():
                              "This restores exact camera position along with observation time and location when attempt to take a screenshot was made. ")
     parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATION_NSWE,
                         help=f"View orientation for specific telescope type (e.g. {VIEW_ORIENTATION_SNEW} for refractor). Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
-    parser.add_argument("--shadow-accuracy", type=int, default=1,
-                        help="Shadow accuracy factor (1-20). With the default 1, shadows near the terminator render "
-                             "several km too short at grazing sun (a ray tracer limitation); higher values restore "
-                             "physical shadow lengths (10 is nearly exact) but rendering slows down significantly. "
-                             "The X key toggles exact shadows at runtime.")
     return parser.parse_args()
 
 def _urlretrieve(url: str, dest: str):
@@ -158,6 +154,25 @@ def check_gpu_architecture() -> bool:
     except ValueError:
         print("WARNING: Unrecognized GPU RTX architecture")
         return True
+
+# MoonRTX relies on the marching_step/scene_epsilon decoupling introduced in
+# PlotOptiX 0.19.2 (exact terminator shadows) and on the >= 0.19.1 accumulation
+# semantics that the interactive-preview mode is built around
+MIN_PLOTOPTIX_VERSION = (0, 19, 2)
+
+def check_plotoptix_version() -> bool:
+    version = plotoptix.__version__
+    match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    if match is None:
+        print(f"WARNING: Unrecognized PlotOptiX version string: {version}")
+        return True
+    if tuple(int(g) for g in match.groups()) < MIN_PLOTOPTIX_VERSION:
+        required = ".".join(str(v) for v in MIN_PLOTOPTIX_VERSION)
+        print(f"PlotOptiX {version} is too old: {APP_NAME} requires {required} or newer "
+              "(exact terminator shadows need the marching_step support). "
+              "Update with: pip install --upgrade -r requirements.txt")
+        return False
+    return True
     
 def get_date_time_local(time_iso: str) -> tuple[Optional[datetime], Optional[Exception]]:
     if time_iso.endswith("Z"):
@@ -323,12 +338,11 @@ def main():
         print("Invalid time step. Must be between 1 and 1440 minutes.")
         sys.exit(1)
 
-    if not (1 <= args.shadow_accuracy <= 20):
-        print("Invalid shadow accuracy. Must be between 1 and 20.")
-        sys.exit(1)
-
     if init_view_orientation not in VIEW_ORIENTATIONS:
         print(f"Invalid view orientation '{init_view_orientation}'. Must be one of: {', '.join(VIEW_ORIENTATIONS)}")
+        sys.exit(1)
+
+    if not check_plotoptix_version():
         sys.exit(1)
 
     if not check_gpu_architecture():
@@ -356,8 +370,7 @@ def main():
                  time_step_minutes=args.time_step_minutes,
                  init_view_orientation=init_view_orientation,
                  gamma=args.gamma,
-                 parallactic_mode=parallactic_mode,
-                 shadow_accuracy=args.shadow_accuracy)
+                 parallactic_mode=parallactic_mode)
 
 if __name__ == "__main__":
     main()

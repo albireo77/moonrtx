@@ -59,21 +59,23 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # at light distance 2146.
     SUN_BRIGHTNESS_SCALE = (2146.0 / 100.0) ** 2
 
-    # PlotOptiX's displaced-surface intersector applies an absolute
-    # self-intersection epsilon of 1.5e-3 scene units by default. It lifts
-    # shadow-ray origins ~265 m above the terrain and truncates every shadow
-    # tip by epsilon/tan(sun_alt): 5-7 km of missing shadow near the terminator
-    # (~2 h of shadow evolution), clearly visible next to real photographs.
-    # The undocumented "scene_epsilon" launch variable (verified present in
-    # rndSharpOptiX7.dll of PlotOptiX 0.19.0 and settable via set_float)
-    # controls it. Shrinking it by the shadow-accuracy factor restores physical
-    # shadow lengths, but rendering slows down ~linearly with the factor
-    # because the intersector's ray-marching step is proportional to the
-    # epsilon. Factor 10 leaves ~20 m of lift (~0.5 km of shadow at 3 deg sun
-    # altitude), below perception; measured with no self-intersection
-    # artifacts at that level.
-    DEFAULT_SCENE_EPSILON = 1.5e-3
-    ACCURATE_SHADOW_FACTOR = 10
+    # Displaced-surface ray tracing settings for PlotOptiX >= 0.19.2, which
+    # decoupled the ray-marching step from the self-intersection epsilon
+    # (added upstream for MoonRTX, see
+    # https://github.com/rnd-team-dev/plotoptix/issues/71). scene_epsilon now
+    # only lifts hit points and shadow-ray origins off the terrain: 1e-4 scene
+    # units = 17 m (~0.3 km of shadow-tip error at 3 deg sun altitude, below
+    # perception; the old coupled default caused 265 m of lift = 5-7 km of
+    # missing shadow near the terminator, ~2 h of shadow evolution). Do not go
+    # below 1e-4: rays start leaking under the surface and darken the terrain.
+    # marching_step stays coarse for speed; marching_step_eps 3e-4 is the
+    # near-surface refinement sweet spot (1e-4 renders 3.6x slower with no
+    # visible gain). Measured on the Piazzi Smyth mount shadow at 2.8 deg sun:
+    # 18.1 km rendered vs 18.9 km geometric, at 2.4x the cost of the fastest
+    # (but badly truncating) settings - exact shadows no longer need a toggle.
+    SCENE_EPSILON = 1.0e-4
+    MARCHING_STEP = 5.0e-3
+    MARCHING_STEP_EPS = 3.0e-4
 
     # Visible Sun disk, decoupled from the light source (see calculate_sun_disk).
     # It sits closer than the light, but its material lets shadow rays pass
@@ -84,6 +86,18 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # Flat radiance: >= 1.12 renders as pure white for any gamma in the 0.5-5.0 range,
     # while keeping the stray light the disk bounces onto the Moon negligible
     SUN_DISK_COLOR = 2.0
+
+    # Accumulation settings. Since PlotOptiX 0.19.1 the displayed image is
+    # presented once per completed accumulation cycle (max_accumulation_frames),
+    # so any scene change (time stepping, brightness, overlays, navigation)
+    # would only appear after a full 32-frame cycle converges - held-key Q/W
+    # animation would barely refresh at all. During interactive changes the
+    # cycle is therefore shortened to a single frame (immediate but slightly
+    # noisy preview, ~20 steps/s measured at full screen with exact shadows)
+    # and the converged setting is restored shortly after the last change.
+    ACCUMULATION_FRAMES = 32
+    PREVIEW_ACCUMULATION_FRAMES = 1
+    PREVIEW_RESTORE_DELAY_MS = 500
 
     CAMERA_NAME = "cam1"
     LIGHT_NAME = "sun"
@@ -102,8 +116,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False,
-                 shadow_accuracy: int = 1):
+                 parallactic_mode: bool = False):
         """
         Initialize the planetarium.
 
@@ -135,22 +148,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Gamma correction value (default 2.2)
         parallactic_mode : bool
             Whether to use parallactic projection mode (default False)
-        shadow_accuracy : int
-            Shadow accuracy factor (default 1). Values > 1 shrink the ray
-            tracer's scene epsilon so shadow tips near the terminator reach
-            their physical length (see DEFAULT_SCENE_EPSILON); rendering
-            slows down roughly by this factor. The X key toggles it at runtime.
         """
         self.downscale = downscale
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
         self.parallactic_mode = parallactic_mode
-        # Shadow accuracy: X key toggles between fast (factor 1) and accurate
-        # shadows; when started with factor 1 the toggle uses the default
-        # accurate factor
-        self.shadow_accuracy = shadow_accuracy
-        self.accurate_shadow_factor = self.shadow_accuracy if self.shadow_accuracy > 1 else self.ACCURATE_SHADOW_FACTOR
-        self.shadow_accuracy_on = self.shadow_accuracy > 1
         self.observer = observer
 
         # Load data (color and star map are loaded in init_renderer, where they
@@ -260,8 +262,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._status_gamma_var = None
         self._status_pins_var = None
         self._status_coords_var = None
-        self._status_shadows_var = None
         self._status_feature = None
+
+        # Interactive-preview state (short accumulation cycles during scene changes)
+        self._preview_active = False
+        self._preview_restore_id = None
 
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
@@ -316,22 +321,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.gamma = new_gamma
         self.rt.set_float("tonemap_gamma", self.gamma)
         self._update_status_gamma()
-
-    def toggle_shadow_accuracy(self):
-        """
-        Toggle between fast and accurate shadow rendering (X key).
-
-        Accurate mode shrinks the ray tracer's scene epsilon so shadow tips
-        near the terminator reach their physical length (see the
-        DEFAULT_SCENE_EPSILON comment); rendering slows down roughly by the
-        accuracy factor while enabled.
-        """
-        if self.rt is None:
-            return
-        self.shadow_accuracy_on = not self.shadow_accuracy_on
-        factor = self.accurate_shadow_factor if self.shadow_accuracy_on else 1
-        self.rt.set_float("scene_epsilon", self.DEFAULT_SCENE_EPSILON / factor, refresh=True)
-        self._update_status_shadows()
 
     def change_time_step(self, delta: int):
         """
@@ -420,10 +409,40 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._update_status_time()
         self._update_info_moon()
 
+    def _begin_interactive_preview(self):
+        """
+        Switch to single-frame accumulation cycles for the duration of a burst
+        of interactive scene changes (held Q/W, brightness, navigation etc.),
+        so every change is displayed immediately. Re-arms the timer that
+        restores converged rendering after the burst.
+
+        Note: change_time() itself does not call this, so programmatic time
+        steps (auto-advance ticks) render straight to the converged image.
+        """
+        if self.rt is None or self.rt._root is None:
+            return
+        if not self._preview_active:
+            self._preview_active = True
+            self.rt.set_param(max_accumulation_frames=self.PREVIEW_ACCUMULATION_FRAMES)
+        if self._preview_restore_id is not None:
+            self.rt._root.after_cancel(self._preview_restore_id)
+        self._preview_restore_id = self.rt._root.after(
+            self.PREVIEW_RESTORE_DELAY_MS, self._end_interactive_preview)
+
+    def _end_interactive_preview(self):
+        """Restore converged accumulation after the last interactive change."""
+        self._preview_restore_id = None
+        if self.rt is None or not self._preview_active:
+            return
+        self._preview_active = False
+        self.rt.set_param(max_accumulation_frames=self.ACCUMULATION_FRAMES)
+        self.rt.refresh_scene()
+
     # ---- renderer setup ----
 
     def _mouse_wheel_handler(self, event):
         """Handle mouse wheel events for zooming."""
+        self._begin_interactive_preview()
         self.zoom_with_wheel(event)
 
     def init_astro(self):
@@ -437,16 +456,17 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         )
 
         # Rendering parameters
-        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=32)
+        self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=self.ACCUMULATION_FRAMES)
 
         # Single diffuse body with one light: long multi-bounce paths add mostly
         # noise, so cap path length for faster, cleaner frames. Trade-off is
         # slightly darker shadowed crater floors (less bounced light).
         self.rt.set_uint("path_seg_range", 2, 4)
 
-        # Shadow accuracy (see DEFAULT_SCENE_EPSILON comment)
-        if self.shadow_accuracy_on:
-            self.rt.set_float("scene_epsilon", self.DEFAULT_SCENE_EPSILON / self.shadow_accuracy)
+        # Exact terminator shadows at interactive speed (see SCENE_EPSILON comment)
+        self.rt.set_float("scene_epsilon", self.SCENE_EPSILON)
+        self.rt.set_float("marching_step", self.MARCHING_STEP)
+        self.rt.set_float("marching_step_eps", self.MARCHING_STEP_EPS)
 
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
@@ -462,18 +482,20 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         else:
             self.rt.set_background(0)  # Black background
 
-        # Setup material with Moon texture (local for the same reason, ~200 MB)
+        # Setup material with Moon texture (local for the same reason, ~200 MB).
+        # Copy the material so the shared plotoptix module dict stays untouched.
         color_data = load_color_data(self.color_file, self.gamma)
         self.rt.set_texture_2d("moon_color", color_data)
-        m_diffuse["ColorTextures"] = ["moon_color"]
-        self.rt.update_material("diffuse", m_diffuse)
+        moon_material = m_diffuse.copy()
+        moon_material["ColorTextures"] = ["moon_color"]
+        self.rt.update_material("diffuse", moon_material)
 
         # Create Moon sphere with displacement
         self.rt.set_data(self.MOON_OBJECT_NAME, geom="ParticleSetTextured", geom_attr="DisplacedSurface",
                         pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.MOON_RADIUS)
 
-        # Apply displacement map
-        self.rt.set_displacement(self.MOON_OBJECT_NAME, self.elevation, refresh=True)
+        # Apply displacement map (no refresh: the renderer is not started yet)
+        self.rt.set_displacement(self.MOON_OBJECT_NAME, self.elevation, refresh=False)
 
         cam = self.initial_camera
         self.rt.setup_camera(self.CAMERA_NAME,
@@ -663,6 +685,12 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=sun_light_radius)
             self.update_overlays()
 
+        # Since 0.19.1 updates applied while the accumulation cycle is idle do
+        # not restart rendering on their own; force a new cycle so the change
+        # is displayed immediately
+        if self.rt._is_started:
+            self.rt.refresh_scene()
+
     # ---- lifecycle ----
 
     def start(self):
@@ -675,12 +703,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if self.rt is not None:
             self.rt.close()
             self.rt = None
-
-    def save_image(self, filename: str):
-        """Save the current render to file."""
-        if self.rt is not None:
-            self.rt.save_image(filename)
-            print(f"Saved: {filename}")
 
 # ---------------------------------------------------------------------------
 # Public entry-point
@@ -698,8 +720,7 @@ def run_renderer(dt_local: datetime,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False,
-                 shadow_accuracy: int = 1) -> TkOptiX:
+                 parallactic_mode: bool = False) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 
@@ -725,10 +746,6 @@ def run_renderer(dt_local: datetime,
         Gamma correction value (default 2.2)
     parallactic_mode : bool
         Whether to use parallactic projection mode (default False)
-    shadow_accuracy : int
-        Shadow accuracy factor (default 1); values > 1 render physically
-        accurate terminator shadows at proportionally slower speed.
-        The X key toggles it at runtime.
 
     Returns
     -------
@@ -748,7 +765,6 @@ def run_renderer(dt_local: datetime,
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
-    print(f"  Shadow Accuracy: {shadow_accuracy}")
     if initial_camera is not None:
         print("  Location, time and view set from --init-view parameter value")
     print()
@@ -766,8 +782,7 @@ def run_renderer(dt_local: datetime,
         gamma=gamma,
         parallactic_mode=parallactic_mode,
         dt_local=dt_local,
-        initial_camera=initial_camera,
-        shadow_accuracy=shadow_accuracy
+        initial_camera=initial_camera
     )
 
     moon_renderer.init_astro()
@@ -777,12 +792,21 @@ def run_renderer(dt_local: datetime,
 
     original_key_handler = moon_renderer.rt._gui_key_pressed
 
+    # Keys that modify the rendered scene: switch to single-frame preview
+    # cycles so the change is displayed immediately (see ACCUMULATION_FRAMES)
+    preview_keysyms = {'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10',
+                       'Left', 'Right', 'Up', 'Down',
+                       '1', '2', '3', '4', '5', '6', '7', '8', '9'}
+    preview_letters = set('glsrchjvazedqwp')
+
     def custom_key_handler(event):
         # Ignore key events when search dialog or datetime dialog is focused
         if moon_renderer.search_dialog_open:
             return
         if moon_renderer.datetime_dialog_focused:
             return
+        if event.keysym in preview_keysyms or event.keysym.lower() in preview_letters:
+            moon_renderer._begin_interactive_preview()
         if event.keysym.lower() == 'g':
             moon_renderer.toggle_grid()
         elif event.keysym.lower() == 'l':
@@ -836,8 +860,6 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_gamma(0.1)
         elif event.keysym.lower() == 'd':
             moon_renderer.change_gamma(-0.1)
-        elif event.keysym.lower() == 'x':
-            moon_renderer.toggle_shadow_accuracy()
         elif event.keysym.lower() == 'm':
             step = 60 if event.state & 0x1 else 1
             moon_renderer.change_time_step(step)
@@ -923,6 +945,9 @@ def run_renderer(dt_local: datetime,
 
     def custom_apply_scene_edits(*args):
         rt = moon_renderer.rt
+        # Mouse-driven view manipulation benefits from immediate preview too
+        if rt._any_mouse:
+            moon_renderer._begin_interactive_preview()
         if rt._selection_handle == -1 and rt._right_mouse and not rt._any_key:
             dx = rt._mouse_to_x - rt._mouse_from_x
             dy = rt._mouse_to_y - rt._mouse_from_y
