@@ -469,6 +469,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.set_float("marching_step", self.MARCHING_STEP)
         self.rt.set_float("marching_step_eps", self.MARCHING_STEP_EPS)
 
+        # No ambient light: in space the Moon's night side and shadow interiors
+        # receive no atmospheric skylight, only sunlight bounced from nearby
+        # sunlit terrain (path_seg_range above). PlotOptiX's default ambient
+        # (~0.45 gray) would otherwise wash the whole disk to a flat gray,
+        # washing out the night side of a crescent and lifting shadow floors.
+        self.rt.set_ambient(0)
+
         # Tone mapping
         self.rt.set_float("tonemap_exposure", 0.9)
         self.rt.set_float("tonemap_gamma", self.gamma)
