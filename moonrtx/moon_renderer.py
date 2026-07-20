@@ -90,12 +90,16 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # Accumulation settings. Since PlotOptiX 0.19.1 the displayed image is
     # presented once per completed accumulation cycle (max_accumulation_frames),
     # so any scene change (time stepping, brightness, overlays, navigation)
-    # would only appear after a full 32-frame cycle converges - held-key Q/W
-    # animation would barely refresh at all. During interactive changes the
-    # cycle is therefore shortened to a single frame (immediate but slightly
-    # noisy preview, ~20 steps/s measured at full screen with exact shadows)
-    # and the converged setting is restored shortly after the last change.
-    ACCUMULATION_FRAMES = 32
+    # would only appear after a full cycle converges - held-key Q/W animation
+    # would barely refresh at all. During interactive changes the cycle is
+    # therefore shortened to a single frame (immediate but slightly noisy
+    # preview, ~20 steps/s measured at full screen with exact shadows) and the
+    # converged setting is restored shortly after the last change.
+    # 64 frames settle in ~1.5 s at full screen: since interactivity uses the
+    # single-frame preview, this value only sets the quiet-image quality. 64
+    # keeps path-tracing grain low in the shadow/terminator regions (which
+    # zero ambient no longer masks) at diminishing returns beyond it.
+    ACCUMULATION_FRAMES = 64
     PREVIEW_ACCUMULATION_FRAMES = 1
     PREVIEW_RESTORE_DELAY_MS = 500
 
