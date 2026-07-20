@@ -10,6 +10,7 @@ class MoonEphemeris(NamedTuple):
     distance: float
     sun_distance: float
     phase_angle: float
+    age_days: float
     bright_limb_angle: float
     libr_long_geo: float
     libr_lat_geo: float

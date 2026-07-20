@@ -2,6 +2,7 @@ import math
 from datetime import datetime, timezone
 
 import numpy as np
+from skyfield import almanac
 from skyfield.api import wgs84
 from skyfield.positionlib import ICRF
 from skyfield.framelib import ecliptic_frame, true_equator_and_equinox_of_date
@@ -26,6 +27,7 @@ RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
 
 def init(observer: Observer):
     global _observer, _observer_lat, _earth, _moon, _sun, _moon_frame, _timescale
+    global _moon_phases_fn, _lunation_bounds
     ephemeris = skyfield_ephemeris()
     _moon_frame = skyfield_moon_frame()
     _timescale = skyfield_timescale()
@@ -38,6 +40,31 @@ def init(observer: Observer):
         elevation_m=observer.elevation_m
     )
     _observer_lat = observer.lat
+    _moon_phases_fn = almanac.moon_phases(ephemeris)
+    _lunation_bounds = None
+
+
+def _moon_age_days(time) -> float:
+    """
+    Time since the previous new moon, in days.
+
+    The true age, not the mean-rate estimate from elongation, which can differ
+    by more than half a day. The new moons bracketing the current lunation
+    are found with an almanac search and cached, so repeated calls during
+    time animation cost only a comparison until the date leaves the cached lunation.
+    """
+    global _lunation_bounds
+    tt = time.tt
+    if _lunation_bounds is None or not (_lunation_bounds[0] <= tt < _lunation_bounds[1]):
+        t0 = _timescale.tt_jd(tt - 31.0)
+        t1 = _timescale.tt_jd(tt + 31.0)
+        times, phases = almanac.find_discrete(t0, t1, _moon_phases_fn)
+        new_moons = times.tt[phases == 0]   # phase index 0 = new moon
+        prev = new_moons[new_moons <= tt].max()
+        upcoming = new_moons[new_moons > tt]
+        nxt = upcoming.min() if upcoming.size else prev + 29.53
+        _lunation_bounds = (float(prev), float(nxt))
+    return tt - _lunation_bounds[0]
 
 
 def _validate_supported_datetime(dt_local: datetime) -> datetime:
@@ -205,6 +232,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
         distance=moon_distance_km,
         sun_distance=sun_distance_km,
         phase_angle=phase_angle_deg,
+        age_days=_moon_age_days(time),
         bright_limb_angle=_wrap_signed_degrees(bright_limb_angle_deg),
         libr_long_geo=_wrap_signed_degrees(libr_lon_geo),
         libr_lat_geo=libr_lat_geo,

@@ -87,6 +87,7 @@ class StatusMixin:
 
         self._info_phase_name_var.set(f"{e.phase_name:>17}")
         self._info_phase_var.set(f"Phase ∠: {e.phase_angle:7.3f}°")
+        self._info_age_var.set(f"Age:  {e.age_days:6.2f} days")
         self._info_elongation_var.set(f"Sun ∠:   {e.elongation:7.3f}°")
         self._info_distance_var.set(f"Dist:  {math.floor(e.distance + 0.5):,.0f} km".replace(",", " "))
         self._info_illum_var.set(f"💡:        {(1 + math.cos(math.radians(e.phase_angle))) * 50.0:6.2f}%")
@@ -296,6 +297,7 @@ class StatusMixin:
                     self._info_illum_var = tk.StringVar(value="Illuminated:")
                     self._info_elongation_var = tk.StringVar(value="Elongation:")
                     self._info_phase_var = tk.StringVar(value="Ph:")
+                    self._info_age_var = tk.StringVar(value="Age:")
                     self._info_phase_name_var = tk.StringVar(value="Phase:")
 
                     info_frame = tk.Frame(rt._canvas, bg=info_bg, padx=6, pady=4)
@@ -314,6 +316,7 @@ class StatusMixin:
                         self._info_illum_var,
                         self._info_elongation_var,
                         self._info_phase_var,
+                        self._info_age_var,
                         self._info_phase_name_var,
                     ]
                     for var in info_vars:
