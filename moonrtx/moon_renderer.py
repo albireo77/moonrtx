@@ -793,12 +793,15 @@ def run_renderer(dt_local: datetime,
 
     original_key_handler = moon_renderer.rt._gui_key_pressed
 
-    # Keys that modify the rendered scene: switch to single-frame preview
-    # cycles so the change is displayed immediately (see ACCUMULATION_FRAMES)
-    preview_keysyms = {'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10',
-                       'Left', 'Right', 'Up', 'Down',
-                       '1', '2', '3', '4', '5', '6', '7', '8', '9'}
-    preview_letters = set('glsrchjvazedqwp')
+    # Held-repeat keys that animate the scene (time stepping, view navigation
+    # and roll, brightness and gamma sweeps): use single-frame preview cycles so
+    # rapid autorepeat stays responsive (see ACCUMULATION_FRAMES). One-shot keys
+    # (orientation, toggles, resets, pins, set-time-now) are deliberately left
+    # out: a single scene update finishes its accumulation cycle undisturbed and
+    # renders straight to the converged image, like the date/time dialog, with
+    # no noisy intermediate frame.
+    preview_keysyms = {'Left', 'Right', 'Up', 'Down'}
+    preview_letters = set('qwazedhj')
 
     def custom_key_handler(event):
         # Ignore key events when search dialog or datetime dialog is focused
