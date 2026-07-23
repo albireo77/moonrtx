@@ -36,7 +36,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - The bundled Skyfield Moon orientation kernels support dates from `1900-01-01T00:00:00+00:00` through `2051-01-01T00:00:00+00:00`.
 - Current MoonRTX will work only with PlotOptix 0.19.2+
 - Downscaling of elevation map can take even around 1 minute depending on `--downscale` parameter value (lower value = more time). Once downscaled for the first time, map is cached in `data` directory as .npy file for future use.
-- If you don't like default Moon colors in MoonRTX, you can download file with more realistic (though bland) colors from [NASA site](https://svs.gsfc.nasa.gov/4720) and load it with `--color-file` parameter on program start.
+- If you don't like default Moon colors in MoonRTX, you can download file (e.g. [lroc_color_poles.tif](https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles.tif)) with more realistic, though bland, colors from [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) and load it with `--color-file` parameter on program start.
 
 ## Keyboard and Mouse Actions
 **F1** - Help  
