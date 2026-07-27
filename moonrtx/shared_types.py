@@ -39,6 +39,11 @@ class Camera(NamedTuple):
     up: list
     fov: float
     type: str = "Pinhole"
+    # The three lens parameters below are used only by the lens-simulating
+    # camera types (DoF/ThinLens, Fisheye, ...); the Pinhole camera used by the
+    # app has infinite depth of field and ignores them. Note: if the type is
+    # ever switched to a lens camera, focal_scale 0.7 puts the focal plane well
+    # in front of the Moon (0.7 x eye-target distance) and blurs the surface.
     aperture_radius: float = 0.01
     aperture_fract: float = 0.2
     focal_scale: float = 0.7
