@@ -1,5 +1,5 @@
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from skyfield import almanac
@@ -159,6 +159,112 @@ def _phase_name(moon: ICRF, sun: ICRF) -> str:
         return "Last Quarter"
     else:
         return "Waning Crescent"
+
+
+def _sun_altitude_at_feature(subsolar_lat_deg: np.ndarray, subsolar_lon_deg: np.ndarray,
+                             lat_deg: float, lon_deg: float) -> np.ndarray:
+    """
+    Solar altitude above the local lunar horizon at a selenographic location:
+    90 degrees minus the angular distance to the subsolar point (spherical law
+    of cosines). Vectorized over the subsolar-point arrays.
+    """
+    b0 = np.radians(subsolar_lat_deg)
+    l0 = np.radians(subsolar_lon_deg)
+    b = math.radians(lat_deg)
+    l = math.radians(lon_deg)
+    sin_alt = np.sin(b0) * math.sin(b) + np.cos(b0) * math.cos(b) * np.cos(l - l0)
+    return np.degrees(np.arcsin(np.clip(sin_alt, -1.0, 1.0)))
+
+
+def find_terminator_windows(start_local: datetime, days: int,
+                            feature_lat: float, feature_lon: float,
+                            step_minutes: int = 60,
+                            sun_alt_max: float = 12.0,
+                            moon_alt_min: float = 5.0) -> list[dict]:
+    """
+    Find upcoming windows when a Moon feature can be observed near the
+    terminator: the Sun is low over the feature (0..sun_alt_max degrees, so
+    the terrain is lit with long shadows) while the Moon stands at least
+    moon_alt_min degrees above the observer's horizon.
+
+    The scan is a single vectorized Skyfield evaluation over the whole range
+    (a per-sample calculate_moon_ephemeris loop would take tens of seconds
+    for a 60-day scan; this takes a fraction of one). Consecutive qualifying
+    samples are merged into windows.
+
+    Parameters
+    ----------
+    start_local : datetime
+        Timezone-aware start of the scan
+    days : int
+        Scan length in days (clamped to the bundled kernel range)
+    feature_lat, feature_lon : float
+        Selenographic position of the feature in degrees
+    step_minutes : int
+        Sample spacing; window edges are accurate to this resolution
+    sun_alt_max : float
+        Highest Sun altitude over the feature still considered "near the
+        terminator" (12 degrees is roughly a day past sunrise/before sunset)
+    moon_alt_min : float
+        Minimum Moon altitude at the observer site
+
+    Returns
+    -------
+    list[dict]
+        One dict per window, sorted by time, with keys: "start", "end",
+        "best" (UTC datetimes; "best" is the sample with the highest Moon
+        altitude), "event" ("sunrise" or "sunset"), "sun_alt" and "moon_alt"
+        (degrees at "best"), "observer_sun_alt" (degrees at "best", for
+        judging sky darkness).
+    """
+    start_utc = _validate_supported_datetime(start_local)
+    end_utc = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
+    n = max(int((end_utc - start_utc).total_seconds() // (step_minutes * 60)), 1)
+    dts = [start_utc + timedelta(minutes=step_minutes * i) for i in range(n)]
+    t = _timescale.from_datetimes(dts)
+
+    observer_at = _observer.at(t)
+    moon_alt, _, _ = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")
+    sun_alt_obs, _, _ = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")
+    moon_alt = moon_alt.degrees
+    sun_alt_obs = sun_alt_obs.degrees
+
+    # Subsolar point on the Moon; geometric positions are enough (light-time
+    # shifts it by arcseconds, far below the hour-level scan resolution)
+    sun_from_moon = (_sun.at(t) - _moon.at(t)).position.au
+    R_moon = _moon_frame.rotation_at(t)
+    body_vec = np.einsum('ijn,jn->in', R_moon, sun_from_moon)
+    r = np.linalg.norm(body_vec, axis=0)
+    subsolar_lat = np.degrees(np.arcsin(body_vec[2] / r))
+    subsolar_lon = np.degrees(np.arctan2(body_vec[1], body_vec[0]))
+
+    sun_alt_f = _sun_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
+
+    ok = (sun_alt_f >= 0.0) & (sun_alt_f <= sun_alt_max) & (moon_alt >= moon_alt_min)
+    idx = np.flatnonzero(ok)
+    if idx.size == 0:
+        return []
+
+    breaks = np.flatnonzero(np.diff(idx) > 1)
+    seg_starts = np.concatenate(([0], breaks + 1))
+    seg_ends = np.concatenate((breaks, [idx.size - 1]))
+
+    windows = []
+    for s, e in zip(seg_starts, seg_ends):
+        seg = idx[s:e + 1]
+        best = seg[np.argmax(moon_alt[seg])]
+        windows.append({
+            "start": dts[seg[0]],
+            "end": dts[seg[-1]],
+            "best": dts[best],
+            # The Sun climbs over the feature after sunrise and sinks toward
+            # sunset; within a window (at most a day) this is monotonic
+            "event": "sunrise" if sun_alt_f[seg[-1]] >= sun_alt_f[seg[0]] else "sunset",
+            "sun_alt": float(sun_alt_f[best]),
+            "moon_alt": float(moon_alt[best]),
+            "observer_sun_alt": float(sun_alt_obs[best]),
+        })
+    return windows
 
 
 def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> MoonEphemeris:

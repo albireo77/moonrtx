@@ -17,8 +17,12 @@ class NavigationMixin:
 
     def center_on_feature(self, feature: MoonFeature):
         """
-        Center the view on a Moon feature and zoom to show it.
-        
+        Center the view on a Moon feature.
+
+        Works exactly like center_view_on_cursor (C key): the camera keeps its
+        current distance and FOV, only the target moves to the feature. Zooming
+        in on the feature is left to the user (mouse wheel / Shift+drag).
+
         Parameters
         ----------
         feature : MoonFeature
@@ -26,11 +30,11 @@ class NavigationMixin:
         """
         if self.rt is None or self.moon_rotation is None:
             return
-        
+
         # Convert selenographic coordinates to 3D position
         lat_rad = np.radians(feature.lat)
         lon_rad = np.radians(feature.lon)
-        
+
         # In original Moon coordinates:
         # - +Z is north pole
         # - -Y is prime meridian (lon=0)
@@ -38,38 +42,24 @@ class NavigationMixin:
         x = self.MOON_RADIUS * np.cos(lat_rad) * np.sin(lon_rad)
         y = -self.MOON_RADIUS * np.cos(lat_rad) * np.cos(lon_rad)
         z = self.MOON_RADIUS * np.sin(lat_rad)
-        
+
         # Apply Moon rotation to get scene coordinates
         original_pos = np.array([x, y, z])
         scene_pos = self.moon_rotation @ original_pos
-        
+
         # Get current camera
         cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
         target = np.array(cam["Target"])
-        
-        # Calculate new camera distance based on feature size
-        # Aim to have feature fill about 30% of the view
-        feature_radius_scene = feature.angular_radius * (self.MOON_RADIUS / 90)  # Rough conversion
-        current_fov = self.rt._optix.get_camera_fov(0)
-        
-        # Calculate distance to make feature appear at desired size
-        desired_angular_size = current_fov * 0.3  # 30% of FOV
-        new_distance = feature_radius_scene / np.tan(np.radians(desired_angular_size / 2))
-        
-        # Clamp distance to reasonable range
-        min_dist = self.MOON_RADIUS * 1.1
-        max_dist = self.MOON_RADIUS * 15
-        new_distance = np.clip(new_distance, min_dist, max_dist)
-        
-        # Direction from target to eye
+
+        # Keep the current camera distance, like center_view_on_cursor does
         direction = eye - target
-        direction = direction / np.linalg.norm(direction)
-        
-        # New eye position
+        distance = np.linalg.norm(direction)
+        direction = direction / distance
+
         new_target = scene_pos
-        new_eye = new_target + direction * new_distance
-        
+        new_eye = new_target + direction * distance
+
         # Update camera
         self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), target=new_target.tolist())
 
@@ -491,7 +481,7 @@ class NavigationMixin:
     def zoom_with_wheel(self, event):
         """
         Zoom in/out using mouse wheel.
-        
+
         Parameters
         ----------
         event : tk.Event
@@ -500,21 +490,21 @@ class NavigationMixin:
         """
         if self.rt is None:
             return
-        
+
         # Get current FOV
         current_fov = self.rt._optix.get_camera_fov(0)
-        
+
         # Calculate zoom factor based on wheel delta
         zoom_factor = 1 - (event.delta / 120) * 0.05  # 5% per notch
-        
+
         # Apply zoom by changing FOV
         new_fov = current_fov * zoom_factor
-        
+
         # Clamp FOV to reasonable range. The lower bound keeps the maximum zoom-in
         # (relative to the ~4.2 degree default FOV of the camera at 30 Moon radii)
         # similar to the previous 10-radii/1-degree setup.
         new_fov = max(0.3, min(90, new_fov))
-        
+
         self.rt._optix.set_camera_fov(new_fov)
 
     # ==================== Distance Measurement Methods ====================
