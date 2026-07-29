@@ -3,6 +3,7 @@ DialogsMixin: dialog windows (help, search, save, datetime) for MoonRenderer.
 """
 
 import os
+import glob
 import base64
 import struct
 import tkinter as tk
@@ -11,6 +12,24 @@ from datetime import datetime
 
 from moonrtx import astro
 from moonrtx.shared_types import Camera, MoonFeature
+
+
+def _ffmpeg_dlls_findable() -> bool:
+    """
+    Heuristic check whether the FFmpeg shared DLLs needed by the PlotOptiX
+    video encoder can be found: avcodec*.dll in any PATH directory (the
+    encoder itself gives no Python-queryable availability flag on Windows).
+    Non-Windows platforms are assumed OK.
+    """
+    if os.name != 'nt':
+        return True
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        try:
+            if d.strip() and glob.glob(os.path.join(d.strip(), "avcodec*.dll")):
+                return True
+        except OSError:
+            continue
+    return False
 
 def encode_camera(camera: Camera) -> str:
     """
@@ -166,6 +185,187 @@ class DialogsMixin:
         y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - win.winfo_height()) // 2
         win.geometry(f"+{x}+{y}")
 
+    def export_video_dialog(self):
+        """
+        Open the time-lapse video export dialog: renders N frames from the
+        current observation time, advancing by a configurable number of
+        simulated minutes per frame, into an MP4 (H.264, NVENC hardware
+        encoding). See MoonRenderer.start_video_export for the mechanics.
+        """
+        if self.rt is None:
+            return
+
+        # Reuse the search-dialog flag: it blocks main-window key handling
+        # for this dialog in exactly the same way
+        self.search_dialog_open = True
+
+        win = tk.Toplevel(self.rt._root)
+        win.title("Export time-lapse video")
+        win.transient(self.rt._root)
+        win.grab_set()
+        win.resizable(False, False)
+
+        exporting = {"active": False}
+
+        def on_close():
+            if exporting["active"]:
+                # Closing during export only requests cancellation; the dialog
+                # stays open to show the final status and can be closed then
+                self.cancel_video_export()
+                return
+            self.search_dialog_open = False
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+        win.bind('<Escape>', lambda e: on_close())
+
+        main_frame = tk.Frame(win, padx=15, pady=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(main_frame,
+                 text=f"Starts at the current observation time: {self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
+                 anchor='w').pack(fill=tk.X, pady=(0, 6))
+
+        grid = tk.Frame(main_frame)
+        grid.pack(fill=tk.X)
+
+        frames_var = tk.StringVar(value="120")
+        step_var = tk.StringVar(value=str(self.time_step_minutes))
+        # NVENC settings are fixed for the session by the first export
+        cfg = self._video_encoder_cfg
+        fps_var = tk.StringVar(value=str(cfg[0]) if cfg else "25")
+        bitrate_var = tk.StringVar(value=f"{cfg[1]:g}" if cfg else "16")
+
+        rows = [
+            ("Frames:", frames_var, "(2 - 100000)", True),
+            ("Minutes per frame:", step_var, "(negative goes back in time)", True),
+            ("Playback FPS:", fps_var, "(1 - 60)", cfg is None),
+            ("Bitrate (Mbit/s):", bitrate_var, "(1 - 60)", cfg is None),
+        ]
+        entries = []
+        for i, (label, var, hint, enabled) in enumerate(rows):
+            tk.Label(grid, text=label, anchor='e').grid(row=i, column=0, sticky='e', pady=2)
+            e = tk.Entry(grid, textvariable=var, width=10,
+                         state='normal' if enabled else 'disabled')
+            e.grid(row=i, column=1, padx=5, pady=2, sticky='w')
+            tk.Label(grid, text=hint, fg='gray').grid(row=i, column=2, sticky='w', pady=2)
+            entries.append(e)
+
+        if cfg is not None:
+            tk.Label(main_frame, fg='gray', anchor='w',
+                     text="FPS and bitrate were fixed by this session's first export\n"
+                          "(PlotOptiX limitation); restart MoonRTX to change them."
+                     ).pack(fill=tk.X, pady=(4, 0))
+
+        # Live summary of video length and simulated time span
+        summary_var = tk.StringVar()
+
+        def update_summary(*args):
+            try:
+                n = int(frames_var.get())
+                step = int(step_var.get())
+                fps = int(fps_var.get())
+                span_h = n * step / 60.0
+                summary_var.set(f"Video length: {n / fps:.1f} s   "
+                                f"simulated span: {span_h:+.1f} h ({span_h / 24:+.2f} days)")
+            except (ValueError, ZeroDivisionError):
+                summary_var.set("")
+
+        for var in (frames_var, step_var, fps_var):
+            var.trace_add('write', update_summary)
+        update_summary()
+        tk.Label(main_frame, textvariable=summary_var, anchor='w').pack(fill=tk.X, pady=(6, 0))
+
+        status_var = tk.StringVar()
+        status_label = tk.Label(main_frame, textvariable=status_var, anchor='w')
+        status_label.pack(fill=tk.X, pady=(6, 0))
+
+        btn_frame = tk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(10, 0))
+
+        def set_exporting(active: bool):
+            exporting["active"] = active
+            state = 'disabled' if active else 'normal'
+            for i, e in enumerate(entries):
+                # FPS/bitrate stay disabled once the encoder is configured
+                locked = self._video_encoder_cfg is not None and i >= 2
+                e.config(state='disabled' if (active or locked) else 'normal')
+            export_btn.config(state=state)
+            cancel_btn.config(state='normal' if active else 'disabled')
+
+        def on_progress(frame, total, dt_local):
+            status_var.set(f"Rendering frame {frame} / {total}   "
+                           f"{dt_local.strftime('%Y-%m-%d %H:%M')}")
+
+        def on_done(error):
+            set_exporting(False)
+            if error:
+                status_label.config(fg='red')
+                status_var.set(f"Export stopped: {error}")
+            else:
+                status_label.config(fg='black')
+                status_var.set("Export finished.")
+
+        def on_export():
+            try:
+                n = int(frames_var.get())
+                step = int(step_var.get())
+                fps = int(fps_var.get())
+                bitrate = float(bitrate_var.get())
+                if not (2 <= n <= 100000): raise ValueError("frames out of range")
+                if not (1 <= abs(step) <= 1440): raise ValueError("minutes per frame out of range")
+                if not (1 <= fps <= 60): raise ValueError("FPS out of range")
+                if not (1 <= bitrate <= 60): raise ValueError("bitrate out of range")
+            except ValueError as e:
+                status_label.config(fg='red')
+                status_var.set(f"Invalid settings: {e}")
+                return
+
+            filename = filedialog.asksaveasfilename(
+                parent=win,
+                initialdir=".",
+                title="Save time-lapse video as",
+                initialfile=f"{self.get_default_filename()}_x{n}.mp4",
+                defaultextension=".mp4",
+                filetypes=(("MP4 video", "*.mp4"),)
+            )
+            if not filename:
+                return
+
+            status_label.config(fg='black')
+            status_var.set("Starting export...")
+            set_exporting(True)
+            error = self.start_video_export(filename, n, step, fps, bitrate,
+                                            on_progress, on_done)
+            if error is not None:
+                set_exporting(False)
+                status_label.config(fg='red')
+                status_var.set(error)
+
+        export_btn = tk.Button(btn_frame, text="Export...", command=on_export, width=12)
+        export_btn.pack(side=tk.LEFT)
+        cancel_btn = tk.Button(btn_frame, text="Cancel export", command=self.cancel_video_export,
+                               width=13, state='disabled')
+        cancel_btn.pack(side=tk.LEFT, padx=8)
+        tk.Button(btn_frame, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
+
+        # Early warning when the FFmpeg DLLs the encoder depends on are not
+        # findable. This mirrors the native loader's search (avcodec & co. in
+        # PATH) but is only a heuristic - DLLs can also live e.g. in the
+        # Python directory - so Export stays enabled and the engine's
+        # encoder_is_open() check remains the definitive (and fail-safe) gate.
+        if not _ffmpeg_dlls_findable():
+            status_label.config(fg='red')
+            status_var.set("No FFmpeg libraries (e.g. avcodec*.dll for WINDOWS) found.\n"
+                           "The export will most likely fail to start.\n"
+                           "Install latest FFmpeg shared libraries for your OS.")
+
+        # Center on main window
+        win.update_idletasks()
+        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - win.winfo_width()) // 2
+        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - win.winfo_height()) // 2
+        win.geometry(f"+{x}+{y}")
+
     def show_help_dialog(self):
         """Show a help window with keyboard and mouse shortcuts."""
         if self.rt is None:
@@ -206,6 +406,7 @@ class DialogsMixin:
             ("F8", "SNWE view orientation"),
             ("F9", "Set time to now using system timezone"),
             ("F10", "Set time to now + start auto-advance"),
+            ("F11", "Export time-lapse video (MP4)"),
             ("F12", "Save image"),
             ("1-9", "Create/Remove pin (when pins are ON)"),
             ("G", "Toggle selenographic grid"),

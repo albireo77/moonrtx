@@ -272,6 +272,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._preview_active = False
         self._preview_restore_id = None
 
+        # Time-lapse video export state (see start_video_export)
+        self._video_export = None
+        self._video_encoder_cfg = None
+
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
         self._auto_advance_id = None
@@ -426,6 +430,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         """
         if self.rt is None or self.rt._root is None:
             return
+        # Never drop to single-pass cycles while a video export runs: the
+        # encoder would capture the noisy preview frames
+        if self._video_export is not None:
+            return
         if not self._preview_active:
             self._preview_active = True
             self.rt.set_param(max_accumulation_frames=self.PREVIEW_ACCUMULATION_FRAMES)
@@ -442,6 +450,166 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._preview_active = False
         self.rt.set_param(max_accumulation_frames=self.ACCUMULATION_FRAMES)
         self.rt.refresh_scene()
+
+    # ---- time-lapse video export ----
+
+    def start_video_export(self, filename: str, n_frames: int, step_minutes: int,
+                           fps: int, bitrate: float, on_progress, on_done) -> Optional[str]:
+        """
+        Start a time-lapse export: from the current observation time, advance
+        by step_minutes per video frame, letting every frame converge to the
+        full accumulation quality before it is encoded. Verified on PlotOptiX
+        0.19.2: the NVENC encoder grabs exactly one frame per completed
+        accumulation cycle and stops itself after n_frames, so the export is
+        driven from the accum-done callback with no frame drops/duplicates.
+
+        Note: fps and bitrate are fixed by the first export of the session.
+        PlotOptiX supports a single encoder_create per raytracer instance and
+        silently ignores re-creation with new settings (verified).
+
+        Parameters
+        ----------
+        filename : str
+            Output MP4 file path
+        n_frames : int
+            Number of video frames to render
+        step_minutes : int
+            Simulated time step between frames (negative runs backwards)
+        fps : int
+            Playback frame rate (first export of the session only)
+        bitrate : float
+            H.264 bitrate in Mbit/s (first export of the session only)
+        on_progress : callable
+            on_progress(frame, total, dt_local), called on the Tk main thread
+            after each frame
+        on_done : callable
+            on_done(error_or_none), called on the Tk main thread when the
+            export finished, failed, or was cancelled
+
+        Returns
+        -------
+        str or None
+            Error message, or None when the export has started.
+        """
+        if self.rt is None:
+            return "Renderer not running"
+        if self._video_export is not None:
+            return "An export is already running"
+
+        # Auto-advance ticks would inject extra time jumps mid-export
+        if self._auto_advance_var and self._auto_advance_var.get():
+            self._auto_advance_var.set(False)
+            self._on_auto_advance_toggle()
+
+        # Make sure converged accumulation is active: a pending interactive
+        # preview would make the encoder capture single-pass noisy frames
+        if self._preview_restore_id is not None:
+            self.rt._root.after_cancel(self._preview_restore_id)
+            self._preview_restore_id = None
+        if self._preview_active:
+            self._preview_active = False
+            self.rt.set_param(max_accumulation_frames=self.ACCUMULATION_FRAMES)
+
+        first_create = self._video_encoder_cfg is None
+        if first_create:
+            try:
+                self.rt.encoder_create(fps=fps, bitrate=bitrate)
+            except Exception as e:
+                return f"Video encoder not available: {e}"
+
+        self._video_export = {
+            "n": n_frames,
+            "step": step_minutes,
+            "frame": 0,
+            "cancel": False,
+            "on_progress": on_progress,
+            "on_done": on_done,
+        }
+
+        try:
+            self.rt.encoder_start(filename, n_frames)
+        except Exception as e:
+            self._video_export = None
+            return f"Video encoder not started: {e}"
+
+        # Definitive success check. PlotOptiX reports encoder failures only in
+        # the log (default _raise_on_error=False), so without this check an
+        # export with e.g. missing FFmpeg DLLs would render every frame with
+        # no encoder attached and silently produce no file. A successfully
+        # started encoder is always open (verified on Windows for both the
+        # missing-FFmpeg and NVENC-error cases).
+        if not self.rt.encoder_is_open():
+            self._video_export = None
+            return ("Video encoder failed to start - no frames were rendered.\n"
+                    "Check that FFmpeg (shared build) DLLs are in PATH; details "
+                    "are in the console output.")
+        if first_create:
+            self._video_encoder_cfg = (fps, bitrate)
+
+        self.rt.set_accum_done_cb(self._video_export_accum_done)
+        # Re-render the current time: it becomes the first video frame
+        self.rt.refresh_scene()
+        return None
+
+    def cancel_video_export(self):
+        """Request export cancellation; it stops after the current frame."""
+        if self._video_export is not None:
+            self._video_export["cancel"] = True
+
+    def _video_export_accum_done(self, rt):
+        """
+        Accum-done callback driving the video export. Runs on the raytracing
+        thread with the render padlock held (an RLock, so the padlock use
+        inside update_view is re-entrant); GUI work is posted to the Tk
+        main thread.
+        """
+        st = self._video_export
+        if st is None:
+            return
+        st["frame"] += 1
+        error = None
+
+        if not st["cancel"] and st["frame"] < st["n"]:
+            if not rt.encoder_is_open():
+                # The encoder auto-closes only at the frame limit; closed
+                # earlier means an encoding failure - stop instead of
+                # rendering the remaining frames into the void
+                error = "Video encoder closed unexpectedly (see console output)."
+            else:
+                # Advance to the next frame's time; update_view refreshes the
+                # scene, which starts the next accumulation cycle
+                prev_dt = self.dt_local
+                try:
+                    self.update_view(self.dt_local + timedelta(minutes=st["step"]))
+                except Exception as e:
+                    # E.g. the date left the supported ephemeris range: keep the
+                    # last valid time and end the export with the partial file
+                    self.dt_local = prev_dt
+                    error = str(e)
+
+        if st["cancel"] or st["frame"] >= st["n"] or error is not None:
+            self._video_export = None
+            self.rt.set_accum_done_cb(None)
+
+            def finish():
+                # The final frame is flushed by NVENC asynchronously; when the
+                # frame limit was reached the encoder has closed itself, after
+                # a cancel/error it is still open and must be stopped here
+                if self.rt is not None and self.rt.encoder_is_open():
+                    self.rt.encoder_stop()
+                self._update_all_status_panels()
+                st["on_done"](error)
+
+            self.rt._root.after(500, finish)
+        else:
+            self.rt._root.after(0, self._video_export_progress,
+                                st["on_progress"], st["frame"], st["n"], self.dt_local)
+
+    def _video_export_progress(self, cb, frame: int, total: int, dt_local: datetime):
+        """Per-frame GUI update (Tk main thread): app status plus dialog callback."""
+        self._update_status_time()
+        self._update_info_moon()
+        cb(frame, total, dt_local)
 
     # ---- renderer setup ----
 
@@ -848,6 +1016,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.reset_camera_position()
         elif event.keysym.lower() == 'c':
             moon_renderer.center_view_on_cursor(event)
+        elif event.keysym == 'F11':
+            moon_renderer.export_video_dialog()
         elif event.keysym == 'F12':
             moon_renderer.save_image_dialog()
         elif event.keysym.lower() == 'f':
