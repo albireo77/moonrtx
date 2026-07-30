@@ -288,7 +288,7 @@ class DialogsMixin:
         def corner_row(parent, var, command):
             """Row of radio buttons selecting one of the four frame corners."""
             row = tk.Frame(parent)
-            row.pack(fill=tk.X, padx=(18, 0))
+            row.pack(fill=tk.X)
             buttons = []
             for corner in self.VIDEO_CORNERS:
                 rb = tk.Radiobutton(row, text=corner, value=corner, variable=var,
