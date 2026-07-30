@@ -480,7 +480,7 @@ class DialogsMixin:
             ("V", "Reset view to that based on current time (useful after starting with --init-view parameter)"),
             ("C", "Center and fix view on point under cursor"),
             ("F", "Search for Moon features (craters, mounts etc.)"),
-            ("K", "Open terminator planner for Moon feature shown in status bar"),
+            ("K", "Open terminator observer planner for Moon feature shown in status bar"),
             ("I", "Open USGS web page for Moon feature shown in status bar"),
             ("O", "Open user defined web page (Wiki by default) for Moon feature shown in status bar"),
             ("T", "Open date/time window"),
