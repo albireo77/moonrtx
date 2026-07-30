@@ -276,6 +276,61 @@ class DialogsMixin:
         update_summary()
         tk.Label(main_frame, textvariable=summary_var, anchor='w').pack(fill=tk.X, pady=(6, 0))
 
+        # The status bar is not part of the ray-traced image, so the local time
+        # has to be drawn into the frames themselves to appear in the video
+        burn_time_var = tk.BooleanVar(value=True)
+        burn_time_cb = tk.Checkbutton(main_frame, variable=burn_time_var, anchor='w', text="Show local time")
+        burn_time_cb.pack(fill=tk.X, pady=(4, 0))
+
+        time_corner_var = tk.StringVar(value=self.VIDEO_TIME_CORNER)
+        caption_corner_var = tk.StringVar(value=self.VIDEO_CAPTION_CORNER)
+
+        def corner_row(parent, var, command):
+            """Row of radio buttons selecting one of the four frame corners."""
+            row = tk.Frame(parent)
+            row.pack(fill=tk.X, padx=(18, 0))
+            buttons = []
+            for corner in self.VIDEO_CORNERS:
+                rb = tk.Radiobutton(row, text=corner, value=corner, variable=var,
+                                    command=command)
+                rb.pack(side=tk.LEFT)
+                buttons.append(rb)
+            return buttons
+
+        # The two labels must not share a corner; picking the one already taken
+        # swaps them, which always leaves both settings valid
+        previous = {"time": time_corner_var.get(), "caption": caption_corner_var.get()}
+
+        def corner_chosen(which):
+            def handler():
+                var = time_corner_var if which == "time" else caption_corner_var
+                other_var = caption_corner_var if which == "time" else time_corner_var
+                other = "caption" if which == "time" else "time"
+                if var.get() == other_var.get():
+                    other_var.set(previous[which])
+                previous[which] = var.get()
+                previous[other] = other_var.get()
+            return handler
+
+        time_corner_buttons = corner_row(main_frame, time_corner_var, corner_chosen("time"))
+
+        caption_frame = tk.Frame(main_frame)
+        caption_frame.pack(fill=tk.X, pady=(6, 0))
+        tk.Label(caption_frame, text="Caption:", anchor='w').pack(side=tk.LEFT)
+        caption_var = tk.StringVar()
+        caption_entry = tk.Entry(caption_frame, textvariable=caption_var)
+        caption_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
+        caption_corner_buttons = corner_row(main_frame, caption_corner_var,
+                                            corner_chosen("caption"))
+
+        def limit_caption(*args):
+            text = caption_var.get()
+            if len(text) > self.VIDEO_CAPTION_MAX_CHARS:
+                caption_var.set(text[:self.VIDEO_CAPTION_MAX_CHARS])
+
+        caption_var.trace_add('write', limit_caption)
+
         status_var = tk.StringVar()
         status_label = tk.Label(main_frame, textvariable=status_var, anchor='w')
         status_label.pack(fill=tk.X, pady=(6, 0))
@@ -290,6 +345,10 @@ class DialogsMixin:
                 # FPS/bitrate stay disabled once the encoder is configured
                 locked = self._video_encoder_cfg is not None and i >= 2
                 e.config(state='disabled' if (active or locked) else 'normal')
+            burn_time_cb.config(state=state)
+            caption_entry.config(state=state)
+            for rb in time_corner_buttons + caption_corner_buttons:
+                rb.config(state=state)
             export_btn.config(state=state)
             cancel_btn.config(state='normal' if active else 'disabled')
 
@@ -336,7 +395,11 @@ class DialogsMixin:
             status_var.set("Starting export...")
             set_exporting(True)
             error = self.start_video_export(filename, n, step, fps, bitrate,
-                                            on_progress, on_done)
+                                            on_progress, on_done,
+                                            burn_time=burn_time_var.get(),
+                                            caption=caption_var.get(),
+                                            time_corner=time_corner_var.get(),
+                                            caption_corner=caption_corner_var.get())
             if error is not None:
                 set_exporting(False)
                 status_label.config(fg='red')
@@ -356,7 +419,7 @@ class DialogsMixin:
         # encoder_is_open() check remains the definitive (and fail-safe) gate.
         if not _ffmpeg_dlls_findable():
             status_label.config(fg='red')
-            status_var.set("No FFmpeg libraries (e.g. avcodec*.dll for WINDOWS) found.\n"
+            status_var.set("No FFmpeg libraries (e.g. avcodec*.dll for Windows) found.\n"
                            "The export will most likely fail to start.\n"
                            "Install latest FFmpeg shared libraries for your OS.")
 
