@@ -35,7 +35,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - On first Moon ephemeris calculation, MoonRTX may download a small Skyfield data set into `moonrtx/data/skyfield`: the JPL `de421.bsp` ephemeris (about 16 MB) plus three small Moon orientation kernels used for the direct lunar body-frame rotation.
 - The bundled Skyfield Moon orientation kernels support dates from `1900-01-01T00:00:00+00:00` through `2051-01-01T00:00:00+00:00`.
 - Current MoonRTX will work only with PlotOptiX 0.19.2+
-- Downscaling of elevation map can take even around 1 minute depending on `--downscale` parameter value (lower value = more time). Once downscaled for the first time, map is cached in `data` directory as .npy file for future use.
+- Downscaling of elevation map can take even around 1 minute depending on `--downscale` parameter value (lower value = more time). Once downscaled for the first time, file is cached as .npy file in `data` directory for future use.
 - If you don't like default Moon colors in MoonRTX, you can download color map file (e.g. [lroc_color_poles.tif](https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles.tif) from [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) with more realistic, though bland, colors) and load it with `--color-file` parameter on program start.
 
 ## Keyboard and Mouse Actions
