@@ -130,6 +130,10 @@ class NavigationMixin:
         if self.initial_dt_local is not None and self.dt_local != self.initial_dt_local:
             # Reset to initial time - this will restore Moon orientation and lighting
             self.update_view(self.initial_dt_local)
+            # Start the auto-advance interval over from this jump, so it does
+            # not immediately step away from the time just restored
+            if self._auto_advance_var and self._auto_advance_var.get():
+                self._auto_advance_elapsed = 0
 
         # Restore initial camera parameters
         up = cp.up[:]
