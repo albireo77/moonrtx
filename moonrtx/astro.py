@@ -161,19 +161,59 @@ def _phase_name(moon: ICRF, sun: ICRF) -> str:
         return "Waning Crescent"
 
 
-def _sun_altitude_at_feature(subsolar_lat_deg: np.ndarray, subsolar_lon_deg: np.ndarray,
-                             lat_deg: float, lon_deg: float) -> np.ndarray:
+def _body_altitude_at_feature(sub_lat_deg: np.ndarray, sub_lon_deg: np.ndarray,
+                              lat_deg: float, lon_deg: float) -> np.ndarray:
     """
-    Solar altitude above the local lunar horizon at a selenographic location:
-    90 degrees minus the angular distance to the subsolar point (spherical law
-    of cosines). Vectorized over the subsolar-point arrays.
+    Altitude of a body above the local lunar horizon at a selenographic
+    location: 90 degrees minus the angular distance to the body's sub-point
+    (spherical law of cosines). Vectorized over the sub-point arrays.
+
+    With the subsolar point this is the Sun's altitude, which sets shadow
+    length. With the sub-Earth point (that is, the libration) it measures how
+    far inside the limb the feature lies, and equally how much it is
+    foreshortened - the feature is compressed by cos of the angular distance,
+    i.e. by sin of this altitude, across the line of sight.
     """
-    b0 = np.radians(subsolar_lat_deg)
-    l0 = np.radians(subsolar_lon_deg)
+    b0 = np.radians(sub_lat_deg)
+    l0 = np.radians(sub_lon_deg)
     b = math.radians(lat_deg)
     l = math.radians(lon_deg)
     sin_alt = np.sin(b0) * math.sin(b) + np.cos(b0) * math.cos(b) * np.cos(l - l0)
     return np.degrees(np.arcsin(np.clip(sin_alt, -1.0, 1.0)))
+
+
+def _scan_times(start_local: datetime, days: int, step_minutes: int) -> tuple:
+    """
+    Sample times for a planner scan, as a list of UTC datetimes and the
+    matching Skyfield time array (clamped to the bundled kernel range).
+    """
+    start_utc = _validate_supported_datetime(start_local)
+    end_utc = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
+    n = max(int((end_utc - start_utc).total_seconds() // (step_minutes * 60)), 1)
+    dts = [start_utc + timedelta(minutes=step_minutes * i) for i in range(n)]
+    return dts, _timescale.from_datetimes(dts)
+
+
+def _sub_point(target, t, moon_at) -> tuple:
+    """
+    Selenographic latitude/longitude of the point where `target` stands
+    overhead, vectorized over the time array. Geometric positions are enough:
+    light-time shifts the sub-point by arcseconds, far below the hour-level
+    resolution of a planner scan.
+    """
+    vec = (target.at(t) - moon_at).position.au
+    body_vec = np.einsum('ijn,jn->in', _moon_frame.rotation_at(t), vec)
+    r = np.linalg.norm(body_vec, axis=0)
+    return (np.degrees(np.arcsin(body_vec[2] / r)),
+            np.degrees(np.arctan2(body_vec[1], body_vec[0])))
+
+
+def _split_windows(idx: np.ndarray) -> list:
+    """Split indices of qualifying samples into runs of consecutive ones."""
+    breaks = np.flatnonzero(np.diff(idx) > 1)
+    starts = np.concatenate(([0], breaks + 1))
+    ends = np.concatenate((breaks, [idx.size - 1]))
+    return [idx[s:e + 1] for s, e in zip(starts, ends)]
 
 
 def find_terminator_windows(start_local: datetime, days: int,
@@ -217,11 +257,7 @@ def find_terminator_windows(start_local: datetime, days: int,
         (degrees at "best"), "observer_sun_alt" (degrees at "best", for
         judging sky darkness).
     """
-    start_utc = _validate_supported_datetime(start_local)
-    end_utc = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
-    n = max(int((end_utc - start_utc).total_seconds() // (step_minutes * 60)), 1)
-    dts = [start_utc + timedelta(minutes=step_minutes * i) for i in range(n)]
-    t = _timescale.from_datetimes(dts)
+    dts, t = _scan_times(start_local, days, step_minutes)
 
     observer_at = _observer.at(t)
     moon_alt, _, _ = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")
@@ -229,29 +265,16 @@ def find_terminator_windows(start_local: datetime, days: int,
     moon_alt = moon_alt.degrees
     sun_alt_obs = sun_alt_obs.degrees
 
-    # Subsolar point on the Moon; geometric positions are enough (light-time
-    # shifts it by arcseconds, far below the hour-level scan resolution)
-    sun_from_moon = (_sun.at(t) - _moon.at(t)).position.au
-    R_moon = _moon_frame.rotation_at(t)
-    body_vec = np.einsum('ijn,jn->in', R_moon, sun_from_moon)
-    r = np.linalg.norm(body_vec, axis=0)
-    subsolar_lat = np.degrees(np.arcsin(body_vec[2] / r))
-    subsolar_lon = np.degrees(np.arctan2(body_vec[1], body_vec[0]))
-
-    sun_alt_f = _sun_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
+    subsolar_lat, subsolar_lon = _sub_point(_sun, t, _moon.at(t))
+    sun_alt_f = _body_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
 
     ok = (sun_alt_f >= 0.0) & (sun_alt_f <= sun_alt_max) & (moon_alt >= moon_alt_min)
     idx = np.flatnonzero(ok)
     if idx.size == 0:
         return []
 
-    breaks = np.flatnonzero(np.diff(idx) > 1)
-    seg_starts = np.concatenate(([0], breaks + 1))
-    seg_ends = np.concatenate((breaks, [idx.size - 1]))
-
     windows = []
-    for s, e in zip(seg_starts, seg_ends):
-        seg = idx[s:e + 1]
+    for seg in _split_windows(idx):
         best = seg[np.argmax(moon_alt[seg])]
         windows.append({
             "start": dts[seg[0]],
@@ -265,6 +288,96 @@ def find_terminator_windows(start_local: datetime, days: int,
             "observer_sun_alt": float(sun_alt_obs[best]),
         })
     return windows
+
+
+def find_libration_windows(start_local: datetime, days: int,
+                           feature_lat: float, feature_lon: float,
+                           step_minutes: int = 60,
+                           sun_alt_min: float = 3.0,
+                           moon_alt_min: float = 5.0,
+                           max_results: int = 20) -> list[dict]:
+    """
+    Find upcoming windows when a Moon feature is best presented, that is when
+    libration tilts it toward Earth. This is what decides whether a limb
+    formation such as Mare Orientale shows any detail at all, or is not turned
+    into view in the first place - for features near the middle of the disk
+    libration hardly matters and the results are simply all similar.
+
+    The figure of merit is the altitude of the Earth above the feature's own
+    horizon: 90 degrees at the centre of the disk, 0 exactly on the limb (see
+    _body_altitude_at_feature). It doubles as the foreshortening angle, the
+    feature being squashed by its sine across the line of sight.
+
+    A window additionally requires the feature to be sunlit and the Moon to be
+    up at the observer's site, so the listed times are actually observable.
+
+    Parameters
+    ----------
+    start_local : datetime
+        Timezone-aware start of the scan
+    days : int
+        Scan length in days (clamped to the bundled kernel range)
+    feature_lat, feature_lon : float
+        Selenographic position of the feature in degrees
+    step_minutes : int
+        Sample spacing; window edges are accurate to this resolution
+    sun_alt_min : float
+        Minimum Sun altitude over the feature, so it is lit rather than in
+        night or in the deepest grazing shadow
+    moon_alt_min : float
+        Minimum Moon altitude at the observer site
+    max_results : int
+        Cap on the number of windows returned
+
+    Returns
+    -------
+    list[dict]
+        One dict per window, best presented first, with keys: "start", "end",
+        "best" (UTC datetimes; "best" is the sample where the feature is
+        presented most favourably), "earth_alt" (degrees above the feature's
+        horizon at "best" - the figure of merit), "libr_long" and "libr_lat"
+        (topocentric libration there), "sun_alt" (Sun altitude over the
+        feature), "moon_alt" and "observer_sun_alt" (degrees at "best").
+    """
+    dts, t = _scan_times(start_local, days, step_minutes)
+
+    observer_at = _observer.at(t)
+    moon_at = _moon.at(t)
+    moon_alt, _, _ = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")
+    sun_alt_obs, _, _ = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")
+    moon_alt = moon_alt.degrees
+    sun_alt_obs = sun_alt_obs.degrees
+
+    # Sub-Earth point = the libration of the moment, seen from the observer
+    # (topocentric, so the daily rocking of up to ~1 degree counts too)
+    libr_lat, libr_lon = _sub_point(_observer, t, moon_at)
+    earth_alt = _body_altitude_at_feature(libr_lat, libr_lon, feature_lat, feature_lon)
+
+    subsolar_lat, subsolar_lon = _sub_point(_sun, t, moon_at)
+    sun_alt_f = _body_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
+
+    ok = (earth_alt > 0.0) & (sun_alt_f >= sun_alt_min) & (moon_alt >= moon_alt_min)
+    idx = np.flatnonzero(ok)
+    if idx.size == 0:
+        return []
+
+    windows = []
+    for seg in _split_windows(idx):
+        best = seg[np.argmax(earth_alt[seg])]
+        windows.append({
+            "start": dts[seg[0]],
+            "end": dts[seg[-1]],
+            "best": dts[best],
+            "earth_alt": float(earth_alt[best]),
+            "libr_long": _wrap_signed_degrees(float(libr_lon[best])),
+            "libr_lat": float(libr_lat[best]),
+            "sun_alt": float(sun_alt_f[best]),
+            "moon_alt": float(moon_alt[best]),
+            "observer_sun_alt": float(sun_alt_obs[best]),
+        })
+
+    windows.sort(key=lambda w: w["earth_alt"], reverse=True)
+    return windows[:max_results]
 
 
 def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> MoonEphemeris:

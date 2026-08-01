@@ -864,7 +864,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'f':
             moon_renderer.search_feature_dialog()
         elif event.keysym.lower() == 'k':
-            moon_renderer.terminator_planner_dialog(moon_renderer._status_feature)
+            moon_renderer.observation_planner_dialog(moon_renderer._status_feature)
         elif event.keysym.lower() == 'i':
             moon_renderer.open_status_feature_usgs_page()
         elif event.keysym.lower() == 'o':

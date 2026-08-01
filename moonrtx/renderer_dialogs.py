@@ -60,18 +60,28 @@ def encode_camera(camera: Camera) -> str:
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
 
-    # Terminator planner filter settings (see astro.find_terminator_windows):
-    # a feature is worth observing while the Sun stands 0-12 degrees above it
-    # (terrain lit, shadows long) and the Moon is usefully above the horizon
+    # Observation planner filter settings. In terminator mode a feature is
+    # worth observing while the Sun stands 0-12 degrees above it (terrain lit,
+    # shadows long); in libration mode it only has to be lit at all, since
+    # what is being ranked is how far libration turns it into view. Both need
+    # the Moon usefully above the observer's horizon.
+    # See astro.find_terminator_windows / astro.find_libration_windows.
     PLANNER_SCAN_DAYS = 60
     PLANNER_SUN_ALT_MAX = 12.0
     PLANNER_MOON_ALT_MIN = 5.0
+    PLANNER_LIBRATION_SUN_ALT_MIN = 3.0
+    PLANNER_MAX_RESULTS = 20
 
-    def terminator_planner_dialog(self, feature: MoonFeature):
+    def observation_planner_dialog(self, feature: MoonFeature):
         """
-        Show upcoming windows when the given feature is observable near the
-        terminator (see astro.find_terminator_windows) and let the user jump
-        the app time to a selected window.
+        Show upcoming windows when the given feature is worth observing and
+        let the user jump the app time to one of them. Two criteria:
+
+        - terminator: the Sun low over the feature, so it stands in relief
+          with long shadows (astro.find_terminator_windows)
+        - libration: the feature turned toward Earth as far as it gets, which
+          is what decides whether a limb formation shows anything at all
+          (astro.find_libration_windows)
 
         Parameters
         ----------
@@ -82,22 +92,12 @@ class DialogsMixin:
         if self.rt is None or feature is None:
             return
 
-        try:
-            windows = astro.find_terminator_windows(
-                self.dt_local, self.PLANNER_SCAN_DAYS, feature.lat, feature.lon,
-                sun_alt_max=self.PLANNER_SUN_ALT_MAX,
-                moon_alt_min=self.PLANNER_MOON_ALT_MIN)
-        except ValueError as e:
-            # Scan start outside the bundled ephemeris kernel range
-            print(f"Terminator planner: {e}")
-            return
-
         # Reuse the search-dialog flag: it blocks main-window key handling
         # for this dialog in exactly the same way
         self.search_dialog_open = True
 
         win = tk.Toplevel(self.rt._root)
-        win.title(f"Terminator planner - {feature.name}")
+        win.title(f"Observation planner - {feature.name}")
         win.transient(self.rt._root)
         win.grab_set()
         win.resizable(False, False)
@@ -107,77 +107,146 @@ class DialogsMixin:
             win.destroy()
 
         win.protocol("WM_DELETE_WINDOW", on_close)
+        win.bind('<Escape>', lambda e: on_close())
 
         main_frame = tk.Frame(win, padx=12, pady=8)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        tk.Label(
-            main_frame,
-            text=(f"{feature.name} (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°) - times in the next "
-                  f"{self.PLANNER_SCAN_DAYS} days when the Sun stands\n"
-                  f"0-{self.PLANNER_SUN_ALT_MAX:.0f}° above the feature (lit, long shadows) and the Moon is at least "
-                  f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky."),
-            justify=tk.LEFT, anchor='w', font=('Consolas', 9)
-        ).pack(fill=tk.X, pady=(0, 8))
-
-        local_tz = self.dt_local.tzinfo
         font = ('Consolas', 9)
+        local_tz = self.dt_local.tzinfo
+        windows = []                     # results currently listed
 
-        if not windows:
-            tk.Label(main_frame, text="No opportunities found in the scanned period.",
-                     font=font, anchor='w').pack(fill=tk.X, pady=6)
-        else:
-            header = (f"{'Best time (local)':<22}{'Event':<9}{'Window (local)':<29}"
-                      f"{'Sun@feat':>7}{'Moon alt':>10}  Sky")
-            tk.Label(main_frame, text=header, font=('Consolas', 9, 'bold'),
-                     anchor='w').pack(fill=tk.X)
+        # The sky column is padded to its longest value ("twilight"), so the
+        # header length already covers the widest row and the listbox sized
+        # from it never clips one
+        terminator_header = (f"{'Best time (local)':<22}{'Event':<9}{'Window (local)':<29}"
+                             f"{'Sun@feat':>7}{'Moon alt':>10}  {'Sky':<8}")
+        libration_header = (f"{'Best time (local)':<22}{'Window (local)':<29}{'Presented':>10}"
+                            f"{'Libr L':>9}{'Libr B':>9}{'Sun@feat':>10}{'Moon alt':>10}  {'Sky':<8}")
 
-            list_frame = tk.Frame(main_frame)
-            list_frame.pack(fill=tk.BOTH, expand=True)
-            scrollbar = tk.Scrollbar(list_frame)
-            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-            listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=font,
-                                 width=len(header) + 2, height=min(len(windows), 16))
-            listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            scrollbar.config(command=listbox.yview)
+        tk.Label(main_frame, anchor='w', font=font,
+                 text=f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)"
+                      f"  -  next {self.PLANNER_SCAN_DAYS} days"
+                 ).pack(fill=tk.X)
+
+        mode_var = tk.StringVar(value="terminator")
+        mode_row = tk.Frame(main_frame)
+        mode_row.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(mode_row, text="Show:", anchor='w').pack(side=tk.LEFT)
+        for value, label in (("terminator", "near the terminator"),
+                             ("libration", "best presented (libration)")):
+            tk.Radiobutton(mode_row, text=label, value=value, variable=mode_var,
+                           command=lambda: rescan()).pack(side=tk.LEFT)
+
+        desc_var = tk.StringVar()
+        # Wrapped to the width of the list below (set once that knows its size)
+        # rather than at hand-placed newlines, so the text fills the dialog.
+        # The fixed height keeps it from resizing when the mode changes.
+        desc_label = tk.Label(main_frame, textvariable=desc_var, justify=tk.LEFT,
+                              anchor='nw', font=font, height=3)
+        desc_label.pack(fill=tk.X, pady=(4, 6))
+
+        header_var = tk.StringVar()
+        tk.Label(main_frame, textvariable=header_var, font=('Consolas', 9, 'bold'),
+                 anchor='w').pack(fill=tk.X)
+
+        list_frame = tk.Frame(main_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=font,
+                             width=max(len(terminator_header), len(libration_header)) + 2,
+                             height=16)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+
+        win.update_idletasks()
+        desc_label.config(wraplength=listbox.winfo_reqwidth())
+
+        def sky_of(w):
+            if w["observer_sun_alt"] > 0.0:
+                return "day"
+            return "twilight" if w["observer_sun_alt"] > -12.0 else "night"
+
+        def rescan():
+            nonlocal windows
+            listbox.delete(0, tk.END)
+            libration = mode_var.get() == "libration"
+            try:
+                if libration:
+                    windows = astro.find_libration_windows(
+                        self.dt_local, self.PLANNER_SCAN_DAYS, feature.lat, feature.lon,
+                        sun_alt_min=self.PLANNER_LIBRATION_SUN_ALT_MIN,
+                        moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+                        max_results=self.PLANNER_MAX_RESULTS)
+                else:
+                    windows = astro.find_terminator_windows(
+                        self.dt_local, self.PLANNER_SCAN_DAYS, feature.lat, feature.lon,
+                        sun_alt_max=self.PLANNER_SUN_ALT_MAX,
+                        moon_alt_min=self.PLANNER_MOON_ALT_MIN)
+            except ValueError as e:
+                # Scan start outside the bundled ephemeris kernel range
+                windows = []
+                desc_var.set(str(e))
+                header_var.set("")
+                return
+
+            if libration:
+                desc_var.set(
+                    "How far inside the limb libration turns the feature, best first: 90° is the "
+                    "centre of the disk, 0° exactly on the limb, and the feature is squashed by the "
+                    "sine of it. Listed only while the feature is sunlit and the Moon at least "
+                    f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+                header_var.set(libration_header)
+            else:
+                desc_var.set(
+                    f"Times when the Sun stands 0-{self.PLANNER_SUN_ALT_MAX:.0f}° above the feature, "
+                    f"lighting it with long shadows, and the Moon is at least "
+                    f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+                header_var.set(terminator_header)
+
+            if not windows:
+                listbox.insert(tk.END, "  No opportunities found in the scanned period.")
+                return
 
             for w in windows:
                 best = w["best"].astimezone(local_tz)
                 start = w["start"].astimezone(local_tz)
                 end = w["end"].astimezone(local_tz)
-                if w["observer_sun_alt"] > 0.0:
-                    sky = "day"
-                elif w["observer_sun_alt"] > -12.0:
-                    sky = "twilight"
+                span = f"{start:%m-%d %H:%M} .. {end:%m-%d %H:%M}   "
+                if libration:
+                    listbox.insert(tk.END,
+                                   f"{best:%Y-%m-%d %a %H:%M}  {span}"
+                                   f"{w['earth_alt']:>9.2f}°{w['libr_long']:>+8.2f}°"
+                                   f"{w['libr_lat']:>+8.2f}°{w['sun_alt']:>9.1f}°"
+                                   f"{w['moon_alt']:>9.0f}°  {sky_of(w)}")
                 else:
-                    sky = "night"
-                listbox.insert(tk.END,
-                               f"{best:%Y-%m-%d %a %H:%M}  {w['event']:<9}"
-                               f"{start:%m-%d %H:%M} .. {end:%m-%d %H:%M}   "
-                               f"{w['sun_alt']:>6.1f}°{w['moon_alt']:>9.0f}°  {sky}")
+                    listbox.insert(tk.END,
+                                   f"{best:%Y-%m-%d %a %H:%M}  {w['event']:<9}{span}"
+                                   f"{w['sun_alt']:>6.1f}°{w['moon_alt']:>9.0f}°  {sky_of(w)}")
             listbox.selection_set(0)
 
-            def go_to(event=None):
-                selection = listbox.curselection()
-                if not selection:
-                    return
-                target = windows[selection[0]]["best"].astimezone(local_tz)
-                on_close()
-                self.update_view(target)
-                if self._auto_advance_var and self._auto_advance_var.get():
-                    self._auto_advance_elapsed = 0
-                self._update_all_status_panels()
-                self.center_on_feature(feature)
+        def go_to(event=None):
+            selection = listbox.curselection()
+            if not windows or not selection or selection[0] >= len(windows):
+                return
+            target = windows[selection[0]]["best"].astimezone(local_tz)
+            on_close()
+            self.update_view(target)
+            if self._auto_advance_var and self._auto_advance_var.get():
+                self._auto_advance_elapsed = 0
+            self._update_all_status_panels()
+            self.center_on_feature(feature)
 
-            listbox.bind('<Double-Button-1>', go_to)
-            listbox.bind('<Return>', go_to)
+        listbox.bind('<Double-Button-1>', go_to)
+        listbox.bind('<Return>', go_to)
 
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, pady=(8, 0))
-        if windows:
-            tk.Button(btn_frame, text="Go to best time", command=go_to, width=16).pack(side=tk.LEFT)
+        tk.Button(btn_frame, text="Go to selected", command=go_to, width=16).pack(side=tk.LEFT)
         tk.Button(btn_frame, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
-        win.bind('<Escape>', lambda e: on_close())
+
+        rescan()
 
         # Center on main window
         win.update_idletasks()
@@ -480,7 +549,7 @@ class DialogsMixin:
             ("V", "Reset view to that based on current time (useful after starting with --init-view parameter)"),
             ("C", "Center and fix view on point under cursor"),
             ("F", "Search for Moon features (craters, mounts etc.)"),
-            ("K", "Open terminator observer planner for Moon feature shown in status bar"),
+            ("K", "Open observation planner (terminator / libration) for Moon feature in status bar"),
             ("I", "Open USGS web page for Moon feature shown in status bar"),
             ("O", "Open user defined web page (Wiki by default) for Moon feature shown in status bar"),
             ("T", "Open date/time window"),
@@ -695,7 +764,7 @@ class DialogsMixin:
             if feature is None:
                 return
             on_close()
-            self.terminator_planner_dialog(feature)
+            self.observation_planner_dialog(feature)
 
         def on_key(event):
             if event.keysym == 'Return':
@@ -718,7 +787,7 @@ class DialogsMixin:
 
         btn_frame = tk.Frame(search_win)
         btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        tk.Button(btn_frame, text="Terminator planner", command=on_planner).pack(side=tk.RIGHT)
+        tk.Button(btn_frame, text="Observation planner", command=on_planner).pack(side=tk.RIGHT)
 
         # Center the window
         search_win.update_idletasks()
