@@ -97,7 +97,7 @@ class DialogsMixin:
         self.search_dialog_open = True
 
         win = tk.Toplevel(self.rt._root)
-        win.title(f"Observation planner - {feature.name}")
+        win.title(f"Observation Planner - {feature.name}")
         win.transient(self.rt._root)
         win.grab_set()
         win.resizable(False, False)
@@ -787,7 +787,7 @@ class DialogsMixin:
 
         btn_frame = tk.Frame(search_win)
         btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        tk.Button(btn_frame, text="Observation planner", command=on_planner).pack(side=tk.RIGHT)
+        tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(side=tk.RIGHT)
 
         # Center the window
         search_win.update_idletasks()
