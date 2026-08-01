@@ -19,6 +19,8 @@ class MoonEphemeris(NamedTuple):
     elongation: float
     phase_name: str
     colongitude: float
+    subsolar_lat: float
+    subsolar_lon: float
     rotation_matrix: NDArray
 
 class MoonFeature(NamedTuple):

@@ -268,6 +268,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._status_gamma_var = None
         self._status_pins_var = None
         self._status_coords_var = None
+        self._status_coords_alt_var = None
+        self._status_coords_sun_label = None    # blanked by colour, see _update_info_coords
+        self._status_coords_sun_fg = None
+        self._status_coords_sun_bg = None
         self._status_feature = None
 
         # Interactive-preview state (short accumulation cycles during scene changes)

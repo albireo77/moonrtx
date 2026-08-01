@@ -7,6 +7,7 @@ import tkinter as tk
 import webbrowser
 from typing import Optional
 
+from moonrtx import astro
 from moonrtx.view_orientation import VIEW_ORIENTATIONS
 from moonrtx.shared_types import MoonFeature
 
@@ -104,15 +105,42 @@ class StatusMixin:
             self._status_measured_var.set(measured_text)
 
     def _update_info_coords(self, lat=None, lon=None):
-        """Update selenographic coordinates in the status bar coords panel."""
-        if self._status_coords_var:
-            if lat is not None and lon is not None:
-                lat_dir = 'N' if lat >= 0 else 'S'
-                lon_dir = 'E' if lon >= 0 else 'W'
-                self._status_coords_var.set(
-                    f"Lat: {abs(lat):5.2f}°{lat_dir} Lon: {abs(lon):6.2f}°{lon_dir}")
-            else:
-                self._status_coords_var.set("")
+        """
+        Update the status bar coords panel: selenographic position of the
+        point under the cursor, followed by the Sun's altitude above the local
+        horizon there - the angle that sets how long shadows are (see
+        astro.sun_altitude_at). Both are read from the cursor, so the panel is
+        refreshed on mouse motion and cleared when the view changes under it.
+        """
+        if not self._status_coords_var:
+            return
+
+        def show_sun(visible: bool):
+            if self._status_coords_sun_label is not None:
+                self._status_coords_sun_label.config(
+                    fg=self._status_coords_sun_fg if visible else self._status_coords_sun_bg)
+
+        if lat is None or lon is None:
+            self._status_coords_var.set("")
+            self._status_coords_alt_var.set("")
+            show_sun(False)
+            return
+
+        lat_dir = 'N' if lat >= 0 else 'S'
+        lon_dir = 'E' if lon >= 0 else 'W'
+        coords = f"Lat: {abs(lat):5.2f}°{lat_dir} Lon: {abs(lon):6.2f}°{lon_dir}"
+        if self.moon_ephem is None:
+            self._status_coords_var.set(coords)
+            self._status_coords_alt_var.set("")
+            show_sun(False)
+            return
+
+        # Split so the Sun sign can be drawn as a subscript of the "h"
+        # (see the coords panel in _on_launch_finished)
+        self._status_coords_var.set(f"{coords}  h")
+        show_sun(True)
+        self._status_coords_alt_var.set(
+            f": {astro.sun_altitude_at(self.moon_ephem.subsolar_lat, self.moon_ephem.subsolar_lon, lat, lon):+5.1f}°")
 
     def _update_status_feature(self, feature: Optional[MoonFeature] = None):
         """Update feature name in the status bar and remember the active feature."""
@@ -222,16 +250,24 @@ class StatusMixin:
                     self._status_gamma_var = tk.StringVar()
                     self._status_pins_var = tk.StringVar()
                     self._status_coords_var = tk.StringVar()
+                    self._status_coords_alt_var = tk.StringVar()
 
                     self._auto_advance_var = tk.BooleanVar(value=False)
 
                     font = ("Consolas", 9)
+                    sun_font = ("Consolas", 7)      # subscript Sun sign
+                    # Panels are packed to the right, so this list runs from
+                    # the right edge leftwards. The coords panel carries the
+                    # Sun altitude as well (26 -> 39 characters), and the
+                    # feature panel gives up that room (46 -> 32, which still
+                    # holds all but 17 of the feature database's 4442 entries)
+                    # so the bar stays the width it was.
                     panels = [
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
                         (self._status_gamma_var,      10),
-                        (self._status_feature_var,    46),
-                        (self._status_coords_var,     26),
+                        (self._status_feature_var,    32),
+                        ("coords",                    39),  # composite, see below
                         (self._status_measured_var,   27),
                         (None,                        47),  # placeholder for time panel
                         (self._status_view_var,       10),
@@ -261,6 +297,32 @@ class StatusMixin:
                             cb.pack(side='right', padx=(2, 0))
                             _ToolTip(cb, 'Auto-advance time (every step minutes)')
                             time_panel.pack(side='right', padx=16)
+                        elif var == "coords":
+                            # Composite coords panel. A Label carries a single
+                            # font, and Unicode has no subscript Sun sign, so
+                            # the three parts are separate labels: the sign in
+                            # a smaller font, bottom-aligned against the taller
+                            # ones, which sets it below the baseline of the "h"
+                            # it belongs to.
+                            coords_panel = tk.Frame(status_frame, relief='sunken', borderwidth=1)
+                            tk.Label(coords_panel, textvariable=self._status_coords_var,
+                                     font=font, anchor='w', width=29, borderwidth=0
+                                     ).pack(side='left')
+                            # Sized to the glyph (a fixed width in character
+                            # cells of the small font would leave a gap before
+                            # the colon, the sign being wider than a cell) and
+                            # blanked by colour rather than by clearing its
+                            # text, so the panel never changes width.
+                            sun = tk.Label(coords_panel, text="☉", font=sun_font,
+                                           anchor='sw', borderwidth=0, padx=0)
+                            sun.pack(side='left', anchor='s')
+                            self._status_coords_sun_label = sun
+                            self._status_coords_sun_fg = sun.cget('fg')
+                            self._status_coords_sun_bg = sun.cget('bg')
+                            tk.Label(coords_panel, textvariable=self._status_coords_alt_var,
+                                     font=font, anchor='w', width=8, borderwidth=0
+                                     ).pack(side='left')
+                            coords_panel.pack(side='right', padx=16)
                         else:
                             tk.Label(
                                 status_frame,

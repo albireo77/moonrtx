@@ -380,6 +380,18 @@ def find_libration_windows(start_local: datetime, days: int,
     return windows[:max_results]
 
 
+def sun_altitude_at(subsolar_lat: float, subsolar_lon: float, lat_deg: float, lon_deg: float) -> float:
+    """
+    Sun altitude above the local horizon at a selenographic point, in degrees:
+    negative in lunar night, 0 at sunrise or sunset, 90 with the Sun overhead.
+    It is what sets shadow length there - a shadow is its caster's height
+    divided by the tangent of this angle.
+    """
+    return float(_body_altitude_at_feature(
+        np.asarray(subsolar_lat), np.asarray(subsolar_lon),
+        lat_deg, lon_deg))
+
+
 def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> MoonEphemeris:
 
     dt_utc = _validate_supported_datetime(dt_local)
@@ -428,7 +440,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
     libr_lat_topo, libr_lon_topo = _latlon_from_icrf(observer_from_moon.position.au, R_moon)
 
     sun_from_moon = sun_at - moon_at
-    _, sun_lon_moon = _latlon_from_icrf(sun_from_moon.position.au, R_moon)
+    sun_lat_moon, sun_lon_moon = _latlon_from_icrf(sun_from_moon.position.au, R_moon)
     colongitude = _colongitude_from_subsolar_longitude(sun_lon_moon)
 
     # Phase angle is the Sun-Moon-observer angle; both direction vectors are
@@ -460,5 +472,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
         elongation=elongation,
         phase_name=phase_name,
         colongitude=colongitude,
+        subsolar_lat=sun_lat_moon,
+        subsolar_lon=_wrap_signed_degrees(sun_lon_moon),
         rotation_matrix=rotation_matrix,
     )
