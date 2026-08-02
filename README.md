@@ -77,7 +77,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Mouse wheel up/down** - Zoom in/out (less reliable)  
 
 ## Videos
-**Sunrise over Montes Apenninus (time animation technique - holding W key)**  
+**Sunrise over Montes Apenninus (presenting time animation technique - holding Q/W keys)**  
 [![Sunrise](https://img.youtube.com/vi/wd3J2ZEsAoI/maxresdefault.jpg)](https://www.youtube.com/watch?v=wd3J2ZEsAoI)  
 
 **and sunset but exported to MP4 file using F11 shortcut**  
