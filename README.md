@@ -78,9 +78,9 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 
 ## Videos
 **Sunrise over Montes Apenninus**  
-[![Video Title](https://img.youtube.com/vi/wd3J2ZEsAoI/0.jpg)](https://www.youtube.com/watch?v=wd3J2ZEsAoI)  
+[![Sunrise](https://img.youtube.com/vi/wd3J2ZEsAoI/maxresdefault.jpg)](https://www.youtube.com/watch?v=wd3J2ZEsAoI)  
 **Sunset over Montes Apenninus**  
-[![Video Title](https://img.youtube.com/vi/C44osfLSB9Y/0.jpg)](https://www.youtube.com/watch?v=C44osfLSB9Y)
+[![Sunset](https://img.youtube.com/vi/C44osfLSB9Y/maxresdefault.jpg)](https://www.youtube.com/watch?v=C44osfLSB9Y)
 
 ## Screens
 **Archimedes with neighbours**
