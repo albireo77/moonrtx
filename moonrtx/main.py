@@ -168,8 +168,7 @@ def check_plotoptix_version() -> bool:
         return True
     if tuple(int(g) for g in match.groups()) < MIN_PLOTOPTIX_VERSION:
         required = ".".join(str(v) for v in MIN_PLOTOPTIX_VERSION)
-        print(f"PlotOptiX {version} is too old: {APP_NAME} requires {required} or newer "
-              "(exact terminator shadows need the marching_step support). "
+        print(f"PlotOptiX {version} is too old: {APP_NAME} requires {required} or newer. "
               "Update with: pip install --upgrade -r requirements.txt")
         return False
     return True
