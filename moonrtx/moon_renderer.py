@@ -35,12 +35,28 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # Scene geometry
     MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
-    # Default camera distance in scene units. Larger distance renders the limb closer
+                                # at MOON_REFERENCE_DISTANCE (see moon_camera_distance)
+    # Reference camera distance in scene units. Larger distance renders the limb closer
     # to what a real observer sees (at 30 radii the visible cap reaches 88.1 degrees
     # from the disk center vs 84.3 at 10 radii and 89.7 in reality). The value is a
     # trade-off: much larger distances degrade float32 ray precision and produce
     # contour/tessellation artifacts on the displaced surface (visible at ~220 radii).
     CAMERA_DISTANCE = MOON_RADIUS * 30
+    # The Moon's real apparent size varies by ~14% over an anomalistic month
+    # (perigee 356500 km vs apogee 406700 km), plus up to 1.7% within a single
+    # night as the topocentric distance drops by one Earth radius on the way to
+    # the zenith. The render follows it by moving the camera (moon_camera_distance),
+    # never by changing the FOV: the star background is an environment texture
+    # sampled by ray direction, so any FOV change would zoom the whole sky along
+    # with the Moon, while a shift of the eye along the view axis leaves every
+    # ray direction - and therefore the sky - exactly as it was.
+    # CAMERA_DISTANCE renders the Moon at the size it has at this distance from
+    # the observer; the mean geocentric one. Ephemeris distances are topocentric,
+    # i.e. on average about half an Earth radius shorter, so the disk typically
+    # fills slightly more than MOON_FILL_FRACTION of the window height (0.91),
+    # between 0.84 for an apogee Moon near the horizon and 0.99 for a perigee
+    # Moon in the zenith - always inside the window.
+    MOON_REFERENCE_DISTANCE = 384_400.0     # km
     # Sun light distance and radius keep the real solar angular size seen from the
     # Moon: arcsin(100/21460) = 0.267 degrees, so penumbra softness is realistic.
     # The distance also sets the terminator parallax error: a light at distance D
@@ -195,23 +211,19 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.view_orientation = init_view_orientation
         self.initial_view_orientation = init_view_orientation  # For reset with R/V keys
 
-        # Default camera calculated from ephemeris (for reset with V key)
-        visible_height = 2 * self.MOON_RADIUS / self.MOON_FILL_FRACTION
-        fov = np.degrees(2 * np.arctan(visible_height / (2 * self.CAMERA_DISTANCE)))
-        self.default_camera = Camera(
-            eye=[0, -self.CAMERA_DISTANCE, 0],
-            target=[0, 0, 0],
-            up=[0, 0, 1],
-            fov=max(1, min(90, fov))
-        )
-
         self.dt_local = dt_local
 
         # Initial time for reset with R key
         self.initial_dt_local = self.dt_local
 
-        # Initial camera for reset with R key
-        self.initial_camera = self.default_camera if initial_camera is None else initial_camera
+        # Initial camera for reset with R key. When none is given it is the
+        # whole-disk view of the initial date, which needs the ephemeris and is
+        # therefore resolved in init_astro.
+        self.initial_camera = initial_camera
+
+        # Moon angular radius the current camera distance was set for; kept in
+        # sync by update_view (see _move_camera_to_apparent_size)
+        self._apparent_radius = None
 
         # Flag to track if window has been maximized
         self._window_maximized = False
@@ -299,6 +311,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._info_age_var = None
         self._info_elongation_var = None
         self._info_distance_var = None
+        self._info_diameter_var = None
         self._info_illum_var = None
         self._info_libr_l_var = None
         self._info_libr_b_var = None
@@ -465,6 +478,76 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     def init_astro(self):
         astro.init(self.observer)
+        # The ephemeris of the initial date is needed before the renderer
+        # exists: the camera distance depends on the Moon's apparent size on
+        # that date. update_view recomputes it from then on.
+        self.moon_ephem = astro.calculate_moon_ephemeris(self.dt_local, self.parallactic_mode)
+        self._apparent_radius = self.moon_apparent_radius()
+        if self.initial_camera is None:
+            self.initial_camera = self.default_camera
+
+    @property
+    def default_camera(self) -> Camera:
+        """
+        Whole-disk view of the currently rendered date (reset with the V key):
+        Moon centered and shown at the apparent size it has on that date.
+        """
+        visible_height = 2 * self.MOON_RADIUS / self.MOON_FILL_FRACTION
+        fov = np.degrees(2 * np.arctan(visible_height / (2 * self.CAMERA_DISTANCE)))
+        return Camera(
+            eye=[0, -self.moon_camera_distance(), 0],
+            target=[0, 0, 0],
+            up=[0, 0, 1],
+            fov=max(1, min(90, fov))
+        )
+
+    def moon_apparent_radius(self, distance_km: Optional[float] = None) -> float:
+        """
+        Angular radius of the Moon in radians as seen by the observer, from the
+        topocentric distance of the current ephemeris unless one is given.
+        """
+        if distance_km is None:
+            distance_km = self.moon_ephem.distance
+        return float(np.arcsin(self.MOON_RADIUS_KM / distance_km))
+
+    def moon_camera_distance(self, distance_km: Optional[float] = None) -> float:
+        """
+        Camera distance in scene units that shows the Moon at the apparent size
+        it really has, with the FOV left untouched (see MOON_REFERENCE_DISTANCE).
+
+        The rendered angular size is proportional to MOON_RADIUS / distance, so
+        the scene distance is scaled by the inverse ratio of the real angular
+        radii: 27.3 Moon radii for the closest possible Moon, 32.2 for the most
+        distant one, against 30 at MOON_REFERENCE_DISTANCE. The camera stays
+        well inside the range where the limb geometry and the float32 ray
+        precision are good (see CAMERA_DISTANCE).
+        """
+        return self.CAMERA_DISTANCE * (self.moon_apparent_radius(self.MOON_REFERENCE_DISTANCE) /
+                                       self.moon_apparent_radius(distance_km))
+
+    def _move_camera_to_apparent_size(self):
+        """
+        Follow the Moon's changing apparent size when the rendered date changes.
+
+        The eye is moved along the view direction by the inverse ratio of the
+        Moon's angular radius before and after the change. Nothing else is
+        touched: the target, the up vector and above all the FOV stay as they
+        are, so the star background renders exactly as before (its rays keep
+        their directions) and any zoom, pan or roll the user has set is
+        preserved - only the Moon grows and shrinks. A camera set elsewhere
+        (startup, a restored view, the R and V resets) already stands at the
+        distance of the date it was made for and is picked up here unchanged.
+        """
+        prev_radius = self._apparent_radius
+        self._apparent_radius = self.moon_apparent_radius()
+
+        if self.rt is None or prev_radius is None or prev_radius == self._apparent_radius:
+            return
+
+        cam = self.rt.get_camera(self.CAMERA_NAME)
+        target = np.array(cam["Target"])
+        eye_rel = (np.array(cam["Eye"]) - target) * (prev_radius / self._apparent_radius)
+        self.rt.update_camera(self.CAMERA_NAME, eye=(target + eye_rel).tolist())
 
     def init_renderer(self):
         self.rt = TkOptiX(
@@ -639,12 +722,17 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         keeps solar eclipse views (Sun size, coverage, total vs annular character)
         consistent with reality.
 
-        Both angles vary with the date: the magnification with the real Moon distance,
-        the Sun's apparent size with the Sun distance.
+        The magnification is the same on every date: the camera stands where the
+        Moon renders at its true apparent size (moon_camera_distance), so the Sun
+        disk keeps a constant screen size while the Moon grows and shrinks against
+        it, exactly as in a fixed eyepiece. Only the Sun's own apparent size still
+        varies with the Sun distance.
         """
+        camera_distance = self.moon_camera_distance()
+
         # Magnification of the rendered Moon relative to its real apparent size
-        magnification = np.arcsin(self.MOON_RADIUS / self.CAMERA_DISTANCE) / \
-            np.arcsin(self.MOON_RADIUS_KM / self.moon_ephem.distance)
+        magnification = np.arcsin(self.MOON_RADIUS / camera_distance) / \
+            self.moon_apparent_radius()
 
         sun_angular_radius = magnification * np.arcsin(self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)
 
@@ -666,7 +754,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             np.cos(separation),
             np.cos(bright_limb_angle) * sin_sep,
         ])
-        center = np.array([0.0, -self.CAMERA_DISTANCE, 0.0]) + self.SUN_DISK_DISTANCE * direction
+        center = np.array([0.0, -camera_distance, 0.0]) + self.SUN_DISK_DISTANCE * direction
         radius = self.SUN_DISK_DISTANCE * np.tan(sun_angular_radius) if in_view else 0.01
         return center.tolist(), float(radius)
 
@@ -701,6 +789,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # cannot launch frames on a half-updated scene, and accumulation
         # restarts once instead of once per update call.
         with self.rt._padlock:
+            self._move_camera_to_apparent_size()
             self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
             self.rt.update_data(self.SUN_DISK_NAME, pos=[sun_disk_pos], r=sun_disk_radius)
             # Light radius follows the true solar angular size seen from the Moon.

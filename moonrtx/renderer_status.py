@@ -91,6 +91,10 @@ class StatusMixin:
         self._info_age_var.set(f"Age:  {e.age_days:6.2f} days")
         self._info_elongation_var.set(f"Sun ∠:   {e.elongation:7.3f}°")
         self._info_distance_var.set(f"Dist:  {math.floor(e.distance + 0.5):,.0f} km".replace(",", " "))
+        # Apparent diameter the Moon is actually rendered at (see moon_camera_distance),
+        # from the same topocentric distance as the row above: 29.4' to 33.5' geocentric,
+        # up to 34.1' for a perigee Moon in the zenith
+        self._info_diameter_var.set(f"Diameter: {math.degrees(2 * self.moon_apparent_radius()) * 60:6.2f}'")
         self._info_illum_var.set(f"💡:        {(1 + math.cos(math.radians(e.phase_angle))) * 50.0:6.2f}%")
         self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
         self._info_geo_libr_b_var.set(f"⊕ Libr B: {e.libr_lat_geo:+6.3f}°")
@@ -351,6 +355,7 @@ class StatusMixin:
                     self._info_ra_var = tk.StringVar(value="RA:")
                     self._info_dec_var = tk.StringVar(value="DEC:")
                     self._info_distance_var = tk.StringVar(value="Dist:")
+                    self._info_diameter_var = tk.StringVar(value="Diameter:")
                     self._info_geo_libr_l_var = tk.StringVar(value="Geo LbL:")
                     self._info_geo_libr_b_var = tk.StringVar(value="Geo LbB:")
                     self._info_topo_libr_l_var = tk.StringVar(value="Topo LbL:")
@@ -370,6 +375,7 @@ class StatusMixin:
                         self._info_ra_var,
                         self._info_dec_var,
                         self._info_distance_var,
+                        self._info_diameter_var,
                         self._info_geo_libr_l_var,
                         self._info_geo_libr_b_var,
                         self._info_topo_libr_l_var,
