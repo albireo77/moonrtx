@@ -88,6 +88,8 @@ This export (using NVENC encoder available on PlotOptiX level) gives high qualit
 [![Libration](https://img.youtube.com/vi/pmU6eoUkY5o/maxresdefault.jpg)](https://www.youtube.com/watch?v=pmU6eoUkY5o) 
 
 ## Screens
+**Selenographic grid and labels**
+![Grid](images/grid2.jpg)
 **Timocharis**
 ![Timocharis](images/timocharis.jpg)
 **Rima Hesiodus and the distant Rupes Recta**
