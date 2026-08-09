@@ -297,7 +297,6 @@ class VideoMixin:
                 # scene, which starts the next accumulation cycle. The overlay
                 # is drawn first, so it is already in place when that cycle -
                 # the frame it labels - begins.
-                prev_dt = self.dt_local
                 next_dt = self.dt_local + timedelta(minutes=st["step"])
                 try:
                     with self.rt._padlock:
@@ -307,11 +306,11 @@ class VideoMixin:
                                 st["time_corner"], st["caption_corner"])
                         self.update_view(next_dt)
                 except Exception as e:
-                    # E.g. the date left the supported ephemeris range: keep the
-                    # last valid time and end the export with the partial file.
-                    # update_view raises before starting a cycle, so the frame
-                    # carrying this timestamp is never encoded.
-                    self.dt_local = prev_dt
+                    # E.g. the date left the supported ephemeris range: end the
+                    # export with the partial file. update_view rejects such a
+                    # date before changing anything, so the renderer stays on the
+                    # last valid time and the frame carrying the rejected
+                    # timestamp is never encoded.
                     error = str(e)
 
         if st["cancel"] or st["frame"] >= st["n"] or error is not None:

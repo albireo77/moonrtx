@@ -772,10 +772,17 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     def update_view(self, dt_local: Optional[datetime] = None):
 
-        if dt_local is not None:
-            self.dt_local = dt_local
+        # Compute the ephemeris before committing the new time. Dates outside
+        # the range of the bundled kernels are rejected here (see astro), and a
+        # rejected date must leave the renderer on the last valid time: with the
+        # time already committed, the status bar would keep showing the old time
+        # while dt_local held the rejected one, and every further step would
+        # build on it - the view would appear frozen.
+        target_dt = self.dt_local if dt_local is None else dt_local
+        moon_ephem = astro.calculate_moon_ephemeris(target_dt, self.parallactic_mode)
 
-        self.moon_ephem = astro.calculate_moon_ephemeris(self.dt_local, self.parallactic_mode)
+        self.dt_local = target_dt
+        self.moon_ephem = moon_ephem
         self.moon_rotation = self.moon_ephem.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
         self.light_pos = self.calculate_light_pos()
@@ -916,11 +923,27 @@ def run_renderer(dt_local: datetime,
     preview_keysyms = {'Left', 'Right', 'Up', 'Down'}
     preview_letters = set('qwazedhj')
 
+    # Keys that reach update_view: time stepping (Q/W), the resets that restore
+    # the initial time (R), the date/time dialog (T), the parallactic toggle
+    # (F4) and the set-time-now keys (F9/F10). A running video export drives
+    # update_view from the raytracing thread, so these are ignored while it
+    # lasts - see the export guard in custom_key_handler.
+    update_view_keysyms = {'F4', 'F9', 'F10'}
+    update_view_letters = set('qwrt')
+
     def custom_key_handler(event):
         # Ignore key events when search dialog or datetime dialog is focused
         if moon_renderer.search_dialog_open:
             return
         if moon_renderer.datetime_dialog_focused:
+            return
+        # The video export owns the clock until it finishes: letting a key
+        # change the time here would run update_view on the Tk main thread while
+        # the export runs it on the raytracing thread, and the two would race
+        # over dt_local, the ephemeris and the scene
+        if moon_renderer._video_export is not None and (
+                event.keysym in update_view_keysyms
+                or event.keysym.lower() in update_view_letters):
             return
         if event.keysym in preview_keysyms or event.keysym.lower() in preview_letters:
             moon_renderer._begin_interactive_preview()
