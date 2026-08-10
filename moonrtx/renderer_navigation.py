@@ -12,9 +12,6 @@ from moonrtx.shared_types import MoonFeature
 class NavigationMixin:
     """Mixin providing camera navigation and measurement methods for MoonRenderer."""
 
-    # Real Moon radius in kilometers
-    MOON_RADIUS_KM = 1737.4
-
     def center_on_feature(self, feature: MoonFeature):
         """
         Center the view on a Moon feature.

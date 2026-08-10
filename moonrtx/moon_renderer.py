@@ -34,6 +34,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
     # Scene geometry
     MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
+    MOON_RADIUS_KM = 1737.4     # The real radius that scene radius stands for,
+                                # used wherever the render has to match a real
+                                # angle or length: apparent size, the Sun disk,
+                                # surface distances and elevation differences
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
                                 # at MOON_REFERENCE_DISTANCE (see moon_camera_distance)
     # Reference camera distance in scene units. Larger distance renders the limb closer
@@ -104,6 +108,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # Flat radiance: >= 1.12 renders as pure white for any gamma in the 0.5-5.0 range,
     # while keeping the stray light the disk bounces onto the Moon negligible
     SUN_DISK_COLOR = 2.0
+    # Radius that effectively hides the disk: the size it is created with before
+    # the first update_view gives it a real position and size, and the size it is
+    # parked at when the Sun is too far from the Moon to share a view with it
+    # (see calculate_sun_disk)
+    SUN_DISK_PARKED_RADIUS = 0.01
 
     # Accumulation settings. Since PlotOptiX 0.19.1 the displayed image is
     # presented once per completed accumulation cycle (max_accumulation_frames),
@@ -629,7 +638,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self.rt.setup_material("flat", self._no_shadow_flat_material())
         self.rt.set_data(self.SUN_DISK_NAME, geom="ParticleSet", mat="flat",
                          pos=[[0.0, self.SUN_DISK_DISTANCE, 0.0]],
-                         r=self.SUN_RADIUS, c=self.SUN_DISK_COLOR)
+                         r=self.SUN_DISK_PARKED_RADIUS, c=self.SUN_DISK_COLOR)
 
 
     def calculate_light_pos(self) -> list:
@@ -755,7 +764,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             np.cos(bright_limb_angle) * sin_sep,
         ])
         center = np.array([0.0, -camera_distance, 0.0]) + self.SUN_DISK_DISTANCE * direction
-        radius = self.SUN_DISK_DISTANCE * np.tan(sun_angular_radius) if in_view else 0.01
+        radius = (self.SUN_DISK_DISTANCE * np.tan(sun_angular_radius) if in_view
+                  else self.SUN_DISK_PARKED_RADIUS)
         return center.tolist(), float(radius)
 
 
