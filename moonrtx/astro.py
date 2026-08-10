@@ -189,8 +189,8 @@ def _scan_times(start_local: datetime, days: int, step_minutes: int) -> tuple:
     """
     start_utc = _validate_supported_datetime(start_local)
     end_utc = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
-    n = max(int((end_utc - start_utc).total_seconds() // (step_minutes * 60)), 1)
-    dts = [start_utc + timedelta(minutes=step_minutes * i) for i in range(n)]
+    n = max(int((end_utc - start_utc).total_seconds() // (step_minutes * 60)), 0)
+    dts = [start_utc + timedelta(minutes=step_minutes * i) for i in range(n + 1)]
     return dts, _timescale.from_datetimes(dts)
 
 
