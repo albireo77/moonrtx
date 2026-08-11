@@ -23,10 +23,11 @@ from moonrtx.renderer_labels import LabelsMixin
 from moonrtx.renderer_pins import PinsMixin
 from moonrtx.renderer_navigation import NavigationMixin
 from moonrtx.renderer_video import VideoMixin
+from moonrtx.renderer_fov import FovMixin
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
-                   VideoMixin):
+                   VideoMixin, FovMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -301,6 +302,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Time-lapse video export state (see renderer_video.VideoMixin)
         self._init_video_export()
+
+        # Field-of-view overlay state (see renderer_fov.FovMixin)
+        self._init_fov_overlay()
 
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
@@ -983,6 +987,10 @@ def run_renderer(dt_local: datetime,
             moon_renderer.reset_camera_position()
         elif event.keysym.lower() == 'c':
             moon_renderer.center_view_on_cursor(event)
+        elif event.keysym == 'F3':
+            moon_renderer.fov_overlay_dialog()
+        elif event.keysym.lower() == 'b':
+            moon_renderer.toggle_fov_overlay()
         elif event.keysym == 'F11':
             moon_renderer.export_video_dialog()
         elif event.keysym == 'F12':

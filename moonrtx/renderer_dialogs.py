@@ -531,6 +531,7 @@ class DialogsMixin:
         aligned_lines = [
             ("F1", "Help"),
             ("F2", "Toggle Moon ephemeris panel"),
+            ("F3", "Set up the eyepiece / camera field of view frame"),
             ("F4", "Toggle parallactic mode (maintains Moon aligned to celestial north)"),
             ("F5", "NSWE view orientation"),
             ("F6", "NSEW view orientation"),
@@ -545,6 +546,7 @@ class DialogsMixin:
             ("L", "Toggle standard labels"),
             ("S", "Toggle spot labels"),
             ("P", "Toggle pins ON/OFF"),
+            ("B", "Toggle the field of view frame (set it up with F3)"),
             ("R", "Reset view and time to initial state"),
             ("V", "Reset view to that based on current time (useful after starting with --init-view parameter)"),
             ("C", "Center and fix view on point under cursor"),

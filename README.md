@@ -41,6 +41,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ## Keyboard and Mouse Actions
 **F1** - Help  
 **F2** - Toggle Moon ephemeris panel  
+**F3** - Set up the eyepiece / camera field of view frame  
 **F4** - Toggle parallactic mode (maintains Moon aligned to celestial north)  
 **F5-F8** - Change view orientation (NSWE, NSEW, SNEW, SNWE)  
 **F9** - Set time to now using system timezone  
@@ -52,6 +53,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
 **P** - Toggle pins ON/OFF  
+**B** - Toggle the field of view frame (set it up with F3)  
 **R** - Reset view and time to initial state  
 **V** - Reset view to that based on current time (useful after starting with `--init-view` parameter)  
 **C** - Center and fix view on point under cursor  
@@ -100,6 +102,8 @@ This export (using NVENC encoder available on PlotOptiX level) gives high qualit
 ![Mare Smythii](images/mare_smythii.jpg)
 **Measuring the depth (Δh) of Theophilus**
 ![Theophilus](images/theophilus.jpg)
+**Field of view frame**
+![Theophilus](images/fov.jpg)
 
 
 
