@@ -50,6 +50,27 @@ class Camera(NamedTuple):
     aperture_fract: float = 0.2
     focal_scale: float = 0.7
 
+class ClairObscurEvent(NamedTuple):
+    """
+    A light-and-shadow pattern that forms when the terminator lights only the
+    high ground of a formation while the ground around it is still dark.
+
+    Defined by a representative point and the range of Sun altitude over that
+    point in which the pattern stands, rather than by the colongitude the usual
+    sources quote: the altitude is what the terrain responds to, and it tracks
+    the effect a couple of degrees better at high latitudes, where the subsolar
+    latitude of the month shifts the sunrise line. Peaks catch the light before
+    the ground does, so a formation whose interest is its summits (the Jewelled
+    Handle) has a negative window.
+    """
+    name: str
+    lat: float
+    lon: float
+    sun_alt_min: float
+    sun_alt_max: float
+    rising: bool            # True at local sunrise, False at local sunset
+    description: str
+
 class Observer(NamedTuple):
     lat: float
     lon: float

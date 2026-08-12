@@ -15,7 +15,7 @@ from moonrtx.skyfield_utils import (
     skyfield_moon_frame,
     skyfield_timescale,
 )
-from moonrtx.shared_types import MoonEphemeris, Observer
+from moonrtx.shared_types import ClairObscurEvent, MoonEphemeris, Observer
 
 RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
     [[0.0, -1.0, 0.0],
@@ -378,6 +378,149 @@ def find_libration_windows(start_local: datetime, days: int,
 
     windows.sort(key=lambda w: w["earth_alt"], reverse=True)
     return windows[:max_results]
+
+
+# Clair-obscur ("light-dark") events: the shapes that appear for a few hours
+# when the terminator lights only the high ground of a formation. Each window
+# below is a Sun altitude range over the event's own point, which the Sun
+# crosses at about 0.5 degrees per hour - so a window n degrees wide lasts
+# roughly 2n hours. See ClairObscurEvent for why altitude and not colongitude.
+#
+# The Lunar X window is the one with a firm published trigger (colongitude
+# 358.0-358.7), and this range reproduces it. The others are set from the
+# geometry of the formation: a summit of height h catches the Sun while it is
+# still arccos(R / (R + h)) below the local horizon, which is 4.8 degrees for
+# the 6 km peaks of Montes Jura, hence the negative window of the Jewelled
+# Handle. Tune them here if your own observations disagree.
+CLAIR_OBSCUR_EVENTS = (
+    ClairObscurEvent(
+        "Lunar X", -25.9, 1.85, -0.3, 1.8, True,
+        "The rims of La Caille, Blanchinus and Purbach lit into a bright X "
+        "standing in the dark, a few hours before First Quarter."),
+    ClairObscurEvent(
+        "Lunar V", 14.5, 0.7, -0.3, 1.8, True,
+        "A V of lit ridges near Ukert, formed within a couple of hours of the "
+        "Lunar X and usually seen in the same session."),
+    ClairObscurEvent(
+        "Jewelled Handle", 44.1, -31.5, -4.8, -1.0, True,
+        "The 6 km peaks of Montes Jura catching the Sun while the floor of "
+        "Sinus Iridum is still in night, drawing a bright handle on the "
+        "terminator."),
+    ClairObscurEvent(
+        "Eyes of Clavius", -58.4, -14.4, -0.5, 2.5, True,
+        "Sunrise over Clavius, when the rims of the crater chain on its floor "
+        "light up as a curving row of bright rings."),
+    ClairObscurEvent(
+        "Rupes Recta dark line", -21.8, -7.8, 1.0, 8.0, True,
+        "The Straight Wall casting its shadow after local sunrise, drawing a "
+        "110 km dark line across Mare Nubium."),
+    ClairObscurEvent(
+        "Rupes Recta bright line", -21.8, -7.8, 1.0, 8.0, False,
+        "The same scarp around local sunset, its face now turned to the Sun "
+        "and shining as a bright line instead."),
+)
+
+
+def find_clair_obscur_events(start_local: datetime, days: int,
+                             step_minutes: int = 30,
+                             moon_alt_min: float = 5.0,
+                             events: tuple = CLAIR_OBSCUR_EVENTS) -> list[dict]:
+    """
+    Find upcoming clair-obscur events: the hours in which each pattern of
+    CLAIR_OBSCUR_EVENTS stands, filtered to the ones the observer can actually
+    see. These are timed by illumination alone, so a scan over Sun altitude at
+    the event's point finds them exactly, and they are short - typically four
+    to eight hours out of a lunation.
+
+    One vectorized Skyfield evaluation serves every event: the subsolar point
+    and the observer's Moon and Sun altitudes are computed once for the whole
+    range, and each event only costs a spherical-triangle evaluation on top of
+    that (see _body_altitude_at_feature).
+
+    Parameters
+    ----------
+    start_local : datetime
+        Timezone-aware start of the scan
+    days : int
+        Scan length in days (clamped to the bundled kernel range)
+    step_minutes : int
+        Sample spacing; window edges are accurate to this resolution
+    moon_alt_min : float
+        Minimum Moon altitude at the observer site for an occurrence to count
+        as visible. Occurrences with no visible part are dropped; pass 0 to
+        keep every occurrence regardless of the observer's sky.
+    events : tuple of ClairObscurEvent
+        Events to scan for, by default the whole catalogue
+
+    Returns
+    -------
+    list[dict]
+        One dict per occurrence, in time order, with keys: "event" and
+        "description" (from the catalogue), "lat" and "lon" (where to look),
+        "start", "end" (UTC datetimes bounding the pattern), "peak" (UTC, the
+        sample where the illumination is closest to the middle of the event's
+        window), "visible_start" and "visible_end" (the part of it with the
+        Moon up, None when there is none), "peak_visible" (whether the Moon is
+        up at "peak" itself), "sun_alt" (Sun altitude over the event at
+        "peak", the illumination that forms the pattern), "highest" (UTC,
+        where the Moon stands highest during the pattern) and "moon_alt" and
+        "observer_sun_alt" (degrees there, not at "peak", so they describe the
+        best moment to go out and never contradict moon_alt_min).
+    """
+    dts, t = _scan_times(start_local, days, step_minutes)
+
+    observer_at = _observer.at(t)
+    moon_alt, _, _ = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")
+    sun_alt_obs, _, _ = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")
+    moon_alt = moon_alt.degrees
+    sun_alt_obs = sun_alt_obs.degrees
+
+    subsolar_lat, subsolar_lon = _sub_point(_sun, t, _moon.at(t))
+
+    occurrences = []
+    for event in events:
+        sun_alt = _body_altitude_at_feature(subsolar_lat, subsolar_lon, event.lat, event.lon)
+        # The Sun climbs over a given point for half a lunation and sinks for
+        # the other half, so the same altitude window is met twice; only the
+        # half this event belongs to counts
+        climbing = np.gradient(sun_alt) > 0
+        ok = (sun_alt >= event.sun_alt_min) & (sun_alt <= event.sun_alt_max) \
+            & (climbing == event.rising)
+        idx = np.flatnonzero(ok)
+        if idx.size == 0:
+            continue
+
+        middle = 0.5 * (event.sun_alt_min + event.sun_alt_max)
+        for seg in _split_windows(idx):
+            peak = seg[np.argmin(np.abs(sun_alt[seg] - middle))]
+            # The illumination is reported at the peak, but the observer's sky
+            # is reported where the Moon stands highest during the pattern:
+            # that is the moment worth going out for, and it is the same test
+            # the moon_alt_min filter applies - so a listed occurrence can
+            # never show a Moon altitude below it, which the peak could
+            visible = seg[moon_alt[seg] >= moon_alt_min]
+            if moon_alt_min > 0.0 and visible.size == 0:
+                continue
+            highest = seg[np.argmax(moon_alt[seg])]
+            occurrences.append({
+                "event": event.name,
+                "description": event.description,
+                "lat": event.lat,
+                "lon": event.lon,
+                "start": dts[seg[0]],
+                "end": dts[seg[-1]],
+                "peak": dts[peak],
+                "highest": dts[highest],
+                "visible_start": dts[visible[0]] if visible.size else None,
+                "visible_end": dts[visible[-1]] if visible.size else None,
+                "peak_visible": bool(moon_alt[peak] >= moon_alt_min),
+                "sun_alt": float(sun_alt[peak]),
+                "moon_alt": float(moon_alt[highest]),
+                "observer_sun_alt": float(sun_alt_obs[highest]),
+            })
+
+    occurrences.sort(key=lambda o: o["peak"])
+    return occurrences
 
 
 def sun_altitude_at(subsolar_lat: float, subsolar_lon: float, lat_deg: float, lon_deg: float) -> float:

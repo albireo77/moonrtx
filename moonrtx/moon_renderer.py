@@ -938,12 +938,13 @@ def run_renderer(dt_local: datetime,
     preview_letters = set('qwazedhj')
 
     # Keys that reach update_view: time stepping (Q/W), the resets that restore
-    # the initial time (R), the date/time dialog (T), the parallactic toggle
-    # (F4) and the set-time-now keys (F9/F10). A running video export drives
-    # update_view from the raytracing thread, so these are ignored while it
-    # lasts - see the export guard in custom_key_handler.
+    # the initial time (R), the dialogs that jump to a time (T, and the planners
+    # K and X), the parallactic toggle (F4) and the set-time-now keys (F9/F10).
+    # A running video export drives update_view from the raytracing thread, so
+    # these are ignored while it lasts - see the export guard in
+    # custom_key_handler.
     update_view_keysyms = {'F4', 'F9', 'F10'}
-    update_view_letters = set('qwrt')
+    update_view_letters = set('qwrtkx')
 
     def custom_key_handler(event):
         # Ignore key events when search dialog or datetime dialog is focused
@@ -999,6 +1000,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.search_feature_dialog()
         elif event.keysym.lower() == 'k':
             moon_renderer.observation_planner_dialog(moon_renderer._status_feature)
+        elif event.keysym.lower() == 'x':
+            moon_renderer.clair_obscur_dialog()
         elif event.keysym.lower() == 'i':
             moon_renderer.open_status_feature_usgs_page()
         elif event.keysym.lower() == 'o':

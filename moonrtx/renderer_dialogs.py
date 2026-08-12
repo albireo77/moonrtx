@@ -60,6 +60,37 @@ def encode_camera(camera: Camera) -> str:
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
 
+    def _show_dialog(self, win, position=None, grab: bool = True):
+        """
+        Map a dialog once it is finished and placed.
+
+        Every dialog here is built while withdrawn and shown through this
+        method: a Toplevel is otherwise mapped where the window manager first
+        puts it and moved to its own position only afterwards, which is seen as
+        the window flashing in the corner of the screen before it settles. The
+        grab has to wait for the same reason - a window that is not yet
+        viewable cannot take one.
+
+        Parameters
+        ----------
+        win : tk.Toplevel
+            The dialog to show
+        position : tuple, optional
+            Screen position; centred on the main window when not given
+        grab : bool
+            Whether the dialog takes the input grab (modal dialogs)
+        """
+        win.update_idletasks()
+        if position is None:
+            root = self.rt._root
+            position = (root.winfo_x() + (root.winfo_width() - win.winfo_width()) // 2,
+                        root.winfo_y() + (root.winfo_height() - win.winfo_height()) // 2)
+        win.geometry(f"+{position[0]}+{position[1]}")
+        win.deiconify()
+        if grab:
+            win.wait_visibility()
+            win.grab_set()
+
     # Observation planner filter settings. In terminator mode a feature is
     # worth observing while the Sun stands 0-12 degrees above it (terrain lit,
     # shadows long); in libration mode it only has to be lit at all, since
@@ -71,6 +102,207 @@ class DialogsMixin:
     PLANNER_MOON_ALT_MIN = 5.0
     PLANNER_LIBRATION_SUN_ALT_MIN = 3.0
     PLANNER_MAX_RESULTS = 20
+
+    # Clair-obscur finder. The events last hours, so the scan reaches over
+    # several lunations to find ones that are actually up at the observer's
+    # site, at a step fine enough to place a four-hour window.
+    # See astro.find_clair_obscur_events.
+    CLAIR_OBSCUR_SCAN_DAYS = 120
+    CLAIR_OBSCUR_STEP_MINUTES = 30
+    CLAIR_OBSCUR_ALL_EVENTS = "All events"
+    # Filters last chosen in the dialog. Declared on the class so the first
+    # opening has defaults; changing one stores it on the instance, so both hold
+    # for the rest of the session and start over on the next run.
+    _clair_obscur_filter = CLAIR_OBSCUR_ALL_EVENTS
+    _clair_obscur_visible_only = True
+
+    def clair_obscur_dialog(self):
+        """
+        Show upcoming clair-obscur events - the light-and-shadow shapes that
+        stand for a few hours when the terminator lights only the high ground
+        of a formation - and let the user jump the app time to one of them.
+
+        "Go to selected" moves to the peak of the pattern rather than to the
+        part of it visible from the observer's site: the renderer has no sky of
+        its own, so it shows the event whether or not the Moon is up outside.
+        The visible column is there to plan the observation itself.
+        """
+        if self.rt is None:
+            return
+
+        # Reuse the search-dialog flag: it blocks main-window key handling
+        # for this dialog in exactly the same way
+        self.search_dialog_open = True
+
+        win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        win.withdraw()
+        win.title("Clair-obscur events")
+        win.transient(self.rt._root)
+        win.resizable(False, False)
+
+        def on_close():
+            self.search_dialog_open = False
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+        win.bind('<Escape>', lambda e: on_close())
+
+        main_frame = tk.Frame(win, padx=12, pady=8)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        font = ('Consolas', 9)
+        local_tz = self.dt_local.tzinfo
+        events = []                      # results currently listed
+
+        # The altitudes carry the status bar's notation: h(sun) over the event
+        # itself, h(moon) in the observer's sky. Here the header is a single
+        # Label in a single font, so the signs cannot be lowered into subscripts
+        # as they are there.
+        #
+        # Both altitudes are left-aligned like every other column, so each label
+        # sits directly over the start of its values. Two header fields are
+        # deliberately not the width of the values below them: the date field is
+        # 22 against the rows' 20 because the rows put two spaces after the
+        # timestamp, and the h(moon) field is 7 against their 8 to absorb the
+        # signs, which are wider than a Consolas cell (+3 px for the Sun, +6 for
+        # the Moon). Every label then starts within 3 px - under half a
+        # character - of its column.
+        header = (f"{'Event':<24}{'Peak (local)':<22}{'Pattern':<16}{'Visible here':<16}"
+                  f"{'h☉':<8}{'h☾':<7}  {'Sky':<8}")
+
+        tk.Label(main_frame, anchor='w', font=font,
+                 text=f"Shapes drawn by the terminator, over the next "
+                      f"{self.CLAIR_OBSCUR_SCAN_DAYS} days"
+                 ).pack(fill=tk.X)
+
+        all_events = self.CLAIR_OBSCUR_ALL_EVENTS
+        event_names = [all_events] + [e.name for e in astro.CLAIR_OBSCUR_EVENTS]
+        # Resume the filter this session was last left on, unless it names an
+        # event the catalogue no longer has
+        filter_var = tk.StringVar(
+            value=self._clair_obscur_filter if self._clair_obscur_filter in event_names
+            else all_events)
+
+        filter_row = tk.Frame(main_frame)
+        filter_row.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(filter_row, text="Show:", anchor='w').pack(side=tk.LEFT)
+        option = tk.OptionMenu(filter_row, filter_var, *event_names, command=lambda _: rescan())
+        option.config(width=max(len(name) for name in event_names), anchor='w')
+        option.pack(side=tk.LEFT, padx=(4, 12))
+
+        visible_only_var = tk.BooleanVar(value=self._clair_obscur_visible_only)
+        # Naming the column ties the filter to the figure it acts on
+        tk.Checkbutton(filter_row, variable=visible_only_var, anchor='w',
+                       text=f"Only when the Moon altitude (h☾) is at least "
+                            f"{self.PLANNER_MOON_ALT_MIN:.0f}° in my sky",
+                       command=lambda: rescan()).pack(side=tk.LEFT)
+
+        desc_var = tk.StringVar()
+        desc_label = tk.Label(main_frame, textvariable=desc_var, justify=tk.LEFT,
+                              anchor='nw', font=font, height=3)
+        desc_label.pack(fill=tk.X, pady=(4, 6))
+
+        tk.Label(main_frame, text=header, font=('Consolas', 9, 'bold'),
+                 anchor='w').pack(fill=tk.X)
+
+        list_frame = tk.Frame(main_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=font,
+                             width=len(header) + 2, height=16)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+
+        win.update_idletasks()
+        desc_label.config(wraplength=listbox.winfo_reqwidth())
+
+        def sky_of(o):
+            if o["observer_sun_alt"] > 0.0:
+                return "day"
+            return "twilight" if o["observer_sun_alt"] > -12.0 else "night"
+
+        def show_description(event=None):
+            selection = listbox.curselection()
+            if events and selection and selection[0] < len(events):
+                o = events[selection[0]]
+                desc_var.set(f"{o['event']} (lat {o['lat']:.1f}°, lon {o['lon']:.1f}°): "
+                             f"{o['description']}")
+
+        def rescan():
+            nonlocal events
+            listbox.delete(0, tk.END)
+            chosen = filter_var.get()
+            self._clair_obscur_filter = chosen
+            self._clair_obscur_visible_only = visible_only_var.get()
+            catalogue = astro.CLAIR_OBSCUR_EVENTS if chosen == all_events else tuple(
+                e for e in astro.CLAIR_OBSCUR_EVENTS if e.name == chosen)
+            try:
+                events = astro.find_clair_obscur_events(
+                    self.dt_local, self.CLAIR_OBSCUR_SCAN_DAYS,
+                    step_minutes=self.CLAIR_OBSCUR_STEP_MINUTES,
+                    moon_alt_min=self.PLANNER_MOON_ALT_MIN if visible_only_var.get() else 0.0,
+                    events=catalogue)
+            except ValueError as e:
+                # Scan start outside the bundled ephemeris kernel range
+                events = []
+                desc_var.set(str(e))
+                return
+
+            if not events:
+                desc_var.set("")
+                message = "  No events found in the scanned period."
+                if visible_only_var.get():
+                    message += "  Untick the filter to include the ones below your horizon."
+                listbox.insert(tk.END, message)
+                return
+
+            for o in events:
+                peak = o["peak"].astimezone(local_tz)
+                start = o["start"].astimezone(local_tz)
+                end = o["end"].astimezone(local_tz)
+                pattern = f"{start:%H:%M}-{end:%H:%M}"
+                if o["visible_start"] is not None:
+                    vs = o["visible_start"].astimezone(local_tz)
+                    ve = o["visible_end"].astimezone(local_tz)
+                    visible = f"{vs:%H:%M}-{ve:%H:%M}"
+                else:
+                    visible = "-"
+                # Left-aligned like the columns before them, so the values start
+                # under their labels (see header)
+                sun_alt = f"{o['sun_alt']:+.1f}°"
+                moon_alt = f"{o['moon_alt']:+.0f}°"
+                listbox.insert(tk.END,
+                               f"{o['event']:<24}{peak:%Y-%m-%d %a %H:%M}  {pattern:<16}"
+                               f"{visible:<16}{sun_alt:<8}{moon_alt:<8}  {sky_of(o)}")
+            listbox.selection_set(0)
+            show_description()
+
+        def go_to(event=None):
+            selection = listbox.curselection()
+            if not events or not selection or selection[0] >= len(events):
+                return
+            o = events[selection[0]]
+            on_close()
+            self.update_view(o["peak"].astimezone(local_tz))
+            if self._auto_advance_var and self._auto_advance_var.get():
+                self._auto_advance_elapsed = 0
+            self._update_all_status_panels()
+            self.center_on_lat_lon(o["lat"], o["lon"])
+
+        listbox.bind('<<ListboxSelect>>', show_description)
+        listbox.bind('<Double-Button-1>', go_to)
+        listbox.bind('<Return>', go_to)
+
+        btn_frame = tk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(8, 0))
+        tk.Button(btn_frame, text="Go to selected", command=go_to, width=16).pack(side=tk.LEFT)
+        tk.Button(btn_frame, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
+
+        rescan()
+
+        self._show_dialog(win)
 
     def observation_planner_dialog(self, feature: MoonFeature):
         """
@@ -97,9 +329,10 @@ class DialogsMixin:
         self.search_dialog_open = True
 
         win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        win.withdraw()
         win.title(f"Observation Planner - {feature.name}")
         win.transient(self.rt._root)
-        win.grab_set()
         win.resizable(False, False)
 
         def on_close():
@@ -248,11 +481,7 @@ class DialogsMixin:
 
         rescan()
 
-        # Center on main window
-        win.update_idletasks()
-        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - win.winfo_width()) // 2
-        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - win.winfo_height()) // 2
-        win.geometry(f"+{x}+{y}")
+        self._show_dialog(win)
 
     def export_video_dialog(self):
         """
@@ -269,9 +498,10 @@ class DialogsMixin:
         self.search_dialog_open = True
 
         win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        win.withdraw()
         win.title("Export time-lapse video")
         win.transient(self.rt._root)
-        win.grab_set()
         win.resizable(False, False)
 
         exporting = {"active": False}
@@ -492,11 +722,7 @@ class DialogsMixin:
                            "The export will most likely fail to start.\n"
                            "Install latest FFmpeg shared libraries for your OS.")
 
-        # Center on main window
-        win.update_idletasks()
-        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - win.winfo_width()) // 2
-        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - win.winfo_height()) // 2
-        win.geometry(f"+{x}+{y}")
+        self._show_dialog(win)
 
     def show_help_dialog(self):
         """Show a help window with keyboard and mouse shortcuts."""
@@ -514,6 +740,8 @@ class DialogsMixin:
                 pass
 
         help_win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        help_win.withdraw()
         help_win.title("Help - Keys and mouse")
         help_win.resizable(False, False)
         self._help_dialog = help_win
@@ -552,6 +780,7 @@ class DialogsMixin:
             ("C", "Center and fix view on point under cursor"),
             ("F", "Search for Moon features (craters, mounts etc.)"),
             ("K", "Open observation planner (terminator / libration) for Moon feature in status bar"),
+            ("X", "Find clair-obscur events (Lunar X, Jewelled Handle, Rupes Recta ...)"),
             ("I", "Open USGS web page for Moon feature shown in status bar"),
             ("O", "Open user defined web page (Wiki by default) for Moon feature shown in status bar"),
             ("T", "Open date/time window"),
@@ -596,11 +825,7 @@ class DialogsMixin:
         # Close button
         tk.Button(main_frame, text="Close", command=on_close, width=10).pack(pady=(10, 0))
 
-        # Center on main window
-        help_win.update_idletasks()
-        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - help_win.winfo_width()) // 2
-        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - help_win.winfo_height()) // 2
-        help_win.geometry(f"+{x}+{y}")
+        self._show_dialog(help_win, grab=False)
 
     def save_image_dialog(self):
         """
@@ -695,10 +920,11 @@ class DialogsMixin:
         
         # Create search window
         search_win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        search_win.withdraw()
         search_win.title("Search Moon Feature")
         search_win.geometry("400x340")
         search_win.transient(self.rt._root)
-        search_win.grab_set()
         
         def on_close():
             self.search_dialog_open = False
@@ -791,11 +1017,7 @@ class DialogsMixin:
         btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(side=tk.RIGHT)
 
-        # Center the window
-        search_win.update_idletasks()
-        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - search_win.winfo_width()) // 2
-        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - search_win.winfo_height()) // 2
-        search_win.geometry(f"+{x}+{y}")
+        self._show_dialog(search_win)
 
     def open_datetime_dialog(self):
         """
@@ -813,6 +1035,8 @@ class DialogsMixin:
         
         # Create datetime window (non-modal, stays open)
         dt_win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        dt_win.withdraw()
         dt_win.title("Date/Time")
         dt_win.geometry("360x130")
         dt_win.transient(self.rt._root)
@@ -928,11 +1152,12 @@ class DialogsMixin:
         tk.Button(btn_frame, text="Sync with Moon", command=sync_from_renderer, width=16).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Set", command=go_to_time, width=10).pack(side=tk.RIGHT, padx=5)
         
-        # Position near the top-right of the main window
+        # Near the top-right of the main window rather than centred, so it
+        # does not cover the Moon while the time is being set
         dt_win.update_idletasks()
-        x = self.rt._root.winfo_x() + self.rt._root.winfo_width() - dt_win.winfo_width() - 50
-        y = self.rt._root.winfo_y() + 100
-        dt_win.geometry(f"+{x}+{y}")
+        self._show_dialog(dt_win, (self.rt._root.winfo_x() + self.rt._root.winfo_width()
+                                   - dt_win.winfo_width() - 50,
+                                   self.rt._root.winfo_y() + 100), grab=False)
         
         # Focus on time entry for quick editing
         time_entry.focus_set()

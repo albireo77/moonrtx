@@ -16,21 +16,33 @@ class NavigationMixin:
         """
         Center the view on a Moon feature.
 
-        Works exactly like center_view_on_cursor (C key): the camera keeps its
-        current distance and FOV, only the target moves to the feature. Zooming
-        in on the feature is left to the user (mouse wheel / Shift+drag).
-
         Parameters
         ----------
         feature : MoonFeature
             The feature to center on
         """
+        if feature is not None:
+            self.center_on_lat_lon(feature.lat, feature.lon)
+
+    def center_on_lat_lon(self, lat: float, lon: float):
+        """
+        Center the view on a selenographic position.
+
+        Works exactly like center_view_on_cursor (C key): the camera keeps its
+        current distance and FOV, only the target moves to the position. Zooming
+        in on it is left to the user (mouse wheel / Shift+drag).
+
+        Parameters
+        ----------
+        lat, lon : float
+            Selenographic coordinates in degrees
+        """
         if self.rt is None or self.moon_rotation is None:
             return
 
         # Convert selenographic coordinates to 3D position
-        lat_rad = np.radians(feature.lat)
-        lon_rad = np.radians(feature.lon)
+        lat_rad = np.radians(lat)
+        lon_rad = np.radians(lon)
 
         # In original Moon coordinates:
         # - +Z is north pole

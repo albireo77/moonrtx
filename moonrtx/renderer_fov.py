@@ -235,9 +235,10 @@ class FovMixin:
         self.search_dialog_open = True
 
         win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        win.withdraw()
         win.title("Field of view")
         win.transient(self.rt._root)
-        win.grab_set()
         win.resizable(False, False)
 
         def on_close():
@@ -342,12 +343,7 @@ class FovMixin:
         tk.Button(btn_frame, text="Close", width=10, command=on_close).pack(side=tk.RIGHT)
 
         apply()
-
-        # Center on main window
-        win.update_idletasks()
-        x = self.rt._root.winfo_x() + (self.rt._root.winfo_width() - win.winfo_width()) // 2
-        y = self.rt._root.winfo_y() + (self.rt._root.winfo_height() - win.winfo_height()) // 2
-        win.geometry(f"+{x}+{y}")
+        self._show_dialog(win)
 
 
 def _format_angle(angle_rad: float) -> str:
