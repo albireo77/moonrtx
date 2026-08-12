@@ -191,34 +191,43 @@ def _format_utc_offset(dt: datetime) -> str:
     return f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC"
 
 
-def warn_if_offset_is_not_local(dt_local: datetime):
+def offset_not_local_warning(dt_local: datetime) -> Optional[str]:
     """
-    Warn when a time given on the command line carries a UTC offset that this
-    computer is not on at that moment.
+    Describe a starting time whose UTC offset this computer is not on at that
+    moment, or return None when the two agree.
 
-    A bare offset brings no daylight saving rules with it, so MoonRTX keeps it
-    for the session rather than guessing: every time it then shows stands on
-    that clock instead of the local one, and the moment rendered is not the one
-    the local wall clock of that date would call by the same name. Deliberate
-    when the time is meant for somewhere else, and a slip when the offset was
-    copied from a screenshot name or from a date in the other half of the year.
+    A bare offset brings no daylight saving rules with it, so MoonRTX keeps the
+    one it is given for the session rather than guessing: every time it then
+    shows stands on that clock instead of the local one, and the moment
+    rendered is not the one the local wall clock of that date would call by the
+    same name. Deliberate when the time is meant for somewhere else, and a slip
+    when the offset was copied from a screenshot name or from a date in the
+    other half of the year.
 
-    Nothing is printed for a time that agrees with this computer, so the check
-    stays silent for --time now and for a value that is simply right.
+    Silent for a time that agrees with this computer, so nothing is said for
+    --time now, for the launcher's own date-following offset, or for a value
+    that is simply right.
     """
     local = datetime.fromtimestamp(dt_local.timestamp()).astimezone()
     if dt_local.utcoffset() == local.utcoffset():
-        return
+        return None
 
     difference = dt_local.utcoffset() - local.utcoffset()
     hours, minutes = divmod(abs(difference).seconds // 60, 60)
-    print(f"WARNING: --time is on {_format_utc_offset(dt_local)}, but this computer is on "
-          f"{_format_utc_offset(local)} on {dt_local.strftime('%Y-%m-%d')}.")
-    print(f"         Times will be shown on the given offset, {hours}:{minutes:02d} "
-          f"{'ahead of' if difference > timedelta(0) else 'behind'} the local clock; the moment "
-          f"rendered is {local.strftime('%Y-%m-%d %H:%M')} local time.")
-    print(f"         Omit --time, or give {_format_utc_offset(local)}, to work on this "
-          f"computer's clock. Disregard if the time is meant for another place.")
+    return (f"The time is on {_format_utc_offset(dt_local)}, but this computer is on "
+            f"{_format_utc_offset(local)} on {dt_local.strftime('%Y-%m-%d')}.\n"
+            f"Times will be shown on the given offset, {hours}:{minutes:02d} "
+            f"{'ahead of' if difference > timedelta(0) else 'behind'} the local clock; the "
+            f"moment rendered is {local.strftime('%Y-%m-%d %H:%M')} local time.\n"
+            f"Use {_format_utc_offset(local)} to work on this computer's clock. "
+            f"Disregard if the time is meant for another place.")
+
+
+def warn_if_offset_is_not_local(dt_local: datetime):
+    """Print offset_not_local_warning on the console, when there is one."""
+    message = offset_not_local_warning(dt_local)
+    if message is not None:
+        print("WARNING: " + message.replace("\n", "\n         "))
 
 
 def decode_camera(encoded: str) -> Optional[Camera]:

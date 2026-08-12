@@ -12,6 +12,7 @@ from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATIONS
 from moonrtx.main import (
     get_date_time_local,
+    offset_not_local_warning,
     parse_init_view,
     check_elevation_file,
     check_color_file,
@@ -664,6 +665,13 @@ class MainWindow(tk.Tk):
             dt_local, error = get_date_time_local(time_iso)
             if error is not None:
                 messagebox.showerror("Error", f"Incorrect time: {error}")
+                return
+            # The command line says the same on the console; here the dialog is
+            # the only place a warning would be seen, and it offers the way back
+            # to the timezone box
+            warning = offset_not_local_warning(dt_local)
+            if warning is not None and not messagebox.askokcancel(
+                    "Timezone", warning + "\n\nStart anyway?"):
                 return
             init_view_orientation = self.init_view_orientation.get()
             # Read latitude/longitude according to selected coordinate format
