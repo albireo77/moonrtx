@@ -411,11 +411,11 @@ CLAIR_OBSCUR_EVENTS = (
         "Sunrise over Clavius, when the rims of the crater chain on its floor "
         "light up as a curving row of bright rings."),
     ClairObscurEvent(
-        "Rupes Recta dark line", -21.8, -7.8, 1.0, 8.0, True,
+        "Rupes Recta dark", -21.8, -7.8, 1.0, 8.0, True,
         "The Straight Wall casting its shadow after local sunrise, drawing a "
         "110 km dark line across Mare Nubium."),
     ClairObscurEvent(
-        "Rupes Recta bright line", -21.8, -7.8, 1.0, 8.0, False,
+        "Rupes Recta bright", -21.8, -7.8, 1.0, 8.0, False,
         "The same scarp around local sunset, its face now turned to the Sun "
         "and shining as a bright line instead."),
 )

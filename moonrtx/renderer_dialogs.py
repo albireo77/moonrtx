@@ -168,7 +168,7 @@ class DialogsMixin:
         # signs, which are wider than a Consolas cell (+3 px for the Sun, +6 for
         # the Moon). Every label then starts within 3 px - under half a
         # character - of its column.
-        header = (f"{'Event':<24}{'Peak (local)':<22}{'Pattern':<16}{'Visible here':<16}"
+        header = (f"{'Event':<20}{'Peak (local)':<22}{'Pattern':<16}{'Visible here':<16}"
                   f"{'h☉':<8}{'h☾':<7}  {'Sky':<8}")
 
         tk.Label(main_frame, anchor='w', font=font,
@@ -274,7 +274,7 @@ class DialogsMixin:
                 sun_alt = f"{o['sun_alt']:+.1f}°"
                 moon_alt = f"{o['moon_alt']:+.0f}°"
                 listbox.insert(tk.END,
-                               f"{o['event']:<24}{peak:%Y-%m-%d %a %H:%M}  {pattern:<16}"
+                               f"{o['event']:<20}{peak:%Y-%m-%d %a %H:%M}  {pattern:<16}"
                                f"{visible:<16}{sun_alt:<8}{moon_alt:<8}  {sky_of(o)}")
             listbox.selection_set(0)
             show_description()
