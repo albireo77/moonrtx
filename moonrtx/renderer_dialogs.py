@@ -152,7 +152,6 @@ class DialogsMixin:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         font = ('Consolas', 9)
-        local_tz = self.dt_local.tzinfo
         events = []                      # results currently listed
 
         # The altitudes carry the status bar's notation: h(sun) over the event
@@ -259,13 +258,13 @@ class DialogsMixin:
                 return
 
             for o in events:
-                peak = o["peak"].astimezone(local_tz)
-                start = o["start"].astimezone(local_tz)
-                end = o["end"].astimezone(local_tz)
+                peak = self.in_observer_clock(o["peak"])
+                start = self.in_observer_clock(o["start"])
+                end = self.in_observer_clock(o["end"])
                 pattern = f"{start:%H:%M}-{end:%H:%M}"
                 if o["visible_start"] is not None:
-                    vs = o["visible_start"].astimezone(local_tz)
-                    ve = o["visible_end"].astimezone(local_tz)
+                    vs = self.in_observer_clock(o["visible_start"])
+                    ve = self.in_observer_clock(o["visible_end"])
                     visible = f"{vs:%H:%M}-{ve:%H:%M}"
                 else:
                     visible = "-"
@@ -285,7 +284,7 @@ class DialogsMixin:
                 return
             o = events[selection[0]]
             on_close()
-            self.update_view(o["peak"].astimezone(local_tz))
+            self.update_view(self.in_observer_clock(o["peak"]))
             if self._auto_advance_var and self._auto_advance_var.get():
                 self._auto_advance_elapsed = 0
             self._update_all_status_panels()
@@ -346,7 +345,6 @@ class DialogsMixin:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         font = ('Consolas', 9)
-        local_tz = self.dt_local.tzinfo
         windows = []                     # results currently listed
 
         # The sky column is padded to its longest value ("twilight"), so the
@@ -443,9 +441,9 @@ class DialogsMixin:
                 return
 
             for w in windows:
-                best = w["best"].astimezone(local_tz)
-                start = w["start"].astimezone(local_tz)
-                end = w["end"].astimezone(local_tz)
+                best = self.in_observer_clock(w["best"])
+                start = self.in_observer_clock(w["start"])
+                end = self.in_observer_clock(w["end"])
                 span = f"{start:%m-%d %H:%M} .. {end:%m-%d %H:%M}   "
                 if libration:
                     listbox.insert(tk.END,
@@ -463,7 +461,7 @@ class DialogsMixin:
             selection = listbox.curselection()
             if not windows or not selection or selection[0] >= len(windows):
                 return
-            target = windows[selection[0]]["best"].astimezone(local_tz)
+            target = self.in_observer_clock(windows[selection[0]]["best"])
             on_close()
             self.update_view(target)
             if self._auto_advance_var and self._auto_advance_var.get():
@@ -1063,9 +1061,8 @@ class DialogsMixin:
         main_frame = tk.Frame(dt_win, padx=15, pady=5)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Get current local time and its timezone for later use
+        # Get current local time for later use
         current_dt_local = self.dt_local
-        local_tz = current_dt_local.tzinfo
         
         # Date and Time rows using grid for proper alignment
         grid_frame = tk.Frame(main_frame)
@@ -1113,8 +1110,13 @@ class DialogsMixin:
                     # Try without seconds
                     new_dt_naive = datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
                 
-                # Apply the fixed local timezone
-                new_dt_local = new_dt_naive.replace(tzinfo=local_tz)
+                # Read on the observer's clock, so the daylight saving rules
+                # of the typed date decide the offset (see from_observer_clock)
+                new_dt_local = self.from_observer_clock(new_dt_naive)
+                # The typed date may fall the other side of a daylight saving
+                # change, so the label follows the offset actually applied
+                offset = new_dt_local.strftime('%z')
+                tz_label_var.set(f"Local Time (UTC{offset[:3]}:{offset[3:]}):")
                 
                 # Update the view
                 self.update_view(new_dt_local)
@@ -1133,9 +1135,7 @@ class DialogsMixin:
         
         def set_now():
             """Set to current system local time."""
-            nonlocal local_tz
             now_local = datetime.now().astimezone()
-            local_tz = now_local.tzinfo
             offset = now_local.strftime('%z')
             offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
             tz_label_var.set(f"Local Time (UTC{offset_fmt}):")

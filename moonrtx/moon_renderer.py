@@ -26,6 +26,11 @@ from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
 
 
+def _system_utc_offset_at(instant: datetime) -> timedelta:
+    """This machine's UTC offset at the given instant, daylight saving included."""
+    return datetime.fromtimestamp(instant.timestamp()).astimezone().utcoffset()
+
+
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
                    VideoMixin, FovMixin):
     """
@@ -784,6 +789,34 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_pins_orientation()
 
 
+    def in_observer_clock(self, instant: datetime) -> datetime:
+        """
+        The given instant on the observer's own clock, following daylight
+        saving time where that is knowable.
+
+        The session's timezone is only ever a fixed offset - both --time and
+        the system clock at start-up give one - so a date months away would
+        otherwise be shown at the offset in force when the session began, an
+        hour out on the far side of a daylight saving change. Where the session
+        runs on this machine's clock, the operating system knows the rules and
+        gives the offset that really applies on that date. An offset entered for
+        somewhere else is left alone: it carries no rules to apply.
+        """
+        if self.dt_local.utcoffset() == _system_utc_offset_at(self.dt_local):
+            return datetime.fromtimestamp(instant.timestamp()).astimezone()
+        return instant.astimezone(self.dt_local.tzinfo)
+
+    def from_observer_clock(self, wall_clock: datetime) -> datetime:
+        """
+        A wall-clock reading (a naive datetime) as an instant on the observer's
+        clock: the counterpart of in_observer_clock, so that the hour typed into
+        the date/time dialog is the hour shown afterwards even when it falls on
+        the other side of a daylight saving change.
+        """
+        if self.dt_local.utcoffset() == _system_utc_offset_at(self.dt_local):
+            return wall_clock.astimezone()
+        return wall_clock.replace(tzinfo=self.dt_local.tzinfo)
+
     def update_view(self, dt_local: Optional[datetime] = None):
 
         # Compute the ephemeris before committing the new time. Dates outside
@@ -792,7 +825,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # time already committed, the status bar would keep showing the old time
         # while dt_local held the rejected one, and every further step would
         # build on it - the view would appear frozen.
-        target_dt = self.dt_local if dt_local is None else dt_local
+        # Re-expressed on the observer's clock, so a step or a jump that crosses
+        # a daylight saving change lands on the wall-clock time really in force
+        # there; the instant itself is untouched
+        target_dt = self.in_observer_clock(self.dt_local if dt_local is None else dt_local)
         moon_ephem = astro.calculate_moon_ephemeris(target_dt, self.parallactic_mode)
 
         self.dt_local = target_dt

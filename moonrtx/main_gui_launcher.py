@@ -181,9 +181,12 @@ class MainWindow(tk.Tk):
 
         now = datetime.now().astimezone()
 
-        self.date_entry = tk.Entry(self.time_frame, width=12)
+        # Variable-backed so that every way the date can change - typed, picked
+        # from the calendar, loaded from a preset or from "Now" - is seen in one
+        # place (see _update_tz_for_date)
+        self.date_var = tk.StringVar(value=now.strftime("%Y-%m-%d"))
+        self.date_entry = tk.Entry(self.time_frame, width=12, textvariable=self.date_var)
         self.date_entry.pack(side=tk.LEFT)
-        self.date_entry.insert(0, now.strftime("%Y-%m-%d"))
 
         tk.Button(self.time_frame, text="\u25BC", width=2, command=self._open_calendar).pack(side=tk.LEFT, padx=(1, 4))
 
@@ -209,6 +212,17 @@ class MainWindow(tk.Tk):
         self.tz_combo = ttk.Combobox(self.time_frame, width=7, values=_TZ_OFFSETS)
         self.tz_combo.pack(side=tk.LEFT)
         self.tz_combo.set(tz_str)
+
+        # The offset belongs to the date, not to today: a date in the other half
+        # of the year is an hour out if it keeps the offset in force right now.
+        # While the box holds a machine-derived value it follows the date typed
+        # beside it; touch it and it stays as set, so an offset chosen for
+        # another longitude is never overwritten.
+        self._tz_follows_date = True
+        self.tz_combo.bind("<<ComboboxSelected>>", lambda e: self._tz_chosen_by_hand())
+        self.tz_combo.bind("<KeyRelease>", lambda e: self._tz_chosen_by_hand())
+        for var in (self.date_var, self.hour_var, self.minute_var, self.second_var):
+            var.trace_add("write", lambda *a: self._update_tz_for_date())
 
         self.elevation_file = tk.Entry(frm, width=5)
         self.elevation_file.insert(0, DEFAULT_ELEVATION_FILE_LOCAL_PATH)
@@ -264,6 +278,9 @@ class MainWindow(tk.Tk):
             self.second_var.set(f"{n.second:02d}")
             tz_off = n.strftime("%z")
             self.tz_combo.set(f"{tz_off[:3]}:{tz_off[3:]}" if tz_off else "+00:00")
+            # Every field now comes from this machine, so the offset may follow
+            # the date again
+            self._tz_follows_date = True
 
         tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=(4, 0))
         tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=4, column=2, sticky=tk.W, pady=2, padx=(4, 0))
@@ -532,6 +549,38 @@ class MainWindow(tk.Tk):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load preset: {e}")
 
+    def _tz_chosen_by_hand(self):
+        """Stop following the date once the offset has been set deliberately."""
+        self._tz_follows_date = False
+
+    def _system_offset_for_entered_time(self):
+        """
+        The offset this machine's clock is on at the date and time entered, or
+        None while they are incomplete. Naive datetimes are read as local time,
+        so the operating system applies its own daylight saving rules.
+        """
+        try:
+            # The variable, not the widget: inside a write trace Tk has not yet
+            # copied the new value into the Entry, so the widget still reads the
+            # date before the change
+            wall_clock = datetime(
+                *(int(p) for p in self.date_var.get().strip().split("-")),
+                int(self.hour_var.get().strip() or 0),
+                int(self.minute_var.get().strip() or 0),
+                int(self.second_var.get().strip() or 0))
+        except (ValueError, TypeError):
+            return None
+        offset = wall_clock.astimezone().strftime("%z")
+        return f"{offset[:3]}:{offset[3:]}" if offset else None
+
+    def _update_tz_for_date(self):
+        """Follow the entered date with the offset in force on it."""
+        if not self._tz_follows_date:
+            return
+        offset = self._system_offset_for_entered_time()
+        if offset is not None and offset != self.tz_combo.get():
+            self.tz_combo.set(offset)
+
     def _get_time_iso(self):
         """Construct an ISO 8601 datetime string from the date/time/tz widgets."""
         date_str = self.date_entry.get().strip()
@@ -554,7 +603,11 @@ class MainWindow(tk.Tk):
             self.second_var.set(f"{dt.second:02d}")
             offset = dt.strftime("%z")
             if offset:
-                self.tz_combo.set(f"{offset[:3]}:{offset[3:]}")
+                tz_str = f"{offset[:3]}:{offset[3:]}"
+                self.tz_combo.set(tz_str)
+                # A saved offset that is this machine's for that date may keep
+                # following it; one saved for elsewhere stays put
+                self._tz_follows_date = tz_str == self._system_offset_for_entered_time()
         except (ValueError, AttributeError):
             pass
 
