@@ -6,7 +6,7 @@ import shutil
 import struct
 import base64
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import NamedTuple, Optional
 
 import plotoptix
@@ -66,7 +66,9 @@ def parse_args():
     parser.add_argument("--elevation", type=int, default=0,
                         help="Observer elevation above sea level in meters. Examples: 0 (sea level), 219 (Cracow, Poland).")
     parser.add_argument("--time", type=str, default="now",
-                        help="Time in ISO format with timezone information. Examples: 2024-01-01T12:00:00Z, 2025-12-26T16:30:00+01:00")
+                        help="Time in ISO format, with the UTC offset in force at your place on that date "
+                             "(daylight saving included). Examples: 2025-12-26T16:30:00+01:00 (winter), "
+                             "2026-07-04T22:15:00+02:00 (summer). Omit to start at the current local time.")
     parser.add_argument("--elevation-file", type=str, default=DEFAULT_ELEVATION_FILE_LOCAL_PATH,
                         help="Path to Moon elevation map local file")
     parser.add_argument("--color-file", type=str, default=DEFAULT_COLOR_FILE_LOCAL_PATH,
@@ -183,6 +185,41 @@ def get_date_time_local(time_iso: str) -> tuple[Optional[datetime], Optional[Exc
     if dt.tzinfo is None:
         return None, ValueError("Time without timezone information.")
     return dt, None
+
+def _format_utc_offset(dt: datetime) -> str:
+    offset = dt.strftime("%z")
+    return f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC"
+
+
+def warn_if_offset_is_not_local(dt_local: datetime):
+    """
+    Warn when a time given on the command line carries a UTC offset that this
+    computer is not on at that moment.
+
+    A bare offset brings no daylight saving rules with it, so MoonRTX keeps it
+    for the session rather than guessing: every time it then shows stands on
+    that clock instead of the local one, and the moment rendered is not the one
+    the local wall clock of that date would call by the same name. Deliberate
+    when the time is meant for somewhere else, and a slip when the offset was
+    copied from a screenshot name or from a date in the other half of the year.
+
+    Nothing is printed for a time that agrees with this computer, so the check
+    stays silent for --time now and for a value that is simply right.
+    """
+    local = datetime.fromtimestamp(dt_local.timestamp()).astimezone()
+    if dt_local.utcoffset() == local.utcoffset():
+        return
+
+    difference = dt_local.utcoffset() - local.utcoffset()
+    hours, minutes = divmod(abs(difference).seconds // 60, 60)
+    print(f"WARNING: --time is on {_format_utc_offset(dt_local)}, but this computer is on "
+          f"{_format_utc_offset(local)} on {dt_local.strftime('%Y-%m-%d')}.")
+    print(f"         Times will be shown on the given offset, {hours}:{minutes:02d} "
+          f"{'ahead of' if difference > timedelta(0) else 'behind'} the local clock; the moment "
+          f"rendered is {local.strftime('%Y-%m-%d %H:%M')} local time.")
+    print(f"         Omit --time, or give {_format_utc_offset(local)}, to work on this "
+          f"computer's clock. Disregard if the time is meant for another place.")
+
 
 def decode_camera(encoded: str) -> Optional[Camera]:
     """
@@ -302,6 +339,9 @@ def main():
         if error is not None:
             print(f"Incorrect time: {error}")
             sys.exit(1)
+        # Silent unless the offset given disagrees with this computer's, so it
+        # never fires for the "now" default
+        warn_if_offset_is_not_local(dt_local)
         if lat is None:
             print("Error: --lat parameter is mandatory.")
             sys.exit(1)
