@@ -36,6 +36,16 @@ class _ToolTip:
             self._tw = None
 
 
+def timezone_name(dt_local) -> str:
+    """
+    The session's timezone as it should be shown: the IANA name when the clock
+    carries rules, which is what MoonRTX runs on, and whatever else the tzinfo
+    can be called when it does not.
+    """
+    tz = dt_local.tzinfo
+    return getattr(tz, "key", None) or dt_local.strftime("%Z") or str(tz)
+
+
 class StatusMixin:
     """Mixin providing status bar and info panel methods for MoonRenderer."""
 
@@ -222,7 +232,9 @@ class StatusMixin:
         lat_str = f"{abs(lat):.4f}".rstrip('0').rstrip('.')
         lon_str = f"{abs(lon):.4f}".rstrip('0').rstrip('.')
         from moonrtx.main import APP_NAME
-        return f"{APP_NAME}        👁️ {lat_str}°{lat_dir}   {lon_str}°{lon_dir}   (elevation: {elevation_m} m)"
+        return (f"{APP_NAME}        🕒 {timezone_name(self.dt_local)}"
+                f"        👁️ {lat_str}°{lat_dir}   {lon_str}°{lon_dir}"
+                f"   (elevation: {elevation_m} m)")
 
     def _on_launch_finished(self, rt):
         """Callback to maximize window and set title on first launch."""

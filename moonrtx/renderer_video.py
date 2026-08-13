@@ -7,7 +7,7 @@ import unicodedata
 import cv2
 import numpy as np
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 class VideoMixin:
@@ -297,7 +297,11 @@ class VideoMixin:
                 # scene, which starts the next accumulation cycle. The overlay
                 # is drawn first, so it is already in place when that cycle -
                 # the frame it labels - begins.
-                next_dt = self.dt_local + timedelta(minutes=st["step"])
+                # Minutes of real time, not of wall clock (see shifted_time),
+                # then put on the observer's clock: shifted_time answers in UTC,
+                # and this value is burned into the frame as well as rendered,
+                # so it has to read the same as the status bar
+                next_dt = self.in_observer_clock(self.shifted_time(st["step"]))
                 try:
                     with self.rt._padlock:
                         if st["burn_time"] or st["caption"]:

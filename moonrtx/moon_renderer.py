@@ -5,7 +5,7 @@ MoonRenderer: core renderer class (composing mixins) and run_renderer entry poin
 import tkinter as tk
 import numpy as np
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import plotoptix
 from plotoptix import TkOptiX
@@ -17,31 +17,13 @@ from moonrtx.data_loader import load_moon_features, load_elevation_data, load_co
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
 
 # Mixins – each adds a focused group of methods
-from moonrtx.renderer_status import StatusMixin
+from moonrtx.renderer_status import StatusMixin, timezone_name
 from moonrtx.renderer_dialogs import DialogsMixin
 from moonrtx.renderer_labels import LabelsMixin
 from moonrtx.renderer_pins import PinsMixin
 from moonrtx.renderer_navigation import NavigationMixin
 from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
-
-
-def _in_system_clock(instant: datetime) -> Optional[datetime]:
-    """
-    The given instant on this machine's clock, daylight saving included, or None
-    where the platform cannot say: Windows rejects timestamps before 1970, and
-    MoonRTX renders back to 1900.
-    """
-    try:
-        return datetime.fromtimestamp(instant.timestamp()).astimezone()
-    except (OSError, OverflowError, ValueError):
-        return None
-
-
-def _system_utc_offset_at(instant: datetime) -> Optional[timedelta]:
-    """This machine's UTC offset at the given instant, or None (see _in_system_clock)."""
-    local = _in_system_clock(instant)
-    return None if local is None else local.utcoffset()
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
@@ -460,7 +442,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
 
-        new_dt_local = self.dt_local + timedelta(minutes=delta_minutes)
+        new_dt_local = self.shifted_time(delta_minutes)
 
         self.update_view(new_dt_local)
 
@@ -802,39 +784,36 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_pins_orientation()
 
 
+    def shifted_time(self, minutes: int) -> datetime:
+        """
+        The observation time advanced by that many minutes of real time.
+
+        The arithmetic is done on the instant, not on the wall clock: adding to
+        a zone-aware datetime moves the clock reading, which at a daylight
+        saving change is not the same thing. Stepping through the autumn change
+        that way would skip an hour of real time, and through the spring one it
+        would step backwards - the Moon must move by the minutes asked for.
+        update_view puts the result back on the observer's clock.
+        """
+        return self.dt_local.astimezone(timezone.utc) + timedelta(minutes=minutes)
+
     def in_observer_clock(self, instant: datetime) -> datetime:
         """
-        The given instant on the observer's own clock, following daylight
-        saving time where that is knowable.
+        The given instant on the observer's clock.
 
-        The session's timezone is only ever a fixed offset - both --time and
-        the system clock at start-up give one - so a date months away would
-        otherwise be shown at the offset in force when the session began, an
-        hour out on the far side of a daylight saving change. Where the session
-        runs on this machine's clock, the operating system knows the rules and
-        gives the offset that really applies on that date. An offset entered for
-        somewhere else is left alone: it carries no rules to apply, and neither
-        has a date the platform will not convert (before 1970 on Windows, while
-        this renders back to 1900).
+        The session's timezone carries its own rules, so this is simply a
+        conversion: the offset that applied on that date - daylight saving,
+        the historical changes before it, and the rules of the observer's own
+        country when it is not this computer's - comes out of the zone.
         """
-        if self.dt_local.utcoffset() == _system_utc_offset_at(self.dt_local):
-            local = _in_system_clock(instant)
-            if local is not None:
-                return local
         return instant.astimezone(self.dt_local.tzinfo)
 
     def from_observer_clock(self, wall_clock: datetime) -> datetime:
         """
         A wall-clock reading (a naive datetime) as an instant on the observer's
-        clock: the counterpart of in_observer_clock, so that the hour typed into
-        the date/time dialog is the hour shown afterwards even when it falls on
-        the other side of a daylight saving change.
+        clock: the counterpart of in_observer_clock, so the hour typed into the
+        date/time dialog is the hour shown afterwards on any date.
         """
-        if self.dt_local.utcoffset() == _system_utc_offset_at(self.dt_local):
-            try:
-                return wall_clock.astimezone()
-            except (OSError, OverflowError, ValueError):
-                pass    # a date the platform will not convert (see _in_system_clock)
         return wall_clock.replace(tzinfo=self.dt_local.tzinfo)
 
     def update_view(self, dt_local: Optional[datetime] = None):
@@ -948,6 +927,7 @@ def run_renderer(dt_local: datetime,
     print("Renderer started with parameters:")
     print(f"  Observer Location: Lat {observer.lat}°, Lon {observer.lon}°, Elevation {observer.elevation_m} m")
     print(f"  Local Time: {dt_local}")
+    print(f"  Timezone: {timezone_name(dt_local)}")
     print(f"  Elevation File: {elevation_file}")
     print(f"  Color File: {color_file}")
     print(f"  Brightness: {brightness}")

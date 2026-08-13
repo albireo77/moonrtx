@@ -6,7 +6,10 @@ import shutil
 import struct
 import base64
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from tzlocal import get_localzone
 from typing import NamedTuple, Optional
 
 import plotoptix
@@ -66,9 +69,13 @@ def parse_args():
     parser.add_argument("--elevation", type=int, default=0,
                         help="Observer elevation above sea level in meters. Examples: 0 (sea level), 219 (Cracow, Poland).")
     parser.add_argument("--time", type=str, default="now",
-                        help="Time in ISO format, with the UTC offset in force at your place on that date "
-                             "(daylight saving included). Examples: 2025-12-26T16:30:00+01:00 (winter), "
-                             "2026-07-04T22:15:00+02:00 (summer). Omit to start at the current local time.")
+                        help="Local time in ISO format, read in --timezone. Examples: 2025-12-26T16:30:00, "
+                             "2026-07-04T22:15:00. A UTC offset may still be given, and then names the "
+                             "instant instead. Omit to start at the current time.")
+    parser.add_argument("--timezone", type=str, default=None,
+                        help="IANA timezone the observation time is given in, e.g. Europe/Warsaw, "
+                             "America/New_York. Its daylight saving and historical rules decide the UTC "
+                             "offset of each date. Omit to use this computer's own timezone.")
     parser.add_argument("--elevation-file", type=str, default=DEFAULT_ELEVATION_FILE_LOCAL_PATH,
                         help="Path to Moon elevation map local file")
     parser.add_argument("--color-file", type=str, default=DEFAULT_COLOR_FILE_LOCAL_PATH,
@@ -175,7 +182,42 @@ def check_plotoptix_version() -> bool:
         return False
     return True
     
-def get_date_time_local(time_iso: str) -> tuple[Optional[datetime], Optional[Exception]]:
+def resolve_timezone(name: Optional[str]):
+    """
+    The named IANA timezone, or this computer's own when no name is given.
+
+    A zone carries the rules, so every date of a session gets the offset that
+    really applied on it - daylight saving, the historical changes before it,
+    and the rules of another country when planning for one. That is why a name
+    is asked for rather than an offset, which can only ever describe one
+    instant and knows nothing of the dates around it.
+
+    Returns
+    -------
+    tuple
+        (tzinfo, None), or (None, error) when the name is not a known zone
+    """
+    if not name:
+        try:
+            return get_localzone(), None
+        except Exception as e:
+            return None, e
+    try:
+        return ZoneInfo(name), None
+    except (ZoneInfoNotFoundError, ValueError) as e:
+        return None, e
+
+
+def get_date_time_local(time_iso: str, zone) -> tuple[Optional[datetime], Optional[Exception]]:
+    """
+    Read a starting time in the session's timezone.
+
+    A plain wall clock ("2026-12-01T20:00:00") is the expected form and is read
+    in `zone`, which decides the offset for that date. A value that still
+    carries a UTC offset names an instant instead, and is re-expressed in the
+    zone, so command lines and screenshot names written before zones keep
+    working and keep meaning the same moment.
+    """
     if time_iso.endswith("Z"):
         time_iso = time_iso.replace("Z", "+00:00")
     try:
@@ -183,51 +225,8 @@ def get_date_time_local(time_iso: str) -> tuple[Optional[datetime], Optional[Exc
     except ValueError as e:
         return None, e
     if dt.tzinfo is None:
-        return None, ValueError("Time without timezone information.")
-    return dt, None
-
-def _format_utc_offset(dt: datetime) -> str:
-    offset = dt.strftime("%z")
-    return f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC"
-
-
-def offset_not_local_warning(dt_local: datetime) -> Optional[str]:
-    """
-    Describe a starting time whose UTC offset this computer is not on at that
-    moment, or return None when the two agree.
-
-    A bare offset brings no daylight saving rules with it, so MoonRTX keeps the
-    one it is given for the session rather than guessing: every time it then
-    shows stands on that clock instead of the local one, and the moment
-    rendered is not the one the local wall clock of that date would call by the
-    same name. Deliberate when the time is meant for somewhere else, and a slip
-    when the offset was copied from a screenshot name or from a date in the
-    other half of the year.
-
-    Silent for a time that agrees with this computer, so nothing is said for
-    --time now, for the launcher's own date-following offset, or for a value
-    that is simply right.
-    """
-    local = datetime.fromtimestamp(dt_local.timestamp()).astimezone()
-    if dt_local.utcoffset() == local.utcoffset():
-        return None
-
-    difference = dt_local.utcoffset() - local.utcoffset()
-    hours, minutes = divmod(abs(difference).seconds // 60, 60)
-    return (f"The time is on {_format_utc_offset(dt_local)}, but this computer is on "
-            f"{_format_utc_offset(local)} on {dt_local.strftime('%Y-%m-%d')}.\n"
-            f"Times will be shown on the given offset, {hours}:{minutes:02d} "
-            f"{'ahead of' if difference > timedelta(0) else 'behind'} the local clock; the "
-            f"moment rendered is {local.strftime('%Y-%m-%d %H:%M')} local time.\n"
-            f"Use {_format_utc_offset(local)} to work on this computer's clock. "
-            f"Disregard if the time is meant for another place.")
-
-
-def warn_if_offset_is_not_local(dt_local: datetime):
-    """Print offset_not_local_warning on the console, when there is one."""
-    message = offset_not_local_warning(dt_local)
-    if message is not None:
-        print("WARNING: " + message.replace("\n", "\n         "))
+        return dt.replace(tzinfo=zone), None
+    return dt.astimezone(zone), None
 
 
 def decode_camera(encoded: str) -> Optional[Camera]:
@@ -263,7 +262,7 @@ def decode_camera(encoded: str) -> Optional[Camera]:
         print(f"Error decoding camera: {e}")
         return None
 
-def parse_init_view(init_view_str: str) -> Optional[InitView]:
+def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
     
@@ -311,7 +310,7 @@ def parse_init_view(init_view_str: str) -> Optional[InitView]:
         if camera is None:
             return None
 
-        dt_local, error = get_date_time_local(dt_str.replace('.', ':'))
+        dt_local, error = get_date_time_local(dt_str.replace('.', ':'), zone)
         if error is not None:
             print(f"Incorrect time: {error}")
             return None
@@ -331,8 +330,15 @@ def main():
     parallactic_mode = args.parallactic_mode
     lat = args.lat
     lon = args.lon
+
+    timezone, error = resolve_timezone(args.timezone)
+    if error is not None:
+        print(f"Unknown timezone {args.timezone!r}: {error}")
+        print("Names are IANA ones, e.g. Europe/Warsaw or America/New_York.")
+        sys.exit(1)
+
     if args.init_view:
-        init_view = parse_init_view(args.init_view)
+        init_view = parse_init_view(args.init_view, timezone)
         if init_view is None:
             print(f"Error: Could not parse --init-view value: {args.init_view}")
             sys.exit(1)
@@ -343,14 +349,13 @@ def main():
         parallactic_mode = init_view.parallactic_mode
         initial_camera = init_view.camera
     else:
-        time_iso = datetime.now().astimezone().isoformat(timespec="seconds") if args.time == "now" else args.time
-        dt_local, error = get_date_time_local(time_iso)
-        if error is not None:
-            print(f"Incorrect time: {error}")
-            sys.exit(1)
-        # Silent unless the offset given disagrees with this computer's, so it
-        # never fires for the "now" default
-        warn_if_offset_is_not_local(dt_local)
+        if args.time == "now":
+            dt_local = datetime.now(timezone)
+        else:
+            dt_local, error = get_date_time_local(args.time, timezone)
+            if error is not None:
+                print(f"Incorrect time: {error}")
+                sys.exit(1)
         if lat is None:
             print("Error: --lat parameter is mandatory.")
             sys.exit(1)

@@ -872,7 +872,10 @@ class DialogsMixin:
         
         # 1. Local time in ISO format (replace colons with dots for filename compatibility)
         # Format: YYYY-MM-DDTHH.MM.SS+HH.MM (colons replaced with dots)
-        iso_str = self.dt_local.isoformat()
+        # Truncated to seconds: parse_init_view turns every dot back into a
+        # colon, so a fractional part would come back as "SS:ffffff", which only
+        # parses at all through a leniency of the older ISO reader
+        iso_str = self.dt_local.isoformat(timespec='seconds')
         iso_str = iso_str.replace(':', '.')
         parts.append(iso_str)
         
@@ -1134,8 +1137,12 @@ class DialogsMixin:
                 error_var.set(f"Error: {str(e)}")
         
         def set_now():
-            """Set to current system local time."""
-            now_local = datetime.now().astimezone()
+            """Set to the current time on the observer's clock."""
+            # In the session's timezone, not this machine's: the fields are read
+            # back as wall clock in that zone (see from_observer_clock), so the
+            # system reading would land on the wrong instant for a session
+            # planned elsewhere
+            now_local = datetime.now(self.dt_local.tzinfo)
             offset = now_local.strftime('%z')
             offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
             tz_label_var.set(f"Local Time (UTC{offset_fmt}):")

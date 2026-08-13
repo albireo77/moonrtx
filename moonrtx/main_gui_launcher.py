@@ -4,15 +4,18 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from datetime import datetime
+from zoneinfo import available_timezones
 import os
 import json
+
+from tzlocal import get_localzone_name
 
 from moonrtx.shared_types import Observer
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATIONS
 from moonrtx.main import (
     get_date_time_local,
-    offset_not_local_warning,
+    resolve_timezone,
     parse_init_view,
     check_elevation_file,
     check_color_file,
@@ -28,12 +31,10 @@ from moonrtx.main import (
     BASE_PATH
 )
 
-# Generate UTC offset values for the timezone combobox (-12:00 to +14:00, 30-min steps)
-_TZ_OFFSETS = []
-for _total_min in range(-720, 841, 30):
-    _h, _m = divmod(abs(_total_min), 60)
-    _sign = '+' if _total_min >= 0 else '-'
-    _TZ_OFFSETS.append(f"{_sign}{_h:02d}:{_m:02d}")
+# IANA zone names for the timezone box. A zone carries the daylight saving and
+# historical rules, so the offset of each date follows from it - which an offset
+# chosen by hand cannot do (see main.resolve_timezone).
+_TIMEZONES = sorted(available_timezones())
 
 
 class CalendarPopup(tk.Toplevel):
@@ -144,16 +145,17 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Observer latitude:").grid(row=0, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Observer longitude:").grid(row=1, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Elevation (meters):").grid(row=2, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time with timezone:").grid(row=3, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Elevation file:").grid(row=4, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Color file:").grid(row=5, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Downscale:").grid(row=6, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Brightness:").grid(row=7, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Gamma:").grid(row=8, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time step (minutes):").grid(row=9, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="View orientation:").grid(row=10, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Parallactic mode:").grid(row=11, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=12, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time:").grid(row=3, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Timezone:").grid(row=4, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Elevation file:").grid(row=5, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Color file:").grid(row=6, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Downscale:").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Brightness:").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Gamma:").grid(row=9, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=10, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=11, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Parallactic mode:").grid(row=12, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=13, column=0, sticky=tk.E, pady=2)
 
         self.lat_dir_var = tk.StringVar(value="N")
         self.lon_dir_var = tk.StringVar(value="E")
@@ -182,9 +184,6 @@ class MainWindow(tk.Tk):
 
         now = datetime.now().astimezone()
 
-        # Variable-backed so that every way the date can change - typed, picked
-        # from the calendar, loaded from a preset or from "Now" - is seen in one
-        # place (see _update_tz_for_date)
         self.date_var = tk.StringVar(value=now.strftime("%Y-%m-%d"))
         self.date_entry = tk.Entry(self.time_frame, width=12, textvariable=self.date_var)
         self.date_entry.pack(side=tk.LEFT)
@@ -207,50 +206,47 @@ class MainWindow(tk.Tk):
                                       textvariable=self.second_var, format="%02.0f", wrap=True)
         self.second_spin.pack(side=tk.LEFT)
 
-        tk.Label(self.time_frame, text="  TZ:").pack(side=tk.LEFT)
-        tz_offset = now.strftime("%z")  # e.g. '+0100'
-        tz_str = f"{tz_offset[:3]}:{tz_offset[3:]}" if tz_offset else "+00:00"
-        self.tz_combo = ttk.Combobox(self.time_frame, width=7, values=_TZ_OFFSETS)
-        self.tz_combo.pack(side=tk.LEFT)
-        self.tz_combo.set(tz_str)
-
-        # The offset belongs to the date, not to today: a date in the other half
-        # of the year is an hour out if it keeps the offset in force right now.
-        # While the box holds a machine-derived value it follows the date typed
-        # beside it; touch it and it stays as set, so an offset chosen for
-        # another longitude is never overwritten.
-        self._tz_follows_date = True
-        self.tz_combo.bind("<<ComboboxSelected>>", lambda e: self._tz_chosen_by_hand())
-        self.tz_combo.bind("<KeyRelease>", lambda e: self._tz_chosen_by_hand())
-        for var in (self.date_var, self.hour_var, self.minute_var, self.second_var):
-            var.trace_add("write", lambda *a: self._update_tz_for_date())
+        self.timezone_frame = tk.Frame(frm)
+        self.timezone_frame.grid(row=4, column=1, sticky=tk.W, pady=2)
+        self.tz_combo = ttk.Combobox(self.timezone_frame, values=_TIMEZONES)
+        self.tz_combo.pack(fill=tk.BOTH, expand=True)
+        self.tz_combo.set(get_localzone_name())
+        # The box ends where the seconds spinbox above it does: its frame is
+        # pinned to the width the time row asks for and the box fills that,
+        # rather than a width in characters that would only match by chance.
+        # Propagation off, so the frame keeps the size instead of shrinking
+        # back to the box.
+        self.update_idletasks()
+        self.timezone_frame.config(width=self.time_frame.winfo_reqwidth(),
+                                   height=self.tz_combo.winfo_reqheight())
+        self.timezone_frame.pack_propagate(False)
 
         self.elevation_file = tk.Entry(frm, width=5)
         self.elevation_file.insert(0, DEFAULT_ELEVATION_FILE_LOCAL_PATH)
-        self.elevation_file.grid(row=4, column=1, sticky=tk.EW, pady=2)
+        self.elevation_file.grid(row=5, column=1, sticky=tk.EW, pady=2)
 
         self.color_file = tk.Entry(frm, width=5)
         self.color_file.insert(0, DEFAULT_COLOR_FILE_LOCAL_PATH)
-        self.color_file.grid(row=5, column=1, sticky=tk.EW, pady=2)
+        self.color_file.grid(row=6, column=1, sticky=tk.EW, pady=2)
 
         self.downscale = tk.Entry(frm, width=5)
-        self.downscale.grid(row=6, column=1, sticky=tk.EW, pady=2)
+        self.downscale.grid(row=7, column=1, sticky=tk.EW, pady=2)
         self.downscale.insert(0, 3)
 
         self.brightness = tk.Entry(frm, width=5)
-        self.brightness.grid(row=7, column=1, sticky=tk.EW, pady=2)
+        self.brightness.grid(row=8, column=1, sticky=tk.EW, pady=2)
         self.brightness.insert(0, 80)
 
         self.gamma_entry = tk.Entry(frm, width=5)
-        self.gamma_entry.grid(row=8, column=1, sticky=tk.EW, pady=2)
+        self.gamma_entry.grid(row=9, column=1, sticky=tk.EW, pady=2)
         self.gamma_entry.insert(0, "2.2")
 
         self.time_step_minutes = tk.Entry(frm, width=5)
-        self.time_step_minutes.grid(row=9, column=1, sticky=tk.EW, pady=2)
+        self.time_step_minutes.grid(row=10, column=1, sticky=tk.EW, pady=2)
         self.time_step_minutes.insert(0, 15)
 
         self.init_view_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VIEW_ORIENTATIONS)
-        self.init_view_orientation.grid(row=10, column=1, sticky=tk.EW, pady=2)
+        self.init_view_orientation.grid(row=11, column=1, sticky=tk.EW, pady=2)
         self.init_view_orientation.set(VIEW_ORIENTATIONS[0])
 
         self.parallactic_mode_var = tk.BooleanVar(value=False)
@@ -258,34 +254,32 @@ class MainWindow(tk.Tk):
             frm,
             text="(maintains Moon aligned to celestial north)",
             variable=self.parallactic_mode_var,
-        ).grid(row=11, column=1, sticky=tk.W, pady=2)
+        ).grid(row=12, column=1, sticky=tk.W, pady=2)
 
         self.init_view = tk.Entry(frm, width=5)
-        self.init_view.grid(row=12, column=1, sticky=tk.EW, pady=2)
+        self.init_view.grid(row=13, column=1, sticky=tk.EW, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=8, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=6, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=9, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=7, column=2, sticky=tk.W, padx=(4, 0))
 
         def _set_time_now():
-            n = datetime.now().astimezone()
+            # In the timezone the box names, not this machine's: the fields are
+            # read as wall clock in that zone when the renderer starts
+            zone, _ = resolve_timezone(self.tz_combo.get().strip())
+            n = datetime.now(zone) if zone is not None else datetime.now().astimezone()
             self.date_entry.delete(0, tk.END)
             self.date_entry.insert(0, n.strftime("%Y-%m-%d"))
             self.hour_var.set(f"{n.hour:02d}")
             self.minute_var.set(f"{n.minute:02d}")
             self.second_var.set(f"{n.second:02d}")
-            tz_off = n.strftime("%z")
-            self.tz_combo.set(f"{tz_off[:3]}:{tz_off[3:]}" if tz_off else "+00:00")
-            # Every field now comes from this machine, so the offset may follow
-            # the date again
-            self._tz_follows_date = True
 
         tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=(4, 0))
-        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=4, column=2, sticky=tk.W, pady=2, padx=(4, 0))
-        tk.Button(frm, text="Browse", width=12, command=self.browse_color).grid(row=5, column=2, sticky=tk.W, pady=2, padx=(4, 0))
+        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=5, column=2, sticky=tk.W, pady=2, padx=(4, 0))
+        tk.Button(frm, text="Browse", width=12, command=self.browse_color).grid(row=6, column=2, sticky=tk.W, pady=2, padx=(4, 0))
 
 
         self.lat_sexa_frame = tk.Frame(frm)
@@ -318,22 +312,30 @@ class MainWindow(tk.Tk):
         self.run_btn = tk.Button(self, text=f"Run {APP_NAME}", command=self.on_run)
         self.run_btn.pack(padx=10, fill=tk.X)
 
-        # Preset controls
+        # Preset controls. The row is the width of the window now that the
+        # status has one of its own, so the name and the list take the space
+        # the two buttons leave.
         preset_frame = tk.Frame(self)
-        preset_frame.pack(padx=10, pady=(10, 10), anchor=tk.W)
+        preset_frame.pack(padx=10, pady=(10, 0), fill=tk.X)
 
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
-        self.preset_name_entry = tk.Entry(preset_frame, width=15)
-        self.preset_name_entry.pack(side=tk.LEFT, padx=(2, 4))
-        tk.Button(preset_frame, text="Save", width=6, command=self._save_preset).pack(side=tk.LEFT, padx=2)
+        self.preset_name_entry = tk.Entry(preset_frame)
+        self.preset_name_entry.pack(side=tk.LEFT, padx=(2, 4), fill=tk.X, expand=True)
+        tk.Button(preset_frame, text="Save", width=6,
+                  command=self._save_preset).pack(side=tk.LEFT, padx=2)
+        self.preset_combobox = ttk.Combobox(preset_frame, state="readonly")
+        self.preset_combobox.pack(side=tk.LEFT, padx=(10, 4), fill=tk.X, expand=True)
+        tk.Button(preset_frame, text="Load", width=6,
+                  command=self._load_preset).pack(side=tk.LEFT, padx=2)
 
-        self.preset_combobox = ttk.Combobox(preset_frame, width=15, state="readonly")
-        self.preset_combobox.pack(side=tk.LEFT, padx=(10, 4))
-        tk.Button(preset_frame, text="Load", width=6, command=self._load_preset).pack(side=tk.LEFT, padx=2)
-
-        # Status label for progress messages
-        self.status_label = tk.Label(preset_frame, text="", fg="blue", anchor=tk.W)
-        self.status_label.pack(side=tk.LEFT, padx=(20, 0))
+        # Status messages, on a row of their own so a long one neither squeezes
+        # the preset controls nor is cut short by them. The prefix labels the
+        # row while it is empty, which is most of the time.
+        status_frame = tk.Frame(self)
+        status_frame.pack(padx=10, pady=(6, 10), fill=tk.X)
+        tk.Label(status_frame, text="Status:").pack(side=tk.LEFT)
+        self.status_label = tk.Label(status_frame, text="", fg="blue", anchor=tk.W)
+        self.status_label.pack(side=tk.LEFT, padx=(4, 0), fill=tk.X, expand=True)
 
         self._refresh_preset_list()
 
@@ -401,6 +403,7 @@ class MainWindow(tk.Tk):
             "lon_min": self.lon_min.get(),
             "lon_sec": self.lon_sec.get(),
             "time": self._get_time_iso(),
+            "timezone": self.tz_combo.get(),
             "elevation_file": self.elevation_file.get(),
             "color_file": self.color_file.get(),
             "downscale": self.downscale.get(),
@@ -518,6 +521,11 @@ class MainWindow(tk.Tk):
             self.lon_sec.insert(0, settings.get("lon_sec", ""))
 
             self._set_time_from_iso(settings.get("time", ""))
+            # Presets written before timezones have none; those keep whatever
+            # zone the box is on, their saved offset having named the instant
+            saved_timezone = settings.get("timezone", "")
+            if saved_timezone:
+                self.tz_combo.set(saved_timezone)
 
             self.elevation_file.delete(0, tk.END)
             self.elevation_file.insert(0, settings.get("elevation_file", ""))
@@ -550,49 +558,16 @@ class MainWindow(tk.Tk):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load preset: {e}")
 
-    def _tz_chosen_by_hand(self):
-        """Stop following the date once the offset has been set deliberately."""
-        self._tz_follows_date = False
-
-    def _system_offset_for_entered_time(self):
-        """
-        The offset this machine's clock is on at the date and time entered, or
-        None while they are incomplete. Naive datetimes are read as local time,
-        so the operating system applies its own daylight saving rules.
-        """
-        try:
-            # The variable, not the widget: inside a write trace Tk has not yet
-            # copied the new value into the Entry, so the widget still reads the
-            # date before the change
-            wall_clock = datetime(
-                *(int(p) for p in self.date_var.get().strip().split("-")),
-                int(self.hour_var.get().strip() or 0),
-                int(self.minute_var.get().strip() or 0),
-                int(self.second_var.get().strip() or 0))
-        except (ValueError, TypeError):
-            return None
-        try:
-            offset = wall_clock.astimezone().strftime("%z")
-        except (OSError, OverflowError, ValueError):
-            return None     # a date the platform will not convert (before 1970 on Windows)
-        return f"{offset[:3]}:{offset[3:]}" if offset else None
-
-    def _update_tz_for_date(self):
-        """Follow the entered date with the offset in force on it."""
-        if not self._tz_follows_date:
-            return
-        offset = self._system_offset_for_entered_time()
-        if offset is not None and offset != self.tz_combo.get():
-            self.tz_combo.set(offset)
-
     def _get_time_iso(self):
-        """Construct an ISO 8601 datetime string from the date/time/tz widgets."""
+        """
+        The date and time widgets as a plain wall clock, without an offset: the
+        timezone box says which rules read it (see main.get_date_time_local).
+        """
         date_str = self.date_entry.get().strip()
         hour = int(self.hour_var.get().strip() or 0)
         minute = int(self.minute_var.get().strip() or 0)
         second = int(self.second_var.get().strip() or 0)
-        tz = self.tz_combo.get().strip() or "+00:00"
-        return f"{date_str}T{hour:02d}:{minute:02d}:{second:02d}{tz}"
+        return f"{date_str}T{hour:02d}:{minute:02d}:{second:02d}"
 
     def _set_time_from_iso(self, iso_str):
         """Populate date/time/tz widgets from an ISO 8601 datetime string."""
@@ -605,13 +580,8 @@ class MainWindow(tk.Tk):
             self.hour_var.set(f"{dt.hour:02d}")
             self.minute_var.set(f"{dt.minute:02d}")
             self.second_var.set(f"{dt.second:02d}")
-            offset = dt.strftime("%z")
-            if offset:
-                tz_str = f"{offset[:3]}:{offset[3:]}"
-                self.tz_combo.set(tz_str)
-                # A saved offset that is this machine's for that date may keep
-                # following it; one saved for elsewhere stays put
-                self._tz_follows_date = tz_str == self._system_offset_for_entered_time()
+            # Presets written before timezones carry an offset; it is only a
+            # way of naming the instant, and the zone box keeps its own value
         except (ValueError, AttributeError):
             pass
 
@@ -645,7 +615,13 @@ class MainWindow(tk.Tk):
 
         init_camera = None
         if init_view_str:
-            init_view = parse_init_view(init_view_str)
+            timezone, error = resolve_timezone(self.tz_combo.get().strip())
+            if error is not None:
+                messagebox.showerror(
+                    "Error", f"Unknown timezone: {error}\n\n"
+                             "Pick an IANA name from the list, e.g. Europe/Warsaw.")
+                return
+            init_view = parse_init_view(init_view_str, timezone)
             if init_view is None:
                 messagebox.showerror("Error", "Could not parse init-view string.")
                 return
@@ -664,17 +640,15 @@ class MainWindow(tk.Tk):
             self.parallactic_mode_var.set(bool(init_view.parallactic_mode))
             init_camera = init_view.camera
         else:
-            time_iso = self._get_time_iso()
-            dt_local, error = get_date_time_local(time_iso)
+            timezone, error = resolve_timezone(self.tz_combo.get().strip())
+            if error is not None:
+                messagebox.showerror(
+                    "Error", f"Unknown timezone: {error}\n\n"
+                             "Pick an IANA name from the list, e.g. Europe/Warsaw.")
+                return
+            dt_local, error = get_date_time_local(self._get_time_iso(), timezone)
             if error is not None:
                 messagebox.showerror("Error", f"Incorrect time: {error}")
-                return
-            # The command line says the same on the console; here the dialog is
-            # the only place a warning would be seen, and it offers the way back
-            # to the timezone box
-            warning = offset_not_local_warning(dt_local)
-            if warning is not None and not messagebox.askokcancel(
-                    "Timezone", warning + "\n\nStart anyway?"):
                 return
             init_view_orientation = self.init_view_orientation.get()
             # Read latitude/longitude according to selected coordinate format

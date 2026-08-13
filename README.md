@@ -20,7 +20,10 @@ MoonRTX can be run in 2 ways:
 
 `python -m moonrtx.main --help`
 
-`python -m moonrtx.main --time "2023-05-28T19:39:00+01:00" --lat 50.1 --lon 20.0`
+`python -m moonrtx.main --time "2023-05-28T19:39:00" --lat 50.1 --lon 20.0`
+
+`python -m moonrtx.main --time "2023-05-28T19:39:00" --timezone "America/New_York" --lat 40.7 --lon -74.0`  
+where `--time` is a local wall clock and `--timezone` names the IANA zone it is read in, defaulting to your computer's own. The zone carries the daylight saving and historical rules, so every date gets the offset that really applied on it - including dates in another country, whose changeover days differ from yours.
 
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --brightness 100`
 
@@ -34,6 +37,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - On first run, around 9GB of data (most of all [Lunar Orbiter Laser Altimeter](https://science.nasa.gov/mission/lro/lola) elevation map) is to be downloaded so internet connection and sufficient disk space is required.
 - On first Moon ephemeris calculation, MoonRTX may download a small Skyfield data set into `moonrtx/data/skyfield`: the JPL `de421.bsp` ephemeris (about 16 MB) plus three small Moon orientation kernels used for the direct lunar body-frame rotation.
 - The bundled Skyfield Moon orientation kernels support dates from `1900-01-01T00:00:00+00:00` through `2051-01-01T00:00:00+00:00`.
+- Local times are handled through IANA timezones (the `tzdata` package), so daylight saving is followed on every date the kernels cover - including the years before it existed and the local mean time in use before standard time.
 - Current MoonRTX will work only with PlotOptiX [0.19.2](https://github.com/rnd-team-dev/plotoptix/releases#release-v0.19.2)+
 - Downscaling of elevation map can take even around 1 minute depending on `--downscale` parameter value (lower value = more time). Once downscaled for the first time, file is cached as .npy file in `data` directory for future use.
 - If you don't like default Moon colors in MoonRTX, you can download color map file (e.g. [lroc_color_poles.tif](https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles.tif) from [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) with more realistic, though bland, colors) and load it with `--color-file` parameter on program start.
