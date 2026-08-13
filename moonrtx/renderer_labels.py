@@ -12,7 +12,7 @@ import numpy as np
 from plotoptix.materials import m_flat
 
 from moonrtx.shared_types import MoonFeature, MoonLabel
-from moonrtx.view_orientation import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS, VIEW_ORIENTATIONS
+from moonrtx.view_orientation import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
 from moonrtx.moon_grid import (
     create_moon_grid, create_standard_labels, create_spot_labels, create_grid_labels_for_orientation,
     merge_segments_to_graph
@@ -41,13 +41,49 @@ class LabelsMixin:
         R = self.moon_rotation
         return pos if R is None else pos @ R.T
 
-    def _view_orientation_flips(self) -> tuple[bool, bool]:
-        # NSWE (default): N up, W left - no flips
-        # NSEW: N up, E left - horizontal flip
-        # SNEW: S up, E left - both flips (180° rotation)
-        # SNWE: S up, W left - vertical flip
-        return (self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS,
-                self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS)
+    def _to_screen(self, body: np.ndarray) -> np.ndarray:
+        """
+        Map a body-frame direction to the screen axes (x right, y up).
+
+        The scene puts the eye at -Y looking towards +Y, with +X to the right and
+        +Z up, so the screen axes are the scene's X and Z - mirrored where the
+        view orientation asks for it (E left instead of W, or S up instead of N).
+        """
+        scene = body if self.moon_rotation is None else self.moon_rotation @ body
+        return np.array([
+            -scene[0] if self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS else scene[0],
+            -scene[2] if self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS else scene[2],
+        ])
+
+    def _glyph_flips(self, lat: float, lon: float) -> tuple[bool, bool]:
+        """
+        How the glyphs of a label at (lat, lon) have to be mirrored to be read.
+
+        Glyphs are laid out in the tangent plane there, running east and standing
+        north, so the lettering follows the graticule. Whether that comes out
+        readable depends on where east and north end up pointing on screen, which
+        the observer's latitude, the hour and the view orientation all have a say
+        in: from the southern hemisphere the Moon is seen the other way up, and
+        the graticule turns through the night and converges towards the poles, so
+        one answer cannot serve every label. Each glyph is therefore mirrored to
+        suit its own place on the disk: never upside down, always left to right.
+
+        The answer is baked into the geometry when an overlay is built, and the
+        overlay is built when it is switched on or when the view orientation
+        changes - never on a time step - so the lettering holds still while time
+        runs and turns only when the view does.
+        """
+        lat_rad, lon_rad = np.radians(lat), np.radians(lon)
+        sin_lat, cos_lat = np.sin(lat_rad), np.cos(lat_rad)
+        sin_lon, cos_lon = np.sin(lon_rad), np.cos(lon_rad)
+
+        # Tangents of the graticule at (lat, lon), in the body frame: the glyph
+        # is written along the first one and stands along the second
+        east = np.array([cos_lon, sin_lon, 0.0])
+        north = np.array([-sin_lat * sin_lon, sin_lat * cos_lon, cos_lat])
+
+        # Mirror the glyph wherever its own axis ends up pointing the wrong way
+        return bool(self._to_screen(east)[0] < 0.0), bool(self._to_screen(north)[1] < 0.0)
 
     @staticmethod
     def _label_graph_arrays(labels: list[MoonLabel]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -128,6 +164,9 @@ class LabelsMixin:
         if self.spot_labels is not None and self.spot_labels_visible:
             self.update_spot_labels_for_view_orientation()
 
+        # Pin digits are mirrored like any other lettering
+        self.update_pins_for_view_orientation()
+
         self._update_status_view()
 
     def _rebuild_grid_labels_arrays(self):
@@ -147,16 +186,13 @@ class LabelsMixin:
         if self.rt is None or self.moon_grid is None:
             return
 
-        flip_horizontal, flip_vertical = self._view_orientation_flips()
-
         # Generate new labels with proper orientation
         lat_labels, lat_label_values, lon_labels, lon_label_values = create_grid_labels_for_orientation(
             moon_radius=self.MOON_RADIUS,
             lat_step=15.0,
             lon_step=15.0,
             offset=0.0,
-            flip_horizontal=flip_horizontal,
-            flip_vertical=flip_vertical
+            flips_at=self._glyph_flips
         )
 
         # Update the moon_grid with new labels
@@ -182,15 +218,12 @@ class LabelsMixin:
         if self.rt is None or self.standard_labels is None or self.standard_label_features is None:
             return
 
-        flip_horizontal, flip_vertical = self._view_orientation_flips()
-
         # Regenerate labels with proper orientation
         self.standard_labels = create_standard_labels(
             self.standard_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flip_horizontal=flip_horizontal,
-            flip_vertical=flip_vertical
+            flips_at=self._glyph_flips
         )
 
         self._standard_labels_pos, self._standard_labels_edges, self._standard_labels_counts = \
@@ -210,15 +243,12 @@ class LabelsMixin:
         if self.rt is None or self.spot_labels is None or self.spot_label_features is None:
             return
 
-        flip_horizontal, flip_vertical = self._view_orientation_flips()
-
         # Regenerate labels with proper orientation
         self.spot_labels = create_spot_labels(
             self.spot_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flip_horizontal=flip_horizontal,
-            flip_vertical=flip_vertical
+            flips_at=self._glyph_flips
         )
 
         self._spot_labels_pos, self._spot_labels_edges, self._spot_labels_counts = \
@@ -251,7 +281,8 @@ class LabelsMixin:
             lat_step=lat_step,
             lon_step=lon_step,
             points_per_line=100,
-            offset=0.0
+            offset=0.0,
+            flips_at=self._glyph_flips
         )
 
         self.rt.update_material("grid_material", self._no_shadow_flat_material())
@@ -269,10 +300,6 @@ class LabelsMixin:
                           r=self.GRID_LABEL_RADIUS, c=self.GRID_COLOR, mat="grid_material")
 
         self.moon_grid_visible = True
-
-        # Update labels for current view orientation if not default
-        if self.view_orientation != VIEW_ORIENTATIONS[0]:
-            self.update_grid_labels_for_orientation()
 
         self.update_moon_grid_orientation()
 
@@ -319,8 +346,6 @@ class LabelsMixin:
             print("Renderer not initialized")
             return
 
-        flip_horizontal, flip_vertical = self._view_orientation_flips()
-
         # Get ALL features with standard_label=True (illumination checked during rendering)
         self.standard_label_features = [f for f in self.moon_features if f.standard_label]
         if not self.standard_label_features:
@@ -329,8 +354,7 @@ class LabelsMixin:
             self.standard_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flip_horizontal=flip_horizontal,
-            flip_vertical=flip_vertical
+            flips_at=self._glyph_flips
         )
 
         self.rt.update_material("standard_label_material", self._no_shadow_flat_material())
@@ -390,8 +414,6 @@ class LabelsMixin:
             print("Renderer not initialized")
             return
 
-        flip_horizontal, flip_vertical = self._view_orientation_flips()
-
         # Get ALL features with spot_label=True (illumination checked during rendering)
         self.spot_label_features = [f for f in self.moon_features if f.spot_label]
         if not self.spot_label_features:
@@ -400,8 +422,7 @@ class LabelsMixin:
             self.spot_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flip_horizontal=flip_horizontal,
-            flip_vertical=flip_vertical
+            flips_at=self._glyph_flips
         )
 
         self.rt.update_material("spot_label_material", self._no_shadow_flat_material())

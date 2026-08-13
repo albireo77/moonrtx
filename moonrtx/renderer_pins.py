@@ -5,7 +5,6 @@ Each pin digit is a single graph geometry (all strokes merged), so rotating
 pins after a time change is one update_graph call per pin.
 """
 
-from moonrtx.view_orientation import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
 from moonrtx.moon_grid import create_single_digit_on_sphere, merge_segments_to_graph
 
 class PinsMixin:
@@ -30,9 +29,8 @@ class PinsMixin:
         if self.rt is None:
             return
 
-        # Determine flip flags based on current orientation
-        flip_horizontal = self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS
-        flip_vertical = self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS
+        # Mirror the digit so it reads the right way round where it is planted
+        flip_horizontal, flip_vertical = self._glyph_flips(lat, lon)
 
         # Generate pin digit segments (left-bottom corner at cursor position)
         pin_segments = create_single_digit_on_sphere(
@@ -45,10 +43,11 @@ class PinsMixin:
             flip_vertical=flip_vertical
         )
 
-        # All strokes of the digit merged into one graph geometry;
-        # body-frame vertices are kept for rotation updates
+        # All strokes of the digit merged into one graph geometry; the place it
+        # was planted and its body-frame vertices are kept, the first to rebuild
+        # the digit when the view orientation changes, the second to rotate it
         pos, edges = merge_segments_to_graph(pin_segments)
-        self.pins[digit] = pos
+        self.pins[digit] = (lat, lon, pos)
 
         self.rt.update_material("pin_material", self._no_shadow_flat_material())
 
@@ -160,5 +159,21 @@ class PinsMixin:
         if self.moon_rotation is None:
             return
 
-        for digit, pos in self.pins.items():
+        for digit, (_, _, pos) in self.pins.items():
             self.rt.update_graph(f"pin_{digit}", pos=self._rotate_to_scene(pos))
+
+    def update_pins_for_view_orientation(self):
+        """
+        Rebuild pin digits so they read the right way round in the current view.
+
+        Called when the view orientation changes (F5-F8 keys); the pins stay
+        where they were planted, only their digits are mirrored to suit.
+        """
+        if self.rt is None or not self.pins:
+            return
+
+        for digit, (lat, lon, _) in list(self.pins.items()):
+            self.create_pin(digit, lat, lon)
+
+        if not self.pins_visible:
+            self.show_pins(False)

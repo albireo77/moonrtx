@@ -1,13 +1,27 @@
 import math
 
 import numpy as np
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 from moonrtx.shared_types import MoonFeature, MoonLabel
 
 
 LABEL_CHAR_SCALE = 0.12
 PIN_DIGIT_SCALE = 0.2
+
+# A glyph is laid out in the tangent plane of the sphere, its own x axis running
+# east and its own z axis running north, so the lettering follows the graticule.
+# Which way round it is written is decided by two mirrors, and the mirrors depend
+# on where the glyph sits: the graticule converges towards the poles and turns
+# with the Moon, so east and north do not point the same way on screen for every
+# label. A FlipsAt callable answers, for one (lat, lon), how the glyph there has
+# to be mirrored: (flip_horizontal, flip_vertical).
+FlipsAt = Callable[[float, float], tuple[bool, bool]]
+
+
+def no_flips(lat: float, lon: float) -> tuple[bool, bool]:
+    """Default glyph mirroring - none - for callers with no view to orient to."""
+    return False, False
 
 
 def merge_segments_to_graph(polylines: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
@@ -498,7 +512,7 @@ def create_centered_text_on_sphere(text: str,
 
 
 def create_standard_labels(standard_label_features: list[MoonFeature], moon_radius: float = 10.0, offset: float = 0.0,
-                           flip_horizontal: bool = False, flip_vertical: bool = False) -> list[MoonLabel]:
+                           flips_at: FlipsAt = no_flips) -> list[MoonLabel]:
     """
     Create standard labels
 
@@ -512,10 +526,8 @@ def create_standard_labels(standard_label_features: list[MoonFeature], moon_radi
         Radius of the Moon sphere
     offset : float
         Height offset above surface
-    flip_horizontal : bool
-        If True, mirror text horizontally
-    flip_vertical : bool
-        If True, mirror text vertically
+    flips_at : FlipsAt
+        How to mirror the glyphs of a label at a given (lat, lon)
 
     Returns
     -------
@@ -529,6 +541,7 @@ def create_standard_labels(standard_label_features: list[MoonFeature], moon_radi
         label_text = standard_label_feature.name
         label_lat = standard_label_feature.lat
         label_lon = standard_label_feature.lon
+        flip_horizontal, flip_vertical = flips_at(label_lat, label_lon)
         standard_label_segments = create_centered_text_on_sphere(
             text=label_text,
             lat=label_lat,
@@ -547,7 +560,7 @@ def create_standard_labels(standard_label_features: list[MoonFeature], moon_radi
 
 
 def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: float = 10.0, offset: float = 0.0,
-                       flip_horizontal: bool = False, flip_vertical: bool = False) -> list[MoonLabel]:
+                       flips_at: FlipsAt = no_flips) -> list[MoonLabel]:
     """
     Create spot labels
 
@@ -559,10 +572,8 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
         Radius of the Moon sphere
     offset : float
         Height offset above surface
-    flip_horizontal : bool
-        If True, mirror text horizontally
-    flip_vertical : bool
-        If True, mirror text vertically
+    flips_at : FlipsAt
+        How to mirror the glyphs of a label at a given (lat, lon)
 
     Returns
     -------
@@ -573,15 +584,21 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
 
     for spot_label_feature in spot_label_features:
 
-        # For spot labels, the arrow points to the feature
-        # When flipped horizontally, arrow should be on the right side
+        flip_horizontal, flip_vertical = flips_at(spot_label_feature.lat, spot_label_feature.lon)
+
+        # The label is written eastward from a point east of the feature, so on
+        # screen the feature sits off one end of the text: off the left where
+        # east runs right, off the right where the glyphs are mirrored and east
+        # runs left. The arrow goes on that end and points outward at it. Note
+        # that mirroring does not turn the arrow round - it cancels against the
+        # mirrored view, which is what keeps the text readable - so the arrow
+        # that points right has to be written as one.
         if flip_horizontal:
             label_text = spot_label_feature.name + " >"
-            label_lon = spot_label_feature.lon - spot_label_feature.angular_radius * 2
         else:
             label_text = "< " + spot_label_feature.name
-            label_lon = spot_label_feature.lon + spot_label_feature.angular_radius * 2
         label_lat = spot_label_feature.lat
+        label_lon = spot_label_feature.lon + spot_label_feature.angular_radius * 2
 
         spot_label_segments = create_text_on_sphere(
             label_text,
@@ -605,8 +622,7 @@ def create_grid_labels_for_orientation(
         lat_step: float,
         lon_step: float,
         offset: float,
-        flip_horizontal: bool,
-        flip_vertical: bool,
+        flips_at: FlipsAt = no_flips,
 ) -> tuple[list[list[np.ndarray]], list[int], list[list[np.ndarray]], list[int]]:
     """
     Create grid labels (lat and lon numbers) with specified orientation.
@@ -623,10 +639,8 @@ def create_grid_labels_for_orientation(
         Spacing between longitude lines in degrees
     offset : float
         Offset above surface (fraction of radius)
-    flip_horizontal : bool
-        If True, flip digits horizontally (for NSEW, SNEW orientations)
-    flip_vertical : bool
-        If True, flip digits vertically (for SNEW, SNWE orientations)
+    flips_at : FlipsAt
+        How to mirror the digits of a number at a given (lat, lon)
 
     Returns
     -------
@@ -639,8 +653,10 @@ def create_grid_labels_for_orientation(
     label_longitudes = [0, 90, 180, -90]
     for label_lon in label_longitudes:
         for lat in np.arange(-60, 61, lat_step):
+            number_lat, number_lon = lat + 1, label_lon + lat_step/2 - 1
+            flip_horizontal, flip_vertical = flips_at(number_lat, number_lon)
             segments = create_number_on_sphere(
-                int(lat), lat=lat+1, lon=label_lon + lat_step/2-1,
+                int(lat), lat=number_lat, lon=number_lon,
                 moon_radius=moon_radius, offset=offset,
                 digit_scale=0.125,
                 flip_horizontal=flip_horizontal,
@@ -655,8 +671,10 @@ def create_grid_labels_for_orientation(
     for lon in np.arange(0, 360, lon_step):
         display_lon = lon if lon <= 180 else lon - 360
         lon_offset = 2 if display_lon < 0 else 1
+        number_lat, number_lon = lat_step/2 - 1, display_lon + lon_offset
+        flip_horizontal, flip_vertical = flips_at(number_lat, number_lon)
         segments = create_number_on_sphere(
-            int(display_lon), lat=lat_step/2-1, lon=display_lon+lon_offset,
+            int(display_lon), lat=number_lat, lon=number_lon,
             moon_radius=moon_radius, offset=offset,
             digit_scale=0.125,
             flip_horizontal=flip_horizontal,
@@ -672,7 +690,8 @@ def create_moon_grid(moon_radius: float = 10.0,
                      lat_step: float = 15.0,
                      lon_step: float = 15.0,
                      points_per_line: int = 100,
-                     offset: float = 0.02) -> MoonGrid:
+                     offset: float = 0.02,
+                     flips_at: FlipsAt = no_flips) -> MoonGrid:
     """
     Create selenographic coordinate grid lines for the Moon.
 
@@ -691,6 +710,8 @@ def create_moon_grid(moon_radius: float = 10.0,
         Number of points per line (more = smoother)
     offset : float
         Offset above surface (fraction of radius)
+    flips_at : FlipsAt
+        How to mirror the digits of a number at a given (lat, lon)
 
     Returns
     -------
@@ -733,8 +754,7 @@ def create_moon_grid(moon_radius: float = 10.0,
         lat_step=lat_step,
         lon_step=lon_step,
         offset=offset,
-        flip_horizontal=False,
-        flip_vertical=False,
+        flips_at=flips_at,
     )
 
     # Create north pole label "N" - vertically oriented above the pole
@@ -742,6 +762,10 @@ def create_moon_grid(moon_radius: float = 10.0,
     # facing the camera (which looks along +Y toward the Moon)
     n_scale = 0.50 * moon_radius / 10.0
     north_pole_label = create_digit_segments('N', scale=n_scale)
+
+    # The "N" is drawn in the body XZ plane, so its own right and up axes are
+    # body +X and +Z - which are exactly east and north at the body's (0, 0)
+    n_flip_horizontal, n_flip_vertical = flips_at(0.0, 0.0)
 
     # Position the "N" above the north pole
     # The letter will be in the XZ plane (facing -Y toward camera)
@@ -756,6 +780,10 @@ def create_moon_grid(moon_radius: float = 10.0,
         for lx, lz in [p1_local, p2_local]:
             # lx is horizontal (maps to X in 3D)
             # lz is vertical in the letter (maps to Z in 3D, going up)
+            if n_flip_horizontal:
+                lx = -lx
+            if n_flip_vertical:
+                lz = -lz
             x = lx
             y = y_offset
             z = z_base + lz
