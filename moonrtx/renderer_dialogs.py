@@ -763,7 +763,7 @@ class DialogsMixin:
             ("F6", "NSEW view orientation"),
             ("F7", "SNEW view orientation"),
             ("F8", "SNWE view orientation"),
-            ("F9", "Set time to now using system timezone"),
+            ("F9", "Set time to now (in the session timezone)"),
             ("F10", "Set time to now + start auto-advance"),
             ("F11", "Export time-lapse video (MP4)"),
             ("F12", "Save image"),

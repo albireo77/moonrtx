@@ -48,7 +48,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **F3** - Set up the eyepiece / camera field of view frame  
 **F4** - Toggle parallactic mode (maintains Moon aligned to celestial north)  
 **F5-F8** - Change view orientation (NSWE, NSEW, SNEW, SNWE)  
-**F9** - Set time to now using system timezone  
+**F9** - Set time to now (in the session timezone)  
 **F10** - Set time to now + start auto-advance  
 **F11** - Export time-lapse video (MP4)  
 **F12** - Save image  
