@@ -571,7 +571,10 @@ class MainWindow(tk.Tk):
                 int(self.second_var.get().strip() or 0))
         except (ValueError, TypeError):
             return None
-        offset = wall_clock.astimezone().strftime("%z")
+        try:
+            offset = wall_clock.astimezone().strftime("%z")
+        except (OSError, OverflowError, ValueError):
+            return None     # a date the platform will not convert (before 1970 on Windows)
         return f"{offset[:3]}:{offset[3:]}" if offset else None
 
     def _update_tz_for_date(self):

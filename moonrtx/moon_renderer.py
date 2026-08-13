@@ -26,9 +26,22 @@ from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
 
 
-def _system_utc_offset_at(instant: datetime) -> timedelta:
-    """This machine's UTC offset at the given instant, daylight saving included."""
-    return datetime.fromtimestamp(instant.timestamp()).astimezone().utcoffset()
+def _in_system_clock(instant: datetime) -> Optional[datetime]:
+    """
+    The given instant on this machine's clock, daylight saving included, or None
+    where the platform cannot say: Windows rejects timestamps before 1970, and
+    MoonRTX renders back to 1900.
+    """
+    try:
+        return datetime.fromtimestamp(instant.timestamp()).astimezone()
+    except (OSError, OverflowError, ValueError):
+        return None
+
+
+def _system_utc_offset_at(instant: datetime) -> Optional[timedelta]:
+    """This machine's UTC offset at the given instant, or None (see _in_system_clock)."""
+    local = _in_system_clock(instant)
+    return None if local is None else local.utcoffset()
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
@@ -800,10 +813,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         hour out on the far side of a daylight saving change. Where the session
         runs on this machine's clock, the operating system knows the rules and
         gives the offset that really applies on that date. An offset entered for
-        somewhere else is left alone: it carries no rules to apply.
+        somewhere else is left alone: it carries no rules to apply, and neither
+        has a date the platform will not convert (before 1970 on Windows, while
+        this renders back to 1900).
         """
         if self.dt_local.utcoffset() == _system_utc_offset_at(self.dt_local):
-            return datetime.fromtimestamp(instant.timestamp()).astimezone()
+            local = _in_system_clock(instant)
+            if local is not None:
+                return local
         return instant.astimezone(self.dt_local.tzinfo)
 
     def from_observer_clock(self, wall_clock: datetime) -> datetime:
@@ -814,7 +831,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         the other side of a daylight saving change.
         """
         if self.dt_local.utcoffset() == _system_utc_offset_at(self.dt_local):
-            return wall_clock.astimezone()
+            try:
+                return wall_clock.astimezone()
+            except (OSError, OverflowError, ValueError):
+                pass    # a date the platform will not convert (see _in_system_clock)
         return wall_clock.replace(tzinfo=self.dt_local.tzinfo)
 
     def update_view(self, dt_local: Optional[datetime] = None):
