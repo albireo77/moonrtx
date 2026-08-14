@@ -6,12 +6,14 @@ import os
 import glob
 import base64
 import struct
+import calendar
 import tkinter as tk
 from tkinter import filedialog
 from datetime import datetime
 
 from moonrtx import astro
 from moonrtx.shared_types import Camera, MoonFeature
+from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
 
 def _ffmpeg_dlls_findable() -> bool:
@@ -1070,23 +1072,82 @@ class DialogsMixin:
         grid_frame = tk.Frame(main_frame)
         grid_frame.pack(fill=tk.X, pady=3)
         
-        # Date row
-        tk.Label(grid_frame, text="Date:", anchor='w').grid(row=0, column=0, sticky='e', pady=2)
-        date_var = tk.StringVar(value=current_dt_local.strftime('%Y-%m-%d'))
-        date_entry = tk.Entry(grid_frame, textvariable=date_var, width=15)
-        date_entry.grid(row=0, column=1, padx=5, pady=2)
-        tk.Label(grid_frame, text="(YYYY-MM-DD)", fg='gray').grid(row=0, column=2, sticky='w', pady=2)
-        
-        # Time row. The offset is deliberately not shown: the date typed above
+        def spin_row(row: int, label: str, separator: str, parts: list) -> list:
+            """
+            Build one row of spinboxes separated by a repeated character.
+
+            Parameters
+            ----------
+            row : int
+                Row in grid_frame
+            label : str
+                Row caption
+            separator : str
+                Character drawn between the spinboxes
+            parts : list
+                One (value, low, high, digits, wrap) tuple per spinbox
+
+            Returns
+            -------
+            list
+                One (variable, spinbox) pair per part, in the order given
+            """
+            tk.Label(grid_frame, text=label, anchor='w').grid(row=row, column=0, sticky='e', pady=2)
+            spins = []
+            for i, (value, low, high, digits, wrap) in enumerate(parts):
+                # Both rows share one grid, a column per part and a column per
+                # separator, so the boxes of one line up with those of the other
+                # without their widths having to be matched by hand
+                column = 1 + 2 * i
+                if i:
+                    tk.Label(grid_frame, text=separator).grid(row=row, column=column - 1, pady=2)
+                var = tk.StringVar(value=f"%0{digits}d" % value)
+                spin = tk.Spinbox(grid_frame, textvariable=var, from_=low, to=high, width=digits + 1,
+                                  format=f"%0{digits}.0f", wrap=wrap)
+                # Stretched to the column, which the widest box in it has set
+                spin.grid(row=row, column=column, pady=2, sticky='ew', padx=(5 if i == 0 else 0, 0))
+                spins.append((var, spin))
+            return spins
+
+        # Date row. The year stops where the bundled Skyfield kernels do, and
+        # the day is trimmed to the length of the month chosen (see below)
+        (year_var, _), (month_var, _), (day_var, day_spin) = spin_row(
+            0, "Date:", "-",
+            [(current_dt_local.year, SKYFIELD_MOON_FRAME_START_UTC.year,
+              SKYFIELD_MOON_FRAME_END_UTC.year - 1, 4, False),
+             (current_dt_local.month, 1, 12, 2, True),
+             (current_dt_local.day, 1, 31, 2, True)])
+
+        # Spelled out because the order of the parts is the one thing the boxes
+        # cannot show: a reader used to month first would otherwise have to guess
+        tk.Label(grid_frame, text="(YYYY-MM-DD)", fg='gray').grid(row=0, column=6, sticky='w',
+                                                                  padx=(5, 0), pady=2)
+
+        # Time row. The offset is deliberately not shown: the date set above
         # may fall the other side of a daylight saving change from the one in
         # force now, and a label read at the wrong moment would name the wrong
         # offset. The time is on the session's clock whatever the date.
-        tk.Label(grid_frame, text="Local Time:", anchor='w').grid(row=1, column=0, sticky='e', pady=2)
-        time_var = tk.StringVar(value=current_dt_local.strftime('%H:%M:%S'))
-        time_entry = tk.Entry(grid_frame, textvariable=time_var, width=15)
-        time_entry.grid(row=1, column=1, padx=5, pady=2)
-        tk.Label(grid_frame, text="(HH:MM:SS)", fg='gray').grid(row=1, column=2, sticky='w', pady=2)
-        
+        (hour_var, hour_spin), (minute_var, _), (second_var, _) = spin_row(
+            1, "Local Time:", ":",
+            [(current_dt_local.hour, 0, 23, 2, True),
+             (current_dt_local.minute, 0, 59, 2, True),
+             (current_dt_local.second, 0, 59, 2, True)])
+
+        def clamp_day_to_month(*_):
+            """Keep the day within the chosen month, so 31 Jan then Feb gives 28 or 29."""
+            try:
+                last = calendar.monthrange(int(year_var.get()), int(month_var.get()))[1]
+            except ValueError:
+                return  # half-typed year or month; the next keystroke settles it
+            day_spin.config(to=last)
+            if int(day_var.get() or 0) > last:
+                day_var.set(f"{last:02d}")
+
+        year_var.trace_add('write', clamp_day_to_month)
+        month_var.trace_add('write', clamp_day_to_month)
+        clamp_day_to_month()
+
+
         # Error label
         error_var = tk.StringVar()
         error_label = tk.Label(main_frame, textvariable=error_var, fg='red')
@@ -1096,22 +1157,22 @@ class DialogsMixin:
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, pady=5)
         
+        def show_datetime(dt):
+            """Put a moment into the six spinboxes."""
+            for var, value in ((year_var, dt.year), (month_var, dt.month), (day_var, dt.day),
+                               (hour_var, dt.hour), (minute_var, dt.minute), (second_var, dt.second)):
+                var.set(f"{value:04d}" if var is year_var else f"{value:02d}")
+
         def go_to_time():
             """Apply the selected date/time in local timezone."""
             try:
-                date_str = date_var.get().strip()
-                time_str = time_var.get().strip()
-                
-                # Parse date and time
-                dt_str = f"{date_str} {time_str}"
-                try:
-                    new_dt_naive = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
-                except ValueError:
-                    # Try without seconds
-                    new_dt_naive = datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
-                
+                # A spinbox can still be typed into, so the parts are validated
+                # rather than trusted; datetime rejects anything out of range
+                new_dt_naive = datetime(int(year_var.get()), int(month_var.get()), int(day_var.get()),
+                                        int(hour_var.get()), int(minute_var.get()), int(second_var.get()))
+
                 # Read on the observer's clock, so the daylight saving rules
-                # of the typed date decide the offset (see from_observer_clock)
+                # of the chosen date decide the offset (see from_observer_clock)
                 new_dt_local = self.from_observer_clock(new_dt_naive)
 
                 # Update the view
@@ -1135,15 +1196,11 @@ class DialogsMixin:
             # back as wall clock in that zone (see from_observer_clock), so the
             # system reading would land on the wrong instant for a session
             # planned elsewhere
-            now_local = datetime.now(self.dt_local.tzinfo)
-            date_var.set(now_local.strftime('%Y-%m-%d'))
-            time_var.set(now_local.strftime('%H:%M:%S'))
-        
+            show_datetime(datetime.now(self.dt_local.tzinfo))
+
         def sync_from_renderer():
             """Sync dialog fields with current renderer time."""
-            current_dt_local = self.dt_local
-            date_var.set(current_dt_local.strftime('%Y-%m-%d'))
-            time_var.set(current_dt_local.strftime('%H:%M:%S'))
+            show_datetime(self.dt_local)
         
         tk.Button(btn_frame, text="Now", command=set_now, width=8).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Sync with Moon", command=sync_from_renderer, width=16).pack(side=tk.LEFT, padx=5)
@@ -1161,6 +1218,6 @@ class DialogsMixin:
                                    - dt_win.winfo_reqwidth() - 50,
                                    self.rt._root.winfo_y() + 100), grab=False)
         
-        # Focus on time entry for quick editing
-        time_entry.focus_set()
-        time_entry.select_range(0, tk.END)
+        # Focus on the hour for quick editing
+        hour_spin.focus_set()
+        hour_spin.selection_range(0, tk.END)
