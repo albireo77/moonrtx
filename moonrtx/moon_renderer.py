@@ -1038,6 +1038,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.observation_planner_dialog(moon_renderer._status_feature)
         elif event.keysym.lower() == 'x':
             moon_renderer.clair_obscur_dialog()
+        elif event.keysym.lower() == 'u':
+            moon_renderer.visibility_chart_dialog()
         elif event.keysym.lower() == 'i':
             moon_renderer.open_status_feature_usgs_page()
         elif event.keysym.lower() == 'o':

@@ -1,6 +1,23 @@
+from datetime import datetime
 from typing import NamedTuple, Optional
 
 from numpy.typing import NDArray
+
+class VisibilityChart(NamedTuple):
+    """
+    When the Moon and the Sun are above the observer's horizon over a span of
+    days, as spells rather than as daily rise and set times: a spell that runs
+    past either end of the span is clipped to it, so a Moon that stays up for
+    days near the pole is one long spell instead of a gap in a table. Times are
+    UTC. `transits` pairs each upper meridian crossing with the altitude the
+    Moon reaches there, which is the highest it stands that time round.
+    """
+    start: datetime
+    end: datetime
+    moon_up: list[tuple[datetime, datetime]]
+    sun_up: list[tuple[datetime, datetime]]
+    sun_twilight: list[tuple[datetime, datetime]]
+    transits: list[tuple[datetime, float]]
 
 class MoonEphemeris(NamedTuple):
     az: float

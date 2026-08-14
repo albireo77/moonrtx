@@ -9,7 +9,7 @@ import struct
 import calendar
 import tkinter as tk
 from tkinter import filedialog
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from moonrtx import astro
 from moonrtx.shared_types import Camera, MoonFeature
@@ -109,6 +109,22 @@ class DialogsMixin:
     # several lunations to find ones that are actually up at the observer's
     # site, at a step fine enough to place a four-hour window.
     # See astro.find_clair_obscur_events.
+    # Rise and set chart. A month of rows shows the whole cycle of the Moon
+    # drifting later each night and back again. See astro.find_visibility_chart.
+    VISIBILITY_CHART_DAYS = 30
+    VISIBILITY_ROW_HEIGHT = 14
+    VISIBILITY_HOUR_WIDTH = 21
+    VISIBILITY_COLOURS = {
+        "day": "#cfe0f5",       # Sun up
+        "twilight": "#5f7ea8",  # Sun down but less than 12 degrees under
+        "night": "#101a2b",     # astronomical darkness
+        "moon": "#f0c419",      # the Moon above the horizon
+        "moon_edge": "#8a6d00",
+        "transit": "#ffffff",
+        "grid": "#46587a",
+        "today": "#c02020",
+    }
+
     CLAIR_OBSCUR_SCAN_DAYS = 120
     CLAIR_OBSCUR_STEP_MINUTES = 30
     CLAIR_OBSCUR_ALL_EVENTS = "All events"
@@ -117,6 +133,250 @@ class DialogsMixin:
     # for the rest of the session and start over on the next run.
     _clair_obscur_filter = CLAIR_OBSCUR_ALL_EVENTS
     _clair_obscur_visible_only = True
+
+    def visibility_chart_dialog(self):
+        """
+        Chart when the Moon is up over the coming month, a row to the day, laid
+        over the darkness of the observer's own sky.
+
+        Rise and set alone do not say whether a night is worth anything: a Moon
+        that clears the horizon at noon is no use to anybody. So the row is
+        painted with the Sun first - daylight, twilight, then astronomical dark
+        - and the Moon's own spell laid on top of it, leaving the nights it is
+        up in darkness to be picked out at a glance. Clicking anywhere in the
+        chart takes the app to that moment.
+        """
+        if self.rt is None:
+            return
+
+        # Reuse the search-dialog flag: it blocks main-window key handling
+        # for this dialog in exactly the same way
+        self.search_dialog_open = True
+
+        win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        win.withdraw()
+        win.title("Moon rise and set")
+        win.transient(self.rt._root)
+        win.resizable(False, False)
+
+        def on_close():
+            self.search_dialog_open = False
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+        win.bind('<Escape>', lambda e: on_close())
+
+        main_frame = tk.Frame(win, padx=12, pady=8)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        colours = self.VISIBILITY_COLOURS
+        row_h = self.VISIBILITY_ROW_HEIGHT
+        hour_w = self.VISIBILITY_HOUR_WIDTH
+        font = ('Consolas', 8)
+        head_font = ('Consolas', 8, 'bold')
+
+        date_w = 74                       # "Fri 14 Aug"
+        chart_w = 24 * hour_w
+        columns = (("Rise", 42), ("Transit", 48), ("Set", 42), ("Max", 40))
+        head_h = 16
+        chart_x = date_w
+        table_x = chart_x + chart_w + 10
+        width = table_x + sum(w for _, w in columns)
+
+        canvas = tk.Canvas(main_frame, width=width,
+                           height=head_h + self.VISIBILITY_CHART_DAYS * row_h + 2,
+                           highlightthickness=0, bg=win.cget('bg'))
+        canvas.pack()
+
+        # What the chart on the canvas currently covers. Refresh draws it again
+        # from wherever the app has since been taken, so the dates it stands for
+        # are not fixed at the ones the window opened on
+        span = {"first_date": None, "rows": 0}
+
+        def hour_of(moment) -> float:
+            """Wall-clock reading as hours past midnight, which is the x axis."""
+            return moment.hour + moment.minute / 60.0 + moment.second / 3600.0
+
+        def x_of(hour: float) -> float:
+            return chart_x + hour * hour_w
+
+        def y_of(row: int) -> int:
+            return head_h + row * row_h
+
+        now_marker = []
+
+        def draw_now_marker():
+            """A line down the chart at the moment the app is showing."""
+            for item in now_marker:
+                canvas.delete(item)
+            now_marker.clear()
+            if span["first_date"] is None:
+                return
+            row = (self.dt_local.date() - span["first_date"]).days
+            if not 0 <= row < span["rows"]:
+                return
+            x_now = x_of(hour_of(self.dt_local))
+            now_marker.append(canvas.create_line(x_now, y_of(row), x_now, y_of(row) + row_h,
+                                                 fill=colours["today"], width=2))
+
+        def redraw():
+            """Draw the chart afresh, starting from the date the app is showing."""
+            canvas.delete('all')
+            now_marker.clear()
+
+            first_date = self.dt_local.date()
+            first_local = self.from_observer_clock(
+                datetime.combine(first_date, datetime.min.time()))
+            try:
+                chart = astro.find_visibility_chart(first_local, self.VISIBILITY_CHART_DAYS)
+            except ValueError as e:
+                # Chart start outside the bundled ephemeris kernel range
+                span["first_date"], span["rows"] = None, 0
+                canvas.config(height=48)
+                canvas.create_text(4, 4, text=str(e), anchor='nw', width=width - 8, font=font)
+                return
+
+            # The span is trimmed where it would run past the dates the kernels
+            # cover, so the last rows are dropped rather than drawn empty
+            rows = max(1, min(self.VISIBILITY_CHART_DAYS,
+                              -((chart.start - chart.end).days)))
+            span["first_date"], span["rows"] = first_date, rows
+            canvas.config(height=head_h + rows * row_h + 2)
+
+            def pieces(spells: list) -> list:
+                """
+                Cut spells into per-row runs of wall-clock hours. A spell running
+                through midnight belongs to both the days it touches, so it is
+                drawn as one piece on each rather than wrapping round.
+                """
+                out = []
+                for start_utc, end_utc in spells:
+                    start = self.in_observer_clock(start_utc)
+                    end = self.in_observer_clock(end_utc)
+                    day = start.date()
+                    while day <= end.date():
+                        row = (day - first_date).days
+                        if 0 <= row < rows:
+                            from_hour = hour_of(start) if start.date() == day else 0.0
+                            to_hour = hour_of(end) if end.date() == day else 24.0
+                            if to_hour > from_hour:
+                                out.append((row, from_hour, to_hour))
+                        day += timedelta(days=1)
+                return out
+
+            def band(row: int, from_hour: float, to_hour: float, fill: str):
+                canvas.create_rectangle(x_of(from_hour), y_of(row),
+                                        x_of(to_hour), y_of(row) + row_h,
+                                        fill=fill, outline="")
+
+            # Hour scale along the top, every three hours
+            for hour in range(0, 25, 3):
+                label = "24" if hour == 24 else f"{hour:02d}"
+                canvas.create_text(x_of(hour), head_h - 4, text=label, font=font, anchor='s')
+
+            # Night first, then the lighter spells over it: the Sun above the
+            # horizon is also above the twilight depth, so day paints last
+            for row in range(rows):
+                band(row, 0.0, 24.0, colours["night"])
+            for row, a, b in pieces(chart.sun_twilight):
+                band(row, a, b, colours["twilight"])
+            for row, a, b in pieces(chart.sun_up):
+                band(row, a, b, colours["day"])
+
+            for hour in range(3, 24, 3):
+                canvas.create_line(x_of(hour), head_h, x_of(hour), head_h + rows * row_h,
+                                   fill=colours["grid"])
+
+            for row, a, b in pieces(chart.moon_up):
+                canvas.create_rectangle(x_of(a), y_of(row) + 3, x_of(b), y_of(row) + row_h - 3,
+                                        fill=colours["moon"], outline=colours["moon_edge"])
+
+            # Per-row times: what happens on that date, as an almanac lists it. A
+            # rise and a set on one row need not belong to the same spell - around
+            # the time the Moon rises near midnight, one of the two is missing.
+            # A spell already under way when the chart opens, or still running
+            # when it closes, was clipped to the span - those ends are where the
+            # chart stops rather than where the Moon crossed, so are not listed
+            rise_on, set_on = {}, {}
+            for start_utc, end_utc in chart.moon_up:
+                if start_utc > chart.start:
+                    rise_on.setdefault(self.in_observer_clock(start_utc).date(),
+                                       self.in_observer_clock(start_utc))
+                if end_utc < chart.end:
+                    set_on.setdefault(self.in_observer_clock(end_utc).date(),
+                                      self.in_observer_clock(end_utc))
+            transit_on = {}
+            for when_utc, altitude in chart.transits:
+                local = self.in_observer_clock(when_utc)
+                transit_on.setdefault(local.date(), (local, altitude))
+                row = (local.date() - first_date).days
+                if 0 <= row < rows and altitude > 0.0:
+                    canvas.create_line(x_of(hour_of(local)), y_of(row) + 3,
+                                       x_of(hour_of(local)), y_of(row) + row_h - 3,
+                                       fill=colours["transit"])
+
+            x = table_x
+            for title, column_w in columns:
+                canvas.create_text(x + column_w - 4, head_h - 4, text=title,
+                                   font=head_font, anchor='se')
+                x += column_w
+
+            for row in range(rows):
+                date = first_date + timedelta(days=row)
+                centre = y_of(row) + row_h // 2
+                canvas.create_text(date_w - 8, centre, text=f"{date:%a %d %b}",
+                                   font=font, anchor='e')
+                transit = transit_on.get(date)
+                values = (
+                    f"{rise_on[date]:%H:%M}" if date in rise_on else "-",
+                    f"{transit[0]:%H:%M}" if transit else "-",
+                    f"{set_on[date]:%H:%M}" if date in set_on else "-",
+                    f"{transit[1]:+.0f}°" if transit else "-",
+                )
+                x = table_x
+                for (_, column_w), value in zip(columns, values):
+                    canvas.create_text(x + column_w - 4, centre, text=value, font=font, anchor='e')
+                    x += column_w
+
+            draw_now_marker()
+
+        def go_to(event):
+            """Take the app to the moment clicked in the chart."""
+            if span["first_date"] is None:
+                return
+            row = (event.y - head_h) // row_h
+            if not 0 <= row < span["rows"] or not chart_x <= event.x <= chart_x + chart_w:
+                return
+            hours = (event.x - chart_x) / hour_w
+            date = span["first_date"] + timedelta(days=int(row))
+            when = self.from_observer_clock(
+                datetime.combine(date, datetime.min.time()) + timedelta(hours=hours))
+            self.update_view(when)
+            if self._auto_advance_var and self._auto_advance_var.get():
+                self._auto_advance_elapsed = 0
+            self._update_all_status_panels()
+            draw_now_marker()
+
+        canvas.bind('<Button-1>', go_to)
+        redraw()
+
+        legend = tk.Frame(main_frame)
+        legend.pack(fill=tk.X, pady=(8, 0))
+        for text, colour in (("Moon up", colours["moon"]), ("Daylight", colours["day"]),
+                             ("Twilight", colours["twilight"]), ("Dark", colours["night"])):
+            swatch = tk.Frame(legend, bg=colour, width=14, height=10,
+                              highlightthickness=1, highlightbackground="#808080")
+            swatch.pack(side=tk.LEFT)
+            swatch.pack_propagate(False)
+            tk.Label(legend, text=text, font=font).pack(side=tk.LEFT, padx=(3, 10))
+        tk.Label(legend, text="Click the chart to go to that moment", font=font,
+                 fg='#606060').pack(side=tk.LEFT)
+        # Close packed first so it keeps the right-hand end, Refresh beside it
+        tk.Button(legend, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
+        tk.Button(legend, text="Refresh", command=redraw, width=10).pack(side=tk.RIGHT, padx=(0, 6))
+
+        self._show_dialog(win)
 
     def clair_obscur_dialog(self):
         """
@@ -780,6 +1040,7 @@ class DialogsMixin:
             ("C", "Center and fix view on point under cursor"),
             ("F", "Search for Moon features (craters, mounts etc.)"),
             ("X", "Find clair-obscur events (Lunar X, Jewelled Handle, Rupes Recta ...)"),
+            ("U", "Chart when the Moon is up over the coming month"),
             ("K", "Open observation planner (terminator / libration) for Moon feature in status bar"),
             ("I", "Open USGS web page for Moon feature in status bar"),
             ("O", "Open user defined web page (Wikipedia by default) for Moon feature in status bar"),

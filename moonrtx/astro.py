@@ -15,7 +15,7 @@ from moonrtx.skyfield_utils import (
     skyfield_moon_frame,
     skyfield_timescale,
 )
-from moonrtx.shared_types import ClairObscurEvent, MoonEphemeris, Observer
+from moonrtx.shared_types import ClairObscurEvent, MoonEphemeris, Observer, VisibilityChart
 
 RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
     [[0.0, -1.0, 0.0],
@@ -26,19 +26,21 @@ RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
 
 
 def init(observer: Observer):
-    global _observer, _observer_lat, _earth, _moon, _sun, _moon_frame, _timescale
-    global _moon_phases_fn, _lunation_bounds
+    global _observer, _observer_lat, _observer_site, _earth, _moon, _sun, _moon_frame, _timescale
+    global _ephemeris, _moon_phases_fn, _lunation_bounds
     ephemeris = skyfield_ephemeris()
+    _ephemeris = ephemeris
     _moon_frame = skyfield_moon_frame()
     _timescale = skyfield_timescale()
     _earth = ephemeris["earth"]
     _moon = ephemeris["moon"]
     _sun = ephemeris["sun"]
-    _observer = _earth + wgs84.latlon(
+    _observer_site = wgs84.latlon(
         latitude_degrees=observer.lat,
         longitude_degrees=observer.lon,
         elevation_m=observer.elevation_m
     )
+    _observer = _earth + _observer_site
     _observer_lat = observer.lat
     _moon_phases_fn = almanac.moon_phases(ephemeris)
     _lunation_bounds = None
@@ -521,6 +523,112 @@ def find_clair_obscur_events(start_local: datetime, days: int,
 
     occurrences.sort(key=lambda o: o["peak"])
     return occurrences
+
+
+def _horizon_crossings(found: tuple) -> list[datetime]:
+    """
+    UTC times of the genuine horizon crossings in a find_risings/find_settings
+    result. Skyfield returns one time per day either way, flagged False on the
+    days the Moon only came near the horizon without reaching it.
+    """
+    times, crossed = found
+    return [t.utc_datetime() for t, ok in zip(times, crossed) if ok]
+
+
+ASTRONOMICAL_TWILIGHT_DEGREES = -12.0
+
+
+def _altitude_of(target, when_utc: datetime) -> float:
+    """Apparent altitude of a body above the observer's horizon, in degrees."""
+    altitude, _, _ = _observer.at(_timescale.from_datetime(when_utc)).observe(
+        target).apparent().altaz(temperature_C="standard")
+    return float(altitude.degrees)
+
+
+def _up_intervals(target, start_utc: datetime, end_utc: datetime,
+                  horizon_degrees: float = None) -> list:
+    """
+    The spells a body spends above a horizon between two moments, clipped to
+    them. The default horizon is the one an almanac uses, the body's upper limb
+    touching it with refraction allowed for; giving a depth instead measures
+    against that many degrees below it, as twilight is measured.
+    """
+    start = _timescale.from_datetime(start_utc)
+    end = _timescale.from_datetime(end_utc)
+    risings = _horizon_crossings(
+        almanac.find_risings(_observer, target, start, end, horizon_degrees))
+    settings = _horizon_crossings(
+        almanac.find_settings(_observer, target, start, end, horizon_degrees))
+    crossings = sorted([(t, True) for t in risings] + [(t, False) for t in settings])
+
+    # A spell already under way when the span opens has no rising to start it.
+    # Its first crossing is then a setting - and with no crossing at all, as
+    # through a polar day or a Moon circling above the horizon for a week, only
+    # the altitude can say which way round it is
+    depth = horizon_degrees if horizon_degrees is not None else 0.0
+    if crossings:
+        up_from = None if crossings[0][1] else start_utc
+    else:
+        up_from = start_utc if _altitude_of(target, start_utc) > depth else None
+
+    intervals = []
+    for when, rising in crossings:
+        if rising and up_from is None:
+            up_from = when
+        elif not rising and up_from is not None:
+            intervals.append((up_from, when))
+            up_from = None
+    if up_from is not None:
+        intervals.append((up_from, end_utc))
+    return intervals
+
+
+def _upper_transits(start_utc: datetime, end_utc: datetime) -> list:
+    """
+    Every upper meridian crossing of the Moon between two moments, paired with
+    the altitude it reaches there - the highest it stands that time round.
+    """
+    times, kinds = almanac.find_discrete(
+        _timescale.from_datetime(start_utc), _timescale.from_datetime(end_utc),
+        almanac.meridian_transits(_ephemeris, _moon, _observer_site))
+    # meridian_transits marks 1 for the upper transit and 0 for the lower one,
+    # the latter being the moment the Moon is furthest below the meridian
+    upper = times[np.asarray(kinds) == 1]
+    if not len(upper):
+        return []
+    altitudes, _, _ = _observer.at(upper).observe(_moon).apparent().altaz(temperature_C="standard")
+    return list(zip(upper.utc_datetime(), (float(a) for a in np.atleast_1d(altitudes.degrees))))
+
+
+def find_visibility_chart(start_local: datetime, days: int) -> VisibilityChart:
+    """
+    When the Moon and the Sun stand above the observer's horizon over the days
+    following start_local, and when the Moon crosses the meridian.
+
+    Parameters
+    ----------
+    start_local : datetime
+        First moment of the span
+    days : int
+        Length of the span; trimmed where it would run past the dates the
+        bundled kernels cover
+
+    Returns
+    -------
+    VisibilityChart
+        Spells and transits in UTC
+    """
+    start_utc = _validate_supported_datetime(start_local)
+    end_utc = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
+    return VisibilityChart(
+        start=start_utc,
+        end=end_utc,
+        moon_up=_up_intervals(_moon, start_utc, end_utc),
+        sun_up=_up_intervals(_sun, start_utc, end_utc),
+        sun_twilight=_up_intervals(_sun, start_utc, end_utc,
+                                   horizon_degrees=ASTRONOMICAL_TWILIGHT_DEGREES),
+        transits=_upper_transits(start_utc, end_utc),
+    )
 
 
 def sun_altitude_at(subsolar_lat: float, subsolar_lon: float, lat_deg: float, lon_deg: float) -> float:

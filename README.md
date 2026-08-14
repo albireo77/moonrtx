@@ -63,6 +63,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **C** - Center and fix view on point under cursor  
 **F** - Search for Moon features (craters, mounts etc.)  
 **X** - Find clair-obscur events (Lunar X, Lunar V, Jewelled Handle, Eyes of Clavius, Rupes Recta)  
+**U** - Chart when the Moon is up over the coming month  
 **K** - Open observation planner (terminator / libration) for Moon feature in status bar  
 **I** - Open USGS web page for Moon feature in status bar  
 **O** - Open user defined web page (Wikipedia by default) for Moon feature in status bar  
