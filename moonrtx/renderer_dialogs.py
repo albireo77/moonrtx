@@ -1039,7 +1039,6 @@ class DialogsMixin:
         # Built withdrawn and shown by _show_dialog once positioned
         dt_win.withdraw()
         dt_win.title("Date/Time")
-        dt_win.geometry("360x130")
         dt_win.transient(self.rt._root)
         dt_win.resizable(False, False)
         
@@ -1071,10 +1070,6 @@ class DialogsMixin:
         grid_frame = tk.Frame(main_frame)
         grid_frame.pack(fill=tk.X, pady=3)
         
-        # Format timezone offset as +HH:MM or -HH:MM
-        offset = current_dt_local.strftime('%z')  # e.g., +0100
-        offset_formatted = f"{offset[:3]}:{offset[3:]}" if offset else ""  # e.g., +01:00
-        
         # Date row
         tk.Label(grid_frame, text="Date:", anchor='w').grid(row=0, column=0, sticky='e', pady=2)
         date_var = tk.StringVar(value=current_dt_local.strftime('%Y-%m-%d'))
@@ -1082,9 +1077,11 @@ class DialogsMixin:
         date_entry.grid(row=0, column=1, padx=5, pady=2)
         tk.Label(grid_frame, text="(YYYY-MM-DD)", fg='gray').grid(row=0, column=2, sticky='w', pady=2)
         
-        # Time row
-        tz_label_var = tk.StringVar(value=f"Local Time (UTC{offset_formatted}):")
-        tk.Label(grid_frame, textvariable=tz_label_var, anchor='e').grid(row=1, column=0, sticky='w', pady=2)
+        # Time row. The offset is deliberately not shown: the date typed above
+        # may fall the other side of a daylight saving change from the one in
+        # force now, and a label read at the wrong moment would name the wrong
+        # offset. The time is on the session's clock whatever the date.
+        tk.Label(grid_frame, text="Local Time:", anchor='w').grid(row=1, column=0, sticky='e', pady=2)
         time_var = tk.StringVar(value=current_dt_local.strftime('%H:%M:%S'))
         time_entry = tk.Entry(grid_frame, textvariable=time_var, width=15)
         time_entry.grid(row=1, column=1, padx=5, pady=2)
@@ -1116,11 +1113,7 @@ class DialogsMixin:
                 # Read on the observer's clock, so the daylight saving rules
                 # of the typed date decide the offset (see from_observer_clock)
                 new_dt_local = self.from_observer_clock(new_dt_naive)
-                # The typed date may fall the other side of a daylight saving
-                # change, so the label follows the offset actually applied
-                offset = new_dt_local.strftime('%z')
-                tz_label_var.set(f"Local Time (UTC{offset[:3]}:{offset[3:]}):")
-                
+
                 # Update the view
                 self.update_view(new_dt_local)
                 
@@ -1143,9 +1136,6 @@ class DialogsMixin:
             # system reading would land on the wrong instant for a session
             # planned elsewhere
             now_local = datetime.now(self.dt_local.tzinfo)
-            offset = now_local.strftime('%z')
-            offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
-            tz_label_var.set(f"Local Time (UTC{offset_fmt}):")
             date_var.set(now_local.strftime('%Y-%m-%d'))
             time_var.set(now_local.strftime('%H:%M:%S'))
         
@@ -1159,11 +1149,16 @@ class DialogsMixin:
         tk.Button(btn_frame, text="Sync with Moon", command=sync_from_renderer, width=16).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Set", command=go_to_time, width=10).pack(side=tk.RIGHT, padx=5)
         
+        # Sized to what it holds rather than to a fixed guess, so the row of
+        # buttons ends where the window does. The size is still pinned: without
+        # it the window would grow the moment an error message appears.
+        dt_win.update_idletasks()
+        dt_win.geometry(f"{dt_win.winfo_reqwidth()}x{dt_win.winfo_reqheight()}")
+
         # Near the top-right of the main window rather than centred, so it
         # does not cover the Moon while the time is being set
-        dt_win.update_idletasks()
         self._show_dialog(dt_win, (self.rt._root.winfo_x() + self.rt._root.winfo_width()
-                                   - dt_win.winfo_width() - 50,
+                                   - dt_win.winfo_reqwidth() - 50,
                                    self.rt._root.winfo_y() + 100), grab=False)
         
         # Focus on time entry for quick editing
