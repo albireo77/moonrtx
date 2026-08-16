@@ -8,6 +8,7 @@ import base64
 import struct
 import calendar
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import filedialog
 from datetime import datetime, timedelta
 
@@ -175,14 +176,20 @@ class DialogsMixin:
         hour_w = self.VISIBILITY_HOUR_WIDTH
         font = ('Consolas', 8)
         head_font = ('Consolas', 8, 'bold')
+        # One character cell, the step the column titles are nudged by. Measured
+        # rather than assumed, the row font being fixed-pitch but not a fixed size
+        cell_w = tkfont.Font(font=font).measure('0')
 
         date_w = 74                       # "Fri 14 Aug"
         chart_w = 24 * hour_w
-        columns = (("Rise", 42), ("Transit", 48), ("Set", 42), ("Max", 40))
+        # Title, column width, and how many characters to nudge the title by:
+        # the values are right-aligned in their columns, so a title shorter or
+        # longer than them does not sit over them squarely on its own
+        columns = (("Rise", 42, -1), ("Transit", 48, 1), ("Set", 42, -1), ("Max", 40, -1))
         head_h = 16
         chart_x = date_w
         table_x = chart_x + chart_w + 10
-        width = table_x + sum(w for _, w in columns)
+        width = table_x + sum(w for _, w, _ in columns)
 
         canvas = tk.Canvas(main_frame, width=width,
                            height=head_h + self.VISIBILITY_CHART_DAYS * row_h + 2,
@@ -317,8 +324,8 @@ class DialogsMixin:
                                        fill=colours["transit"])
 
             x = table_x
-            for title, column_w in columns:
-                canvas.create_text(x + column_w - 4, head_h - 4, text=title,
+            for title, column_w, nudge in columns:
+                canvas.create_text(x + column_w - 4 + nudge * cell_w, head_h - 4, text=title,
                                    font=head_font, anchor='se')
                 x += column_w
 
@@ -335,7 +342,7 @@ class DialogsMixin:
                     f"{transit[1]:+.0f}°" if transit else "-",
                 )
                 x = table_x
-                for (_, column_w), value in zip(columns, values):
+                for (_, column_w, _), value in zip(columns, values):
                     canvas.create_text(x + column_w - 4, centre, text=value, font=font, anchor='e')
                     x += column_w
 
