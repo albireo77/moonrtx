@@ -1268,7 +1268,6 @@ class DialogsMixin:
         search_var = tk.StringVar()
         entry = tk.Entry(frame, textvariable=search_var, width=40)
         entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-        entry.focus_set()
         
         # Results listbox with scrollbar
         list_frame = tk.Frame(search_win)
@@ -1346,6 +1345,11 @@ class DialogsMixin:
         tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(side=tk.RIGHT)
 
         self._show_dialog(search_win)
+
+        # Focused only now the window is on screen: a widget in a window that
+        # is still withdrawn cannot take focus, and the request is simply lost,
+        # leaving the first thing typed to go nowhere
+        entry.focus_set()
 
     def open_datetime_dialog(self):
         """
