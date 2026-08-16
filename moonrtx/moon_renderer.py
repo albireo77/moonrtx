@@ -974,13 +974,14 @@ def run_renderer(dt_local: datetime,
     preview_letters = set('qwazedhj')
 
     # Keys that reach update_view: time stepping (Q/W), the resets that restore
-    # the initial time (R), the dialogs that jump to a time (T, and the planners
-    # K and X), the parallactic toggle (F4) and the set-time-now keys (F9/F10).
-    # A running video export drives update_view from the raytracing thread, so
-    # these are ignored while it lasts - see the export guard in
+    # the initial time (R), the dialogs that jump to a time (T, the planners K
+    # and X, and the rise and set chart U, which goes to whatever moment in it
+    # is clicked), the parallactic toggle (F4) and the set-time-now keys
+    # (F9/F10). A running video export drives update_view from the raytracing
+    # thread, so these are ignored while it lasts - see the export guard in
     # custom_key_handler.
     update_view_keysyms = {'F4', 'F9', 'F10'}
-    update_view_letters = set('qwrtkx')
+    update_view_letters = set('qwrtkxu')
 
     def custom_key_handler(event):
         # Ignore key events when search dialog or datetime dialog is focused
