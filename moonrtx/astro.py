@@ -600,6 +600,21 @@ def _upper_transits(start_utc: datetime, end_utc: datetime) -> list:
     return list(zip(upper.utc_datetime(), (float(a) for a in np.atleast_1d(altitudes.degrees))))
 
 
+def _daily_illumination(start_utc: datetime, end_utc: datetime) -> list:
+    """
+    How much of the Moon's disc is lit, once for each day of the span. Each
+    reading is taken at the middle of its day, so it stands for the night on
+    either side of it rather than for one end of the day.
+    """
+    moments = [start_utc + timedelta(days=day, hours=12)
+               for day in range(-((start_utc - end_utc).days))]
+    moments = [moment for moment in moments if moment <= end_utc]
+    if not moments:
+        return []
+    lit = almanac.fraction_illuminated(_ephemeris, 'moon', _timescale.from_datetimes(moments))
+    return list(zip(moments, (float(f) for f in np.atleast_1d(lit))))
+
+
 def find_visibility_chart(start_local: datetime, days: int) -> VisibilityChart:
     """
     When the Moon and the Sun stand above the observer's horizon over the days
@@ -628,6 +643,7 @@ def find_visibility_chart(start_local: datetime, days: int) -> VisibilityChart:
         sun_twilight=_up_intervals(_sun, start_utc, end_utc,
                                    horizon_degrees=ASTRONOMICAL_TWILIGHT_DEGREES),
         transits=_upper_transits(start_utc, end_utc),
+        illumination=_daily_illumination(start_utc, end_utc),
     )
 
 

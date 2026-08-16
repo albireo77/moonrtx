@@ -124,6 +124,9 @@ class DialogsMixin:
         "transit": "#ffffff",
         "grid": "#46587a",
         "today": "#c02020",
+        "lit": "#fdfbe8",       # the sunlit part of the phase icon
+        "unlit": "#39414f",
+        "limb": "#707070",
     }
 
     CLAIR_OBSCUR_SCAN_DAYS = 120
@@ -189,7 +192,9 @@ class DialogsMixin:
         head_h = 16
         chart_x = date_w
         table_x = chart_x + chart_w + 10
-        width = table_x + sum(w for _, w, _ in columns)
+        phase_x = table_x + sum(w for _, w, _ in columns)
+        phase_w = 26
+        width = phase_x + phase_w
 
         canvas = tk.Canvas(main_frame, width=width,
                            height=head_h + self.VISIBILITY_CHART_DAYS * row_h + 2,
@@ -210,6 +215,40 @@ class DialogsMixin:
 
         def y_of(row: int) -> int:
             return head_h + row * row_h
+
+        def phase_icon(centre_y: int, lit_fraction: float, waxing: bool):
+            """
+            Draw the Moon as it is lit, at the given height in the phase column.
+
+            The terminator is the edge of the lit hemisphere seen side on, so it
+            projects to a half-ellipse whose width follows the phase: widest at
+            new and full, closing to nothing at the quarters. Half the disc is
+            painted lit and that ellipse then either eats into it, leaving a
+            crescent, or fills out beside it, leaving a gibbous disc.
+            """
+            radius = (row_h - 4) // 2
+            centre_x = phase_x + phase_w // 2
+            box = (centre_x - radius, centre_y - radius, centre_x + radius, centre_y + radius)
+            canvas.create_oval(*box, fill=colours["unlit"], outline="")
+            # Waxing lights the western limb, which is drawn to the right here,
+            # the side the Sun is on for the first half of the month
+            canvas.create_arc(*box, start=-90 if waxing else 90, extent=180,
+                              style=tk.PIESLICE, fill=colours["lit"], outline="")
+            gibbous = lit_fraction > 0.5
+            terminator = radius * abs(2.0 * lit_fraction - 1.0)
+            ellipse = (centre_x - terminator, centre_y - radius,
+                       centre_x + terminator, centre_y + radius)
+            canvas.create_oval(*ellipse, outline="",
+                               fill=colours["lit"] if gibbous else colours["unlit"])
+            # Only half that ellipse divides light from dark - the other half
+            # falls inside whichever the fill just extended, where there is no
+            # edge to draw. It is stroked because within a few days of new or
+            # full the sliver it cuts off is thinner than a pixel at this size,
+            # and a run of dates would otherwise all render as flatly full
+            if terminator >= 1.0:
+                canvas.create_arc(*ellipse, start=90 if waxing == gibbous else -90,
+                                  extent=180, style=tk.ARC, outline=colours["limb"])
+            canvas.create_oval(*box, fill="", outline=colours["limb"])
 
         now_marker = []
 
@@ -323,11 +362,27 @@ class DialogsMixin:
                                        x_of(hour_of(local)), y_of(row) + row_h - 3,
                                        fill=colours["transit"])
 
+            # How much of the disc is lit on each date, and which way it is
+            # going: the fraction alone cannot say waxing from waning, so the
+            # day after tells, or the day before for the last row of the chart
+            lit_on = {}
+            readings = chart.illumination
+            for i, (when_utc, fraction) in enumerate(readings):
+                if i + 1 < len(readings):
+                    waxing = readings[i + 1][1] >= fraction
+                elif i > 0:
+                    waxing = fraction >= readings[i - 1][1]
+                else:
+                    waxing = True
+                lit_on[self.in_observer_clock(when_utc).date()] = (fraction, waxing)
+
             x = table_x
             for title, column_w, nudge in columns:
                 canvas.create_text(x + column_w - 4 + nudge * cell_w, head_h - 4, text=title,
                                    font=head_font, anchor='se')
                 x += column_w
+            canvas.create_text(phase_x + phase_w // 2, head_h - 4, text="Lit",
+                               font=head_font, anchor='s')
 
             for row in range(rows):
                 date = first_date + timedelta(days=row)
@@ -345,6 +400,8 @@ class DialogsMixin:
                 for (_, column_w, _), value in zip(columns, values):
                     canvas.create_text(x + column_w - 4, centre, text=value, font=font, anchor='e')
                     x += column_w
+                if date in lit_on:
+                    phase_icon(centre, *lit_on[date])
 
             draw_now_marker()
 

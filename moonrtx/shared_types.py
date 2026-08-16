@@ -18,6 +18,7 @@ class VisibilityChart(NamedTuple):
     sun_up: list[tuple[datetime, datetime]]
     sun_twilight: list[tuple[datetime, datetime]]
     transits: list[tuple[datetime, float]]
+    illumination: list[tuple[datetime, float]]
 
 class MoonEphemeris(NamedTuple):
     az: float
