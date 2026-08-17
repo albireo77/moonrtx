@@ -202,9 +202,10 @@ class DialogsMixin:
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
 
-        # What the chart on the canvas currently covers. Refresh draws it again
-        # from wherever the app has since been taken, so the dates it stands for
-        # are not fixed at the ones the window opened on
+        # Where the chart currently sits. "first_date" is the night the top row
+        # stands for, which the arrows move and Reset takes back to the clock;
+        # "rows" is zero while nothing is drawn, as when a page falls outside
+        # the dates the kernels cover
         span = {"first_date": None, "rows": 0}
 
         def hour_of(moment) -> float:
@@ -277,7 +278,7 @@ class DialogsMixin:
             for item in now_marker:
                 canvas.delete(item)
             now_marker.clear()
-            if span["first_date"] is None:
+            if not span["rows"]:
                 return
             row = row_of(self.dt_local)
             if not 0 <= row < span["rows"]:
@@ -287,21 +288,19 @@ class DialogsMixin:
                                                  fill=colours["today"], width=2))
 
         def redraw():
-            """Draw the chart afresh, starting from the date the app is showing."""
+            """Draw the chart afresh over the span it currently sits on."""
             canvas.delete('all')
             now_marker.clear()
+            span["rows"] = 0
 
-            # The first row is the night the app is currently in, so a chart
-            # opened in the small hours starts with the night under way rather
-            # than with one already finished
-            first_date = (self.dt_local - timedelta(hours=self.VISIBILITY_DAY_START)).date()
-            span["first_date"] = first_date
+            first_date = span["first_date"]
             try:
                 chart = astro.find_visibility_chart(midday_on(first_date),
                                                     self.VISIBILITY_CHART_DAYS)
             except ValueError as e:
-                # Chart start outside the bundled ephemeris kernel range
-                span["first_date"], span["rows"] = None, 0
+                # This page falls outside the bundled ephemeris kernel range.
+                # The date it was asked for is kept, so paging back off the end
+                # returns to where it came from rather than to the clock
                 canvas.config(height=48)
                 canvas.create_text(4, 4, text=str(e), anchor='nw', width=width - 8, font=font)
                 return
@@ -431,9 +430,8 @@ class DialogsMixin:
 
         def go_to(event):
             """Take the app to the moment clicked in the chart."""
-            if span["first_date"] is None:
-                return
             row = (event.y - head_h) // row_h
+            # Nothing is drawn when rows is zero, so this turns clicks away too
             if not 0 <= row < span["rows"] or not chart_x <= event.x <= chart_x + chart_w:
                 return
             hours = (event.x - chart_x) / hour_w
@@ -445,7 +443,6 @@ class DialogsMixin:
             draw_now_marker()
 
         canvas.bind('<Button-1>', go_to)
-        redraw()
 
         legend = tk.Frame(main_frame)
         legend.pack(fill=tk.X, pady=(8, 0))
@@ -458,9 +455,33 @@ class DialogsMixin:
             tk.Label(legend, text=text, font=font).pack(side=tk.LEFT, padx=(3, 10))
         tk.Label(legend, text="Click the chart to go to that moment", font=font,
                  fg='#606060').pack(side=tk.LEFT)
-        # Close packed first so it keeps the right-hand end, Refresh beside it
+        def page(days: int):
+            """
+            Move the chart on by a span, without disturbing the Moon.
+
+            Measured from the page on screen, not from the clock: clicking a row
+            moves the clock, and paging from that instead would land the next
+            page a few days along from where this one ends.
+            """
+            span["first_date"] += timedelta(days=days)
+            redraw()
+
+        def reset():
+            """Take the chart back to the night the app is showing."""
+            span["first_date"] = (self.dt_local
+                                  - timedelta(hours=self.VISIBILITY_DAY_START)).date()
+            redraw()
+
+        # Close packed first so it keeps the right-hand end, then Reset, then
+        # the pager - which reads left to right once packed in that order
         tk.Button(legend, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
-        tk.Button(legend, text="Refresh", command=redraw, width=10).pack(side=tk.RIGHT, padx=(0, 6))
+        tk.Button(legend, text="Reset", command=reset, width=10).pack(side=tk.RIGHT, padx=(0, 6))
+        tk.Button(legend, text="▶", width=2,
+                  command=lambda: page(self.VISIBILITY_CHART_DAYS)).pack(side=tk.RIGHT, padx=(0, 6))
+        tk.Button(legend, text="◀", width=2,
+                  command=lambda: page(-self.VISIBILITY_CHART_DAYS)).pack(side=tk.RIGHT)
+
+        reset()   # the first draw sits on the night the app is showing
 
         self._show_dialog(win)
 
