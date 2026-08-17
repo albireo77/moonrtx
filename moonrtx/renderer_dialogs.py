@@ -4,6 +4,7 @@ DialogsMixin: dialog windows (help, search, save, datetime) for MoonRenderer.
 
 import os
 import glob
+import math
 import base64
 import struct
 import calendar
@@ -115,6 +116,12 @@ class DialogsMixin:
     VISIBILITY_CHART_DAYS = 30
     VISIBILITY_ROW_HEIGHT = 14
     VISIBILITY_HOUR_WIDTH = 21
+    # A row is a night, not a date, so it opens in the afternoon: this many
+    # hours before the Sun sets on the first evening charted, rounded up to a
+    # whole hour so the scale along the top stays on whole hours. Where the Sun
+    # does not set at all the fallback stands in.
+    VISIBILITY_DUSK_MARGIN = 2
+    VISIBILITY_DAY_START_FALLBACK = 12
     VISIBILITY_COLOURS = {
         "day": "#cfe0f5",       # Sun up
         "twilight": "#5f7ea8",  # Sun down but less than 12 degrees under
@@ -204,11 +211,49 @@ class DialogsMixin:
         # What the chart on the canvas currently covers. Refresh draws it again
         # from wherever the app has since been taken, so the dates it stands for
         # are not fixed at the ones the window opened on
-        span = {"first_date": None, "rows": 0}
+        span = {"first_date": None, "rows": 0,
+                "day_start": self.VISIBILITY_DAY_START_FALLBACK}
 
         def hour_of(moment) -> float:
-            """Wall-clock reading as hours past midnight, which is the x axis."""
-            return moment.hour + moment.minute / 60.0 + moment.second / 3600.0
+            """
+            Where a moment falls along a row, in hours from its left edge.
+
+            Rows run from one afternoon to the next rather than midnight to
+            midnight, so that a night belongs to one row entire. Cut at midnight
+            instead, the nights split in two would be the ones with the Moon up
+            across it - which is when it rides highest and is most worth having.
+            """
+            wall_clock = moment.hour + moment.minute / 60.0 + moment.second / 3600.0
+            return (wall_clock - span["day_start"]) % 24.0
+
+        def row_of(moment) -> int:
+            """Which row a moment belongs to, the row being a night, not a date."""
+            night = (moment - timedelta(hours=span["day_start"])).date()
+            return (night - span["first_date"]).days
+
+        def row_starts_on(date, hour=None):
+            """The moment a row opens on the date it is labelled with."""
+            return self.from_observer_clock(
+                datetime.combine(date, datetime.min.time())
+                + timedelta(hours=span["day_start"] if hour is None else hour))
+
+        def dusk_hour(date) -> int:
+            """
+            The hour to open a row at: a couple before the Sun goes down on the
+            evening of the given date, so a row starts as the observing does.
+            """
+            try:
+                sunset = astro.find_sunset(row_starts_on(date, hour=6))
+            except ValueError:
+                sunset = None
+            if sunset is None:
+                return self.VISIBILITY_DAY_START_FALLBACK
+            local = self.in_observer_clock(sunset)
+            wall_clock = local.hour + local.minute / 60.0 + local.second / 3600.0
+            # Rounded up, so the cut lands on a whole hour between two and one
+            # hour before sunset - still daylight, which is what keeps it from
+            # ever falling inside a night's observing
+            return math.ceil(wall_clock - self.VISIBILITY_DUSK_MARGIN)
 
         def x_of(hour: float) -> float:
             return chart_x + hour * hour_w
@@ -259,7 +304,7 @@ class DialogsMixin:
             now_marker.clear()
             if span["first_date"] is None:
                 return
-            row = (self.dt_local.date() - span["first_date"]).days
+            row = row_of(self.dt_local)
             if not 0 <= row < span["rows"]:
                 return
             x_now = x_of(hour_of(self.dt_local))
@@ -271,11 +316,22 @@ class DialogsMixin:
             canvas.delete('all')
             now_marker.clear()
 
-            first_date = self.dt_local.date()
-            first_local = self.from_observer_clock(
-                datetime.combine(first_date, datetime.min.time()))
+            # Where the rows are cut is read off the first evening charted, so
+            # it follows the season: found with a provisional midday cut, then
+            # the night the app is in is worked out again against the real one
+            span["day_start"] = self.VISIBILITY_DAY_START_FALLBACK
+            provisional = (self.dt_local
+                           - timedelta(hours=span["day_start"])).date()
+            span["day_start"] = dusk_hour(provisional)
+
+            # The first row is the night the app is currently in, so a chart
+            # opened in the small hours starts with the night under way rather
+            # than with one already finished
+            first_date = (self.dt_local - timedelta(hours=span["day_start"])).date()
+            span["first_date"] = first_date
             try:
-                chart = astro.find_visibility_chart(first_local, self.VISIBILITY_CHART_DAYS)
+                chart = astro.find_visibility_chart(row_starts_on(first_date),
+                                                    self.VISIBILITY_CHART_DAYS)
             except ValueError as e:
                 # Chart start outside the bundled ephemeris kernel range
                 span["first_date"], span["rows"] = None, 0
@@ -287,28 +343,25 @@ class DialogsMixin:
             # cover, so the last rows are dropped rather than drawn empty
             rows = max(1, min(self.VISIBILITY_CHART_DAYS,
                               -((chart.start - chart.end).days)))
-            span["first_date"], span["rows"] = first_date, rows
+            span["rows"] = rows
             canvas.config(height=head_h + rows * row_h + 2)
 
             def pieces(spells: list) -> list:
                 """
-                Cut spells into per-row runs of wall-clock hours. A spell running
-                through midnight belongs to both the days it touches, so it is
+                Cut spells into per-row runs of hours. A spell carrying over the
+                midday a row ends at belongs to both rows it touches, so it is
                 drawn as one piece on each rather than wrapping round.
                 """
                 out = []
                 for start_utc, end_utc in spells:
                     start = self.in_observer_clock(start_utc)
                     end = self.in_observer_clock(end_utc)
-                    day = start.date()
-                    while day <= end.date():
-                        row = (day - first_date).days
+                    for row in range(row_of(start), row_of(end) + 1):
                         if 0 <= row < rows:
-                            from_hour = hour_of(start) if start.date() == day else 0.0
-                            to_hour = hour_of(end) if end.date() == day else 24.0
+                            from_hour = hour_of(start) if row == row_of(start) else 0.0
+                            to_hour = hour_of(end) if row == row_of(end) else 24.0
                             if to_hour > from_hour:
                                 out.append((row, from_hour, to_hour))
-                        day += timedelta(days=1)
                 return out
 
             def band(row: int, from_hour: float, to_hour: float, fill: str):
@@ -316,10 +369,12 @@ class DialogsMixin:
                                         x_of(to_hour), y_of(row) + row_h,
                                         fill=fill, outline="")
 
-            # Hour scale along the top, every three hours
+            # Hour scale along the top, every three hours, reading from the
+            # midday a row opens at round to the midday it closes at
             for hour in range(0, 25, 3):
-                label = "24" if hour == 24 else f"{hour:02d}"
-                canvas.create_text(x_of(hour), head_h - 4, text=label, font=font, anchor='s')
+                clock = (span["day_start"] + hour) % 24
+                canvas.create_text(x_of(hour), head_h - 4, text=f"{clock:02d}",
+                                   font=font, anchor='s')
 
             # Night first, then the lighter spells over it: the Sun above the
             # horizon is also above the twilight depth, so day paints last
@@ -338,43 +393,45 @@ class DialogsMixin:
                 canvas.create_rectangle(x_of(a), y_of(row) + 3, x_of(b), y_of(row) + row_h - 3,
                                         fill=colours["moon"], outline=colours["moon_edge"])
 
-            # Per-row times: what happens on that date, as an almanac lists it. A
-            # rise and a set on one row need not belong to the same spell - around
-            # the time the Moon rises near midnight, one of the two is missing.
-            # A spell already under way when the chart opens, or still running
-            # when it closes, was clipped to the span - those ends are where the
-            # chart stops rather than where the Moon crossed, so are not listed
+            # Per-row times: the rise and set of the night that row stands for,
+            # which is the pair belonging together far more often than the two
+            # an almanac lists against a calendar date. A spell already under
+            # way when the chart opens, or still running when it closes, was
+            # clipped to the span - those ends are where the chart stops rather
+            # than where the Moon crossed, so are not listed
             rise_on, set_on = {}, {}
             for start_utc, end_utc in chart.moon_up:
                 if start_utc > chart.start:
-                    rise_on.setdefault(self.in_observer_clock(start_utc).date(),
-                                       self.in_observer_clock(start_utc))
+                    rise = self.in_observer_clock(start_utc)
+                    rise_on.setdefault(row_of(rise), rise)
                 if end_utc < chart.end:
-                    set_on.setdefault(self.in_observer_clock(end_utc).date(),
-                                      self.in_observer_clock(end_utc))
+                    setting = self.in_observer_clock(end_utc)
+                    set_on.setdefault(row_of(setting), setting)
             transit_on = {}
             for when_utc, altitude in chart.transits:
                 local = self.in_observer_clock(when_utc)
-                transit_on.setdefault(local.date(), (local, altitude))
-                row = (local.date() - first_date).days
+                row = row_of(local)
+                transit_on.setdefault(row, (local, altitude))
                 if 0 <= row < rows and altitude > 0.0:
                     canvas.create_line(x_of(hour_of(local)), y_of(row) + 3,
                                        x_of(hour_of(local)), y_of(row) + row_h - 3,
                                        fill=colours["transit"])
 
-            # How much of the disc is lit on each date, and which way it is
-            # going: the fraction alone cannot say waxing from waning, so the
-            # day after tells, or the day before for the last row of the chart
+            # How much of the disc is lit through each night, and which way it
+            # is going: the fraction alone cannot say waxing from waning, so the
+            # night after tells, or the one before for the last row of the chart.
+            # Each reading is taken at the middle of its span, which with rows
+            # running midday to midday is the middle of the night itself
             lit_on = {}
             readings = chart.illumination
-            for i, (when_utc, fraction) in enumerate(readings):
+            for i, (_, fraction) in enumerate(readings):
                 if i + 1 < len(readings):
                     waxing = readings[i + 1][1] >= fraction
                 elif i > 0:
                     waxing = fraction >= readings[i - 1][1]
                 else:
                     waxing = True
-                lit_on[self.in_observer_clock(when_utc).date()] = (fraction, waxing)
+                lit_on[i] = (fraction, waxing)
 
             x = table_x
             for title, column_w, nudge in columns:
@@ -389,19 +446,19 @@ class DialogsMixin:
                 centre = y_of(row) + row_h // 2
                 canvas.create_text(date_w - 8, centre, text=f"{date:%a %d %b}",
                                    font=font, anchor='e')
-                transit = transit_on.get(date)
+                transit = transit_on.get(row)
                 values = (
-                    f"{rise_on[date]:%H:%M}" if date in rise_on else "-",
+                    f"{rise_on[row]:%H:%M}" if row in rise_on else "-",
                     f"{transit[0]:%H:%M}" if transit else "-",
-                    f"{set_on[date]:%H:%M}" if date in set_on else "-",
+                    f"{set_on[row]:%H:%M}" if row in set_on else "-",
                     f"{transit[1]:+.0f}°" if transit else "-",
                 )
                 x = table_x
                 for (_, column_w, _), value in zip(columns, values):
                     canvas.create_text(x + column_w - 4, centre, text=value, font=font, anchor='e')
                     x += column_w
-                if date in lit_on:
-                    phase_icon(centre, *lit_on[date])
+                if row in lit_on:
+                    phase_icon(centre, *lit_on[row])
 
             draw_now_marker()
 
@@ -414,9 +471,7 @@ class DialogsMixin:
                 return
             hours = (event.x - chart_x) / hour_w
             date = span["first_date"] + timedelta(days=int(row))
-            when = self.from_observer_clock(
-                datetime.combine(date, datetime.min.time()) + timedelta(hours=hours))
-            self.update_view(when)
+            self.update_view(row_starts_on(date) + timedelta(hours=hours))
             if self._auto_advance_var and self._auto_advance_var.get():
                 self._auto_advance_elapsed = 0
             self._update_all_status_panels()

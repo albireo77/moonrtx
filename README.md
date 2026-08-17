@@ -110,6 +110,8 @@ This export (using NVENC encoder available on PlotOptiX level) gives high qualit
 ![Theophilus](images/theophilus.jpg)
 **Field of view frame**
 ![Theophilus](images/fov.jpg)
+**Rise and set window**
+![Rise and set window](images/rise_and_set.jpg)
 
 
 
