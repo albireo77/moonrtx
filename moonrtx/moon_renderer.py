@@ -266,6 +266,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Datetime dialog tracking
         self.datetime_dialog = None
+        self._datetime_dialog_show = None  # set while the date/time window is open
         self.datetime_dialog_focused = False
 
         # Pins settings
@@ -855,6 +856,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=sun_light_radius)
             self.update_overlays()
 
+        # Keys reach the main window while the date/time window has focus, so
+        # the clock can move under it; its fields follow rather than going stale
+        self.sync_datetime_dialog()
+
         # Since 0.19.1 updates applied while the accumulation cycle is idle do
         # not restart rendering on their own; force a new cycle so the change
         # is displayed immediately
@@ -877,6 +882,26 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 # ---------------------------------------------------------------------------
 # Public entry-point
 # ---------------------------------------------------------------------------
+
+# PlotOptiX binds the key handler with bind_all, so it hears keys typed into the
+# dialogs too. The date/time window only wants what its spinboxes are made of -
+# digits, and the keys that move about or edit what is already in them.
+DATETIME_DIALOG_KEYSYMS = frozenset({
+    'BackSpace', 'Delete', 'Left', 'Right', 'Up', 'Down',
+    'Home', 'End', 'Tab', 'ISO_Left_Tab', 'Return', 'KP_Enter',
+})
+
+
+def datetime_dialog_takes_key(event) -> bool:
+    """
+    Whether a key typed while the date/time window has focus belongs to it.
+
+    Anything it does not take is meant for the main window and falls through to
+    the usual handler, so the Moon can be driven with the window still open and
+    the spinboxes, which refuse anything but digits anyway, stay out of the way.
+    """
+    return event.char.isdigit() or event.keysym in DATETIME_DIALOG_KEYSYMS
+
 
 def run_renderer(dt_local: datetime,
                  observer: Observer,
@@ -984,10 +1009,11 @@ def run_renderer(dt_local: datetime,
     update_view_letters = set('qwrtkxu')
 
     def custom_key_handler(event):
-        # Ignore key events when search dialog or datetime dialog is focused
+        # The search dialog wants every key, being a place to type a name; the
+        # date/time window takes only its own (see datetime_dialog_takes_key)
         if moon_renderer.search_dialog_open:
             return
-        if moon_renderer.datetime_dialog_focused:
+        if moon_renderer.datetime_dialog_focused and datetime_dialog_takes_key(event):
             return
         # The video export owns the clock until it finishes: letting a key
         # change the time here would run update_view on the Tk main thread while

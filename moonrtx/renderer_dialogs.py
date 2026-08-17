@@ -1373,6 +1373,17 @@ class DialogsMixin:
         # leaving the first thing typed to go nowhere
         entry.focus_set()
 
+    def sync_datetime_dialog(self):
+        """
+        Put the moment now being shown into the date/time window, if it is open.
+
+        Its fields would otherwise stand at whatever they were last set to while
+        the Moon moved on without them - and pressing Set would then take the
+        view back to a time the user had left behind.
+        """
+        if getattr(self, "_datetime_dialog_show", None) is not None:
+            self._datetime_dialog_show(self.dt_local)
+
     def open_datetime_dialog(self):
         """
         Open a dialog to set date, time, and timezone.
@@ -1399,6 +1410,7 @@ class DialogsMixin:
         
         def on_close():
             self.datetime_dialog = None
+            self._datetime_dialog_show = None
             self.datetime_dialog_focused = False
             dt_win.destroy()
         
@@ -1423,6 +1435,16 @@ class DialogsMixin:
         grid_frame = tk.Frame(main_frame)
         grid_frame.pack(fill=tk.X, pady=3)
         
+        def digits_only(proposed: str, digits: str) -> bool:
+            """
+            Let a spinbox hold nothing but digits, and no more than it has room
+            for. Everything else typed at one is meant for the main window and
+            is left alone here to reach it (see custom_key_handler).
+            """
+            return proposed == "" or (proposed.isdigit() and len(proposed) <= int(digits))
+
+        accepts_digits = dt_win.register(digits_only)
+
         def spin_row(row: int, label: str, separator: str, parts: list) -> list:
             """
             Build one row of spinboxes separated by a repeated character.
@@ -1454,7 +1476,8 @@ class DialogsMixin:
                     tk.Label(grid_frame, text=separator).grid(row=row, column=column - 1, pady=2)
                 var = tk.StringVar(value=f"%0{digits}d" % value)
                 spin = tk.Spinbox(grid_frame, textvariable=var, from_=low, to=high, width=digits + 1,
-                                  format=f"%0{digits}.0f", wrap=wrap)
+                                  format=f"%0{digits}.0f", wrap=wrap,
+                                  validate='key', validatecommand=(accepts_digits, '%P', digits))
                 # Stretched to the column, which the widest box in it has set
                 spin.grid(row=row, column=column, pady=2, sticky='ew', padx=(5 if i == 0 else 0, 0))
                 spins.append((var, spin))
@@ -1514,6 +1537,9 @@ class DialogsMixin:
                                (hour_var, dt.hour), (minute_var, dt.minute), (second_var, dt.second)):
                 var.set(f"{value:04d}" if var is year_var else f"{value:02d}")
 
+        # Reached by sync_datetime_dialog whenever the clock moves elsewhere
+        self._datetime_dialog_show = show_datetime
+
         def go_to_time():
             """Apply the selected date/time in local timezone."""
             try:
@@ -1556,6 +1582,12 @@ class DialogsMixin:
         tk.Button(btn_frame, text="Now", command=set_now, width=8).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Sync with Moon", command=sync_from_renderer, width=16).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Set", command=go_to_time, width=10).pack(side=tk.RIGHT, padx=5)
+
+        # Enter applies the reading wherever it is typed: bound on the window
+        # rather than on each spinbox, so it answers from all six and from the
+        # buttons too. Both Enters, the keypad having a key of its own.
+        for enter in ('<Return>', '<KP_Enter>'):
+            dt_win.bind(enter, lambda event: go_to_time())
         
         # Sized to what it holds rather than to a fixed guess, so the row of
         # buttons ends where the window does. The size is still pinned: without
@@ -1569,6 +1601,6 @@ class DialogsMixin:
                                    - dt_win.winfo_reqwidth() - 50,
                                    self.rt._root.winfo_y() + 100), grab=False)
         
-        # Focus on the hour for quick editing
+        # Focus on the hour for quick editing, but leave what is in it alone:
+        # selected, the first digit typed would replace the whole reading
         hour_spin.focus_set()
-        hour_spin.selection_range(0, tk.END)
