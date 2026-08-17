@@ -600,29 +600,6 @@ def _upper_transits(start_utc: datetime, end_utc: datetime) -> list:
     return list(zip(upper.utc_datetime(), (float(a) for a in np.atleast_1d(altitudes.degrees))))
 
 
-def find_sunset(after_local: datetime):
-    """
-    The first Sun setting after the given moment, or None where it does not set
-    at all - through a polar day, or a polar night it never rose from.
-
-    Parameters
-    ----------
-    after_local : datetime
-        Moment to search on from
-
-    Returns
-    -------
-    datetime or None
-        The setting, in UTC
-    """
-    after_utc = _validate_supported_datetime(after_local)
-    end_utc = min(after_utc + timedelta(days=2), SKYFIELD_MOON_FRAME_END_UTC)
-    settings = _horizon_crossings(almanac.find_settings(
-        _observer, _sun,
-        _timescale.from_datetime(after_utc), _timescale.from_datetime(end_utc)))
-    return settings[0] if settings else None
-
-
 def _daily_illumination(start_utc: datetime, end_utc: datetime) -> list:
     """
     How much of the Moon's disc is lit, once for each day of the span. Each

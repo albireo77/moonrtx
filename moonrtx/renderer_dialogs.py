@@ -4,7 +4,6 @@ DialogsMixin: dialog windows (help, search, save, datetime) for MoonRenderer.
 
 import os
 import glob
-import math
 import base64
 import struct
 import calendar
@@ -116,12 +115,7 @@ class DialogsMixin:
     VISIBILITY_CHART_DAYS = 30
     VISIBILITY_ROW_HEIGHT = 14
     VISIBILITY_HOUR_WIDTH = 21
-    # A row is a night, not a date, so it opens in the afternoon: this many
-    # hours before the Sun sets on the first evening charted, rounded up to a
-    # whole hour so the scale along the top stays on whole hours. Where the Sun
-    # does not set at all the fallback stands in.
-    VISIBILITY_DUSK_MARGIN = 2
-    VISIBILITY_DAY_START_FALLBACK = 12
+    VISIBILITY_DAY_START = 12   # rows run midday to midday, so a night is one row
     VISIBILITY_COLOURS = {
         "day": "#cfe0f5",       # Sun up
         "twilight": "#5f7ea8",  # Sun down but less than 12 degrees under
@@ -211,49 +205,30 @@ class DialogsMixin:
         # What the chart on the canvas currently covers. Refresh draws it again
         # from wherever the app has since been taken, so the dates it stands for
         # are not fixed at the ones the window opened on
-        span = {"first_date": None, "rows": 0,
-                "day_start": self.VISIBILITY_DAY_START_FALLBACK}
+        span = {"first_date": None, "rows": 0}
 
         def hour_of(moment) -> float:
             """
             Where a moment falls along a row, in hours from its left edge.
 
-            Rows run from one afternoon to the next rather than midnight to
-            midnight, so that a night belongs to one row entire. Cut at midnight
-            instead, the nights split in two would be the ones with the Moon up
-            across it - which is when it rides highest and is most worth having.
+            Rows run from midday to midday rather than midnight to midnight, so
+            that a night belongs to one row entire. Cut at midnight instead, the
+            nights split in two would be the ones with the Moon up across it -
+            which is when it rides highest and is most worth having.
             """
             wall_clock = moment.hour + moment.minute / 60.0 + moment.second / 3600.0
-            return (wall_clock - span["day_start"]) % 24.0
+            return (wall_clock - self.VISIBILITY_DAY_START) % 24.0
 
         def row_of(moment) -> int:
             """Which row a moment belongs to, the row being a night, not a date."""
-            night = (moment - timedelta(hours=span["day_start"])).date()
+            night = (moment - timedelta(hours=self.VISIBILITY_DAY_START)).date()
             return (night - span["first_date"]).days
 
-        def row_starts_on(date, hour=None):
-            """The moment a row opens on the date it is labelled with."""
+        def midday_on(date):
+            """The moment a row opens: midday on the date it is labelled with."""
             return self.from_observer_clock(
                 datetime.combine(date, datetime.min.time())
-                + timedelta(hours=span["day_start"] if hour is None else hour))
-
-        def dusk_hour(date) -> int:
-            """
-            The hour to open a row at: a couple before the Sun goes down on the
-            evening of the given date, so a row starts as the observing does.
-            """
-            try:
-                sunset = astro.find_sunset(row_starts_on(date, hour=6))
-            except ValueError:
-                sunset = None
-            if sunset is None:
-                return self.VISIBILITY_DAY_START_FALLBACK
-            local = self.in_observer_clock(sunset)
-            wall_clock = local.hour + local.minute / 60.0 + local.second / 3600.0
-            # Rounded up, so the cut lands on a whole hour between two and one
-            # hour before sunset - still daylight, which is what keeps it from
-            # ever falling inside a night's observing
-            return math.ceil(wall_clock - self.VISIBILITY_DUSK_MARGIN)
+                + timedelta(hours=self.VISIBILITY_DAY_START))
 
         def x_of(hour: float) -> float:
             return chart_x + hour * hour_w
@@ -316,21 +291,13 @@ class DialogsMixin:
             canvas.delete('all')
             now_marker.clear()
 
-            # Where the rows are cut is read off the first evening charted, so
-            # it follows the season: found with a provisional midday cut, then
-            # the night the app is in is worked out again against the real one
-            span["day_start"] = self.VISIBILITY_DAY_START_FALLBACK
-            provisional = (self.dt_local
-                           - timedelta(hours=span["day_start"])).date()
-            span["day_start"] = dusk_hour(provisional)
-
             # The first row is the night the app is currently in, so a chart
             # opened in the small hours starts with the night under way rather
             # than with one already finished
-            first_date = (self.dt_local - timedelta(hours=span["day_start"])).date()
+            first_date = (self.dt_local - timedelta(hours=self.VISIBILITY_DAY_START)).date()
             span["first_date"] = first_date
             try:
-                chart = astro.find_visibility_chart(row_starts_on(first_date),
+                chart = astro.find_visibility_chart(midday_on(first_date),
                                                     self.VISIBILITY_CHART_DAYS)
             except ValueError as e:
                 # Chart start outside the bundled ephemeris kernel range
@@ -372,7 +339,7 @@ class DialogsMixin:
             # Hour scale along the top, every three hours, reading from the
             # midday a row opens at round to the midday it closes at
             for hour in range(0, 25, 3):
-                clock = (span["day_start"] + hour) % 24
+                clock = (self.VISIBILITY_DAY_START + hour) % 24
                 canvas.create_text(x_of(hour), head_h - 4, text=f"{clock:02d}",
                                    font=font, anchor='s')
 
@@ -471,7 +438,7 @@ class DialogsMixin:
                 return
             hours = (event.x - chart_x) / hour_w
             date = span["first_date"] + timedelta(days=int(row))
-            self.update_view(row_starts_on(date) + timedelta(hours=hours))
+            self.update_view(midday_on(date) + timedelta(hours=hours))
             if self._auto_advance_var and self._auto_advance_var.get():
                 self._auto_advance_elapsed = 0
             self._update_all_status_panels()
