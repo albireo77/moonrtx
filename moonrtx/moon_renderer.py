@@ -145,6 +145,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  dt_local: datetime,
                  starmap_file: Optional[str],
                  downscale: int = 3,
+                 color_downscale: int = 1,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
@@ -170,6 +171,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Path to star map TIFF for background
         downscale : int
             Elevation map downscale factor
+        color_downscale : int
+            Color map downscale factor
         time_step_minutes : int
             Time step in minutes for Q/W keys
         init_view_orientation : str
@@ -182,6 +185,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Whether to use parallactic projection mode (default False)
         """
         self.downscale = downscale
+        self.color_downscale = color_downscale
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
         self.parallactic_mode = parallactic_mode
@@ -606,7 +610,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Setup material with Moon texture (local for the same reason, ~200 MB).
         # Copy the material so the shared plotoptix module dict stays untouched.
-        color_data = load_color_data(self.color_file, self.gamma)
+        color_data = load_color_data(self.color_file, self.gamma, self.color_downscale)
         self.rt.set_texture_2d("moon_color", color_data)
         moon_material = m_diffuse.copy()
         moon_material["ColorTextures"] = ["moon_color"]
@@ -915,7 +919,8 @@ def run_renderer(dt_local: datetime,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False) -> TkOptiX:
+                 parallactic_mode: bool = False,
+                 color_downscale: int = 1) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 
@@ -941,6 +946,8 @@ def run_renderer(dt_local: datetime,
         Gamma correction value (default 2.2)
     parallactic_mode : bool
         Whether to use parallactic projection mode (default False)
+    color_downscale : int
+        Color map downscale factor (default 1)
 
     Returns
     -------
@@ -958,6 +965,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Brightness: {brightness}")
     print(f"  Gamma: {gamma}")
     print(f"  Downscale Factor: {downscale}")
+    print(f"  Color Downscale Factor: {color_downscale}")
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
@@ -970,6 +978,7 @@ def run_renderer(dt_local: datetime,
         color_file=color_file,
         starmap_file=starmap_file,
         downscale=downscale,
+        color_downscale=color_downscale,
         features_file=features_file,
         brightness=brightness,
         time_step_minutes=time_step_minutes,

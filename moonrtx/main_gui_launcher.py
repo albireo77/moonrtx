@@ -19,6 +19,7 @@ from moonrtx.main import (
     parse_init_view,
     check_elevation_file,
     check_color_file,
+    COLOR_DOWNSCALE_FACTORS,
     check_starmap_file,
     check_gpu_architecture,
     check_plotoptix_version,
@@ -149,13 +150,14 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Timezone:").grid(row=4, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Elevation file:").grid(row=5, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Color file:").grid(row=6, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Downscale:").grid(row=7, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Brightness:").grid(row=8, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Gamma:").grid(row=9, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time step (minutes):").grid(row=10, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="View orientation:").grid(row=11, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Parallactic mode:").grid(row=12, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=13, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Elevation downscale:").grid(row=7, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Color downscale:").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Brightness:").grid(row=9, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Gamma:").grid(row=10, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=11, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=12, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Parallactic mode:").grid(row=13, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=14, column=0, sticky=tk.E, pady=2)
 
         self.lat_dir_var = tk.StringVar(value="N")
         self.lon_dir_var = tk.StringVar(value="E")
@@ -233,20 +235,25 @@ class MainWindow(tk.Tk):
         self.downscale.grid(row=7, column=1, sticky=tk.EW, pady=2)
         self.downscale.insert(0, 3)
 
+        self.color_downscale = ttk.Combobox(frm, width=5, state="readonly",
+                                            values=[str(f) for f in COLOR_DOWNSCALE_FACTORS])
+        self.color_downscale.grid(row=8, column=1, sticky=tk.EW, pady=2)
+        self.color_downscale.set("1")
+
         self.brightness = tk.Entry(frm, width=5)
-        self.brightness.grid(row=8, column=1, sticky=tk.EW, pady=2)
+        self.brightness.grid(row=9, column=1, sticky=tk.EW, pady=2)
         self.brightness.insert(0, 80)
 
         self.gamma_entry = tk.Entry(frm, width=5)
-        self.gamma_entry.grid(row=9, column=1, sticky=tk.EW, pady=2)
+        self.gamma_entry.grid(row=10, column=1, sticky=tk.EW, pady=2)
         self.gamma_entry.insert(0, "2.2")
 
         self.time_step_minutes = tk.Entry(frm, width=5)
-        self.time_step_minutes.grid(row=10, column=1, sticky=tk.EW, pady=2)
+        self.time_step_minutes.grid(row=11, column=1, sticky=tk.EW, pady=2)
         self.time_step_minutes.insert(0, 15)
 
         self.init_view_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VIEW_ORIENTATIONS)
-        self.init_view_orientation.grid(row=11, column=1, sticky=tk.EW, pady=2)
+        self.init_view_orientation.grid(row=12, column=1, sticky=tk.EW, pady=2)
         self.init_view_orientation.set(VIEW_ORIENTATIONS[0])
 
         self.parallactic_mode_var = tk.BooleanVar(value=False)
@@ -254,17 +261,18 @@ class MainWindow(tk.Tk):
             frm,
             text="(maintains Moon aligned to celestial north)",
             variable=self.parallactic_mode_var,
-        ).grid(row=12, column=1, sticky=tk.W, pady=2)
+        ).grid(row=13, column=1, sticky=tk.W, pady=2)
 
         self.init_view = tk.Entry(frm, width=5)
-        self.init_view.grid(row=13, column=1, sticky=tk.EW, pady=2)
+        self.init_view.grid(row=14, column=1, sticky=tk.EW, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=9, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=10, column=2, sticky=tk.W, padx=(4, 0))
         tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=7, column=2, sticky=tk.W, padx=(4, 0))
+        tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=8, column=2, sticky=tk.W, padx=(4, 0))
 
         def _set_time_now():
             # In the timezone the box names, not this machine's: the fields are
@@ -407,6 +415,7 @@ class MainWindow(tk.Tk):
             "elevation_file": self.elevation_file.get(),
             "color_file": self.color_file.get(),
             "downscale": self.downscale.get(),
+            "color_downscale": self.color_downscale.get(),
             "brightness": self.brightness.get(),
             "gamma": self.gamma_entry.get(),
             "time_step_minutes": self.time_step_minutes.get(),
@@ -535,6 +544,10 @@ class MainWindow(tk.Tk):
 
             self.downscale.delete(0, tk.END)
             self.downscale.insert(0, settings.get("downscale", "3"))
+
+            saved_color_downscale = str(settings.get("color_downscale", "1"))
+            self.color_downscale.set(saved_color_downscale
+                                     if saved_color_downscale in self.color_downscale["values"] else "1")
 
             self.brightness.delete(0, tk.END)
             self.brightness.insert(0, settings.get("brightness", "80"))
@@ -733,6 +746,8 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "Downscale must be a positive integer.")
             return
 
+        color_downscale = int(self.color_downscale.get())
+
         try:
             brightness = int(self.brightness.get().strip())
         except ValueError:
@@ -785,7 +800,7 @@ class MainWindow(tk.Tk):
         color_file = self.color_file.get().strip()
         self._set_status("Checking color file...")
         self.update_idletasks()
-        if not check_color_file(color_file):
+        if not check_color_file(color_file, color_downscale):
             self._set_status("")
             messagebox.showerror("Error", "Color file is not present or downloading default file failed.")
             return
@@ -820,7 +835,8 @@ class MainWindow(tk.Tk):
                 time_step_minutes,
                 init_view_orientation,
                 gamma,
-                parallactic_mode)
+                parallactic_mode,
+                color_downscale)
         )
         p.start()
         

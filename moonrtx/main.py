@@ -17,7 +17,7 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.data_loader import elevation_cache_available
+from moonrtx.data_loader import COLOR_DOWNSCALE_FACTORS, downscale_cache_available
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, Observer
@@ -83,6 +83,10 @@ def parse_args():
                         help="Path to Moon color map local file. Alternate color files can be downloaded from https://svs.gsfc.nasa.gov/4720")
     parser.add_argument("--downscale", type=int, default=3,
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
+    parser.add_argument("--color-downscale", type=int, default=1, choices=COLOR_DOWNSCALE_FACTORS,
+                        help="Color map downscale factor. The map is decoded straight at this fraction of its "
+                             "size, so RAM needed to load it falls with the square of the factor. Raise it if a "
+                             "large color map fails to load. 1 is no downscaling.")
     parser.add_argument("--brightness", type=int, default=80,
                         help="Brightness")
     parser.add_argument("--gamma", type=float, default=2.2,
@@ -109,7 +113,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
         # The downscaled cache holds everything the renderer reads, so the
         # source it was made from can be deleted to reclaim its gigabytes and
         # need not be fetched again to stand unused beside it
-        if elevation_cache_available(elevation_file, downscale):
+        if downscale_cache_available(elevation_file, downscale):
             print(f"Elevation file {elevation_file} is not present; "
                   f"using the cached data downscaled by {downscale}.")
             return True
@@ -145,8 +149,14 @@ def check_starmap_file() -> bool:
             return False
     return True
 
-def check_color_file(color_file: str) -> bool:
+def check_color_file(color_file: str, color_downscale: int) -> bool:
     if not os.path.isfile(color_file):
+        # As for the elevation map: the downscaled cache is all the renderer
+        # reads, so a source deleted to reclaim its gigabytes stays deleted
+        if downscale_cache_available(color_file, color_downscale):
+            print(f"Color file {color_file} is not present; "
+                  f"using the cached data downscaled by {color_downscale}.")
+            return True
         if color_file == DEFAULT_COLOR_FILE_LOCAL_PATH:
             _, _, free = shutil.disk_usage(os.getcwd())
             if free < DEFAULT_COLOR_FILE_SIZE_BYTES * 1.02:
@@ -413,7 +423,7 @@ def main():
     if not check_elevation_file(args.elevation_file, args.downscale):
         sys.exit(1)
 
-    if not check_color_file(args.color_file):
+    if not check_color_file(args.color_file, args.color_downscale):
         sys.exit(1)
 
     if not check_starmap_file():
@@ -425,6 +435,7 @@ def main():
                  downscale=args.downscale,
                  brightness=args.brightness,
                  color_file=args.color_file,
+                 color_downscale=args.color_downscale,
                  starmap_file=STARMAP_FILE_LOCAL_PATH,
                  features_file=MOON_FEATURES_FILE_LOCAL_PATH,
                  initial_camera=initial_camera,

@@ -27,6 +27,9 @@ where `--time` is a local wall clock and `--timezone` names the IANA zone it is 
 
 `python -m moonrtx.main --lat -35.1 --lon -20.4 --downscale 4 --brightness 100`
 
+`python -m moonrtx.main --lat 50.1 --lon 20.0 --color-file lroc_color_poles.tif --color-downscale 2`  
+where `--color-downscale` (1, 2, 4 or 8) decodes the color map at that fraction of its size. Memory needed to load it falls with the square of the factor, so raise it if a large map fails to load.
+
 `python -m moonrtx.main --init-view "2025-03-07T19.53.00+01.00_lat+50.000000_lon+20.000000_viewSNEW_par1_camAAAAAAAAyMIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIA_F6dJQA"`  
 where `--init-view` parameter value is taken from the screenshot default filename
 - GUI launcher:
@@ -40,6 +43,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 - Local times are handled through IANA timezones (the `tzdata` package), so daylight saving is followed on every date the kernels cover - including the years before it existed and the local mean time in use before standard time.
 - Current MoonRTX will work only with PlotOptiX [0.19.2](https://github.com/rnd-team-dev/plotoptix/releases#release-v0.19.2)+
 - Downscaling of elevation map can take even around 1 minute depending on `--downscale` parameter value (lower value = more time). Once downscaled for the first time, file is cached as .npy file in `data` directory for future use.
+- Color maps beyond a few hundred megapixels can need more RAM than the machine has. `--color-downscale` avoids that: the map is decoded straight at a fraction of its size, so nothing full-size is ever held. As with the elevation map, the result is cached beside the source as an .npy file, and once it is there the source can be deleted to reclaim its space.
 - If you don't like default Moon colors in MoonRTX, you can download color map file (e.g. [lroc_color_poles.tif](https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles.tif) from [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720) with more realistic, though bland, colors) and load it with `--color-file` parameter on program start.
 
 ## Keyboard and Mouse Actions

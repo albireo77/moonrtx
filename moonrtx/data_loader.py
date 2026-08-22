@@ -7,7 +7,7 @@ import numpy as np
 
 from moonrtx.shared_types import MoonFeature
 
-from plotoptix.utils import read_image, make_color_2d
+from plotoptix.utils import read_image
 
 # Processed-array disk caches: reading the 7.9 GB elevation TIFF and block-mean
 # downscaling it takes about a minute on every start, while np.load of the
@@ -60,16 +60,17 @@ def _load_cache(cache_base: str, fingerprint: dict) -> tuple[Optional[np.ndarray
         return None, {}
 
 
-def elevation_cache_available(filepath: str, downscale: int) -> bool:
+def downscale_cache_available(filepath: str, downscale: int) -> bool:
     """
-    Whether the downscaled elevation data is already on disk, in which case the
-    source file is not needed at all and need not be downloaded to replace one
-    that has been deleted (see main.check_elevation_file).
+    Whether the downscaled form of an elevation or color map is already on disk,
+    in which case the source file is not needed at all and need not be
+    downloaded to replace one that has been deleted (see main.check_elevation_file
+    and main.check_color_file).
 
     Parameters
     ----------
     filepath : str
-        Path the elevation TIFF would have; the cache sits beside it
+        Path the source TIFF would have; the cache sits beside it
     downscale : int
         The factor the cache must have been made with
 
@@ -246,40 +247,125 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
     return elevation, radius_scale
 
 
-def load_color_data(filepath: str, gamma: float = 2.2) -> np.ndarray:
+# Color map downscale factors OpenCV can decode straight to, so the full-size
+# image is never allocated. Anything else would mean decoding in full first,
+# which is exactly what the factor is there to avoid.
+COLOR_DOWNSCALE_FACTORS = (1, 2, 4, 8)
+
+_REDUCED_COLOR_FLAGS = {
+    2: cv2.IMREAD_REDUCED_COLOR_2,
+    4: cv2.IMREAD_REDUCED_COLOR_4,
+    8: cv2.IMREAD_REDUCED_COLOR_8,
+}
+
+# Albedo range the 0-255 source is mapped onto: dark maria at 0.2, brightest
+# highlands at 0.95.
+COLOR_ALBEDO_MIN = 0.2
+COLOR_ALBEDO_RANGE = 0.75
+
+# Rows converted at a time. Large enough that the per-block overhead is lost in
+# the noise, small enough that the temporary each channel lookup produces stays
+# a few tens of megabytes rather than a copy of the whole image.
+_COLOR_BLOCK_ROWS = 1024
+
+
+def _albedo_lut(gamma: float) -> np.ndarray:
+    """
+    The whole color pipeline as a 256-entry table.
+
+    Every step - albedo mapping, the inverse gamma that plotoptix.utils.make_color_2d
+    applies so the Gamma postprocessing returns the intended color, and the scale
+    back to bytes - is the same function of one 8-bit source value, and cv2.imread
+    always hands back 8-bit channels. So the table gives bit-for-bit what running
+    the arithmetic over the whole image gave, at 256 elements instead of billions
+    (verified equal on the 10k default map and on 374-1062 Mpx 8- and 16-bit maps).
+    """
+    lut = np.arange(256, dtype=np.float32)
+    lut = COLOR_ALBEDO_MIN + (COLOR_ALBEDO_RANGE / 255) * lut
+    lut = np.power(lut, gamma, dtype=np.float32)
+    lut *= 255
+    return lut.astype(np.uint8)
+
+
+def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np.ndarray:
     """
     Load and process the Moon color/albedo data.
-    
+
     Parameters
     ----------
     filepath : str
         Path to the color TIFF file
     gamma : float
         Gamma correction value
-        
+    downscale : int
+        Decode the map at 1/downscale of its size, one of COLOR_DOWNSCALE_FACTORS.
+        Peak memory falls with the square of it, which is what makes maps beyond
+        a few hundred megapixels loadable at all.
+
     Returns
     -------
     np.ndarray
-        Processed color data ready for texturing
+        Processed color data ready for texturing, RGBA bytes
     """
     print(f"Loading color data from {filepath}...")
-    color_src = cv2.imread(filepath)
-    
+
+    # Disk cache of the decoded, downscaled image (skipped at downscale 1, where
+    # it would be larger than the compressed source for little gain). Gamma is
+    # applied after it is read, so changing gamma does not invalidate it and a
+    # source deleted to reclaim its gigabytes stays deleted.
+    cache_base = f"{filepath}.ds{downscale}"
+    fingerprint = None
+    if downscale > 1:
+        fingerprint = _cache_fingerprint(filepath, downscale=downscale)
+        color_src, _ = _load_cache(cache_base, fingerprint)
+        if color_src is not None:
+            print(f"  Loaded from cache: {cache_base}.npy, dimensions {color_src.shape}")
+            return _moon_texture(color_src, gamma)
+
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(
+            f"Color file not found: {filepath}, and no cache of it downscaled by "
+            f"{downscale} beside it. Restore the file, or start with a color downscale "
+            f"one has already been cached for.")
+
+    color_src = cv2.imread(filepath, _REDUCED_COLOR_FLAGS.get(downscale, cv2.IMREAD_COLOR))
+
     if color_src is None:
         raise ValueError(f"Failed to read color file: {filepath}")
-    
-    # Convert BGR to RGB and normalize
-    color_src = color_src[..., ::-1].astype(np.float32)
-    color_src = 0.2 + (0.75 / 255) * color_src
-    
-    print(f"  Dimensions: {color_src.shape}")
-    print(f"  Size: {color_src.nbytes / (1024**3):.2f} GB")
-    
-    # Prepare for texture
-    color_data = make_color_2d(color_src, gamma=gamma, channel_order="RGBA")
-    color_data *= 255
-    
-    return color_data.astype(np.uint8)
+
+    print(f"  Dimensions: {color_src.shape}"
+          + (f" (decoded at 1/{downscale})" if downscale > 1 else ""))
+
+    if fingerprint is not None:
+        _save_cache(cache_base, color_src, fingerprint)
+
+    return _moon_texture(color_src, gamma)
+
+
+def _moon_texture(color_src: np.ndarray, gamma: float) -> np.ndarray:
+    """
+    Turn the decoded BGR bytes into the RGBA texture, a band of rows at a time.
+
+    Written this way for memory: the straightforward whole-image form went
+    through several float32 copies of three and four channels, peaking at about
+    ten times the size of the finished texture and putting large color maps out
+    of reach. Here only the source and the result are ever live.
+    """
+    lut = _albedo_lut(gamma)
+    height, width = color_src.shape[:2]
+    color_data = np.empty((height, width, 4), dtype=np.uint8)
+
+    for y in range(0, height, _COLOR_BLOCK_ROWS):
+        block = color_src[y:y + _COLOR_BLOCK_ROWS]
+        texture = color_data[y:y + _COLOR_BLOCK_ROWS]
+        texture[..., 0] = lut[block[..., 2]]    # source is BGR, texture is RGBA
+        texture[..., 1] = lut[block[..., 1]]
+        texture[..., 2] = lut[block[..., 0]]
+        texture[..., 3] = 255                   # opaque
+
+    print(f"  Texture size: {color_data.nbytes / (1024**3):.2f} GB")
+
+    return color_data
 
 
 def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
