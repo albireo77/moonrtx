@@ -20,23 +20,68 @@ _CACHE_VERSION = 1
 
 
 def _cache_fingerprint(filepath: str, **params) -> dict:
-    return {
-        "version": _CACHE_VERSION,
-        "source_size": os.path.getsize(filepath),
-        "source_mtime": int(os.path.getmtime(filepath)),
-        **params,
-    }
+    """
+    What a cache has to match before it is used: the processing parameters
+    always, and the source file's size and time whenever the source is still
+    there to compare against. A source deleted to reclaim its several gigabytes
+    - the cache being a small fraction of it - leaves nothing to check against,
+    so what was cached from it is then taken on trust rather than discarded.
+    """
+    fingerprint = {"version": _CACHE_VERSION, **params}
+    if os.path.isfile(filepath):
+        fingerprint["source_size"] = os.path.getsize(filepath)
+        fingerprint["source_mtime"] = int(os.path.getmtime(filepath))
+    return fingerprint
 
 
-def _load_cache(cache_base: str, fingerprint: dict) -> tuple[Optional[np.ndarray], dict]:
+def _cache_meta(cache_base: str, fingerprint: dict) -> Optional[dict]:
+    """
+    The sidecar metadata of a cache that matches the fingerprint and has its
+    array beside it, or None. Reads only the small JSON, so it answers whether
+    a cache is usable without loading the hundreds of megabytes it describes.
+    """
     try:
         with open(cache_base + ".json", "r", encoding="utf-8") as f:
             meta = json.load(f)
-        if all(meta.get(k) == v for k, v in fingerprint.items()):
-            return np.load(cache_base + ".npy"), meta
     except Exception:
-        pass
-    return None, {}
+        return None
+    if not all(meta.get(k) == v for k, v in fingerprint.items()):
+        return None
+    return meta if os.path.isfile(cache_base + ".npy") else None
+
+
+def _load_cache(cache_base: str, fingerprint: dict) -> tuple[Optional[np.ndarray], dict]:
+    meta = _cache_meta(cache_base, fingerprint)
+    if meta is None:
+        return None, {}
+    try:
+        return np.load(cache_base + ".npy"), meta
+    except Exception:
+        return None, {}
+
+
+def elevation_cache_available(filepath: str, downscale: int) -> bool:
+    """
+    Whether the downscaled elevation data is already on disk, in which case the
+    source file is not needed at all and need not be downloaded to replace one
+    that has been deleted (see main.check_elevation_file).
+
+    Parameters
+    ----------
+    filepath : str
+        Path the elevation TIFF would have; the cache sits beside it
+    downscale : int
+        The factor the cache must have been made with
+
+    Returns
+    -------
+    bool
+        True when that cache is present and usable
+    """
+    if downscale <= 1:
+        return False    # no cache is written at downscale 1
+    return _cache_meta(f"{filepath}.ds{downscale}",
+                       _cache_fingerprint(filepath, downscale=downscale)) is not None
 
 
 def _save_cache(cache_base: str, array: np.ndarray, meta: dict):
@@ -150,6 +195,12 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
         if elevation is not None:
             print(f"  Loaded from cache: {cache_base}.npy, dimensions {elevation.shape}")
             return elevation, float(meta["radius_scale"])
+
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(
+            f"Elevation file not found: {filepath}, and no cache of it downscaled by "
+            f"{downscale} beside it. Restore the file, or start with a downscale one "
+            f"has already been cached for.")
 
     elev_src = read_image(filepath)
 

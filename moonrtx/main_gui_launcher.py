@@ -777,7 +777,7 @@ class MainWindow(tk.Tk):
         elevation_file = self.elevation_file.get().strip()
         self._set_status("Checking elevation file...")
         self.update_idletasks()
-        if not check_elevation_file(elevation_file):
+        if not check_elevation_file(elevation_file, downscale):
             self._set_status("")
             messagebox.showerror("Error", "Elevation file is not present or downloading default file failed.")
             return

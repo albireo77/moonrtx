@@ -17,6 +17,7 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
+from moonrtx.data_loader import elevation_cache_available
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, Observer
@@ -103,8 +104,15 @@ def _urlretrieve(url: str, dest: str):
     urllib.request.install_opener(opener)
     urllib.request.urlretrieve(url, dest)
 
-def check_elevation_file(elevation_file: str) -> bool:
+def check_elevation_file(elevation_file: str, downscale: int) -> bool:
     if not os.path.isfile(elevation_file):
+        # The downscaled cache holds everything the renderer reads, so the
+        # source it was made from can be deleted to reclaim its gigabytes and
+        # need not be fetched again to stand unused beside it
+        if elevation_cache_available(elevation_file, downscale):
+            print(f"Elevation file {elevation_file} is not present; "
+                  f"using the cached data downscaled by {downscale}.")
+            return True
         if elevation_file == DEFAULT_ELEVATION_FILE_LOCAL_PATH:
             _, _, free = shutil.disk_usage(os.getcwd())
             if free < DEFAULT_ELEVATION_FILE_SIZE_BYTES * 1.02:
@@ -402,7 +410,7 @@ def main():
         print("No RTX GPU found.")
         sys.exit(1)
 
-    if not check_elevation_file(args.elevation_file):
+    if not check_elevation_file(args.elevation_file, args.downscale):
         sys.exit(1)
 
     if not check_color_file(args.color_file):
