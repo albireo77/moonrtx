@@ -23,15 +23,22 @@ _CACHE_VERSION = 1
 def _cache_fingerprint(filepath: str, **params) -> dict:
     """
     What a cache has to match before it is used: the processing parameters
-    always, and the source file's size and time whenever the source is still
-    there to compare against. A source deleted to reclaim its several gigabytes
-    - the cache being a small fraction of it - leaves nothing to check against,
-    so what was cached from it is then taken on trust rather than discarded.
+    always, and the source file's size whenever the source is still there to
+    compare against. A source deleted to reclaim its several gigabytes - the
+    cache being a small fraction of it - leaves nothing to check against, so
+    what was cached from it is then taken on trust rather than discarded.
+
+    Size only, deliberately: modification time also changes when the very same
+    bytes arrive again - a re-download of a deleted source, a restore from
+    backup, a copy to another machine - and keying on it threw away good caches
+    in exactly the case this app invites, deleting a source and fetching it back
+    later. What it would have caught in exchange is an edit that leaves the byte
+    count identical, which for these multi-gigabyte survey products is not a
+    thing that happens. Bump _CACHE_VERSION for changes in the processing.
     """
     fingerprint = {"version": _CACHE_VERSION, **params}
     if os.path.isfile(filepath):
         fingerprint["source_size"] = os.path.getsize(filepath)
-        fingerprint["source_mtime"] = int(os.path.getmtime(filepath))
     return fingerprint
 
 
