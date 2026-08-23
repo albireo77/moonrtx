@@ -10,8 +10,8 @@ import json
 
 from tzlocal import get_localzone_name
 
-from moonrtx.shared_types import Observer
-from moonrtx.moon_renderer import run_renderer
+from moonrtx.shared_types import MAP_TOO_LARGE_EXIT_CODE, Observer
+from moonrtx.moon_renderer import run_renderer_process
 from moonrtx.view_orientation import VIEW_ORIENTATIONS
 from moonrtx.main import (
     get_date_time_local,
@@ -821,7 +821,7 @@ class MainWindow(tk.Tk):
         self.run_btn.config(state=tk.DISABLED)
         
         p = Process(
-            target=run_renderer,
+            target=run_renderer_process,
             args=(
                 dt_local,
                 Observer(lat, lon, elevation),
@@ -848,6 +848,21 @@ class MainWindow(tk.Tk):
             def on_process_end():
                 self.run_btn.config(state=tk.NORMAL)
                 self._set_status("")
+                # A launcher user may have no console in view, so every way the
+                # renderer can fail has to be visible here. Closing its window
+                # exits 0; anything else is a failure worth a message, and the
+                # one we can name is a map that did not fit.
+                if process.exitcode == MAP_TOO_LARGE_EXIT_CODE:
+                    messagebox.showerror(
+                        "Error",
+                        "The Moon maps did not fit in memory.\n\n"
+                        "Raise Elevation downscale, or raise Color downscale, and run again.\n"
+                        "The console output says which map it was.")
+                elif process.exitcode:
+                    messagebox.showerror(
+                        "Error",
+                        f"The renderer stopped with an error (exit code {process.exitcode}).\n\n"
+                        "Details are in the console output.")
             self.after(0, on_process_end)
         
         monitor_thread = threading.Thread(target=monitor_process, args=(p,), daemon=True)

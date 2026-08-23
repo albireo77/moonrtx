@@ -3,6 +3,19 @@ from typing import NamedTuple, Optional
 
 from numpy.typing import NDArray
 
+# Exit code run_renderer_process leaves when a map did not fit, so the GUI
+# launcher can tell that apart from any other failure and say what to change.
+MAP_TOO_LARGE_EXIT_CODE = 2
+
+
+class MapTooLargeError(RuntimeError):
+    """
+    A Moon map did not fit in memory - system RAM while it was being prepared,
+    or GPU memory when it was uploaded. Carries a message naming the map and
+    the downscale parameter that makes it smaller.
+    """
+
+
 class VisibilityChart(NamedTuple):
     """
     When the Moon and the Sun are above the observer's horizon over a span of

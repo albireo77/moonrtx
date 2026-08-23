@@ -20,7 +20,7 @@ from plotoptix.install import download_file_from_google_drive
 from moonrtx.data_loader import COLOR_DOWNSCALE_FACTORS, downscale_cache_available
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
-from moonrtx.shared_types import Camera, Observer
+from moonrtx.shared_types import Camera, MapTooLargeError, Observer
 
 APP_NAME = "MoonRTX"
 
@@ -122,7 +122,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
             if free < DEFAULT_ELEVATION_FILE_SIZE_BYTES * 1.02:
                 print(f"Not enough disk space to download default elevation file ({DEFAULT_ELEVATION_FILE_SIZE_GB} GB required).")
                 return False
-            print(f"Downloading default elevation file (size {DEFAULT_ELEVATION_FILE_SIZE_GB} GB). It can take some time but must be done only once.")
+            print(f"Downloading default elevation file (size {DEFAULT_ELEVATION_FILE_SIZE_GB} GB). It can take some time...")
             try:
                 os.makedirs(os.path.dirname(elevation_file), exist_ok=True)
                 _urlretrieve(DEFAULT_ELEVATION_FILE_REMOTE_PATH, elevation_file)
@@ -140,7 +140,7 @@ def check_starmap_file() -> bool:
         if free < STARMAP_FILE_SIZE_BYTES * 1.02:
             print(f"Not enough disk space to download starmap file ({STARMAP_FILE_SIZE_MB} MB required).")
             return False
-        print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB). It can take some time but must be done only once.")
+        print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB). It can take some time...")
         try:
             os.makedirs(os.path.dirname(STARMAP_FILE_LOCAL_PATH), exist_ok=True)
             _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH)
@@ -162,7 +162,7 @@ def check_color_file(color_file: str, color_downscale: int) -> bool:
             if free < DEFAULT_COLOR_FILE_SIZE_BYTES * 1.02:
                 print(f"Not enough disk space to download color file ({DEFAULT_COLOR_FILE_SIZE_MB} MB required).")
                 return False
-            print(f"Downloading color file (size {DEFAULT_COLOR_FILE_SIZE_MB} MB). It can take some time but must be done only once.")
+            print(f"Downloading color file (size {DEFAULT_COLOR_FILE_SIZE_MB} MB). It can take some time...")
             try:
                 os.makedirs(os.path.dirname(color_file), exist_ok=True)
                 download_file_from_google_drive("1gJeVic597BUAkpz1GgCYRMJVninKEDKB", color_file)
@@ -429,20 +429,25 @@ def main():
     if not check_starmap_file():
         sys.exit(1)
 
-    run_renderer(dt_local=dt_local,
-                 elevation_file=args.elevation_file,
-                 observer=Observer(lat, lon, args.elevation),
-                 downscale=args.downscale,
-                 brightness=args.brightness,
-                 color_file=args.color_file,
-                 color_downscale=args.color_downscale,
-                 starmap_file=STARMAP_FILE_LOCAL_PATH,
-                 features_file=MOON_FEATURES_FILE_LOCAL_PATH,
-                 initial_camera=initial_camera,
-                 time_step_minutes=args.time_step_minutes,
-                 init_view_orientation=init_view_orientation,
-                 gamma=args.gamma,
-                 parallactic_mode=parallactic_mode)
+    try:
+        run_renderer(dt_local=dt_local,
+                     elevation_file=args.elevation_file,
+                     observer=Observer(lat, lon, args.elevation),
+                     downscale=args.downscale,
+                     brightness=args.brightness,
+                     color_file=args.color_file,
+                     color_downscale=args.color_downscale,
+                     starmap_file=STARMAP_FILE_LOCAL_PATH,
+                     features_file=MOON_FEATURES_FILE_LOCAL_PATH,
+                     initial_camera=initial_camera,
+                     time_step_minutes=args.time_step_minutes,
+                     init_view_orientation=init_view_orientation,
+                     gamma=args.gamma,
+                     parallactic_mode=parallactic_mode)
+    except MapTooLargeError as e:
+        # Says which map and what to change, so a traceback would only bury it
+        print(f"\n{e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

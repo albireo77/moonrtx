@@ -1,11 +1,12 @@
 import json
 import os
 import cv2
+from contextlib import contextmanager
 from typing import Optional
 
 import numpy as np
 
-from moonrtx.shared_types import MoonFeature
+from moonrtx.shared_types import MapTooLargeError, MoonFeature
 
 from plotoptix.utils import read_image
 
@@ -51,11 +52,19 @@ def _cache_meta(cache_base: str, fingerprint: dict) -> Optional[dict]:
 
 
 def _load_cache(cache_base: str, fingerprint: dict) -> tuple[Optional[np.ndarray], dict]:
+    """
+    The cached array and its metadata, or (None, {}) to fall back to reading the
+    source. Running out of memory is not such a case and is left to propagate:
+    the source is bigger than the cache, so re-reading it could only fail again,
+    more slowly and with a less useful message.
+    """
     meta = _cache_meta(cache_base, fingerprint)
     if meta is None:
         return None, {}
     try:
         return np.load(cache_base + ".npy"), meta
+    except MemoryError:
+        raise
     except Exception:
         return None, {}
 
@@ -93,6 +102,30 @@ def _save_cache(cache_base: str, array: np.ndarray, meta: dict):
         print(f"  Cached to {cache_base}.npy for faster next start")
     except Exception as e:
         print(f"Warning: could not write cache {cache_base}.npy: {e}")
+
+@contextmanager
+def _fits_in_memory(what: str, remedy: str):
+    """
+    Turn running out of system RAM while preparing a map into an error that
+    names the map and the parameter to change.
+
+    Numpy's own message says how much it wanted and for what shape, which is
+    worth keeping, but on its own it surfaces as a bare traceback from whatever
+    line happened to allocate last.
+
+    Parameters
+    ----------
+    what : str
+        Name of the map, for the message
+    remedy : str
+        What the user can change to make it fit
+    """
+    try:
+        yield
+    except MemoryError as e:
+        raise MapTooLargeError(
+            f"Not enough memory to prepare {what}: {e}\n{remedy}") from e
+
 
 def load_moon_features(filepath: str) -> list:
     """
@@ -162,6 +195,8 @@ def load_moon_features(filepath: str) -> list:
 LDEM_METERS_PER_UNIT = 0.5
 MOON_REFERENCE_RADIUS_M = 1_737_400.0
 
+ELEVATION_DOWNSCALE_REMEDY = "Raise --downscale (Elevation downscale in the launcher)."
+
 
 def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, float]:
     """
@@ -192,7 +227,8 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
     fingerprint = None
     if downscale > 1:
         fingerprint = _cache_fingerprint(filepath, downscale=downscale)
-        elevation, meta = _load_cache(cache_base, fingerprint)
+        with _fits_in_memory("the elevation map", ELEVATION_DOWNSCALE_REMEDY):
+            elevation, meta = _load_cache(cache_base, fingerprint)
         if elevation is not None:
             print(f"  Loaded from cache: {cache_base}.npy, dimensions {elevation.shape}")
             return elevation, float(meta["radius_scale"])
@@ -203,28 +239,29 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
             f"{downscale} beside it. Restore the file, or start with a downscale one "
             f"has already been cached for.")
 
-    elev_src = read_image(filepath)
+    with _fits_in_memory("the elevation map", ELEVATION_DOWNSCALE_REMEDY):
+        elev_src = read_image(filepath)
 
-    if elev_src is None:
-        raise ValueError(f"Failed to read elevation file: {filepath}")
+        if elev_src is None:
+            raise ValueError(f"Failed to read elevation file: {filepath}")
 
-    print(f"  Original dimensions: {elev_src.shape}")
-    print(f"  Size: {elev_src.nbytes / (1024**3):.2f} GB")
+        print(f"  Original dimensions: {elev_src.shape}")
+        print(f"  Size: {elev_src.nbytes / (1024**3):.2f} GB")
 
-    # Reinterpret as signed 16-bit and convert to displacement factor of the radius
-    elev_src.dtype = np.int16
-    scale = LDEM_METERS_PER_UNIT / MOON_REFERENCE_RADIUS_M
+        # Reinterpret as signed 16-bit and convert to displacement factor of the radius
+        elev_src.dtype = np.int16
+        scale = LDEM_METERS_PER_UNIT / MOON_REFERENCE_RADIUS_M
 
-    if downscale == 1:
-        # No downscaling needed, just convert to float
-        elevation = elev_src.astype(np.float32) * scale
-    else:
-        # Downscale by averaging
-        h = elev_src.shape[0] // downscale
-        w = elev_src.shape[1] // downscale
-        elevation = elev_src.reshape(1, h, downscale, w, downscale).mean(
-            4, dtype=np.float32).mean(2, dtype=np.float32).reshape(h, w)
-        elevation *= scale
+        if downscale == 1:
+            # No downscaling needed, just convert to float
+            elevation = elev_src.astype(np.float32) * scale
+        else:
+            # Downscale by averaging
+            h = elev_src.shape[0] // downscale
+            w = elev_src.shape[1] // downscale
+            elevation = elev_src.reshape(1, h, downscale, w, downscale).mean(
+                4, dtype=np.float32).mean(2, dtype=np.float32).reshape(h, w)
+            elevation *= scale
 
     # Release source memory
     elev_src = None
@@ -251,6 +288,8 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
 # image is never allocated. Anything else would mean decoding in full first,
 # which is exactly what the factor is there to avoid.
 COLOR_DOWNSCALE_FACTORS = (1, 2, 4, 8)
+
+COLOR_DOWNSCALE_REMEDY = "Raise --color-downscale (Color downscale in the launcher)."
 
 _REDUCED_COLOR_FLAGS = {
     2: cv2.IMREAD_REDUCED_COLOR_2,
@@ -317,7 +356,8 @@ def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np
     fingerprint = None
     if downscale > 1:
         fingerprint = _cache_fingerprint(filepath, downscale=downscale)
-        color_src, _ = _load_cache(cache_base, fingerprint)
+        with _fits_in_memory("the color map", COLOR_DOWNSCALE_REMEDY):
+            color_src, _ = _load_cache(cache_base, fingerprint)
         if color_src is not None:
             print(f"  Loaded from cache: {cache_base}.npy, dimensions {color_src.shape}")
             return _moon_texture(color_src, gamma)
@@ -328,7 +368,8 @@ def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np
             f"{downscale} beside it. Restore the file, or start with a color downscale "
             f"one has already been cached for.")
 
-    color_src = cv2.imread(filepath, _REDUCED_COLOR_FLAGS.get(downscale, cv2.IMREAD_COLOR))
+    with _fits_in_memory("the color map", COLOR_DOWNSCALE_REMEDY):
+        color_src = cv2.imread(filepath, _REDUCED_COLOR_FLAGS.get(downscale, cv2.IMREAD_COLOR))
 
     if color_src is None:
         raise ValueError(f"Failed to read color file: {filepath}")
@@ -353,7 +394,8 @@ def _moon_texture(color_src: np.ndarray, gamma: float) -> np.ndarray:
     """
     lut = _albedo_lut(gamma)
     height, width = color_src.shape[:2]
-    color_data = np.empty((height, width, 4), dtype=np.uint8)
+    with _fits_in_memory("the color map texture", COLOR_DOWNSCALE_REMEDY):
+        color_data = np.empty((height, width, 4), dtype=np.uint8)
 
     for y in range(0, height, _COLOR_BLOCK_ROWS):
         block = color_src[y:y + _COLOR_BLOCK_ROWS]
@@ -399,7 +441,8 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
         print(f"  Loaded from cache: {cache_base}.npy, dimensions {star_map.shape}")
         return star_map
 
-    star_src = cv2.imread(filepath)
+    with _fits_in_memory("the star map", "Use a smaller star map file."):
+        star_src = cv2.imread(filepath)
 
     if star_src is None:
         print(f"Failed to read star map: {filepath}")

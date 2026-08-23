@@ -2,8 +2,10 @@
 MoonRenderer: core renderer class (composing mixins) and run_renderer entry point.
 """
 
+import sys
 import tkinter as tk
 import numpy as np
+from contextlib import contextmanager
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
@@ -12,7 +14,8 @@ from plotoptix import TkOptiX
 from plotoptix.materials import m_diffuse
 
 from moonrtx import astro
-from moonrtx.shared_types import Camera, Observer
+from moonrtx.shared_types import (Camera, MAP_TOO_LARGE_EXIT_CODE,
+                                  MapTooLargeError, Observer)
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
 
@@ -567,6 +570,39 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         eye_rel = (np.array(cam["Eye"]) - target) * (prev_radius / self._apparent_radius)
         self.rt.update_camera(self.CAMERA_NAME, eye=(target + eye_rel).tolist())
 
+    @contextmanager
+    def _gpu_upload(self, what: str, size_bytes: int, remedy: str):
+        """
+        Upload a large array to the GPU, failing loudly if it does not fit.
+
+        PlotOptiX reports a failed upload only in its log and otherwise carries
+        on (_raise_on_error is False by default), so a map too big for the card
+        would leave the Moon rendered without it - the wrong image rather than
+        an error. The flag is turned on for the upload and put back afterwards,
+        and the resulting exception is given the size and the parameter to
+        change. Same reasoning as the encoder_is_open check in
+        start_video_export.
+
+        Parameters
+        ----------
+        what : str
+            Name of the map, for the message
+        size_bytes : int
+            Its size, for the message
+        remedy : str
+            What the user can change to make it fit
+        """
+        previous = self.rt._raise_on_error
+        self.rt._raise_on_error = True
+        try:
+            yield
+        except (RuntimeError, ValueError) as e:
+            raise MapTooLargeError(
+                f"Could not upload {what} ({size_bytes / (1024**3):.2f} GB) to GPU memory: {e}\n"
+                f"{remedy}\nDetails are in the console output above.") from e
+        finally:
+            self.rt._raise_on_error = previous
+
     def init_renderer(self):
         self.rt = TkOptiX(
             width=self.width,
@@ -604,14 +640,19 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         star_map = load_starmap(self.starmap_file, self.width * 6) if self.starmap_file else None
         if star_map is not None:
             self.rt.set_background_mode("TextureEnvironment")
-            self.rt.set_background(star_map, gamma=self.gamma, rt_format="UByte4")
+            with self._gpu_upload("the star map", star_map.nbytes,
+                                  "Free GPU memory, or raise --downscale / --color-downscale "
+                                  "to leave room for it."):
+                self.rt.set_background(star_map, gamma=self.gamma, rt_format="UByte4")
         else:
             self.rt.set_background(0)  # Black background
 
         # Setup material with Moon texture (local for the same reason, ~200 MB).
         # Copy the material so the shared plotoptix module dict stays untouched.
         color_data = load_color_data(self.color_file, self.gamma, self.color_downscale)
-        self.rt.set_texture_2d("moon_color", color_data)
+        with self._gpu_upload("the color map texture", color_data.nbytes,
+                              "Raise --color-downscale, or use a smaller color map."):
+            self.rt.set_texture_2d("moon_color", color_data)
         moon_material = m_diffuse.copy()
         moon_material["ColorTextures"] = ["moon_color"]
         self.rt.update_material("diffuse", moon_material)
@@ -621,7 +662,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                         pos=[0, 0, 0], u=[0, 0, 1], v=[0, -1, 0], r=self.MOON_RADIUS)
 
         # Apply displacement map (no refresh: the renderer is not started yet)
-        self.rt.set_displacement(self.MOON_OBJECT_NAME, self.elevation, refresh=False)
+        with self._gpu_upload("the elevation displacement map", self.elevation.nbytes,
+                              "Raise --downscale."):
+            self.rt.set_displacement(self.MOON_OBJECT_NAME, self.elevation, refresh=False)
 
         cam = self.initial_camera
         self.rt.setup_camera(self.CAMERA_NAME,
@@ -1202,3 +1245,19 @@ def run_renderer(dt_local: datetime,
 
     moon_renderer.start()
     return moon_renderer.rt
+
+
+def run_renderer_process(*args, **kwargs):
+    """
+    run_renderer as the target of a spawned process (see main_gui_launcher).
+
+    A map that does not fit - in system RAM while it is prepared, or in GPU
+    memory when it is uploaded - ends the process with its own message and
+    MAP_TOO_LARGE_EXIT_CODE rather than a traceback, which the launcher turns
+    back into something the user can act on.
+    """
+    try:
+        run_renderer(*args, **kwargs)
+    except MapTooLargeError as e:
+        print(f"\n{e}")
+        sys.exit(MAP_TOO_LARGE_EXIT_CODE)
