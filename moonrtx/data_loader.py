@@ -13,7 +13,7 @@ from plotoptix.utils import read_image
 # Processed-array disk caches: reading the 7.9 GB elevation TIFF and block-mean
 # downscaling it takes about a minute on every start, while np.load of the
 # ready-made float32 result takes seconds. A cache is valid when the sidecar
-# JSON matches the source file (size, mtime) and the processing parameters;
+# JSON matches the source file size and the processing parameters;
 # any read or write problem silently falls back to the regular path, so a
 # broken cache can only cost time, never correctness. Bump the version when
 # the processing itself changes.
