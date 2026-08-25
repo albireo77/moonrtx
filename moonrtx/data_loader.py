@@ -448,8 +448,9 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
         print(f"  Loaded from cache: {cache_base}.npy, dimensions {star_map.shape}")
         return star_map
 
-    # star map is fixed (not selectable by user) so is not guarded by a memory context manager: if it doesn't fit, the app is going to fail anyway.
-    star_src = cv2.imread(filepath)
+    # star map is fixed (not selectable by user) so remedy is not possible (empty string).
+    with _fits_in_memory("the star map", ""):
+        star_src = cv2.imread(filepath)
 
     if star_src is None:
         print(f"Failed to read star map: {filepath}")
