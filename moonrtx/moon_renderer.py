@@ -29,6 +29,32 @@ from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
 
 
+# The star map is loaded several times wider than the window: it wraps the whole
+# sky, so only a fraction of it is ever on screen at once.
+STARMAP_WIDTH_FACTOR = 6
+
+
+def screen_size() -> tuple[int, int]:
+    """
+    Screen width and usable height (less the taskbar), from a hidden root window.
+    """
+    _tmp = tk.Tk()
+    _tmp.withdraw()
+    size = (_tmp.winfo_screenwidth(), _tmp.winfo_screenheight() - 40)
+    _tmp.destroy()
+    return size
+
+
+def starmap_target_width() -> int:
+    """
+    The width load_starmap is asked for, and so the key its cache is stored
+    under. A module-level function because main.check_starmap_file needs it
+    before a renderer (and its window) exists, to tell whether the source has
+    to be downloaded at all.
+    """
+    return screen_size()[0] * STARMAP_WIDTH_FACTOR
+
+
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
                    VideoMixin, FovMixin):
     """
@@ -202,11 +228,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Sort features by angular_radius (smallest first) for efficient lookup
         self.moon_features = sorted(load_moon_features(features_file), key=lambda f: f.angular_radius)
         self._init_feature_lookup()
-        _tmp = tk.Tk()
-        _tmp.withdraw()
-        self.width = _tmp.winfo_screenwidth()
-        self.height = _tmp.winfo_screenheight() - 40
-        _tmp.destroy()
+        self.width, self.height = screen_size()
 
         self.brightness = brightness
 
@@ -637,7 +659,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Background (stars). Loaded locally: uploaded to a GPU texture here and
         # released when this method returns (the host copy is ~760 MB)
-        star_map = load_starmap(self.starmap_file, self.width * 6) if self.starmap_file else None
+        star_map = load_starmap(self.starmap_file, self.width * STARMAP_WIDTH_FACTOR) if self.starmap_file else None
         if star_map is not None:
             self.rt.set_background_mode("TextureEnvironment")
             with self._gpu_upload("the star map", star_map.nbytes,

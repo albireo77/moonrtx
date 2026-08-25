@@ -17,8 +17,9 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.data_loader import COLOR_DOWNSCALE_FACTORS, downscale_cache_available
-from moonrtx.moon_renderer import run_renderer
+from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_available,
+                                 starmap_cache_available)
+from moonrtx.moon_renderer import run_renderer, starmap_target_width
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, MapTooLargeError, Observer
 
@@ -136,6 +137,13 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
 
 def check_starmap_file() -> bool:
     if not os.path.isfile(STARMAP_FILE_LOCAL_PATH):
+        # As with the elevation and color maps, what the renderer reads is the
+        # cache, so a source deleted to reclaim its megabytes stays deleted.
+        # The star map cache is keyed by screen width rather than a downscale,
+        # hence the screen lookup here (see moon_renderer.starmap_target_width).
+        if starmap_cache_available(STARMAP_FILE_LOCAL_PATH, starmap_target_width()):
+            print(f"Starmap file {STARMAP_FILE_LOCAL_PATH} is not present; using the cached star map.")
+            return True
         _, _, free = shutil.disk_usage(os.getcwd())
         if free < STARMAP_FILE_SIZE_BYTES * 1.02:
             print(f"Not enough disk space to download starmap file ({STARMAP_FILE_SIZE_MB} MB required).")

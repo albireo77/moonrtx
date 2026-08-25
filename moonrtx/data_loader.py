@@ -101,6 +101,29 @@ def downscale_cache_available(filepath: str, downscale: int) -> bool:
                        _cache_fingerprint(filepath, downscale=downscale)) is not None
 
 
+def starmap_cache_available(filepath: str, target_width: int) -> bool:
+    """
+    Whether the star map processed for this screen is already on disk, in which
+    case the source is not needed and need not be downloaded again to stand
+    unused beside it (see main.check_starmap_file).
+
+    Parameters
+    ----------
+    filepath : str
+        Path the source TIFF would have; the cache sits beside it
+    target_width : int
+        The width the cache must have been made for, which depends on the
+        screen (moon_renderer.starmap_target_width)
+
+    Returns
+    -------
+    bool
+        True when that cache is present and usable
+    """
+    return _cache_meta(f"{filepath}.w{target_width}",
+                       _cache_fingerprint(filepath, target_width=target_width)) is not None
+
+
 def _save_cache(cache_base: str, array: np.ndarray, meta: dict):
     try:
         np.save(cache_base + ".npy", array)
@@ -433,22 +456,23 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
     np.ndarray or None
         Processed star map, or None if file not found
     """
-    if not os.path.isfile(filepath):
-        print(f"Star map not found: {filepath}")
-        return None
-
-    print(f"Loading star map from {filepath}...")
-
     # Disk cache of the processed result, keyed by the target width
-    # (screen-dependent), so the 16k source is decoded and resized only once
+    # (screen-dependent), so the 16k source is decoded and resized only once.
+    # Tried before the source is looked for, so that a source deleted to reclaim
+    # its megabytes keeps the sky it was cached into (see _cache_fingerprint).
     cache_base = f"{filepath}.w{target_width}"
     fingerprint = _cache_fingerprint(filepath, target_width=target_width)
     try:
         star_map, _ = _load_cache(cache_base, fingerprint)
         if star_map is not None:
-            print(f"  Loaded from cache: {cache_base}.npy, dimensions {star_map.shape}")
+            print(f"Loaded star map from cache: {cache_base}.npy, dimensions {star_map.shape}")
             return star_map
 
+        if not os.path.isfile(filepath):
+            print(f"Star map not found: {filepath}, and no cache of it beside it.")
+            return None
+
+        print(f"Loading star map from {filepath}...")
         star_src = cv2.imread(filepath)
         if star_src is None:
             print(f"Failed to read star map: {filepath}")
