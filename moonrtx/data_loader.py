@@ -449,25 +449,32 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
         return star_map
 
     # star map is fixed (not selectable by user) so remedy is not possible (empty string).
-    with _fits_in_memory("the star map", ""):
-        star_src = cv2.imread(filepath)
+    try:
+        with _fits_in_memory("the star map", ""):
+            star_src = cv2.imread(filepath)
 
-    if star_src is None:
-        print(f"Failed to read star map: {filepath}")
+        if star_src is None:
+            print(f"Failed to read star map: {filepath}")
+            return None
+
+        with _fits_in_memory("the star map", ""):
+            # Convert BGR to RGB and normalize
+            star_src = star_src[..., ::-1].astype(np.float32)
+            star_src *= 1 / 255
+
+            # Downscale if needed
+            if target_width < star_src.shape[1]:
+                target_height = int(star_src.shape[0] * target_width / star_src.shape[1])
+                star_map = cv2.resize(star_src, (target_width, target_height),
+                                      interpolation=cv2.INTER_CUBIC)
+                np.clip(star_map, 0, 1, out=star_map)
+            else:
+                star_map = star_src
+    except MapTooLargeError as e:
+        # Background decoration only: a starless sky beats not starting at all
+        print(str(e).rstrip())
+        print("Starting without the star map.")
         return None
-    
-    # Convert BGR to RGB and normalize
-    star_src = star_src[..., ::-1].astype(np.float32)
-    star_src *= 1 / 255
-    
-    # Downscale if needed
-    if target_width < star_src.shape[1]:
-        target_height = int(star_src.shape[0] * target_width / star_src.shape[1])
-        star_map = cv2.resize(star_src, (target_width, target_height), 
-                             interpolation=cv2.INTER_CUBIC)
-        np.clip(star_map, 0, 1, out=star_map)
-    else:
-        star_map = star_src
 
     print(f"  Dimensions: {star_map.shape}")
 
