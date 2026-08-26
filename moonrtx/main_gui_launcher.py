@@ -20,7 +20,7 @@ from moonrtx.main import (
     check_elevation_file,
     check_color_file,
     COLOR_DOWNSCALE_FACTORS,
-    check_starmap_file,
+    get_starmap_file,
     check_gpu_architecture,
     check_plotoptix_version,
     DEFAULT_ELEVATION_FILE_LOCAL_PATH,
@@ -156,7 +156,8 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Time step (minutes):").grid(row=11, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="View orientation:").grid(row=12, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Parallactic mode:").grid(row=13, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=14, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="No stars:").grid(row=14, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=15, column=0, sticky=tk.E, pady=2)
 
         self.lat_dir_var = tk.StringVar(value="N")
         self.lon_dir_var = tk.StringVar(value="E")
@@ -262,8 +263,15 @@ class MainWindow(tk.Tk):
             variable=self.parallactic_mode_var,
         ).grid(row=13, column=1, sticky=tk.W, pady=2)
 
+        self.no_stars_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            frm,
+            text="(saves GPU memory)",
+            variable=self.no_stars_var,
+        ).grid(row=14, column=1, sticky=tk.W, pady=2)
+
         self.init_view = tk.Entry(frm, width=5)
-        self.init_view.grid(row=14, column=1, sticky=tk.EW, pady=2)
+        self.init_view.grid(row=15, column=1, sticky=tk.EW, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
@@ -420,6 +428,7 @@ class MainWindow(tk.Tk):
             "time_step_minutes": self.time_step_minutes.get(),
             "init_view_orientation": self.init_view_orientation.get(),
             "parallactic_mode": bool(self.parallactic_mode_var.get()),
+            "no_stars": bool(self.no_stars_var.get()),
             "init_view": self.init_view.get(),
         }
 
@@ -560,6 +569,8 @@ class MainWindow(tk.Tk):
             self.init_view_orientation.set(settings.get("init_view_orientation", VIEW_ORIENTATIONS[0]))
 
             self.parallactic_mode_var.set(bool(settings.get("parallactic_mode", False)))
+
+            self.no_stars_var.set(bool(settings.get("no_stars", False)))
 
             self.init_view.delete(0, tk.END)
             self.init_view.insert(0, settings.get("init_view", ""))
@@ -804,9 +815,12 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "Color file is not present or downloading default file failed.")
             return
         
-        self._set_status("Checking starmap file...")
-        self.update_idletasks()
-        starmap_file = check_starmap_file()
+        if self.no_stars_var.get():
+            starmap_file = None
+        else:
+            self._set_status("Checking starmap file...")
+            self.update_idletasks()
+            starmap_file = get_starmap_file()
         
         parallactic_mode = bool(self.parallactic_mode_var.get())
         

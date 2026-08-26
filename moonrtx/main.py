@@ -94,6 +94,8 @@ def parse_args():
                         help="Gamma correction value (0.5 - 5.0, default 2.2)")
     parser.add_argument("--parallactic-mode", action="store_true",
                         help="Turn on parallactic mode (maintains Moon aligned to celestial north)")
+    parser.add_argument("--no-stars", action="store_true",
+                        help="Black background (saves GPU memory)")
     parser.add_argument("--time-step-minutes", type=int, default=15,
                         help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
@@ -135,7 +137,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
             return False
     return True
 
-def check_starmap_file() -> str:
+def get_starmap_file() -> Optional[str]:
     if not os.path.isfile(STARMAP_FILE_LOCAL_PATH):
         # As with the elevation and color maps, what the renderer reads is the
         # cache, so a source deleted to reclaim its megabytes stays deleted.
@@ -147,14 +149,14 @@ def check_starmap_file() -> str:
         _, _, free = shutil.disk_usage(os.getcwd())
         if free < STARMAP_FILE_SIZE_BYTES * 1.02:
             print(f"Not enough disk space to download starmap file ({STARMAP_FILE_SIZE_MB} MB required).")
-            return ""
+            return None
         print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB). It can take some time...")
         try:
             os.makedirs(os.path.dirname(STARMAP_FILE_LOCAL_PATH), exist_ok=True)
             _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH)
         except Exception as e:
             print(f"Error downloading starmap file: {e}")
-            return ""
+            return None
     return STARMAP_FILE_LOCAL_PATH
 
 def check_color_file(color_file: str, color_downscale: int) -> bool:
@@ -354,6 +356,7 @@ def main():
     initial_camera = None
     init_view_orientation = args.init_view_orientation.upper()
     parallactic_mode = args.parallactic_mode
+    starmap_file = None if args.no_stars else get_starmap_file()
     lat = args.lat
     lon = args.lon
 
@@ -433,8 +436,6 @@ def main():
 
     if not check_color_file(args.color_file, args.color_downscale):
         sys.exit(1)
-
-    starmap_file = check_starmap_file()
 
     try:
         run_renderer(dt_local=dt_local,

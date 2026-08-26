@@ -172,7 +172,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  observer: Observer,
                  initial_camera: Optional[Camera],
                  dt_local: datetime,
-                 starmap_file: str,
+                 starmap_file: Optional[str],
                  downscale: int = 3,
                  color_downscale: int = 1,
                  time_step_minutes: int = 15,
@@ -192,12 +192,12 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Moon features CSV file with craters, mounts etc.
         brightness : int
             Brightness
-        initial_camera : Camera
-            Optional initial camera for resets with R key (if None, a default camera will be calculated from ephemeris)
+        initial_camera : Optional[Camera]
+            Initial camera for resets with R key (if None, a default camera will be calculated from ephemeris)
         dt_local : datetime
             Local datetime for the view 
-        starmap_file : str
-            Path to star map TIFF for background
+        starmap_file : Optional[str]
+            Path to star map TIFF for background (if None, black background is used)
         downscale : int
             Elevation map downscale factor
         color_downscale : int
@@ -659,7 +659,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Background (stars). Loaded locally: uploaded to a GPU texture here and
         # released when this method returns (the host copy is ~760 MB)
-        if self.starmap_file:
+        if self.starmap_file is not None:
             star_map = load_starmap(self.starmap_file, self.width * STARMAP_WIDTH_FACTOR)
         else:
             star_map = None
@@ -979,7 +979,7 @@ def run_renderer(dt_local: datetime,
                  observer: Observer,
                  elevation_file: str,
                  color_file: str,
-                 starmap_file: str,
+                 starmap_file: Optional[str],
                  features_file: str,
                  downscale: int,
                  brightness: int,
