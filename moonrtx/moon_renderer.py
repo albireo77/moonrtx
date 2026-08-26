@@ -659,7 +659,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Background (stars). Loaded locally: uploaded to a GPU texture here and
         # released when this method returns (the host copy is ~760 MB)
-        star_map = load_starmap(self.starmap_file, self.width * STARMAP_WIDTH_FACTOR) if self.starmap_file else None
+        if self.starmap_file:
+            star_map = load_starmap(self.starmap_file, self.width * STARMAP_WIDTH_FACTOR)
+        else:
+            star_map = None
         if star_map is not None:
             self.rt.set_background_mode("TextureEnvironment")
             with self._gpu_upload("the star map", star_map.nbytes,
@@ -1027,6 +1030,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Timezone: {timezone_name(dt_local)}")
     print(f"  Elevation File: {elevation_file}")
     print(f"  Color File: {color_file}")
+    print(f"  Starmap File: {starmap_file}")
     print(f"  Brightness: {brightness}")
     print(f"  Gamma: {gamma}")
     print(f"  Downscale Factor: {downscale}")

@@ -468,10 +468,6 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
             print(f"Loaded star map from cache: {cache_base}.npy, dimensions {star_map.shape}")
             return star_map
 
-        if not os.path.isfile(filepath):
-            print(f"Star map not found: {filepath}, and no cache of it beside it.")
-            return None
-
         print(f"Loading star map from {filepath}...")
         star_src = cv2.imread(filepath)
         if star_src is None:

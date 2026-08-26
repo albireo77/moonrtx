@@ -26,7 +26,6 @@ from moonrtx.main import (
     DEFAULT_ELEVATION_FILE_LOCAL_PATH,
     APP_NAME,
     DEFAULT_COLOR_FILE_LOCAL_PATH,
-    STARMAP_FILE_LOCAL_PATH,
     MOON_FEATURES_FILE_LOCAL_PATH,
     DATA_DIRECTORY_PATH,
     BASE_PATH
@@ -807,10 +806,7 @@ class MainWindow(tk.Tk):
         
         self._set_status("Checking starmap file...")
         self.update_idletasks()
-        if not check_starmap_file():
-            self._set_status("")
-            messagebox.showerror("Error", "Starmap file is not present and download failed.")
-            return
+        starmap_file = check_starmap_file()
         
         parallactic_mode = bool(self.parallactic_mode_var.get())
         
@@ -827,7 +823,7 @@ class MainWindow(tk.Tk):
                 Observer(lat, lon, elevation),
                 elevation_file,
                 color_file,
-                STARMAP_FILE_LOCAL_PATH,
+                starmap_file,
                 MOON_FEATURES_FILE_LOCAL_PATH,
                 downscale,
                 brightness,

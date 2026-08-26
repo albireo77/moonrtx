@@ -135,7 +135,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
             return False
     return True
 
-def check_starmap_file() -> bool:
+def check_starmap_file() -> str:
     if not os.path.isfile(STARMAP_FILE_LOCAL_PATH):
         # As with the elevation and color maps, what the renderer reads is the
         # cache, so a source deleted to reclaim its megabytes stays deleted.
@@ -143,19 +143,19 @@ def check_starmap_file() -> bool:
         # hence the screen lookup here (see moon_renderer.starmap_target_width).
         if starmap_cache_available(STARMAP_FILE_LOCAL_PATH, starmap_target_width()):
             print(f"Starmap file {STARMAP_FILE_LOCAL_PATH} is not present; using the cached star map.")
-            return True
+            return STARMAP_FILE_LOCAL_PATH
         _, _, free = shutil.disk_usage(os.getcwd())
         if free < STARMAP_FILE_SIZE_BYTES * 1.02:
             print(f"Not enough disk space to download starmap file ({STARMAP_FILE_SIZE_MB} MB required).")
-            return False
+            return ""
         print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB). It can take some time...")
         try:
             os.makedirs(os.path.dirname(STARMAP_FILE_LOCAL_PATH), exist_ok=True)
             _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH)
         except Exception as e:
             print(f"Error downloading starmap file: {e}")
-            return False
-    return True
+            return ""
+    return STARMAP_FILE_LOCAL_PATH
 
 def check_color_file(color_file: str, color_downscale: int) -> bool:
     if not os.path.isfile(color_file):
@@ -434,8 +434,7 @@ def main():
     if not check_color_file(args.color_file, args.color_downscale):
         sys.exit(1)
 
-    if not check_starmap_file():
-        sys.exit(1)
+    starmap_file = check_starmap_file()
 
     try:
         run_renderer(dt_local=dt_local,
@@ -445,7 +444,7 @@ def main():
                      brightness=args.brightness,
                      color_file=args.color_file,
                      color_downscale=args.color_downscale,
-                     starmap_file=STARMAP_FILE_LOCAL_PATH,
+                     starmap_file=starmap_file,
                      features_file=MOON_FEATURES_FILE_LOCAL_PATH,
                      initial_camera=initial_camera,
                      time_step_minutes=args.time_step_minutes,
