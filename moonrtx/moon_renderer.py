@@ -172,7 +172,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                  observer: Observer,
                  initial_camera: Optional[Camera],
                  dt_local: datetime,
-                 starmap_file: Optional[str],
+                 starmap_file: str,
                  downscale: int = 3,
                  color_downscale: int = 1,
                  time_step_minutes: int = 15,
@@ -196,7 +196,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             Optional initial camera for resets with R key (if None, a default camera will be calculated from ephemeris)
         dt_local : datetime
             Local datetime for the view 
-        starmap_file : str, optional
+        starmap_file : str
             Path to star map TIFF for background
         downscale : int
             Elevation map downscale factor
