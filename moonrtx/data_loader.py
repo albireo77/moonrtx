@@ -283,19 +283,16 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
         scale = LDEM_METERS_PER_UNIT / MOON_REFERENCE_RADIUS_M
 
         if downscale == 1:
-            # No downscaling needed, just convert to float. Scaled in place:
-            # the float copy is twice the size of the source (~16 GB for the
-            # 46080 x 92160 map) and a scaled copy of it would land on the peak
-            # as well, while the source is still held
             elevation = elev_src.astype(np.float32)
-            elevation *= scale
         else:
             # Downscale by averaging
             h = elev_src.shape[0] // downscale
             w = elev_src.shape[1] // downscale
             elevation = elev_src.reshape(1, h, downscale, w, downscale).mean(
                 4, dtype=np.float32).mean(2, dtype=np.float32).reshape(h, w)
-            elevation *= scale
+
+        # Scaled in place, not a copy
+        elevation *= scale            
 
     # Release source memory
     elev_src = None
