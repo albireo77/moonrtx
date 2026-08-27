@@ -12,7 +12,9 @@ from tzlocal import get_localzone_name
 
 from moonrtx.shared_types import MAP_TOO_LARGE_EXIT_CODE, Observer
 from moonrtx.moon_renderer import run_renderer_process
-from moonrtx.view_orientation import VIEW_ORIENTATIONS
+from moonrtx.view_orientation import (VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE,
+                                      VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW,
+                                      VIEW_ORIENTATION_SNWE)
 from moonrtx.main import (
     get_date_time_local,
     resolve_timezone,
@@ -125,6 +127,55 @@ class CalendarPopup(tk.Toplevel):
     def _select(self, day):
         self.result = f"{self.year:04d}-{self.month:02d}-{day:02d}"
         self.destroy()
+
+
+class ToolTip:
+    """
+    A hint shown while the pointer rests on a widget, as Delphi's Hint property
+    gives for free: tkinter has none, so a borderless window goes up beside the
+    widget after a pause and comes down when the pointer leaves it.
+
+    Bound with add="+" so the handlers a widget already has still run.
+    """
+
+    DELAY_MS = 600          # long enough not to flash while crossing the form
+    BACKGROUND = "#ffffe1"  # the yellow Windows uses for its own tips
+
+    def __init__(self, widget, text: str):
+        self.widget = widget
+        self.text = text
+        self.tip = None
+        self.after_id = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self.hide, add="+")
+        widget.bind("<ButtonPress>", self.hide, add="+")
+
+    def _schedule(self, _event=None):
+        self.hide()
+        self.after_id = self.widget.after(self.DELAY_MS, self._show)
+
+    def _show(self):
+        self.after_id = None
+        if self.tip is not None or not self.widget.winfo_viewable():
+            return
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.overrideredirect(True)      # no title bar, no taskbar entry
+        tk.Label(self.tip, text=self.text, justify=tk.LEFT, background=self.BACKGROUND,
+                 relief=tk.SOLID, borderwidth=1, padx=4, pady=2).pack()
+        # Below the widget, and pulled back left if that would run off screen
+        self.tip.update_idletasks()
+        x = self.widget.winfo_rootx()
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        x = min(x, self.widget.winfo_screenwidth() - self.tip.winfo_width() - 8)
+        self.tip.geometry(f"+{max(x, 0)}+{y}")
+
+    def hide(self, _event=None):
+        if self.after_id is not None:
+            self.widget.after_cancel(self.after_id)
+            self.after_id = None
+        if self.tip is not None:
+            self.tip.destroy()
+            self.tip = None
 
 
 class MainWindow(tk.Tk):
@@ -276,10 +327,6 @@ class MainWindow(tk.Tk):
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
         tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Label(frm, text="(sea level = 0)", fg="gray").grid(row=2, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Label(frm, text="(0.5 - 5.0)", fg="gray").grid(row=10, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=7, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Label(frm, text="(no scaling = 1)", fg="gray").grid(row=8, column=2, sticky=tk.W, padx=(4, 0))
 
         def _set_time_now():
             # In the timezone the box names, not this machine's: the fields are
@@ -374,6 +421,72 @@ class MainWindow(tk.Tk):
 
         # attach trace to update UI when radio changes
         self.coord_mode.trace_add('write', update_coord_mode)
+
+        self._add_hints()
+
+    def _add_hints(self):
+        """
+        The hint each box shows on hover, saying what the matching command line
+        parameter's --help says (see main.parse_args), so the two descriptions
+        of a setting stay one description.
+        """
+        latitude = ("Observer latitude in degrees.\n"
+                    "Examples: 50.0614 (Cracow, Poland), -34.6131 (Buenos Aires, Argentina)")
+        longitude = ("Observer longitude in degrees.\n"
+                     "Examples: 19.9365 (Cracow, Poland), -58.3772 (Buenos Aires, Argentina)")
+        time_hint = ("Observation time, as a wall clock in the timezone below.\n"
+                     "The button beside the date opens a calendar, Now fills in the current time.")
+
+        for widget, hint in (
+            (self.lat_decimal, latitude),
+            (self.lat_deg, latitude), (self.lat_min, latitude), (self.lat_sec, latitude),
+            (self.lon_decimal, longitude),
+            (self.lon_deg, longitude), (self.lon_min, longitude), (self.lon_sec, longitude),
+            (self.elevation_entry,
+             "Observer elevation above sea level in meters (0 - 100000).\n"
+             "Examples: 0 (sea level), 219 (Cracow, Poland)"),
+            (self.date_entry, time_hint),
+            (self.hour_spin, time_hint), (self.minute_spin, time_hint), (self.second_spin, time_hint),
+            (self.tz_combo,
+             "IANA timezone the observation time is given in, e.g. Europe/Warsaw.\n"
+             "Its daylight saving and historical rules decide the UTC offset of each date."),
+            (self.elevation_file,
+             "Path to the Moon elevation map (LOLA LDEM TIFF).\n"
+             "The default one is downloaded on first run if it is not there."),
+            (self.color_file,
+             "Path to the Moon color map.\n"
+             "Alternate maps can be downloaded from https://svs.gsfc.nasa.gov/4720"),
+            (self.downscale,
+             "Elevation downscale factor: the higher, the less GPU memory the surface\n"
+             "takes and the less detail it keeps. 1 is no downscaling.\n"
+             "With the default 46080 x 92160 map that is 15.8 GB of GPU memory at 1,\n"
+             "4.0 GB at 2, 1.8 GB at 3, 1.0 GB at 4 and 0.25 GB at 8."),
+            (self.color_downscale,
+             "Color map downscale factor. The map is decoded straight at this fraction\n"
+             "of its size, so the memory needed to load it falls with the square of the\n"
+             "factor. Raise it if a large color map fails to load. 1 is no downscaling."),
+            (self.brightness,
+             "Brightness of the sunlight on the Moon (0 - 500).\n"
+             "Adjustable while the renderer runs."),
+            (self.gamma_entry,
+             "Gamma correction value (0.5 - 5.0, default 2.2).\n"
+             "Adjustable while the renderer runs."),
+            (self.time_step_minutes,
+             "How far the Q and W keys move the observation time (1 - 1440 minutes)."),
+            (self.init_view_orientation,
+             "View orientation of the instrument the Moon is watched through:\n"
+             f"{VIEW_ORIENTATION_NSWE} upright (naked eye, binoculars),\n"
+             f"{VIEW_ORIENTATION_NSEW} mirrored (refractor or SCT with a star diagonal),\n"
+             f"{VIEW_ORIENTATION_SNEW} rotated 180 degrees (Newtonian, refractor without a diagonal),\n"
+             f"{VIEW_ORIENTATION_SNWE} mirrored the other way (Newtonian with a diagonal)."),
+            (self.init_view,
+             "Default filename of a screenshot, without the extension. It restores the\n"
+             "camera, time and location of the moment that screenshot was taken, and\n"
+             "then the fields above are ignored."),
+            (self.preset_name_entry, "Name to save the settings above under."),
+            (self.preset_combobox, "A saved set of settings, put back by Load."),
+        ):
+            ToolTip(widget, hint)
 
     def _get_presets_dir(self):
         """Get the presets directory path, creating it if it doesn't exist."""
