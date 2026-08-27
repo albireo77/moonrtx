@@ -133,6 +133,19 @@ def _save_cache(cache_base: str, array: np.ndarray, meta: dict):
     except Exception as e:
         print(f"Warning: could not write cache {cache_base}.npy: {e}")
 
+def _is_out_of_memory(e: BaseException) -> bool:
+    """
+    Whether a failure is a failed allocation.
+
+    Numpy raises MemoryError, but OpenCV does not let one through: it allocates
+    inside its own decoder and resizer and raises StsNoMem instead. Its other
+    errors say the image could not be decoded, which is not a size problem.
+    """
+    if isinstance(e, MemoryError):
+        return True
+    return isinstance(e, cv2.error) and getattr(e, "code", None) == cv2.Error.StsNoMem
+
+
 @contextmanager
 def _fits_in_memory(what: str, remedy: str):
     """
@@ -152,7 +165,9 @@ def _fits_in_memory(what: str, remedy: str):
     """
     try:
         yield
-    except MemoryError as e:
+    except (MemoryError, cv2.error) as e:
+        if not _is_out_of_memory(e):
+            raise
         raise MapTooLargeError(
             f"Not enough memory to prepare {what}: {e}\n{remedy}") from e
 
@@ -487,7 +502,9 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
             np.clip(star_map, 0, 1, out=star_map)
         else:
             star_map = star_src
-    except MemoryError as e:
+    except (MemoryError, cv2.error) as e:
+        if not _is_out_of_memory(e):
+            raise
         # Background decoration only: a starless sky beats not starting at all
         print(f"Not enough memory to prepare the star map: {e}".rstrip())
         print("Starting without the star map.")
