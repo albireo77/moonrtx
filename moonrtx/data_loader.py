@@ -58,18 +58,24 @@ def _cache_meta(cache_base: str, fingerprint: dict) -> Optional[dict]:
     return meta if os.path.isfile(cache_base + ".npy") else None
 
 
-def _load_cache(cache_base: str, fingerprint: dict) -> tuple[Optional[np.ndarray], dict]:
+def _load_cache(cache_base: str, fingerprint: dict,
+                mmap_mode: Optional[str] = None) -> tuple[Optional[np.ndarray], dict]:
     """
     The cached array and its metadata, or (None, {}) to fall back to reading the
     source. Running out of memory is not such a case and is left to propagate:
     the source is bigger than the cache, so re-reading it could only fail again,
     more slowly and with a less useful message.
+
+    mmap_mode : str, optional
+        Passed to np.load. "r" leaves the array in its file and pages it in as
+        it is read, which is how the full-size elevation map is used - it is
+        larger than the RAM of the machines that can still render it.
     """
     meta = _cache_meta(cache_base, fingerprint)
     if meta is None:
         return None, {}
     try:
-        return np.load(cache_base + ".npy"), meta
+        return np.load(cache_base + ".npy", mmap_mode=mmap_mode), meta
     except MemoryError:
         raise
     except Exception:
@@ -95,8 +101,6 @@ def downscale_cache_available(filepath: str, downscale: int) -> bool:
     bool
         True when that cache is present and usable
     """
-    if downscale <= 1:
-        return False    # no cache is written at downscale 1
     return _cache_meta(f"{filepath}.ds{downscale}",
                        _cache_fingerprint(filepath, downscale=downscale)) is not None
 
@@ -243,6 +247,70 @@ MOON_REFERENCE_RADIUS_M = 1_737_400.0
 ELEVATION_DOWNSCALE_REMEDY = "Raise --downscale (Elevation downscale in the launcher)."
 
 
+# Rows converted at a time when the full-size map is built (see
+# _build_full_size_cache), as for the color texture: large enough that the
+# per-band overhead is lost in the work, small enough to stay out of the way.
+_ELEVATION_BLOCK_ROWS = 1024
+
+
+def _build_full_size_cache(elev_src: np.ndarray, scale: float,
+                           cache_base: str, fingerprint: dict) -> Optional[tuple[np.ndarray, float]]:
+    """
+    Write the undownscaled map to its cache a band of rows at a time and hand it
+    back memory-mapped, rather than built in RAM.
+
+    Written this way for memory: at downscale 1 the float32 map is twice the
+    size of the source - about 16 GB against 8 GB for the 46080 x 92160 LDEM -
+    and holding both at once needs some 24 GB of RAM, which puts the map out of
+    reach of machines that could otherwise render it. Here only the source and
+    one band are ever resident, and the renderer reads the rest from the file as
+    it uploads it.
+
+    Returns None when the file cannot be written - no room for it, or nowhere to
+    put it - for the caller to fall back to building the map in memory.
+    """
+    height, width = elev_src.shape
+    path = cache_base + ".npy"
+    print(f"  Building {path} ({height * width * 4 / (1024**3):.2f} GB on disk), "
+          f"{_ELEVATION_BLOCK_ROWS} rows at a time")
+    try:
+        elevation = np.lib.format.open_memmap(path, mode="w+", dtype=np.float32,
+                                              shape=(height, width))
+    except Exception as e:
+        print(f"Warning: could not write {path}: {e}")
+        return None
+
+    low, peak = np.inf, -np.inf
+    for y in range(0, height, _ELEVATION_BLOCK_ROWS):
+        band = elevation[y:y + _ELEVATION_BLOCK_ROWS]
+        band[:] = elev_src[y:y + _ELEVATION_BLOCK_ROWS].astype(np.float32)
+        band *= scale
+        band += 1.0
+        low = min(low, float(band.min()))
+        peak = max(peak, float(band.max()))
+
+    print(f"  Dimensions: {elevation.shape}")
+    print("  Relief range: {:.0f} m to {:+.0f} m relative to the 1737.4 km reference radius".format(
+        (low - 1.0) * MOON_REFERENCE_RADIUS_M, (peak - 1.0) * MOON_REFERENCE_RADIUS_M))
+
+    # Keep the surface inside the bounding sphere: highest peak = exactly 1.0
+    radius_scale = peak
+    for y in range(0, height, _ELEVATION_BLOCK_ROWS):
+        elevation[y:y + _ELEVATION_BLOCK_ROWS] /= radius_scale
+    elevation.flush()
+    del elevation                       # reopened read-only below
+
+    try:
+        with open(cache_base + ".json", "w", encoding="utf-8") as f:
+            json.dump({**fingerprint, "radius_scale": radius_scale}, f)
+        print(f"  Cached to {path} for faster next start")
+    except Exception as e:
+        # The map is built and usable; only the next start pays, rebuilding it
+        print(f"Warning: could not write {cache_base}.json: {e}")
+
+    return np.load(path, mmap_mode="r"), radius_scale
+
+
 def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, float]:
     """
     Load and process the Moon elevation data (LOLA LDEM TIFF).
@@ -266,17 +334,17 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
     """
     print(f"Loading elevation data from {filepath}...")
 
-    # Disk cache of the processed result (skipped at downscale 1, where the
-    # cache would be a ~16 GB file for little gain over reading the source)
+    # Disk cache of the processed result. The undownscaled map is left in its
+    # file and paged in as it is read: at ~16 GB it is bigger than the RAM of
+    # machines that can still render it (see _build_full_size_cache).
     cache_base = f"{filepath}.ds{downscale}"
-    fingerprint = None
-    if downscale > 1:
-        fingerprint = _cache_fingerprint(filepath, downscale=downscale)
-        with _fits_in_memory("the elevation map", ELEVATION_DOWNSCALE_REMEDY):
-            elevation, meta = _load_cache(cache_base, fingerprint)
-        if elevation is not None:
-            print(f"  Loaded from cache: {cache_base}.npy, dimensions {elevation.shape}")
-            return elevation, float(meta["radius_scale"])
+    fingerprint = _cache_fingerprint(filepath, downscale=downscale)
+    mmap_mode = "r" if downscale == 1 else None
+    with _fits_in_memory("the elevation map", ELEVATION_DOWNSCALE_REMEDY):
+        elevation, meta = _load_cache(cache_base, fingerprint, mmap_mode)
+    if elevation is not None:
+        print(f"  Loaded from cache: {cache_base}.npy, dimensions {elevation.shape}")
+        return elevation, float(meta["radius_scale"])
 
     if not os.path.isfile(filepath):
         raise FileNotFoundError(
@@ -298,6 +366,9 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
         scale = LDEM_METERS_PER_UNIT / MOON_REFERENCE_RADIUS_M
 
         if downscale == 1:
+            built = _build_full_size_cache(elev_src, scale, cache_base, fingerprint)
+            if built is not None:
+                return built            # already scaled and normalized, on disk
             elevation = elev_src.astype(np.float32)
         else:
             # Downscale by averaging
@@ -324,7 +395,7 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
     radius_scale = float(elevation.max())
     elevation /= radius_scale
 
-    if fingerprint is not None:
+    if downscale > 1:
         _save_cache(cache_base, elevation, {**fingerprint, "radius_scale": radius_scale})
 
     return elevation, radius_scale
