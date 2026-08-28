@@ -2,8 +2,12 @@
 MoonRenderer: core renderer class (composing mixins) and run_renderer entry point.
 """
 
+import os
 import sys
+import time
+import threading
 import tkinter as tk
+import cv2
 import numpy as np
 from contextlib import contextmanager
 from typing import Optional
@@ -133,6 +137,41 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
     # It sits closer than the light, but its material lets shadow rays pass
     # through (see init_renderer), so it never shadows the Moon.
     SUN_RADIUS_KM = 695_700.0
+
+    # Earth's shadow is painted into the albedo rather than cast by a body in
+    # the scene: a shadow caster makes every OptiX launch over the displaced
+    # surface so slow that the driver's watchdog kills it before a frame is
+    # done (measured: the same scene renders at once without one). Painting
+    # costs one texture upload and no ray tracing at all.
+    # Grid the shadow is computed on before being stretched over the texture.
+    # The penumbra is thousands of kilometres wide, so nothing is lost by
+    # working coarse: this is about 80 km per cell at the equator, against a
+    # penumbra some 3600 km wide.
+    ECLIPSE_GRID = (128, 256)
+    # Repaint once the depth of the shadow has moved by this much, so a held
+    # time-step key does not pay for a repaint on every frame
+    ECLIPSE_REPAINT_STEP = 0.002
+    _ECLIPSE_BLOCK_ROWS = 512   # rows painted at a time, to bound the working memory
+    # While time is being scrubbed the shadow is painted into a texture this
+    # much smaller, which costs a fraction of the work (0.05 s against 0.7 s
+    # for the default color map) and still carries more detail than the disk
+    # has pixels on screen. The full-size texture is painted again once the
+    # burst ends, so a still view is never the coarse one.
+    ECLIPSE_PREVIEW_DOWNSCALE = 8
+    # A held time-step key changes the scene faster than a frame can be drawn,
+    # and every repaint restarts the one in flight. So while a burst runs the
+    # shadow is redrawn at most this often - the Moon keeps moving between
+    # times, and the shadow, which crosses it over hours, keeps up well
+    # enough at four times a second.
+    ECLIPSE_PREVIEW_INTERVAL_S = 0.25
+    # Sunlight refracted by Earth's atmosphere is what lights a Moon inside the
+    # umbra: too red to be white light, and some ten thousand times fainter than
+    # a full Moon, which at any exposure that suits the uneclipsed Moon would
+    # render black. This is therefore a visible stand-in rather than a
+    # measurement: the fraction of its unshadowed albedo the surface keeps where
+    # the Sun is hidden, and the colour it keeps it in.
+    ECLIPSE_GLOW_FRACTION = 0.09
+    ECLIPSE_GLOW_COLOR = (1.0, 0.30, 0.11)
     SUN_DISK_NAME = "sun_disk"
     SUN_DISK_DISTANCE = 3100    # distance from the default camera position
     # Flat radiance: >= 1.12 renders as pure white for any gamma in the 0.5-5.0 range,
@@ -510,6 +549,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             return
         self._preview_active = False
         self.rt.set_param(max_accumulation_frames=self.ACCUMULATION_FRAMES)
+        if self._painted is not None:       # scrubbed to a coarse eclipse texture
+            self._paint_eclipse()           # now at full size, on a worker
         self.rt.refresh_scene()
 
     # ---- renderer setup ----
@@ -678,6 +719,18 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         with self._gpu_upload("the color map texture", color_data.nbytes,
                               "Raise --color-downscale, or use a smaller color map."):
             self.rt.set_texture_2d("moon_color", color_data)
+        # Kept, against the rule that the maps are released once uploaded: an
+        # eclipse is painted into a copy of the albedo, and that needs the
+        # unshadowed original both to paint from and to put back afterwards.
+        # Costs the size of the texture again (0.22 GB for the default color
+        # map); the working copy is only made if an eclipse is really rendered.
+        self._albedo = color_data
+        self._albedo_painted = {}       # working copy per scale
+        self._albedo_small = None       # the albedo itself, for scrubbing
+        self._painted = None            # (depth, downscale) now on the GPU
+        self._painting = False          # a full-size repaint is running
+        self._dither_tile = None
+        self._painted_at = 0.0
         moon_material = m_diffuse.copy()
         moon_material["ColorTextures"] = ["moon_color"]
         self.rt.update_material("diffuse", moon_material)
@@ -717,6 +770,192 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
                          pos=[[0.0, self.SUN_DISK_DISTANCE, 0.0]],
                          r=self.SUN_DISK_PARKED_RADIUS, c=self.SUN_DISK_COLOR)
 
+
+    def _eclipse_shadow_factor(self, eclipse, distance: float,
+                               rotation: np.ndarray, light: np.ndarray) -> np.ndarray:
+        """
+        The fraction of the Sun still visible from each point of the surface, on
+        a coarse equirectangular grid laid out like the color map: row 0 the
+        north pole, column 0 longitude 180 W.
+
+        Earth's shadow is a cone, so where it crosses the Moon it is two
+        concentric circles - the umbra, where Earth covers the Sun completely,
+        and the penumbra, where it covers part of it. How much sunlight a point
+        keeps therefore follows from its distance to the cone's axis, through
+        the overlap of two disks: Earth's, of radius (penumbra + umbra) / 2, and
+        the Sun's, of (penumbra - umbra) / 2.
+        """
+        rows, cols = self.ECLIPSE_GRID
+
+        lat = np.radians(np.linspace(90, -90, rows))[:, None]
+        lon = np.radians(np.linspace(-180, 180, cols))[None, :]
+        cos_lat = np.cos(lat) * np.ones_like(lon)
+        # The body frame the labels and pins are placed in (see
+        # renderer_labels._features_unit_vectors), which is the frame the
+        # texture is wrapped in: +Z north, longitude 0 towards -Y
+        body = np.stack([cos_lat * np.sin(lon),
+                         -cos_lat * np.cos(lon),
+                         np.sin(lat) * np.ones_like(lon)], axis=-1)
+        surface = body @ rotation.T * self.MOON_RADIUS_KM
+
+        axis = light / np.linalg.norm(light)        # the cone's axis, sunward
+        angle = np.radians(eclipse.shadow_angle)
+        centre = np.array([-np.sin(angle), 0.0, np.cos(angle)]) * (eclipse.separation * distance)
+        offset = surface - centre
+        perpendicular = offset - (offset @ axis)[..., None] * axis
+        d = np.linalg.norm(perpendicular, axis=-1)
+
+        earth = 0.5 * (eclipse.penumbra_radius + eclipse.umbra_radius) * distance
+        sun = 0.5 * (eclipse.penumbra_radius - eclipse.umbra_radius) * distance
+        visible = np.ones_like(d)
+        visible[d <= earth - sun] = 0.0                             # umbra
+        edge = (d > earth - sun) & (d < earth + sun)
+        if edge.any():
+            e = d[edge]
+            ca = np.clip((e ** 2 + sun ** 2 - earth ** 2) / (2 * e * sun), -1, 1)
+            cb = np.clip((e ** 2 + earth ** 2 - sun ** 2) / (2 * e * earth), -1, 1)
+            covered = (sun ** 2 * np.arccos(ca) + earth ** 2 * np.arccos(cb)
+                       - 0.5 * np.sqrt(np.clip((-e + sun + earth) * (e + sun - earth)
+                                               * (e - sun + earth) * (e + sun + earth), 0, None)))
+            visible[edge] = 1.0 - covered / (np.pi * sun ** 2)
+        return visible
+
+    def _paint_eclipse(self):
+        """
+        Put Earth's shadow into the albedo, or take it out again once the
+        eclipse is over.
+
+        Painted rather than cast: a body placed in the scene to cast the shadow
+        makes every launch over the displaced surface so slow that the driver's
+        watchdog kills it before a frame finishes, while the same scene renders
+        at once without one. The shadow is geometry rather than shading, so
+        multiplying it into the texture puts it exactly where it belongs at no
+        cost per ray - and the terminator, which the renderer does cast, still
+        falls where it should on top of it.
+
+        The painting itself is handed to a worker: at a held time-step key it
+        would otherwise land on the interface thread every few frames and show
+        as a stutter. While a burst runs the worker paints a smaller texture
+        (see ECLIPSE_PREVIEW_DOWNSCALE), and the full-size one when it ends.
+        """
+        depth = self.moon_ephem.eclipse.penumbral_magnitude
+        if depth <= 0.0:
+            if self._painted is not None:                # the eclipse has ended
+                self.rt.set_texture_2d("moon_color", self._albedo)
+                self._painted = None
+            return
+
+        downscale = self.ECLIPSE_PREVIEW_DOWNSCALE if self._preview_active else 1
+        if self._painted is not None:
+            was_depth, was_downscale = self._painted
+            if (downscale == was_downscale
+                    and abs(depth - was_depth) < self.ECLIPSE_REPAINT_STEP):
+                return                                   # too small a change to repaint for
+
+        if (self._preview_active
+                and time.monotonic() - self._painted_at < self.ECLIPSE_PREVIEW_INTERVAL_S):
+            return                                       # redrawn recently enough
+
+        scene = (self.moon_ephem.eclipse, self.moon_ephem.distance,
+                 self.moon_rotation, np.asarray(self.light_pos, dtype=float))
+        if getattr(self.rt, "_root", None) is None or not self.rt._is_started:
+            # Before the window is up there is nothing to hand the work to, and
+            # the first frame should not be drawn without the shadow in it
+            self.rt.set_texture_2d("moon_color", self._paint_albedo(downscale, scene))
+            self._painted = (depth, downscale)
+            self._painted_at = time.monotonic()
+            return
+        self._request_eclipse_paint(depth, downscale, scene)
+
+    def _request_eclipse_paint(self, depth: float, downscale: int, scene: tuple):
+        """
+        Paint the shadow on a worker and upload it when it is ready.
+
+        Numpy drops the GIL for the work, so the window keeps answering keys
+        while it runs. Only one paint is in flight at a time: at a held key the
+        next request would be stale before it finished anyway, and the one
+        after the burst ends paints the full-size texture regardless.
+        """
+        if self._painting:
+            return
+        self._painting = True
+        self._painted_at = time.monotonic()
+
+        def work():
+            try:
+                painted = self._paint_albedo(downscale, scene)
+            except Exception as e:          # the shadow already on screen stands
+                print(f"Warning: could not paint the eclipse: {e}")
+                self._painting = False
+                return
+
+            def upload():
+                self._painting = False
+                if self.rt is None:
+                    return
+                with self.rt._padlock:
+                    self.rt.set_texture_2d("moon_color", painted)
+                    self._painted = (depth, downscale)
+                # The frame on screen was rendered with the texture this one
+                # replaces, so it has to be drawn again to show
+                self.rt.refresh_scene()
+                # The clock has usually moved on while this was being painted
+                self._paint_eclipse()
+            self.rt._root.after(0, upload)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _paint_albedo(self, downscale: int, scene) -> np.ndarray:
+        """The albedo with the shadow multiplied into it, at the given scale."""
+        albedo = self._eclipse_albedo(downscale)
+        painted = self._albedo_painted.get(downscale)
+        if painted is None:
+            painted = np.empty_like(albedo)
+            painted[..., 3] = albedo[..., 3]
+            self._albedo_painted[downscale] = painted
+
+        visible = self._eclipse_shadow_factor(*scene)[..., None]
+        # White sunlight, plus the copper of light bent round Earth. The copper
+        # is brought in against the square root of what the Sun has lost rather
+        # than against the loss itself, so it appears through the penumbra as a
+        # warm tone rather than all at once at the umbra's edge.
+        glow = self.ECLIPSE_GLOW_FRACTION * np.asarray(self.ECLIPSE_GLOW_COLOR, dtype=np.float32)
+        tint = visible + glow * np.sqrt(1.0 - visible)
+        height, width = albedo.shape[:2]
+        tint = cv2.resize(tint.astype(np.float32), (width, height), interpolation=cv2.INTER_LINEAR)
+
+        for y in range(0, height, self._ECLIPSE_BLOCK_ROWS):
+            band = slice(y, y + self._ECLIPSE_BLOCK_ROWS)
+            shaded = albedo[band, :, :3].astype(np.float32)
+            shaded *= tint[band]
+            # Deep in the shadow the albedo is scaled down to single digits,
+            # where whole-number texture values step coarsely enough to show as
+            # bands. Rounding through a fixed dither pattern spreads each step
+            # over neighbouring texels instead, which the eye reads as a
+            # gradient - the same trick as ordered dithering in image tools.
+            shaded += self._eclipse_dither(shaded.shape)
+            painted[band, :, :3] = shaded.astype(np.uint8)
+        return painted
+
+    def _eclipse_dither(self, shape: tuple) -> np.ndarray:
+        """A tile of the 4x4 ordered dither pattern, big enough for one band."""
+        if self._dither_tile is None:
+            bayer = np.array([[0, 8, 2, 10], [12, 4, 14, 6],
+                              [3, 11, 1, 9], [15, 7, 13, 5]], dtype=np.float32)
+            self._dither_tile = (bayer + 0.5) / 16.0
+        rows, cols = shape[0], shape[1]
+        tile = np.tile(self._dither_tile, (rows // 4 + 1, cols // 4 + 1))[:rows, :cols]
+        return tile[..., None]
+
+    def _eclipse_albedo(self, downscale: int) -> np.ndarray:
+        """The albedo to paint on, made smaller for scrubbing the first time it is asked for."""
+        if downscale == 1:
+            return self._albedo
+        if self._albedo_small is None:
+            height, width = self._albedo.shape[:2]
+            self._albedo_small = cv2.resize(self._albedo, (width // downscale, height // downscale),
+                                            interpolation=cv2.INTER_AREA)
+        return self._albedo_small
 
     def calculate_light_pos(self) -> list:
         """
@@ -926,6 +1165,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             # squared, reproducing the real annual 1/d^2 brightness variation.
             sun_light_radius = float(self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)
             self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=sun_light_radius)
+            self._paint_eclipse()
             self.update_overlays()
 
         # Keys reach the main window while the date/time window has focus, so

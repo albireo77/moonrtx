@@ -7,6 +7,8 @@ from skyfield.api import wgs84
 from skyfield.positionlib import ICRF
 from skyfield.framelib import ecliptic_frame, true_equator_and_equinox_of_date
 from skyfield.trigonometry import position_angle_of
+from skyfield.positionlib import ICRF
+from skyfield.functions import length_of, angle_between
 
 from moonrtx.skyfield_utils import (
     SKYFIELD_MOON_FRAME_END_UTC,
@@ -15,7 +17,7 @@ from moonrtx.skyfield_utils import (
     skyfield_moon_frame,
     skyfield_timescale,
 )
-from moonrtx.shared_types import ClairObscurEvent, MoonEphemeris, Observer, VisibilityChart
+from moonrtx.shared_types import ClairObscurEvent, MoonEphemeris, Observer, VisibilityChart, EclipseGeometry
 
 RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
     [[0.0, -1.0, 0.0],
@@ -659,6 +661,61 @@ def sun_altitude_at(subsolar_lat: float, subsolar_lon: float, lat_deg: float, lo
         lat_deg, lon_deg))
 
 
+# Earth's shadow, following the Explanatory Supplement 11.2.3 as skyfield's own
+# eclipselib does, so the two agree: radii to 1e-8 radian, magnitude to 0.1%.
+EARTH_RADIUS_KM = 6378.1366
+SUN_RADIUS_KM = 696_340.0
+MOON_RADIUS_KM_ECLIPSE = 1737.1
+# Danjon's enlargement of the shadow, for the Earth's atmosphere
+# (https://eclipse.gsfc.nasa.gov/LEcat5/shadow.html)
+SHADOW_ENLARGEMENT = 1.01
+
+
+def _eclipse_geometry(time, earth_at, moon_radec, q_deg: float) -> EclipseGeometry:
+    """
+    Where Earth's shadow lies relative to the Moon at this instant.
+
+    Geocentric, because the shadow is cast by Earth as a whole: an observer
+    stands up to one Earth radius off that axis, which at the Moon is nearly
+    two lunar diameters and would move the eclipse visibly.
+
+    The direction to the shadow centre is returned the way bright_limb_angle
+    is - a position angle with the parallactic angle taken out - so the
+    renderer maps both into the view the same way.
+    """
+    earth_to_sun = earth_at.observe(_sun).apparent()
+    earth_to_moon = earth_at.observe(_moon).apparent()
+    sun_km = earth_to_sun.position.km
+    moon_km = earth_to_moon.position.km
+
+    sun_distance = length_of(sun_km)
+    moon_distance = length_of(moon_km)
+    pi_m = SHADOW_ENLARGEMENT * EARTH_RADIUS_KM / moon_distance
+    pi_s = EARTH_RADIUS_KM / sun_distance
+    s_s = SUN_RADIUS_KM / sun_distance
+
+    umbra_radius = pi_m + pi_s - s_s
+    penumbra_radius = pi_m + pi_s + s_s
+    moon_radius = math.asin(MOON_RADIUS_KM_ECLIPSE / moon_distance)
+    # The shadow axis runs from the Sun through Earth, so it meets the sky at
+    # the antisolar point; the Moon's distance from it decides everything
+    separation = float(angle_between(sun_km, -moon_km))
+
+    antisolar = ICRF(-earth_to_sun.position.au, t=time, center=399)
+    shadow_angle = position_angle_of(moon_radec, antisolar.radec(epoch="date")).degrees - q_deg
+
+    twice_moon = 2 * moon_radius
+    return EclipseGeometry(
+        separation=separation,
+        umbra_radius=float(umbra_radius),
+        penumbra_radius=float(penumbra_radius),
+        moon_radius=float(moon_radius),
+        umbral_magnitude=float((umbra_radius + moon_radius - separation) / twice_moon),
+        penumbral_magnitude=float((penumbra_radius + moon_radius - separation) / twice_moon),
+        shadow_angle=_wrap_signed_degrees(shadow_angle),
+    )
+
+
 def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> MoonEphemeris:
 
     dt_utc = _validate_supported_datetime(dt_local)
@@ -722,6 +779,9 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
     sun_distance_km = sun_topo.distance().km
     rotation_matrix = _rotation_matrix(R_moon, R_equator, moon_ra_deg, moon_dec_deg, q_deg)
 
+    eclipse = _eclipse_geometry(
+        time, earth_at, earth_at.observe(_moon).apparent().radec(epoch="date"), q_deg)
+
     return MoonEphemeris(
         az=moon_az.degrees,
         alt=moon_alt.degrees,
@@ -742,4 +802,5 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
         subsolar_lat=sun_lat_moon,
         subsolar_lon=_wrap_signed_degrees(sun_lon_moon),
         rotation_matrix=rotation_matrix,
+        eclipse=eclipse,
     )

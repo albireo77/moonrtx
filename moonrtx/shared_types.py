@@ -33,6 +33,21 @@ class VisibilityChart(NamedTuple):
     transits: list[tuple[datetime, float]]
     illumination: list[tuple[datetime, float]]
 
+class EclipseGeometry(NamedTuple):
+    """
+    Where Earth's shadow falls on the Moon, all angles in radians as seen from
+    Earth's centre (see astro._eclipse_geometry).
+    """
+    separation: float           # Moon centre to the shadow axis
+    umbra_radius: float
+    penumbra_radius: float
+    moon_radius: float
+    umbral_magnitude: float     # fraction of the Moon's diameter inside the umbra
+    penumbral_magnitude: float
+    shadow_angle: float         # degrees to the shadow centre in the view frame,
+                                # measured as bright_limb_angle is
+
+
 class MoonEphemeris(NamedTuple):
     az: float
     alt: float
@@ -53,6 +68,7 @@ class MoonEphemeris(NamedTuple):
     subsolar_lat: float
     subsolar_lon: float
     rotation_matrix: NDArray
+    eclipse: EclipseGeometry
 
 class MoonFeature(NamedTuple):
     name: str
