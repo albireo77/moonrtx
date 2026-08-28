@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import cv2
 from contextlib import contextmanager
 from typing import Optional
@@ -271,7 +272,14 @@ def _build_full_size_cache(elev_src: np.ndarray, scale: float,
     """
     height, width = elev_src.shape
     path = cache_base + ".npy"
-    print(f"  Building {path} ({height * width * 4 / (1024**3):.2f} GB on disk), "
+    needed = height * width * 4
+    free = shutil.disk_usage(os.path.dirname(path) or ".").free
+    if free < needed * 1.02:
+        print(f"Not enough disk space for {path} "
+              f"({needed / (1024**3):.2f} GB needed, {free / (1024**3):.2f} GB free)")
+        return None
+
+    print(f"  Building {path} ({needed / (1024**3):.2f} GB on disk), "
           f"{_ELEVATION_BLOCK_ROWS} rows at a time")
     try:
         elevation = np.lib.format.open_memmap(path, mode="w+", dtype=np.float32,
