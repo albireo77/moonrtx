@@ -2,7 +2,6 @@ import argparse
 import os
 import re
 import sys
-import shutil
 import struct
 import base64
 import urllib.request
@@ -17,7 +16,7 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_available,
+from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_available, free_space,
                                  starmap_cache_available)
 from moonrtx.moon_renderer import run_renderer, starmap_target_width
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
@@ -121,7 +120,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
                   f"using the cached data downscaled by {downscale}.")
             return True
         if elevation_file == DEFAULT_ELEVATION_FILE_LOCAL_PATH:
-            _, _, free = shutil.disk_usage(os.getcwd())
+            free = free_space(elevation_file)
             if free < DEFAULT_ELEVATION_FILE_SIZE_BYTES * 1.02:
                 print(f"Not enough disk space to download default elevation file ({DEFAULT_ELEVATION_FILE_SIZE_GB} GB required).")
                 return False
@@ -146,7 +145,7 @@ def get_starmap_file() -> Optional[str]:
         if starmap_cache_available(STARMAP_FILE_LOCAL_PATH, starmap_target_width()):
             print(f"Starmap file {STARMAP_FILE_LOCAL_PATH} is not present; using the cached star map.")
             return STARMAP_FILE_LOCAL_PATH
-        _, _, free = shutil.disk_usage(os.getcwd())
+        free = free_space(STARMAP_FILE_LOCAL_PATH)
         if free < STARMAP_FILE_SIZE_BYTES * 1.02:
             print(f"Not enough disk space to download starmap file ({STARMAP_FILE_SIZE_MB} MB required).")
             return None
@@ -168,7 +167,7 @@ def check_color_file(color_file: str, color_downscale: int) -> bool:
                   f"using the cached data downscaled by {color_downscale}.")
             return True
         if color_file == DEFAULT_COLOR_FILE_LOCAL_PATH:
-            _, _, free = shutil.disk_usage(os.getcwd())
+            free = free_space(color_file)
             if free < DEFAULT_COLOR_FILE_SIZE_BYTES * 1.02:
                 print(f"Not enough disk space to download color file ({DEFAULT_COLOR_FILE_SIZE_MB} MB required).")
                 return False

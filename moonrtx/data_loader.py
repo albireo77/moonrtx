@@ -21,6 +21,39 @@ from plotoptix.utils import read_image
 _CACHE_VERSION = 1
 
 
+def free_space(filepath: str) -> int:
+    """
+    Free bytes on the drive that will hold this file.
+
+    Asked of the file's own folder rather than of the working directory: the
+    maps live beside the program and a map named on the command line can be
+    anywhere at all, while the app is started from wherever the user happens to
+    be - on Windows, often another drive entirely. The folder does not have to
+    exist yet, a download creating it later, so the question goes to the nearest
+    parent that does.
+
+    Parameters
+    ----------
+    filepath : str
+        Path the file will have
+
+    Returns
+    -------
+    int
+        Bytes free where it would go
+    """
+    folder = os.path.dirname(os.path.abspath(filepath))
+    while not os.path.isdir(folder):
+        parent = os.path.dirname(folder)
+        if parent == folder:                # a drive that is not there at all
+            break
+        folder = parent
+    try:
+        return shutil.disk_usage(folder).free
+    except OSError:
+        return 0        # nowhere to write at all, which the caller reports as no room
+
+
 def _cache_fingerprint(filepath: str, **params) -> dict:
     """
     What a cache has to match before it is used: the processing parameters
@@ -273,7 +306,10 @@ def _build_full_size_cache(elev_src: np.ndarray, scale: float,
     height, width = elev_src.shape
     path = cache_base + ".npy"
     needed = height * width * 4
-    free = shutil.disk_usage(os.path.dirname(path) or ".").free
+    # Asked before anything is written: open_memmap only reserves the space
+    # lazily on some file systems, so without this the failure would arrive a
+    # band at a time, after minutes of work
+    free = free_space(path)
     if free < needed * 1.02:
         print(f"Not enough disk space for {path} "
               f"({needed / (1024**3):.2f} GB needed, {free / (1024**3):.2f} GB free)")
