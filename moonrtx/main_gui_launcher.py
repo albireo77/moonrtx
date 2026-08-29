@@ -473,17 +473,25 @@ class MainWindow(tk.Tk):
         parameter's --help says (see main.parse_args), so the two descriptions
         of a setting stay one description.
         """
-        latitude = ("Observer latitude in degrees.")
-        longitude = ("Observer longitude in degrees.")
+        latitude = ("Observer latitude in degrees")
+        longitude = ("Observer longitude in degrees")
+        # The sexagesimal boxes each hold one part of the angle, so they say
+        # which part and what it may hold, rather than repeating the whole
+        # coordinate three times over (see parse_sexa_fields for the ranges;
+        # the hemisphere comes from the N/S and E/W box beside them)
+        lat_degrees = "Whole degrees of latitude (0 - 90)"
+        lon_degrees = "Whole degrees of longitude (0 - 180)"
+        minutes = "Minutes of arc (0 - 59), a sixtieth of a degree each"
+        seconds = "Seconds of arc (0 - 60), a sixtieth of a minute each. May have decimals."
         time_hint = ("Observation time, as a wall clock in the timezone below.")
 
         for widget, hint in (
             (self.lat_decimal, latitude),
-            (self.lat_deg, latitude), (self.lat_min, latitude), (self.lat_sec, latitude),
+            (self.lat_deg, lat_degrees), (self.lat_min, minutes), (self.lat_sec, seconds),
             (self.lon_decimal, longitude),
-            (self.lon_deg, longitude), (self.lon_min, longitude), (self.lon_sec, longitude),
+            (self.lon_deg, lon_degrees), (self.lon_min, minutes), (self.lon_sec, seconds),
             (self.elevation_entry,
-             "Observer elevation above sea level in meters (0 - 100000)."),
+             "Observer elevation above sea level in meters (0 - 100000)"),
             (self.date_entry, time_hint),
             (self.hour_spin, time_hint), (self.minute_spin, time_hint), (self.second_spin, time_hint),
             (self.tz_combo,
