@@ -198,14 +198,14 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Elevation (meters):").grid(row=2, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Time:").grid(row=3, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Timezone:").grid(row=4, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Elevation file:").grid(row=5, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Color file:").grid(row=6, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="View orientation:").grid(row=5, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Color downscale:").grid(row=6, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Elevation downscale:").grid(row=7, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Color downscale:").grid(row=8, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Brightness:").grid(row=9, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Gamma:").grid(row=10, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Time step (minutes):").grid(row=11, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="View orientation:").grid(row=12, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Elevation file:").grid(row=8, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Color file:").grid(row=9, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Brightness:").grid(row=10, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Gamma:").grid(row=11, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Time step (minutes):").grid(row=12, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Init view parameter:").grid(row=13, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Parallactic mode:").grid(row=14, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="No stars:").grid(row=15, column=0, sticky=tk.E, pady=2)
@@ -276,11 +276,11 @@ class MainWindow(tk.Tk):
 
         self.elevation_file = tk.Entry(frm, width=5)
         self.elevation_file.insert(0, DEFAULT_ELEVATION_FILE_LOCAL_PATH)
-        self.elevation_file.grid(row=5, column=1, sticky=tk.EW, pady=2)
+        self.elevation_file.grid(row=8, column=1, sticky=tk.EW, pady=2)
 
         self.color_file = tk.Entry(frm, width=5)
         self.color_file.insert(0, DEFAULT_COLOR_FILE_LOCAL_PATH)
-        self.color_file.grid(row=6, column=1, sticky=tk.EW, pady=2)
+        self.color_file.grid(row=9, column=1, sticky=tk.EW, pady=2)
 
         self.downscale = tk.Entry(frm, width=5)
         self.downscale.grid(row=7, column=1, sticky=tk.EW, pady=2)
@@ -288,23 +288,23 @@ class MainWindow(tk.Tk):
 
         self.color_downscale = ttk.Combobox(frm, width=5, state="readonly",
                                             values=[str(f) for f in COLOR_DOWNSCALE_FACTORS])
-        self.color_downscale.grid(row=8, column=1, sticky=tk.EW, pady=2)
+        self.color_downscale.grid(row=6, column=1, sticky=tk.EW, pady=2)
         self.color_downscale.set("1")
 
         self.brightness = tk.Entry(frm, width=5)
-        self.brightness.grid(row=9, column=1, sticky=tk.EW, pady=2)
+        self.brightness.grid(row=10, column=1, sticky=tk.EW, pady=2)
         self.brightness.insert(0, 80)
 
         self.gamma_entry = tk.Entry(frm, width=5)
-        self.gamma_entry.grid(row=10, column=1, sticky=tk.EW, pady=2)
+        self.gamma_entry.grid(row=11, column=1, sticky=tk.EW, pady=2)
         self.gamma_entry.insert(0, "2.2")
 
         self.time_step_minutes = tk.Entry(frm, width=5)
-        self.time_step_minutes.grid(row=11, column=1, sticky=tk.EW, pady=2)
+        self.time_step_minutes.grid(row=12, column=1, sticky=tk.EW, pady=2)
         self.time_step_minutes.insert(0, 15)
 
         self.init_view_orientation = ttk.Combobox(frm, width=5, state="readonly", values=VIEW_ORIENTATIONS)
-        self.init_view_orientation.grid(row=12, column=1, sticky=tk.EW, pady=2)
+        self.init_view_orientation.grid(row=5, column=1, sticky=tk.EW, pady=2)
         self.init_view_orientation.set(VIEW_ORIENTATIONS[0])
 
         self.init_view = tk.Entry(frm, width=5)
@@ -340,8 +340,8 @@ class MainWindow(tk.Tk):
             self.second_var.set(f"{n.second:02d}")
 
         tk.Button(frm, text="Now", width=12, command=_set_time_now).grid(row=3, column=2, sticky=tk.W, pady=2, padx=(4, 0))
-        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=5, column=2, sticky=tk.W, pady=2, padx=(4, 0))
-        tk.Button(frm, text="Browse", width=12, command=self.browse_color).grid(row=6, column=2, sticky=tk.W, pady=2, padx=(4, 0))
+        tk.Button(frm, text="Browse", width=12, command=self.browse_elevation).grid(row=8, column=2, sticky=tk.W, pady=2, padx=(4, 0))
+        tk.Button(frm, text="Browse", width=12, command=self.browse_color).grid(row=9, column=2, sticky=tk.W, pady=2, padx=(4, 0))
 
 
         self.lat_sexa_frame = tk.Frame(frm)
