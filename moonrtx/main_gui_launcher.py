@@ -206,9 +206,9 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Gamma:").grid(row=10, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Time step (minutes):").grid(row=11, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="View orientation:").grid(row=12, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Parallactic mode:").grid(row=13, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="No stars:").grid(row=14, column=0, sticky=tk.E, pady=2)
-        tk.Label(frm, text="Init view parameter:").grid(row=15, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Init view parameter:").grid(row=13, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Parallactic mode:").grid(row=14, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="No stars:").grid(row=15, column=0, sticky=tk.E, pady=2)
 
         self.lat_dir_var = tk.StringVar(value="N")
         self.lon_dir_var = tk.StringVar(value="E")
@@ -307,22 +307,22 @@ class MainWindow(tk.Tk):
         self.init_view_orientation.grid(row=12, column=1, sticky=tk.EW, pady=2)
         self.init_view_orientation.set(VIEW_ORIENTATIONS[0])
 
+        self.init_view = tk.Entry(frm, width=5)
+        self.init_view.grid(row=13, column=1, sticky=tk.EW, pady=2)
+
         self.parallactic_mode_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
             frm,
-            text="(maintains Moon aligned to celestial north)",
+            text="(keep Moon aligned to celestial north)",
             variable=self.parallactic_mode_var,
-        ).grid(row=13, column=1, sticky=tk.W, pady=2)
+        ).grid(row=14, column=1, columnspan=2, sticky=tk.W, pady=2)
 
         self.no_stars_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
             frm,
             text="(saves GPU memory)",
             variable=self.no_stars_var,
-        ).grid(row=14, column=1, sticky=tk.W, pady=2)
-
-        self.init_view = tk.Entry(frm, width=5)
-        self.init_view.grid(row=15, column=1, sticky=tk.EW, pady=2)
+        ).grid(row=15, column=1, columnspan=2, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
@@ -354,8 +354,11 @@ class MainWindow(tk.Tk):
         tk.Label(self.lat_sexa_frame, text="°").grid(row=0, column=2)
         self.lat_min.grid(row=0, column=3)
         tk.Label(self.lat_sexa_frame, text="'").grid(row=0, column=4)
-        self.lat_sec.grid(row=0, column=5)
+        self.lat_sec.grid(row=0, column=5, sticky=tk.EW)
         tk.Label(self.lat_sexa_frame, text='"').grid(row=0, column=6)
+        # The row is stretched to the width of the column, and the seconds box
+        # takes the slack, so it ends where every other box does
+        self.lat_sexa_frame.grid_columnconfigure(5, weight=1)
 
         self.lon_sexa_frame = tk.Frame(frm)
         ttk.Combobox(self.lon_sexa_frame, width=2, state="readonly",
@@ -367,8 +370,9 @@ class MainWindow(tk.Tk):
         tk.Label(self.lon_sexa_frame, text="°").grid(row=0, column=2)
         self.lon_min.grid(row=0, column=3)
         tk.Label(self.lon_sexa_frame, text="'").grid(row=0, column=4)
-        self.lon_sec.grid(row=0, column=5)
+        self.lon_sec.grid(row=0, column=5, sticky=tk.EW)
         tk.Label(self.lon_sexa_frame, text='"').grid(row=0, column=6)
+        self.lon_sexa_frame.grid_columnconfigure(5, weight=1)
 
         # Run button and status
         self.run_btn = tk.Button(self, text=f"Run {APP_NAME}", command=self.on_run)
@@ -414,8 +418,8 @@ class MainWindow(tk.Tk):
                 self.lat_decimal_frame.grid_remove()
                 self.lon_decimal_frame.grid_remove()
                 # show sexagesimal frames
-                self.lat_sexa_frame.grid(row=0, column=1, sticky=tk.W, pady=2)
-                self.lon_sexa_frame.grid(row=1, column=1, sticky=tk.W, pady=2)
+                self.lat_sexa_frame.grid(row=0, column=1, sticky=tk.EW, pady=2)
+                self.lon_sexa_frame.grid(row=1, column=1, sticky=tk.EW, pady=2)
             else:
                 # hide sexagesimal frames
                 self.lat_sexa_frame.grid_remove()
@@ -528,8 +532,8 @@ class MainWindow(tk.Tk):
              f"{VIEW_ORIENTATION_SNWE} mirrored the other way (Newtonian with a diagonal)."),
             (self.init_view,
              "Default filename of a screenshot, without the extension. It restores the\n"
-             "camera, time and location of the moment that screenshot was taken, and\n"
-             "then the fields above are ignored."),
+             "camera, time and location of the moment that screenshot was taken,\n"
+             "and then some fields (e.g. observer coordinates or time) are ignored."),
             (self.preset_name_entry, "Name to save the settings above under."),
             (self.preset_combobox, "A saved set of settings, put back by Load."),
         ):
