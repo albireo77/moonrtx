@@ -473,12 +473,9 @@ class MainWindow(tk.Tk):
         parameter's --help says (see main.parse_args), so the two descriptions
         of a setting stay one description.
         """
-        latitude = ("Observer latitude in degrees.\n"
-                    "Examples: 50.0614 (Cracow, Poland), -34.6131 (Buenos Aires, Argentina)")
-        longitude = ("Observer longitude in degrees.\n"
-                     "Examples: 19.9365 (Cracow, Poland), -58.3772 (Buenos Aires, Argentina)")
-        time_hint = ("Observation time, as a wall clock in the timezone below.\n"
-                     "The button beside the date opens a calendar, Now fills in the current time.")
+        latitude = ("Observer latitude in degrees.")
+        longitude = ("Observer longitude in degrees.")
+        time_hint = ("Observation time, as a wall clock in the timezone below.")
 
         for widget, hint in (
             (self.lat_decimal, latitude),
@@ -486,8 +483,7 @@ class MainWindow(tk.Tk):
             (self.lon_decimal, longitude),
             (self.lon_deg, longitude), (self.lon_min, longitude), (self.lon_sec, longitude),
             (self.elevation_entry,
-             "Observer elevation above sea level in meters (0 - 100000).\n"
-             "Examples: 0 (sea level), 219 (Cracow, Poland)"),
+             "Observer elevation above sea level in meters (0 - 100000)."),
             (self.date_entry, time_hint),
             (self.hour_spin, time_hint), (self.minute_spin, time_hint), (self.second_spin, time_hint),
             (self.tz_combo,
