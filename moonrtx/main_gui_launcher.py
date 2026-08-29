@@ -383,6 +383,11 @@ class MainWindow(tk.Tk):
         tk.Label(preset_frame, text="Preset:").pack(side=tk.LEFT)
         self.preset_name_entry = tk.Entry(preset_frame)
         self.preset_name_entry.pack(side=tk.LEFT, padx=(2, 4), fill=tk.X, expand=True)
+        # The one box where Enter means something else: a name is typed here to
+        # save it under, not to start a render with. Bound on the box itself, so
+        # it is seen before the window's Enter, and stopped there.
+        for key in ("<Return>", "<KP_Enter>"):
+            self.preset_name_entry.bind(key, self._save_on_return)
         tk.Button(preset_frame, text="Save", width=6,
                   command=self._save_preset).pack(side=tk.LEFT, padx=2)
         self.preset_combobox = ttk.Combobox(preset_frame, state="readonly")
@@ -422,7 +427,45 @@ class MainWindow(tk.Tk):
         # attach trace to update UI when radio changes
         self.coord_mode.trace_add('write', update_coord_mode)
 
+        # Enter anywhere in the form runs, as every box here holds a short value
+        # that is typed and then wanted on screen. Bound on the window rather
+        # than on each box, so the spinboxes, the timezone list and the preset
+        # name are all covered; the buttons answer to space, not Enter, so
+        # nothing is taken from them.
+        self.bind("<Return>", self._run_on_return)
+        self.bind("<KP_Enter>", self._run_on_return)
+
         self._add_hints()
+
+    def _run_on_return(self, event=None):
+        """
+        Run on Enter, unless the key belongs to something else.
+
+        A dropped-down list takes Enter to choose the entry under the cursor -
+        picking a timezone must not also start the renderer - and the Run button
+        is disabled while one runs, which Enter has to respect as well.
+        """
+        if str(self.run_btn["state"]) == tk.DISABLED:
+            return
+        if self._dropdown_is_open(event.widget if event is not None else None):
+            return
+        self.on_run()
+
+    def _save_on_return(self, _event=None):
+        """Enter in the preset name box saves the preset instead of running."""
+        self._save_preset()
+        return "break"          # and does not reach the window's Enter as well
+
+    @staticmethod
+    def _dropdown_is_open(widget) -> bool:
+        """Whether this widget is a combobox showing its list."""
+        if not isinstance(widget, ttk.Combobox):
+            return False
+        try:
+            popdown = widget.tk.eval(f"ttk::combobox::PopdownWindow {widget}")
+            return bool(int(widget.tk.eval(f"winfo ismapped {popdown}")))
+        except tk.TclError:         # no popdown built yet, so nothing is open
+            return False
 
     def _add_hints(self):
         """
