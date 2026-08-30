@@ -313,8 +313,9 @@ class MainWindow(tk.Tk):
         self.parallactic_mode_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
             frm,
-            text="(keep Moon aligned to celestial north)",
+            text="(keeps Moon aligned to celestial north)",
             variable=self.parallactic_mode_var,
+            padx=0, borderwidth=0, highlightthickness=0,
         ).grid(row=14, column=1, columnspan=2, sticky=tk.W, pady=2)
 
         self.no_stars_var = tk.BooleanVar(value=False)
@@ -322,6 +323,7 @@ class MainWindow(tk.Tk):
             frm,
             text="(saves GPU memory)",
             variable=self.no_stars_var,
+            padx=0, borderwidth=0, highlightthickness=0,
         ).grid(row=15, column=1, columnspan=2, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
