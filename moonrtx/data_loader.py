@@ -261,7 +261,7 @@ def load_moon_features(filepath: str) -> list:
                             standard_label=standard_label,
                             spot_label=spot_label,
                             status_bar=status_bar,
-                            feature_id=int(feature_id_str) if feature_id_str else None,
+                            feature_id=feature_id_str or None,
                             www_address=www_address_str or None,
                         )
                         moon_features.append(moon_feature)

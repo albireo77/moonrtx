@@ -63,7 +63,7 @@ class MoonFeature(NamedTuple):
     standard_label: bool
     spot_label: bool
     status_bar: bool
-    feature_id: Optional[int]
+    feature_id: Optional[str]
     www_address: Optional[str]
 
 class Camera(NamedTuple):
