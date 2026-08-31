@@ -109,8 +109,9 @@ class NavigationMixin:
             Moon feature if found, None otherwise
         """
         # Squared angular distance from every feature center; small-angle
-        # approximation with cos_lat correction for longitude
-        dist2 = (lat - self._sb_lat) ** 2 + ((lon - self._sb_lon) * self._sb_cos_lat) ** 2
+        # approximation with cos_lat correction for longitude.
+        dlon = (lon - self._sb_lon + 180.0) % 360.0 - 180.0
+        dist2 = (lat - self._sb_lat) ** 2 + (dlon * self._sb_cos_lat) ** 2
         hits = np.flatnonzero(dist2 <= self._sb_radius2)
         # First hit is the smallest feature due to sorted order
         return self._sb_features[hits[0]] if hits.size else None
