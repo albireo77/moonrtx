@@ -1118,6 +1118,7 @@ class DialogsMixin:
             help_win.destroy()
 
         help_win.protocol("WM_DELETE_WINDOW", on_close)
+        help_win.bind("<Escape>", lambda e: (on_close(), "break")[1])
 
         main_frame = tk.Frame(help_win, padx=15, pady=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -1302,6 +1303,7 @@ class DialogsMixin:
             search_win.destroy()
         
         search_win.protocol("WM_DELETE_WINDOW", on_close)
+        search_win.bind("<Escape>", lambda e: (on_close(), "break")[1])
         
         # Search entry
         frame = tk.Frame(search_win)
@@ -1442,6 +1444,7 @@ class DialogsMixin:
             self.datetime_dialog_focused = False
         
         dt_win.protocol("WM_DELETE_WINDOW", on_close)
+        dt_win.bind("<Escape>", lambda e: (on_close(), "break")[1])
         dt_win.bind("<FocusIn>", on_focus_in)
         dt_win.bind("<FocusOut>", on_focus_out)
         
