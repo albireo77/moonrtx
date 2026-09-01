@@ -3,14 +3,17 @@ DialogsMixin: dialog windows (help, search, save, datetime) for MoonRenderer.
 """
 
 import os
+import io
+import csv
 import glob
 import base64
 import struct
 import calendar
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import filedialog
-from datetime import datetime, timedelta
+from tkinter import filedialog, messagebox
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from moonrtx import astro
 from moonrtx.shared_types import Camera, MoonFeature
@@ -485,6 +488,139 @@ class DialogsMixin:
 
         self._show_dialog(win)
 
+    # ---- taking results out of the dialogs ----
+
+    # Planner results are worth keeping: they are the nights to put in a diary,
+    # and until now they lived only in a window that closes. Copy hands them to
+    # whatever the user is writing in; Save writes a spreadsheet (CSV) or a
+    # calendar (ICS) that any diary application reads.
+    EXPORT_FILE_TYPES = (("Calendar file", "*.ics"), ("Spreadsheet", "*.csv"))
+
+    def _copy_lines_to_clipboard(self, lines: list[str]) -> bool:
+        """
+        Put the listed rows on the clipboard, tab separated.
+
+        Tk owns the clipboard only while it runs, which is exactly the case
+        here, and the text survives to other applications as long as the app is
+        open - the usual Tk caveat, and the reason this is a copy rather than a
+        cut.
+        """
+        if self.rt is None or not lines:
+            return False
+        try:
+            self.rt._root.clipboard_clear()
+            self.rt._root.clipboard_append("\n".join(lines))
+            self.rt._root.update()          # hand it over before returning
+            return True
+        except Exception as e:
+            print(f"Could not copy to the clipboard: {e}")
+            return False
+
+    @staticmethod
+    def _csv_text(columns: list[str], rows: list[list[str]]) -> str:
+        """The rows as CSV, quoting whatever needs it."""
+        out = io.StringIO()
+        writer = csv.writer(out, lineterminator="\n")
+        writer.writerow(columns)
+        writer.writerows(rows)
+        return out.getvalue()
+
+    @staticmethod
+    def _ics_text(events: list[dict]) -> str:
+        """
+        The events as an iCalendar file.
+
+        Times go in as UTC, which every calendar reads and which needs no
+        timezone definition inside the file. Each event carries the observing
+        detail in its description, so the entry is still useful months later,
+        and an identifier built from its own times, so importing the same scan
+        twice updates the entries rather than doubling them.
+        """
+        def stamp(when: datetime) -> str:
+            return when.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+        def escape(text: str) -> str:
+            """Backslash, semicolon, comma and newline carry meaning in a property value."""
+            return (text.replace("\\", "\\\\")
+                        .replace(";", "\\;")
+                        .replace(",", "\\,")
+                        .replace("\r\n", "\n")
+                        .replace("\n", "\\n"))
+
+        def fold(line: str) -> str:
+            """
+            Break a long property over several lines, as RFC 5545 asks.
+
+            A continuation starts with one space, which the reader takes back
+            off again. The limit counts octets, not characters.
+            """
+            out, current = [], ""
+            for char in line:
+                limit = 75 if not out else 74      # a continuation spends one on its space
+                if len(current.encode("utf-8")) + len(char.encode("utf-8")) > limit:
+                    out.append(current)
+                    current = ""
+                current += char
+            out.append(current)
+            return ("\r\n ").join(out)
+
+        lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MoonRTX//Observation planner//EN",
+                 "CALSCALE:GREGORIAN"]
+        now = stamp(datetime.now(timezone.utc))
+        for event in events:
+            uid = f"{stamp(event['start'])}-{abs(hash(event['summary'])) % 10**10}@moonrtx"
+            lines += ["BEGIN:VEVENT",
+                      f"UID:{uid}",
+                      f"DTSTAMP:{now}",
+                      f"DTSTART:{stamp(event['start'])}",
+                      f"DTEND:{stamp(event['end'])}",
+                      f"SUMMARY:{escape(event['summary'])}",
+                      f"DESCRIPTION:{escape(event['description'])}",
+                      "END:VEVENT"]
+        lines.append("END:VCALENDAR")
+        return "\r\n".join(fold(line) for line in lines) + "\r\n"       # RFC 5545 asks for CRLF
+
+    def _date_range_suffix(self, entries: list[dict]) -> str:
+        """
+        The span the results cover, for the file name.
+
+        Dates are on the observer's clock, as the list shows them, so a file
+        saved in the evening is named for the night it is about. A scan that
+        lands on one day is named for that day once rather than twice.
+        """
+        if not entries:
+            return ""
+        first = min(self.in_observer_clock(e["start"]).date() for e in entries)
+        last = max(self.in_observer_clock(e["end"]).date() for e in entries)
+        return f"_{first:%Y-%m-%d}" if first == last else f"_{first:%Y-%m-%d}_{last:%Y-%m-%d}"
+
+    def _save_results(self, parent, default_name: str, columns: list[str],
+                      rows: list[list[str]], events: list[dict]) -> Optional[str]:
+        """
+        Ask where to put the results and write them, as a calendar or a sheet.
+
+        Returns the path written, or None when the user backed out. The format
+        follows the extension chosen in the dialog, so the same button serves
+        both without a second question.
+        """
+        if not rows:
+            return None
+        path = filedialog.asksaveasfilename(
+            parent=parent, title="Save the results", initialfile=default_name,
+            defaultextension=".ics", filetypes=self.EXPORT_FILE_TYPES)
+        if not path:
+            return None
+        text = self._csv_text(columns, rows) if path.lower().endswith(".csv") \
+            else self._ics_text(events)
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write(text)
+        except OSError as e:
+            messagebox.showerror("Error", f"Could not write {path}:\n{e}", parent=parent)
+            return None
+        print(f"Saved: {path}")
+        return path
+
     def clair_obscur_dialog(self):
         """
         Show upcoming clair-obscur events - the light-and-shadow shapes that
@@ -663,9 +799,53 @@ class DialogsMixin:
         listbox.bind('<Double-Button-1>', go_to)
         listbox.bind('<Return>', go_to)
 
+        def results_for_export():
+            """The listed events as a table and as calendar entries."""
+            columns = ["Event", "Peak", "Pattern start", "Pattern end", "Visible from here",
+                       "Sun over event (deg)", "Moon altitude (deg)", "Sky"]
+            rows, entries = [], []
+            for o in events:
+                peak = self.in_observer_clock(o["peak"])
+                start = self.in_observer_clock(o["start"])
+                end = self.in_observer_clock(o["end"])
+                if o["visible_start"] is not None:
+                    vs = self.in_observer_clock(o["visible_start"])
+                    ve = self.in_observer_clock(o["visible_end"])
+                    visible = f"{vs:%Y-%m-%d %H:%M} .. {ve:%H:%M}"
+                else:
+                    visible = "below the horizon"
+                rows.append([o["event"], f"{peak:%Y-%m-%d %H:%M}", f"{start:%Y-%m-%d %H:%M}",
+                             f"{end:%Y-%m-%d %H:%M}", visible, f"{o['sun_alt']:+.1f}",
+                             f"{o['moon_alt']:+.0f}", sky_of(o)])
+                entries.append({
+                    "summary": f"MoonRTX: {o['event']}",
+                    # The pattern itself, not the part of it above the horizon:
+                    # the window to watch for is the whole of it, and the
+                    # description says when it is up here
+                    "start": o["start"], "end": o["end"],
+                    "description": (f"Peak at {peak:%Y-%m-%d %H:%M}. Visible from here: {visible}. "
+                                    f"Sun {o['sun_alt']:+.1f} deg over the formation, Moon "
+                                    f"{o['moon_alt']:+.0f} deg up in a {sky_of(o)} sky."),
+                })
+            return columns, rows, entries
+
+        def copy_results():
+            columns, rows, _ = results_for_export()
+            if self._copy_lines_to_clipboard(["	".join(columns)] + ["	".join(r) for r in rows]):
+                copy_button.config(text="Copied")
+                win.after(1200, lambda: copy_button.config(text="Copy"))
+
+        def save_results():
+            columns, rows, entries = results_for_export()
+            self._save_results(win, "clair_obscur_events" + self._date_range_suffix(entries),
+                               columns, rows, entries)
+
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, pady=(8, 0))
         tk.Button(btn_frame, text="Go to selected", command=go_to, width=16).pack(side=tk.LEFT)
+        copy_button = tk.Button(btn_frame, text="Copy", command=copy_results, width=8)
+        copy_button.pack(side=tk.LEFT, padx=(6, 0))
+        tk.Button(btn_frame, text="Save...", command=save_results, width=8).pack(side=tk.LEFT, padx=(6, 0))
         tk.Button(btn_frame, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
 
         rescan()
@@ -841,9 +1021,60 @@ class DialogsMixin:
         listbox.bind('<Double-Button-1>', go_to)
         listbox.bind('<Return>', go_to)
 
+        def results_for_export():
+            """
+            The listed windows as a table and as calendar entries.
+
+            Times are written on the observer's clock, as the list shows them,
+            except in the calendar, where _ics_text puts them in UTC.
+            """
+            libration = mode_var.get() == "libration"
+            columns = ["Best time", "Window start", "Window end"]
+            columns += (["Presented (deg)", "Libration long", "Libration lat"] if libration
+                        else ["Event"])
+            columns += ["Sun over feature (deg)", "Moon altitude (deg)", "Sky"]
+            rows, events = [], []
+            for w in windows:
+                best = self.in_observer_clock(w["best"])
+                start = self.in_observer_clock(w["start"])
+                end = self.in_observer_clock(w["end"])
+                row = [f"{best:%Y-%m-%d %H:%M}", f"{start:%Y-%m-%d %H:%M}", f"{end:%Y-%m-%d %H:%M}"]
+                if libration:
+                    row += [f"{w['earth_alt']:.2f}", f"{w['libr_long']:+.2f}", f"{w['libr_lat']:+.2f}"]
+                    headline = f"{feature.name} best presented ({w['earth_alt']:.0f} deg from the limb)"
+                else:
+                    row += [w["event"]]
+                    headline = f"{feature.name} at the terminator ({w['event']})"
+                row += [f"{w['sun_alt']:.1f}", f"{w['moon_alt']:.0f}", sky_of(w)]
+                rows.append(row)
+                events.append({
+                    "summary": f"MoonRTX: {headline}",
+                    "start": w["start"], "end": w["end"],
+                    "description": (f"{feature.name} at lat {feature.lat:.2f}, lon {feature.lon:.2f}. "
+                                    f"Best at {best:%Y-%m-%d %H:%M}. "
+                                    f"Sun {w['sun_alt']:.1f} deg over the feature, Moon "
+                                    f"{w['moon_alt']:.0f} deg up in a {sky_of(w)} sky."),
+                })
+            return columns, rows, events
+
+        def copy_results():
+            columns, rows, _ = results_for_export()
+            if self._copy_lines_to_clipboard(["	".join(columns)] + ["	".join(r) for r in rows]):
+                copy_button.config(text="Copied")
+                win.after(1200, lambda: copy_button.config(text="Copy"))
+
+        def save_results():
+            columns, rows, events = results_for_export()
+            name = f"{feature.name.replace(' ', '_')}_{mode_var.get()}"
+            self._save_results(win, name + self._date_range_suffix(events),
+                               columns, rows, events)
+
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, pady=(8, 0))
         tk.Button(btn_frame, text="Go to selected", command=go_to, width=16).pack(side=tk.LEFT)
+        copy_button = tk.Button(btn_frame, text="Copy", command=copy_results, width=8)
+        copy_button.pack(side=tk.LEFT, padx=(6, 0))
+        tk.Button(btn_frame, text="Save...", command=save_results, width=8).pack(side=tk.LEFT, padx=(6, 0))
         tk.Button(btn_frame, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
 
         rescan()
