@@ -167,6 +167,10 @@ class LabelsMixin:
         # Pin digits are mirrored like any other lettering
         self.update_pins_for_view_orientation()
 
+        # As are the names beside the Sun and Earth markers
+        if self.sub_points_visible:
+            self.update_sub_points()
+
         self._update_status_view()
 
     def _rebuild_grid_labels_arrays(self):

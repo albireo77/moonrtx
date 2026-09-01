@@ -1120,7 +1120,7 @@ class DialogsMixin:
         help_win.protocol("WM_DELETE_WINDOW", on_close)
         help_win.bind("<Escape>", lambda e: (on_close(), "break")[1])
 
-        main_frame = tk.Frame(help_win, padx=15, pady=10)
+        main_frame = tk.Frame(help_win, padx=12, pady=6)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Entries from F1 to M/N use a fixed-width key column so hyphens align
@@ -1142,6 +1142,7 @@ class DialogsMixin:
             ("L", "Toggle standard labels"),
             ("S", "Toggle spot labels"),
             ("P", "Toggle pins ON/OFF"),
+            ("Y", "Toggle markers for sub-solar and sub-Earth points"),
             ("B", "Toggle the field of view frame (set it up with F3)"),
             ("R", "Reset camera and time to initial state"),
             ("V", "Reset camera to default state (useful after starting with `--init-view` parameter)"),
@@ -1179,20 +1180,17 @@ class DialogsMixin:
 
         for key, desc in aligned_lines:
             row = tk.Frame(main_frame)
-            row.pack(fill=tk.X, pady=1)
+            row.pack(fill=tk.X)
             key_label = tk.Label(row, text=key, width=max_key_len, anchor='e', font=('Consolas', 9, 'bold'))
             key_label.pack(side=tk.LEFT)
             tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
 
         for key, desc in other_lines:
             row = tk.Frame(main_frame)
-            row.pack(fill=tk.X, pady=1)
+            row.pack(fill=tk.X)
             key_label = tk.Label(row, text=key, anchor='e', font=('Consolas', 9, 'bold'))
             key_label.pack(side=tk.LEFT)
             tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
-
-        # Close button
-        tk.Button(main_frame, text="Close", command=on_close, width=10).pack(pady=(10, 0))
 
         self._show_dialog(help_win, grab=False)
 

@@ -27,6 +27,7 @@ from moonrtx.renderer_pins import PinsMixin
 from moonrtx.renderer_navigation import NavigationMixin
 from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
+from moonrtx.renderer_subpoints import SubPointsMixin
 
 
 # The star map is loaded several times wider than the window: it wraps the whole
@@ -56,7 +57,7 @@ def starmap_target_width() -> int:
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
-                   VideoMixin, FovMixin):
+                   VideoMixin, FovMixin, SubPointsMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -246,6 +247,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._grid_lines_edges = None
         self._grid_labels_pos = None
         self._grid_labels_edges = None
+
+        # Markers at the points the Sun and Earth stand over (see SubPointsMixin)
+        self.sub_points_visible = False
 
         self.view_orientation = init_view_orientation
         self.initial_view_orientation = init_view_orientation  # For reset with R/V keys
@@ -855,6 +859,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_spot_labels_orientation()
         if self.pins_visible:
             self.update_pins_orientation()
+        if self.sub_points_visible:
+            self.update_sub_points()
 
 
     def shifted_time(self, minutes: int) -> datetime:
@@ -1178,6 +1184,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_info_panel()
         elif event.keysym.lower() == 'p':
             moon_renderer.toggle_pins()
+        elif event.keysym.lower() == 'y':
+            moon_renderer.toggle_sub_points()
         elif event.keysym.lower() == 'q':
             moon_renderer.change_time(-moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 'w':

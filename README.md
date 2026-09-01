@@ -61,6 +61,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
 **P** - Toggle pins ON/OFF  
+**Y** - Toggle markers for sub-solar and sub-Earth points  
 **B** - Toggle the field of view frame (set it up with F3)  
 **R** - Reset camera and time to initial state  
 **V** - Reset camera to default state (useful after starting with `--init-view` parameter)  
