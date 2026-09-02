@@ -1375,9 +1375,9 @@ class DialogsMixin:
             ("P", "Toggle pins ON/OFF"),
             ("Y", "Toggle markers for sub-solar and sub-Earth points"),
             ("B", "Toggle the field of view frame (set it up with F3)"),
+            ("C", "Toggle compass showing how far the view is turned (rotated) from default"),
             ("R", "Reset camera and time to initial state"),
             ("V", "Reset camera to default state (useful after starting with `--init-view` parameter)"),
-            ("C", "Center and fix view on point under cursor"),
             ("F", "Search for Moon features (craters, mounts etc.)"),
             ("X", "Find clair-obscur events (Lunar X, Jewelled Handle, Rupes Recta ...)"),
             ("U", "Chart when the Moon is up over the coming month"),
@@ -1395,8 +1395,8 @@ class DialogsMixin:
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
+            ("Space", "Center and fix view on point under cursor"),
             ("Arrows", "Move view"),
-            ("Space", "Toggle compass showing how far the view is turned (rotated) from default"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),

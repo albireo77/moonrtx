@@ -1136,7 +1136,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'r':
             moon_renderer.reset_camera_position()
         elif event.keysym.lower() == 'c':
-            moon_renderer.center_view_on_cursor(event)
+            moon_renderer.toggle_compass()
         elif event.keysym == 'F3':
             moon_renderer.fov_overlay_dialog()
         elif event.keysym.lower() == 'b':
@@ -1189,7 +1189,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'y':
             moon_renderer.toggle_sub_points()
         elif event.keysym == 'space':
-            moon_renderer.toggle_compass()
+            moon_renderer.center_view_on_cursor(event)
         elif event.keysym.lower() == 'q':
             moon_renderer.change_time(-moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 'w':
