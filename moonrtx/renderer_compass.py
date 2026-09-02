@@ -26,6 +26,13 @@ about the poles, though, and neither does the polar axis: both are unchanged by
 one. The ray across the plane is what shows that, swinging round with the globe,
 its named end saying which way it has gone.
 
+Under the globe the same difference is written out in three numbers: how far the
+middle of the view has been carried in longitude and in latitude, and how far the
+picture has been twisted. They describe where the view stands rather than which
+keys were pressed - Ctrl with an arrow turns about an axis fixed to the Moon, so
+away from the default longitude it twists the picture as well as moving it. All
+three read zero when the view is at its default.
+
 Both colours come from a camera - the live one and the default one - so the
 mirrored view orientations apply to both. Like the field-of-view frame this is
 drawn on the Tk canvas rather than into the scene, so it does not appear in
@@ -53,6 +60,13 @@ class CompassMixin:
     # for the disk underneath - and the lines crossing it - to show through.
     COMPASS_DISK_STIPPLE = "gray25"
     COMPASS_FONT = ("Consolas", 10, "bold")
+    COMPASS_VALUE_FONT = ("Consolas", 10)
+    # Clear of the globe by a bump and a label, the plane reaching the rim when it
+    # is turned full on to the eye
+    COMPASS_VALUE_GAP_PX = 20
+    # Nearer the middle of the disk than this, in units of the radius, the pole is
+    # turned so nearly at the eye that the angle it is drawn at means nothing
+    COMPASS_POLE_ON_LIMIT = 0.05
     COMPASS_MARGIN_PX = 16                  # from the corner of the window
     COMPASS_LABEL_GAP_PX = 3                # between the letter and the limb
     # Half of the upper-right quarter of the window, as a square
@@ -171,6 +185,100 @@ class CompassMixin:
         return (np.outer(np.cos(angle), np.array(self.COMPASS_NORTH))
                 + np.outer(np.sin(angle), np.array(self.COMPASS_PRIME)))
 
+    def _compass_view_centre(self, basis) -> Optional[tuple]:
+        """
+        Selenographic latitude and longitude of the point at the middle of a view.
+
+        The eye lies along the view direction reversed, and the Moon is at the
+        origin of the scene, so that direction taken back into the lunar frame is
+        the point turned towards it.
+        """
+        if basis is None or self.moon_rotation is None:
+            return None
+        _right, _up, forward = basis
+
+        body = self.moon_rotation.T @ -forward
+        lat = math.degrees(math.asin(max(-1.0, min(1.0, float(body[2])))))
+        # The frame the labels and pins are placed in: longitude 0 towards -Y
+        return lat, math.degrees(math.atan2(float(body[0]), float(-body[1])))
+
+    def _compass_pole_angle(self, basis) -> Optional[float]:
+        """
+        The angle the north pole is drawn at, measured from straight up towards the
+        right of the picture. None when the pole is turned so nearly at the eye
+        that it projects onto the middle of the disk, where it has no angle.
+
+        Read on the picture rather than in the scene, mirrored view orientations
+        included, so it answers the twist actually seen.
+        """
+        screen = self._compass_screen_points(np.array([self.COMPASS_NORTH], dtype=float),
+                                             basis)
+        if screen is None:
+            return None
+        x, y = float(screen[0][0]), float(screen[0][1])
+        if math.hypot(x, y) < self.COMPASS_POLE_ON_LIMIT:
+            return None
+        return math.degrees(math.atan2(x, y))
+
+    @staticmethod
+    def _compass_turn(degrees_apart: float) -> float:
+        """An angle brought into -180 to 180, a turn being the shorter way round."""
+        return (degrees_apart + 180.0) % 360.0 - 180.0
+
+    def _compass_readings(self) -> Optional[list]:
+        """
+        How far the view has been turned from its default, in three numbers.
+
+        lon and lat are where the middle of the view has been carried over the
+        surface, against the point the default view has there - which is the
+        sub-Earth point, so the reading is a departure from what libration alone
+        would show, and stays put as the clock runs. rot is the twist of the
+        picture: the angle the north pole is drawn at, against the angle the
+        default view draws it at.
+
+        They say where the view stands, not which keys were pressed to get there.
+        H and J move rot alone, but Ctrl with an arrow turns about an axis fixed to
+        the Moon rather than to the screen, and away from the default longitude
+        that axis is oblique to the view: the same key then tips and twists at
+        once. A quarter turn in longitude puts the equatorial axis straight at the
+        eye, where Ctrl+Up and Ctrl+Down are a pure roll and move nothing but rot.
+        Carrying the view round a closed loop over the surface leaves it turned as
+        well, which is a property of the sphere and not of the reading.
+        """
+        live, default = self._compass_live_basis(), self._compass_default_basis()
+        centre, centre_default = (self._compass_view_centre(live),
+                                  self._compass_view_centre(default))
+        if centre is None or centre_default is None:
+            return None
+
+        readings = [("lon", self._compass_turn(centre[1] - centre_default[1])),
+                    ("lat", self._compass_turn(centre[0] - centre_default[0]))]
+        angle, angle_default = (self._compass_pole_angle(live),
+                                self._compass_pole_angle(default))
+        readings.append(("rot", None if angle is None or angle_default is None
+                         else self._compass_turn(angle - angle_default)))
+        return readings
+
+    def _draw_compass_readings(self, canvas, centre_x, centre_y, radius):
+        """
+        Write the three readings under the globe, in the colour of the globe they
+        describe. All three stand at zero when the view is at its default, which is
+        the same thing the orange lying under the yellow says.
+        """
+        readings = self._compass_readings()
+        if readings is None:
+            return
+
+        line_height = self.COMPASS_VALUE_FONT[1] + 4
+        top = centre_y + radius + self.COMPASS_VALUE_GAP_PX
+        for row, (name, value) in enumerate(readings):
+            # A fixed width for the number, so the three read as a column
+            written = "   --" if value is None else f"{value:+6.1f}"
+            self._compass_items.append(canvas.create_text(
+                centre_x, top + row * line_height,
+                text=f"\u0394{name} {written}\u00b0", anchor="n",
+                fill=self.COMPASS_CURRENT_COLOR, font=self.COMPASS_VALUE_FONT))
+
     def _compass_placement(self) -> Optional[tuple]:
         """Centre and radius of the globe, in canvas pixels."""
         canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
@@ -269,6 +377,8 @@ class CompassMixin:
             self._draw_compass_prime(canvas, centre_x, centre_y, radius, basis, colour)
             self._draw_compass_arc(canvas, centre_x, centre_y, radius, basis, colour)
             self._draw_compass_pole(canvas, centre_x, centre_y, radius, basis, colour)
+
+        self._draw_compass_readings(canvas, centre_x, centre_y, radius)
 
     def _draw_compass_axis(self, canvas, centre_x, centre_y, radius, basis, colour):
         """
