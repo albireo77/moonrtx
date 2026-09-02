@@ -28,6 +28,7 @@ from moonrtx.renderer_navigation import NavigationMixin
 from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
 from moonrtx.renderer_subpoints import SubPointsMixin
+from moonrtx.renderer_compass import CompassMixin
 
 
 # The star map is loaded several times wider than the window: it wraps the whole
@@ -57,7 +58,7 @@ def starmap_target_width() -> int:
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
-                   VideoMixin, FovMixin, SubPointsMixin):
+                   VideoMixin, FovMixin, SubPointsMixin, CompassMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -339,6 +340,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Field-of-view overlay state (see renderer_fov.FovMixin)
         self._init_fov_overlay()
+
+        # View-orientation globe state (see renderer_compass.CompassMixin)
+        self._init_compass_overlay()
 
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
@@ -1186,6 +1190,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_pins()
         elif event.keysym.lower() == 'y':
             moon_renderer.toggle_sub_points()
+        elif event.keysym == 'space':
+            moon_renderer.toggle_compass()
         elif event.keysym.lower() == 'q':
             moon_renderer.change_time(-moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 'w':

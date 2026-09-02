@@ -79,6 +79,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Q/W** - Go back/forward in time by step minutes (hold the key to get an animation effect)  
 **M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
 **Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
+**Space** - Toggle the compass globe showing how far the view is turned from default  
 **Arrows** - Move view  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
