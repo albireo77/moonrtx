@@ -3,6 +3,8 @@ NavigationMixin: camera navigation, zoom, coordinate conversion,
 distance measurement, and feature lookup for MoonRenderer.
 """
 
+import math
+
 import numpy as np
 from typing import Optional
 
@@ -152,6 +154,62 @@ class NavigationMixin:
 
         # Update status bar
         self._update_all_status_panels()
+
+    def toggle_parallactic_mode(self):
+        """
+        Switch between holding celestial north up and following the zenith.
+
+        The switch is a roll of the Moon about the line of sight - the parallactic
+        angle enters the rotation as nothing else (see astro._rotation_matrix) -
+        and that is the whole of what it should do: turn the picture, not move it.
+        An eye still on that line is not touched by such a roll, so from the
+        default view it needs no help. One swung off the line by the rotation keys
+        would otherwise find a different patch of surface under it afterwards, the
+        globe having turned beneath it, so it is carried round by the same roll.
+        The eye keeps its place over the surface and the picture alone changes.
+        """
+        if self.rt is None:
+            return
+
+        before = self.moon_rotation
+        self.parallactic_mode = not self.parallactic_mode
+        self.update_view()
+        self._update_status_parallactic()
+
+        if before is None or self.moon_rotation is None:
+            return
+
+        # Nothing but the parallactic angle has changed, so what the Moon has just
+        # done is a roll about the line of sight, which the scene has along +Y
+        roll = self.moon_rotation @ before.T
+        angle = math.atan2(roll[0, 2], roll[0, 0])
+        if abs(angle) < 1e-12:
+            return
+
+        cam = self.rt.get_camera(self.CAMERA_NAME)
+        eye, target = roll @ np.array(cam["Eye"]), roll @ np.array(cam["Target"])
+        up = roll @ np.array(cam["Up"])
+
+        # Carried whole, the camera would see exactly the picture it saw before and
+        # the toggle would show nothing; rolling up back about the view direction
+        # turns the picture by the angle the Moon turned, and leaves it square to
+        # that direction - which simply holding up still would not: swing the view
+        # to the limb and a large parallactic angle would bring the two into line
+        # and leave the camera with no picture at all.
+        view = target - eye
+        norm = np.linalg.norm(view)
+        if norm > 0.0:
+            axis = view / norm
+            cos_a, sin_a = math.cos(-angle), math.sin(-angle)
+            up = (up * cos_a + np.cross(axis, up) * sin_a
+                  + axis * np.dot(axis, up) * (1 - cos_a))
+
+        if (np.allclose(eye, cam["Eye"]) and np.allclose(target, cam["Target"])
+                and np.allclose(up, cam["Up"])):
+            return                      # on the line of sight, where all of that cancels
+
+        self.rt.update_camera(self.CAMERA_NAME, eye=eye.tolist(), target=target.tolist(),
+                              up=up.tolist())
 
     def reset_to_default_view(self):
         """

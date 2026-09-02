@@ -1120,9 +1120,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 's':
             moon_renderer.toggle_spot_labels()
         elif event.keysym == 'F4':
-            moon_renderer.parallactic_mode = not moon_renderer.parallactic_mode
-            moon_renderer.update_view()
-            moon_renderer._update_status_parallactic()
+            moon_renderer.toggle_parallactic_mode()
         elif event.keysym == 'F5':
             moon_renderer.set_view_orientation(VIEW_ORIENTATION_NSWE)
             original_key_handler(event)
