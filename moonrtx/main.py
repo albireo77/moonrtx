@@ -70,13 +70,11 @@ def parse_args():
     parser.add_argument("--elevation", type=int, default=0,
                         help="Observer elevation above sea level in meters. Examples: 0 (sea level), 219 (Cracow, Poland).")
     parser.add_argument("--time", type=str, default="now",
-                        help="Local time in ISO format, read in --timezone. Examples: 2025-12-26T16:30:00, "
-                             "2026-07-04T22:15:00. A UTC offset may still be given, and then names the "
-                             "instant instead. Omit to start at the current time.")
+                        help="Local time to start at, on the clock of --timezone. Example: 2025-12-26T16:30:00. "
+                             "Omit to start at the current time.")
     parser.add_argument("--timezone", type=str, default=None,
-                        help="IANA timezone the observation time is given in, e.g. Europe/Warsaw, "
-                             "America/New_York. Its daylight saving and historical rules decide the UTC "
-                             "offset of each date. Omit to use this computer's own timezone.")
+                        help="Timezone the observation time is given in, as an IANA name. Examples: Europe/Warsaw, America/New_York. "
+                             "Omit to use this computer's own timezone.")
     parser.add_argument("--elevation-file", type=str, default=DEFAULT_ELEVATION_FILE_LOCAL_PATH,
                         help="Path to Moon elevation map local file")
     parser.add_argument("--color-file", type=str, default=DEFAULT_COLOR_FILE_LOCAL_PATH,
