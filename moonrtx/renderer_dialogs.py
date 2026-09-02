@@ -1395,8 +1395,8 @@ class DialogsMixin:
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
-            ("Space", "Toggle the compass globe showing how far the view is turned from default"),
             ("Arrows", "Move view"),
+            ("Space", "Toggle the compass globe showing how far the view is turned (rotated) from default"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),

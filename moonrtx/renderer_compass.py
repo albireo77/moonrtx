@@ -8,20 +8,28 @@ longer where the eye expects it, with nothing on the disk itself to say how far
 it has moved - the terminator and the limb look much the same whichever way
 round the globe is.
 
-The compass answers that. In yellow, the equator and the prime meridian as the
-default view of this moment shows them - the view the V key returns to, so the
-libration and the parallactic roll of the date are already in the yellow. Over
-the same disk, in orange, the same two circles where they lie now, with N at the
-pole the meridian ends on. The difference between the two colours is exactly what
-the three rotation keys have done: reset the view and the orange lands under the
-yellow, which is then all that shows.
+The compass answers that. Two globes are drawn over each other, each as its
+equatorial plane and, out of the middle of it, two rays: one to the north pole and
+one to longitude 0 on the equator, each bumped and named at its tip, with the
+meridian arc between those tips closing them into a quarter of a globe. In yellow,
+the globe as the default view of this moment shows it - the view the V key returns
+to, so the libration and the parallactic roll of the date are already in the
+yellow. In orange, the globe as it lies now. The difference between the two colours
+is exactly what the rotation keys have done: reset the view and the orange lands
+under the yellow, which is then all that shows.
 
-The part of each line on the near side of the globe is drawn solid and the part
-behind it dashed, so the two halves of a rotation are told apart. Both colours
-come from a camera - the live one and the default one - so the mirrored view
-orientations apply to both. Like the field-of-view frame this is drawn on the Tk
-canvas rather than into the scene, so it does not appear in images saved with
-F12 or in exported video.
+The planes are filled rather than outlined, in the stipple a Tk canvas has to use
+for want of transparency. An equator projects to an ellipse however the globe is
+turned, so the fill says which way the plane is tilted and how near edge-on it is
+at a glance - the reading the rings of a planet give. It says nothing about a spin
+about the poles, though, and neither does the polar axis: both are unchanged by
+one. The ray across the plane is what shows that, swinging round with the globe,
+its named end saying which way it has gone.
+
+Both colours come from a camera - the live one and the default one - so the
+mirrored view orientations apply to both. Like the field-of-view frame this is
+drawn on the Tk canvas rather than into the scene, so it does not appear in
+images saved with F12 or in exported video.
 """
 
 import math
@@ -38,15 +46,25 @@ class CompassMixin:
 
     COMPASS_REFERENCE_COLOR = "#ffd24a"     # the default position, in yellow
     COMPASS_CURRENT_COLOR = "#ff7a1a"       # orange, well clear of the reference gold
-    COMPASS_LINE_WIDTH = 3                  # both sets of circles
-    COMPASS_LIMB_WIDTH = 1                  # the outline around them
-    COMPASS_FAR_DASH = (2, 3)               # behind the globe, so drawn broken
+    COMPASS_LINE_WIDTH = 3                  # the axis of each globe
+    COMPASS_DOT_RADIUS = 4                  # the bumps along it and on the rim
+    # The equatorial plane is filled rather than merely outlined, and the fill
+    # is stippled: a Tk canvas has no transparency, so a dither is the only way
+    # for the disk underneath - and the lines crossing it - to show through.
+    COMPASS_DISK_STIPPLE = "gray25"
     COMPASS_FONT = ("Consolas", 10, "bold")
     COMPASS_MARGIN_PX = 16                  # from the corner of the window
     COMPASS_LABEL_GAP_PX = 3                # between the letter and the limb
     # Half of the upper-right quarter of the window, as a square
     COMPASS_SIZE_FRACTION = 0.25
-    COMPASS_POINTS = 121                    # samples per drawn circle
+    COMPASS_POINTS = 181                    # samples round each equator
+    # Two points of the lunar frame, as unit vectors: the north pole, which the
+    # axis is drawn through, and longitude 0 on the equator, where the prime
+    # meridian crosses it. The second rides round the rim of the plane as the
+    # globe is spun about its poles, which nothing else here would show.
+    COMPASS_NORTH = (0.0, 0.0, 1.0)
+    COMPASS_PRIME = (0.0, -1.0, 0.0)
+    COMPASS_ARC_POINTS = 46                 # samples along the quarter between them
     # The camera is read on a light poll, as the field-of-view frame is: the
     # view also moves under the mouse and under PlotOptiX's own handlers, where
     # there is nothing to hook. A redraw is skipped while nothing has moved.
@@ -140,15 +158,18 @@ class CompassMixin:
         lon = np.linspace(0.0, 2 * math.pi, points)
         return np.column_stack((np.sin(lon), -np.cos(lon), np.zeros_like(lon)))
 
-    @staticmethod
-    def _compass_meridian(points: int) -> np.ndarray:
+    def _compass_arc(self, points: int) -> np.ndarray:
         """
-        The prime meridian, once round: over the north pole to longitude 180
-        and back under the south pole, so it circles the globe as the equator
-        does rather than stopping at the poles.
+        The quarter of the prime meridian running from the north pole down to
+        longitude 0 on the equator - the ground the two rays leave uncovered.
+
+        The two ends are unit vectors at right angles to each other, so turning
+        one into the other by cosine and sine sweeps the great circle between
+        them at constant speed.
         """
-        angle = np.linspace(0.0, 2 * math.pi, points)
-        return np.column_stack((np.zeros_like(angle), -np.cos(angle), np.sin(angle)))
+        angle = np.linspace(0.0, math.pi / 2, points)
+        return (np.outer(np.cos(angle), np.array(self.COMPASS_NORTH))
+                + np.outer(np.sin(angle), np.array(self.COMPASS_PRIME)))
 
     def _compass_placement(self) -> Optional[tuple]:
         """Centre and radius of the globe, in canvas pixels."""
@@ -179,40 +200,37 @@ class CompassMixin:
                 canvas.delete(item)
         self._compass_items = []
 
-    def _draw_compass_circle(self, canvas, screen, centre_x, centre_y, radius, colour, width):
-        """
-        Draw one projected circle, its far half broken.
-
-        The points are walked in order and cut into runs on the same side of the
-        globe, so each run is one canvas line: a circle seen edge-on crosses
-        from one side to the other twice, and drawing it as a single line would
-        either lose the break or cost an item per segment.
-        """
-        run = []
-        run_near = None
-        for x, y, near in screen:
-            near = bool(near)
-            if run_near is not None and near != run_near:
-                # The crossing point belongs to both runs, so the line does not
-                # fall apart at the limb
-                run.append((x, y))
-                self._compass_draw_run(canvas, run, run_near, centre_x, centre_y, radius, colour, width)
-                run = [(x, y)]
-            else:
-                run.append((x, y))
-            run_near = near
-        self._compass_draw_run(canvas, run, bool(run_near), centre_x, centre_y, radius, colour, width)
-
-    def _compass_draw_run(self, canvas, run, near, centre_x, centre_y, radius, colour, width):
-        """One canvas line through the points of a run, in globe-radius units."""
-        if len(run) < 2:
-            return
+    def _compass_polygon(self, screen, centre_x, centre_y, radius) -> list:
+        """Projected points as the flat list of canvas coordinates Tk takes."""
         coords = []
-        for x, y in run:
+        for x, y, _near in screen:
             coords += [centre_x + x * radius, centre_y - y * radius]
-        self._compass_items.append(canvas.create_line(
-            *coords, fill=colour, width=width,
-            dash=None if near else self.COMPASS_FAR_DASH))
+        return coords
+
+    def _draw_compass_disk(self, canvas, coords, colour):
+        """
+        Fill the plane a circle bounds.
+
+        The equator projects to an ellipse however the globe is turned, and
+        filling it says at a glance which way the plane is tilted and how far
+        edge-on it is - the same reading the rings of a planet give.
+        """
+        self._compass_items.append(canvas.create_polygon(
+            *coords, fill=colour, stipple=self.COMPASS_DISK_STIPPLE, outline=""))
+
+    def _compass_bump(self, canvas, x, y, colour):
+        """One dot on a line, drawn as a disk of its own colour."""
+        bump = self.COMPASS_DOT_RADIUS
+        self._compass_items.append(canvas.create_oval(
+            x - bump, y - bump, x + bump, y + bump, fill=colour, outline=""))
+
+    def _compass_at(self, body_point, basis, centre_x, centre_y, radius):
+        """One point of the lunar frame, in canvas pixels."""
+        screen = self._compass_screen_points(np.array([body_point], dtype=float), basis)
+        if screen is None:
+            return None
+        x, y = float(screen[0][0]), float(screen[0][1])
+        return centre_x + x * radius, centre_y - y * radius
 
     def _draw_compass(self):
         """Redraw the globe from the current camera."""
@@ -227,48 +245,119 @@ class CompassMixin:
             return
         centre_x, centre_y, radius = placement
 
-        # The limb, which is a circle from wherever it is seen
-        self._compass_items.append(canvas.create_oval(
-            centre_x - radius, centre_y - radius, centre_x + radius, centre_y + radius,
-            outline=self.COMPASS_REFERENCE_COLOR, width=self.COMPASS_LIMB_WIDTH))
-
-        # The two circles twice over: as the default view of this moment shows
-        # them, and as the view being looked through does
+        # Each globe is drawn as its equatorial plane, the axis through it, the
+        # point where the prime meridian crosses the equator, and the north pole
+        # the axis ends on. The current globe goes down first and the reference
+        # over it: at the default view the two fall on each other, and yellow on
+        # top is the plainest way of saying so.
         equator = self._compass_equator(self.COMPASS_POINTS)
-        meridian = self._compass_meridian(self.COMPASS_POINTS)
-        # The current pair goes down first and the reference over it, both being
-        # the same weight now: at the default view they fall on each other, and
-        # yellow on top is the plainest way of saying so
+        globes = []
         for basis, colour in ((self._compass_live_basis(), self.COMPASS_CURRENT_COLOR),
                               (self._compass_default_basis(), self.COMPASS_REFERENCE_COLOR)):
-            for body_points in (equator, meridian):
-                screen = self._compass_screen_points(body_points, basis)
-                if screen is None:
-                    continue
-                self._draw_compass_circle(canvas, screen, centre_x, centre_y, radius,
-                                          colour, self.COMPASS_LINE_WIDTH)
+            screen = self._compass_screen_points(equator, basis)
+            if screen is None:
+                continue
+            globes.append((basis, colour,
+                           self._compass_polygon(screen, centre_x, centre_y, radius)))
 
-        self._draw_compass_pole(canvas, centre_x, centre_y, radius)
+        # Both planes are laid down before either axis, so a fill never dims a
+        # line drawn before it
+        for _basis, colour, coords in globes:
+            self._draw_compass_disk(canvas, coords, colour)
+        for basis, colour, _coords in globes:
+            self._draw_compass_axis(canvas, centre_x, centre_y, radius, basis, colour)
+            self._draw_compass_prime(canvas, centre_x, centre_y, radius, basis, colour)
+            self._draw_compass_arc(canvas, centre_x, centre_y, radius, basis, colour)
+            self._draw_compass_pole(canvas, centre_x, centre_y, radius, basis, colour)
 
-    def _draw_compass_pole(self, canvas, centre_x, centre_y, radius):
+    def _draw_compass_axis(self, canvas, centre_x, centre_y, radius, basis, colour):
         """
-        Write N at the north pole of the current globe, at the end of its
-        meridian. Set outwards from the middle of the disk so it does not sit
-        on the line it belongs to, and simply above the middle in the one view
-        where outwards means nothing - straight down onto the pole.
+        The axis the globe turns on, from the middle of the disk - where it meets
+        the equatorial plane - out to the north pole, bumped at that end.
+
+        The half it is drawn on says as much as the whole: which way the axis
+        leans, and how far it is tipped towards the eye - foreshortened to nothing
+        when the pole is turned straight at us. Drawn through, the two globes
+        would cross in the middle of a small picture and be read as one shape.
         """
-        pole = self._compass_screen_points(np.array([[0.0, 0.0, 1.0]]),
-                                           self._compass_live_basis())
-        if pole is None:
+        north = self._compass_at(self.COMPASS_NORTH, basis, centre_x, centre_y, radius)
+        if north is None:
             return
 
-        x, y = float(pole[0][0]), float(pole[0][1])
-        length = math.hypot(x, y)
-        out_x, out_y = (0.0, -1.0) if length < 1e-6 else (x / length, -y / length)
+        self._compass_items.append(canvas.create_line(
+            centre_x, centre_y, north[0], north[1],
+            fill=colour, width=self.COMPASS_LINE_WIDTH))
+        self._compass_bump(canvas, north[0], north[1], colour)
+
+    def _draw_compass_prime(self, canvas, centre_x, centre_y, radius, basis, colour):
+        """
+        The prime meridian where it crosses the equatorial plane: a ray from the
+        centre out to longitude 0, bumped and named at its end.
+
+        Neither the plane nor the polar axis is changed by a spin about the poles,
+        so without this line Ctrl+Left/Right would move nothing here. It swings
+        round with the globe instead, and its label says which way it has gone.
+
+        At the default view longitude 0 faces the eye and the line is foreshortened
+        to a point on the centre of the disk, which is the reading not spun; the
+        label then goes above it, there being no outwards to speak of.
+        """
+        end = self._compass_at(self.COMPASS_PRIME, basis, centre_x, centre_y, radius)
+        if end is None:
+            return
+
+        self._compass_items.append(canvas.create_line(
+            centre_x, centre_y, end[0], end[1],
+            fill=colour, width=self.COMPASS_LINE_WIDTH))
+        self._compass_bump(canvas, end[0], end[1], colour)
+        self._compass_label(canvas, end[0], end[1], centre_x, centre_y,
+                            "0", colour, (0.0, -1.0))
+
+    def _draw_compass_arc(self, canvas, centre_x, centre_y, radius, basis, colour):
+        """
+        The meridian arc between the ends of the two rays, closing them into one
+        shape: a quarter of the globe, drawn as it is really seen.
+
+        Where the rays give two directions, the arc gives the surface they span,
+        and it is the part of the drawing that bulges out of the flat as the globe
+        turns. At the default view the meridian is edge-on and the arc lies along
+        the polar ray, which is the reading everything is where it started.
+        """
+        screen = self._compass_screen_points(self._compass_arc(self.COMPASS_ARC_POINTS),
+                                             basis)
+        if screen is None:
+            return
+        self._compass_items.append(canvas.create_line(
+            *self._compass_polygon(screen, centre_x, centre_y, radius),
+            fill=colour, width=self.COMPASS_LINE_WIDTH))
+
+    def _compass_label(self, canvas, x, y, centre_x, centre_y, text, colour, fallback):
+        """
+        Write a label just outside a point, set away from the middle of the disk
+        so it clears the line it belongs to. A point on that middle has no
+        outwards to speak of, and takes the direction given instead.
+        """
+        away_x, away_y = x - centre_x, y - centre_y
+        length = math.hypot(away_x, away_y)
+        out_x, out_y = fallback if length < 1e-6 else (away_x / length, away_y / length)
         offset = self.COMPASS_FONT[1] * 0.9 + self.COMPASS_LABEL_GAP_PX
         self._compass_items.append(canvas.create_text(
-            centre_x + x * radius + out_x * offset, centre_y - y * radius + out_y * offset,
-            text="N", fill=self.COMPASS_CURRENT_COLOR, font=self.COMPASS_FONT))
+            x + out_x * offset, y + out_y * offset,
+            text=text, fill=colour, font=self.COMPASS_FONT))
+
+    def _draw_compass_pole(self, canvas, centre_x, centre_y, radius, basis, colour):
+        """
+        Write N at the north pole of the globe, at the end of its axis. Set
+        outwards from the middle of the disk so it does not sit on the line it
+        belongs to, and simply above the middle in the one view where outwards
+        means nothing - straight down onto the pole.
+        """
+        north = self._compass_at(self.COMPASS_NORTH, basis, centre_x, centre_y, radius)
+        if north is None:
+            return
+
+        self._compass_label(canvas, north[0], north[1], centre_x, centre_y,
+                            "N", colour, (0.0, -1.0))
 
     def _compass_view_state(self):
         """
