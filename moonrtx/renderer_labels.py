@@ -61,12 +61,24 @@ class LabelsMixin:
 
         Glyphs are laid out in the tangent plane there, running east and standing
         north, so the lettering follows the graticule. Whether that comes out
-        readable depends on where east and north end up pointing on screen, which
-        the observer's latitude, the hour and the view orientation all have a say
-        in: from the southern hemisphere the Moon is seen the other way up, and
-        the graticule turns through the night and converges towards the poles, so
-        one answer cannot serve every label. Each glyph is therefore mirrored to
-        suit its own place on the disk: never upside down, always left to right.
+        readable depends on where north ends up pointing on screen, which the
+        observer's latitude, the hour and the view orientation all have a say in:
+        from the southern hemisphere the Moon is seen the other way up, and the
+        graticule turns through the night, so one answer cannot serve every label.
+
+        East, north and the outward normal make a right-handed frame wherever they
+        are taken, and so do right, up and the direction back to the eye for anyone
+        looking at the label. One turns into the other; neither mirrors into it. So
+        a glyph wants turning and never mirroring, and since two flips make a turn
+        and one makes a mirror, the two go together. A label beyond the limb is no
+        different: it is read by turning that side of the globe into view with Ctrl
+        and the arrow keys, and turning about the poles leaves north standing where
+        it stood.
+
+        The one mirror that is wanted is the one that cancels another. A view
+        orientation showing the picture mirrored - one flip of the two, not both -
+        reverses every glyph with it, so the glyph goes in reversed to come out
+        right.
 
         The answer is baked into the geometry when an overlay is built, and the
         overlay is built when it is switched on or when the view orientation
@@ -77,13 +89,13 @@ class LabelsMixin:
         sin_lat, cos_lat = np.sin(lat_rad), np.cos(lat_rad)
         sin_lon, cos_lon = np.sin(lon_rad), np.cos(lon_rad)
 
-        # Tangents of the graticule at (lat, lon), in the body frame: the glyph
-        # is written along the first one and stands along the second
-        east = np.array([cos_lon, sin_lon, 0.0])
+        # The tangent the glyph stands along, in the body frame
         north = np.array([-sin_lat * sin_lon, sin_lat * cos_lon, cos_lat])
+        turn = bool(self._to_screen(north)[1] < 0.0)
 
-        # Mirror the glyph wherever its own axis ends up pointing the wrong way
-        return bool(self._to_screen(east)[0] < 0.0), bool(self._to_screen(north)[1] < 0.0)
+        mirrored_view = ((self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS)
+                         != (self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS))
+        return turn != mirrored_view, turn
 
     @staticmethod
     def _label_graph_arrays(labels: list[MoonLabel]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
