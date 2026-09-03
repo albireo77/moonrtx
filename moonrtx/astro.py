@@ -255,7 +255,7 @@ def find_terminator_windows(start_local: datetime, days: int,
     list[dict]
         One dict per window, sorted by time, with keys: "start", "end",
         "best" (UTC datetimes; "best" is the sample with the highest Moon
-        altitude), "event" ("sunrise" or "sunset"), "sun_alt" and "moon_alt"
+        altitude), "event" ("sunrise" or "sunset" there), "sun_alt" and "moon_alt"
         (degrees at "best"), "observer_sun_alt" (degrees at "best", for
         judging sky darkness).
     """
@@ -275,6 +275,8 @@ def find_terminator_windows(start_local: datetime, days: int,
     if idx.size == 0:
         return []
 
+    climbing = np.gradient(sun_alt_f) > 0
+
     windows = []
     for seg in _split_windows(idx):
         best = seg[np.argmax(moon_alt[seg])]
@@ -282,9 +284,7 @@ def find_terminator_windows(start_local: datetime, days: int,
             "start": dts[seg[0]],
             "end": dts[seg[-1]],
             "best": dts[best],
-            # The Sun climbs over the feature after sunrise and sinks toward
-            # sunset; within a window (at most a day) this is monotonic
-            "event": "sunrise" if sun_alt_f[seg[-1]] >= sun_alt_f[seg[0]] else "sunset",
+            "event": "sunrise" if climbing[best] else "sunset",
             "sun_alt": float(sun_alt_f[best]),
             "moon_alt": float(moon_alt[best]),
             "observer_sun_alt": float(sun_alt_obs[best]),
