@@ -57,10 +57,10 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **F11** - Export time-lapse video (MP4)  
 **F12** - Save image  
 **1-9** - Create/Remove pin (when pins are ON)  
-**0** - Toggle displaying all Moon features  
-**G** - Toggle selenographic grid  
+**0** - Toggle all labels  
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
+**G** - Toggle selenographic grid  
 **P** - Toggle pins ON/OFF  
 **Y** - Toggle markers for sub-solar and sub-Earth points  
 **B** - Toggle the field of view frame (set it up with F3)  
