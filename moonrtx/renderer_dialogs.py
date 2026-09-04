@@ -1369,6 +1369,7 @@ class DialogsMixin:
             ("F11", "Export time-lapse video (MP4)"),
             ("F12", "Save image"),
             ("1-9", "Create/Remove pin (when pins are ON)"),
+            ("0", "Toggle displaying all Moon features"),
             ("G", "Toggle selenographic grid"),
             ("L", "Toggle standard labels"),
             ("S", "Toggle spot labels"),

@@ -29,6 +29,7 @@ from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
 from moonrtx.renderer_subpoints import SubPointsMixin
 from moonrtx.renderer_compass import CompassMixin
+from moonrtx.renderer_catalogue import CatalogueMixin
 
 
 # The star map is loaded several times wider than the window: it wraps the whole
@@ -58,7 +59,7 @@ def starmap_target_width() -> int:
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
-                   VideoMixin, FovMixin, SubPointsMixin, CompassMixin):
+                   VideoMixin, FovMixin, SubPointsMixin, CompassMixin, CatalogueMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -346,6 +347,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # Size of the lettering on the surface (see renderer_labels.LabelsMixin)
         self._init_label_scale()
+
+        # Names of everything else in view (see renderer_catalogue.CatalogueMixin)
+        self._init_catalogue()
 
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
@@ -909,6 +913,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             self.update_pins_orientation()
         if self.sub_points_visible:
             self.update_sub_points()
+        if self.catalogue_visible:
+            self.update_catalogue(moved=True)
 
 
     def shifted_time(self, minutes: int) -> datetime:
@@ -1246,6 +1252,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.set_time_to_now()
         elif event.keysym == 'F10':
             moon_renderer.set_time_to_now_and_auto_advance()
+        elif event.keysym == '0':
+            moon_renderer.toggle_catalogue()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:

@@ -101,6 +101,11 @@ class LabelsMixin:
         if wanted != self._label_scale:
             self._label_scale = wanted
             self._rebuild_lettering()
+
+        # The names of everything else in view answer to the view itself, which
+        # moves under the wheel and the mouse where nothing else would see it
+        if self.catalogue_visible:
+            self.update_catalogue()
         self._schedule_label_scale_poll()
 
     def _schedule_label_scale_poll(self):
