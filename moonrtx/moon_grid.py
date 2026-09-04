@@ -9,9 +9,6 @@ from moonrtx.shared_types import MoonFeature, MoonLabel
 LABEL_CHAR_SCALE = 0.12
 PIN_DIGIT_SCALE = 0.2
 GRID_DIGIT_SCALE = 0.125
-# Half the width of a glyph cell, the letters being drawn from -0.3 to +0.3 of
-# their scale about their own middle (see _LETTER_SEGMENTS_NORMALIZED)
-GLYPH_HALF_WIDTH = 0.3
 
 # A glyph is laid out in the tangent plane of the sphere, its own x axis running
 # east and its own z axis running north, so the lettering follows the graticule.
@@ -610,17 +607,18 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
             label_text = "< " + spot_label_feature.name
         label_lat = spot_label_feature.lat
 
-        # The text starts at the point below and runs east from it, and the arrow
-        # is the glyph nearest the feature - its point half a glyph west of where
-        # the text starts (see create_text_on_sphere). That half glyph shrinks with
-        # the lettering, so the point would back away from the feature as the label
-        # got smaller: the start is carried west by what the glyph gives up, and the
-        # arrow goes on pointing at the same place at every size.
-        lead = GLYPH_HALF_WIDTH * LABEL_CHAR_SCALE * (1.0 - scale)
-        along_parallel = (moon_radius * (1 + offset + 0.005)
-                          * math.cos(math.radians(label_lat)))
-        label_lon = (spot_label_feature.lon + spot_label_feature.angular_radius * 2
-                     - math.degrees(lead / along_parallel))
+        # The label is set beyond the rim of the feature, and how far beyond goes
+        # with the lettering. Holding that step while the letters shrank left the
+        # arrow pointing at the crater from a distance - the same gap beside a
+        # quarter-size arrow reads as a miss, where beside a full-size one it reads
+        # as touching the rim. The step is measured across the ground rather than in
+        # longitude, which is the same thing on the equator and not at all the same
+        # at Plato; the guard on the cosine is the one the pin arms use. At the full
+        # size this is the two angular radii it has always been.
+        rim = spot_label_feature.angular_radius
+        cos_lat = max(math.cos(math.radians(label_lat)), 0.2)
+        beyond = 2 * rim * cos_lat - rim
+        label_lon = spot_label_feature.lon + (rim + beyond * scale) / cos_lat
 
         spot_label_segments = create_text_on_sphere(
             label_text,
