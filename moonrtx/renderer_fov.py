@@ -69,18 +69,9 @@ class FovMixin:
         if self.rt is None or self.moon_ephem is None:
             return None
 
-        fov_deg = self.rt._optix.get_camera_fov(0)
-        if fov_deg <= 0 or self.rt._height <= 0:
+        moon_radius_px = self.moon_radius_in_pixels()
+        if moon_radius_px is None:
             return None
-
-        # Moon centre is the scene origin, so the eye vector is the distance
-        eye_distance = float(np.linalg.norm(self.rt.get_camera(self.CAMERA_NAME)["Eye"]))
-        if eye_distance <= self.MOON_RADIUS:
-            return None
-
-        moon_radius_px = (self.rt._height / 2) \
-            * math.tan(math.asin(self.MOON_RADIUS / eye_distance)) \
-            / math.tan(math.radians(fov_deg) / 2)
         return moon_radius_px / self.moon_apparent_radius()
 
     def fov_angles(self) -> tuple[float, float]:

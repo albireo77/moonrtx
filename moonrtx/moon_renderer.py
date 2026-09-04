@@ -344,6 +344,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # View-orientation globe state (see renderer_compass.CompassMixin)
         self._init_compass_overlay()
 
+        # Size of the lettering on the surface (see renderer_labels.LabelsMixin)
+        self._init_label_scale()
+
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
         self._auto_advance_id = None
@@ -560,6 +563,47 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         if distance_km is None:
             distance_km = self.moon_ephem.distance
         return float(np.arcsin(self.MOON_RADIUS_KM / distance_km))
+
+    def moon_radius_in_pixels(self, eye_distance: float = None,
+                              fov_deg: float = None) -> Optional[float]:
+        """
+        Radius of the rendered Moon in pixels, for the camera now or for one
+        given as a distance and a vertical field.
+
+        The disk subtends arcsin(radius / distance) at the eye, and the window
+        covers half the field either side of its middle, so the two tangents
+        give the fraction of the half-height the disk reaches across.
+        """
+        if self.rt is None:
+            return None
+        if fov_deg is None:
+            fov_deg = self.rt._optix.get_camera_fov(0)
+        if eye_distance is None:
+            eye_distance = float(np.linalg.norm(
+                self.rt.get_camera(self.CAMERA_NAME)["Eye"]))
+        if fov_deg <= 0.0 or eye_distance <= self.MOON_RADIUS or self.rt._height <= 0:
+            return None
+
+        return (self.rt._height / 2) * np.tan(np.arcsin(self.MOON_RADIUS / eye_distance)) \
+            / np.tan(np.radians(fov_deg) / 2)
+
+    def surface_magnification(self) -> float:
+        """
+        How much larger the surface is drawn than in the default view of the
+        moment - 1 at that view, 2 when a crater is drawn twice the size.
+
+        Both the wheel, which changes the field, and Shift with the right button,
+        which moves the eye, are in it: the disk radius in pixels answers to both.
+        The default it is measured against is the one of the date, so the
+        annual swing in apparent size does not read as magnification.
+        """
+        default = self.default_camera
+        now = self.moon_radius_in_pixels()
+        at_default = self.moon_radius_in_pixels(
+            eye_distance=float(np.linalg.norm(default.eye)), fov_deg=default.fov)
+        if not now or not at_default:
+            return 1.0
+        return float(now / at_default)
 
     def moon_camera_distance(self, distance_km: Optional[float] = None) -> float:
         """

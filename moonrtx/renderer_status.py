@@ -443,4 +443,8 @@ class StatusMixin:
                         self.update_grid_labels_for_orientation()
 
                 self._update_all_status_panels()
+
+                # From here the lettering follows the magnification: the poll
+                # needs the window, and the window is only now up
+                self._schedule_label_scale_poll()
             rt._root.after_idle(init_window)

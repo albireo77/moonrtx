@@ -5,7 +5,8 @@ Each pin digit is a single graph geometry (all strokes merged), so rotating
 pins after a time change is one update_graph call per pin.
 """
 
-from moonrtx.moon_grid import create_single_digit_on_sphere, merge_segments_to_graph
+from moonrtx.moon_grid import (PIN_DIGIT_SCALE, create_single_digit_on_sphere,
+                              merge_segments_to_graph)
 
 class PinsMixin:
     """Mixin providing pin management methods for MoonRenderer."""
@@ -39,6 +40,7 @@ class PinsMixin:
             lon=lon,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
+            digit_scale=PIN_DIGIT_SCALE * self.label_scale(),
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical
         )
@@ -52,7 +54,8 @@ class PinsMixin:
         self.rt.update_material("pin_material", self._no_shadow_flat_material())
 
         self.rt.set_graph(f"pin_{digit}", pos=self._rotate_to_scene(pos), edges=edges,
-                          r=self.PIN_LABEL_RADIUS, c=self.PIN_COLOR, mat="pin_material")
+                          r=self.PIN_LABEL_RADIUS * self.label_scale(), c=self.PIN_COLOR,
+                          mat="pin_material")
 
     def remove_pin(self, digit: int):
         """

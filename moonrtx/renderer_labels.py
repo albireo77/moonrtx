@@ -25,6 +25,23 @@ class LabelsMixin:
     GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
     STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
     SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
+
+    # Lettering on the surface is written in scene units, so magnifying the
+    # surface magnifies it with everything else: at the far end of the zoom a
+    # name written across a crater is written across the screen. Three sizes are
+    # kept instead, the smaller ones cutting in as the magnification passes these
+    # multiples of the default view. A long name covers some 220 km of ground at
+    # the full size, and the view is 3474 km across at the default one, so each
+    # size holds until the name reaches about a quarter of the width - which is
+    # where it starts to be more in the way than of use. The N over the pole is
+    # not in this: it stands for the globe, not for the ground, and is wanted
+    # whole at every magnification (see moon_grid.create_moon_grid).
+    LABEL_SCALES = (1.0, 0.5, 0.25)
+    LABEL_SCALE_ABOVE = (4.0, 8.0)      # magnifications the smaller sizes start at
+    # The zoom moves under the mouse wheel and under Shift with the right button,
+    # the second of them inside PlotOptiX where there is nothing to hook, so the
+    # magnification is read on a light poll - as the field-of-view frame is.
+    LABEL_SCALE_POLL_MS = 250
     GRID_COLOR = [0.50, 0.50, 0.50]
     STANDARD_LABEL_COLOR = [0.85, 0.85, 0.85]
     SPOT_LABEL_COLOR = [1.0, 0.9, 0.3]
@@ -33,6 +50,66 @@ class LabelsMixin:
     GRID_LABELS_GEOM = "grid_labels"
     STANDARD_LABELS_GEOM = "standard_labels_graph"
     SPOT_LABELS_GEOM = "spot_labels_graph"
+
+    def _init_label_scale(self):
+        """Reset the lettering-size state; called from MoonRenderer.__init__."""
+        self._label_scale = self.LABEL_SCALES[0]
+        self._label_scale_poll_id = None
+
+    def label_scale(self) -> float:
+        """
+        The size the lettering is written at now, against its usual size.
+
+        Held rather than computed on the spot: every overlay has to be built at
+        one size, and the size may only change where they can all be rebuilt
+        together (see _label_scale_tick).
+        """
+        return getattr(self, "_label_scale", self.LABEL_SCALES[0])
+
+    def _label_scale_for_view(self) -> float:
+        """The size the magnification of the moment asks for."""
+        magnification = self.surface_magnification()
+        size = self.LABEL_SCALES[0]
+        for threshold, smaller in zip(self.LABEL_SCALE_ABOVE, self.LABEL_SCALES[1:]):
+            if magnification >= threshold:
+                size = smaller
+        return size
+
+    def _rebuild_lettering(self):
+        """
+        Write every overlay that carries lettering again at the current size.
+
+        The same work a change of view orientation asks for, and done by the same
+        methods: only what is switched on is rebuilt, and the grid keeps its lines
+        and its N, only the numbers being redrawn.
+        """
+        if self.moon_grid is not None and self.moon_grid_visible:
+            self.update_grid_labels_for_orientation()
+        if self.standard_labels is not None and self.standard_labels_visible:
+            self.update_standard_labels_for_view_orientation()
+        if self.spot_labels is not None and self.spot_labels_visible:
+            self.update_spot_labels_for_view_orientation()
+        self.update_pins_for_view_orientation()
+
+    def _label_scale_tick(self):
+        """Follow the magnification, and rewrite the lettering when it moves a step."""
+        self._label_scale_poll_id = None
+        if self.rt is None:
+            return
+
+        wanted = self._label_scale_for_view()
+        if wanted != self._label_scale:
+            self._label_scale = wanted
+            self._rebuild_lettering()
+        self._schedule_label_scale_poll()
+
+    def _schedule_label_scale_poll(self):
+        """Start the poll, or keep it going. Harmless before there is a window."""
+        if self.rt is None or getattr(self.rt, "_root", None) is None:
+            return
+        if self._label_scale_poll_id is None:
+            self._label_scale_poll_id = self.rt._root.after(
+                self.LABEL_SCALE_POLL_MS, self._label_scale_tick)
 
     # ---- merged-graph helpers ----
 
@@ -208,7 +285,8 @@ class LabelsMixin:
             lat_step=15.0,
             lon_step=15.0,
             offset=0.0,
-            flips_at=self._glyph_flips
+            flips_at=self._glyph_flips,
+            scale=self.label_scale()
         )
 
         # Update the moon_grid with new labels
@@ -222,7 +300,11 @@ class LabelsMixin:
         # Flipping mirrors coordinates but keeps the segment structure, so the
         # edge indices stay valid and only vertex positions need an update
         self._rebuild_grid_labels_arrays()
-        self.rt.update_graph(self.GRID_LABELS_GEOM, pos=self._rotate_to_scene(self._grid_labels_pos))
+        # The stroke goes with the size: a quarter-size number drawn at the full
+        # thickness is a smudge
+        self.rt.update_graph(self.GRID_LABELS_GEOM,
+                             pos=self._rotate_to_scene(self._grid_labels_pos),
+                             r=self.GRID_LABEL_RADIUS * self.label_scale())
 
     def update_standard_labels_for_view_orientation(self):
         """
@@ -239,7 +321,8 @@ class LabelsMixin:
             self.standard_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flips_at=self._glyph_flips
+            flips_at=self._glyph_flips,
+            scale=self.label_scale()
         )
 
         self._standard_labels_pos, self._standard_labels_edges, self._standard_labels_counts = \
@@ -247,7 +330,7 @@ class LabelsMixin:
         self.rt.update_graph(
             self.STANDARD_LABELS_GEOM,
             pos=self._rotate_to_scene(self._standard_labels_pos),
-            r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS))
+            r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS * self.label_scale()))
 
     def update_spot_labels_for_view_orientation(self):
         """
@@ -264,7 +347,8 @@ class LabelsMixin:
             self.spot_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flips_at=self._glyph_flips
+            flips_at=self._glyph_flips,
+            scale=self.label_scale()
         )
 
         self._spot_labels_pos, self._spot_labels_edges, self._spot_labels_counts = \
@@ -272,7 +356,7 @@ class LabelsMixin:
         self.rt.update_graph(
             self.SPOT_LABELS_GEOM,
             pos=self._rotate_to_scene(self._spot_labels_pos),
-            r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS))
+            r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS * self.label_scale()))
 
     # ---- grid setup / show / hide ----
 
@@ -298,7 +382,8 @@ class LabelsMixin:
             lon_step=lon_step,
             points_per_line=100,
             offset=0.0,
-            flips_at=self._glyph_flips
+            flips_at=self._glyph_flips,
+            scale=self.label_scale()
         )
 
         self.rt.update_material("grid_material", self._no_shadow_flat_material())
@@ -313,7 +398,7 @@ class LabelsMixin:
                           r=self.GRID_LINE_RADIUS, c=self.GRID_COLOR, mat="grid_material")
         self.rt.set_graph(self.GRID_LABELS_GEOM,
                           pos=self._grid_labels_pos, edges=self._grid_labels_edges,
-                          r=self.GRID_LABEL_RADIUS, c=self.GRID_COLOR, mat="grid_material")
+                          r=self.GRID_LABEL_RADIUS * self.label_scale(), c=self.GRID_COLOR, mat="grid_material")
 
         self.moon_grid_visible = True
 
@@ -338,7 +423,9 @@ class LabelsMixin:
 
         # Toggle visibility by setting zero radius (hide) or restoring (show)
         self.rt.update_graph(self.GRID_LINES_GEOM, r=self.GRID_LINE_RADIUS if visible else 0.0)
-        self.rt.update_graph(self.GRID_LABELS_GEOM, r=self.GRID_LABEL_RADIUS if visible else 0.0)
+        self.rt.update_graph(self.GRID_LABELS_GEOM,
+                             r=self.GRID_LABEL_RADIUS * self.label_scale()
+                             if visible else 0.0)
 
         self.moon_grid_visible = visible
 
@@ -370,7 +457,8 @@ class LabelsMixin:
             self.standard_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flips_at=self._glyph_flips
+            flips_at=self._glyph_flips,
+            scale=self.label_scale()
         )
 
         self.rt.update_material("standard_label_material", self._no_shadow_flat_material())
@@ -384,7 +472,7 @@ class LabelsMixin:
             self.STANDARD_LABELS_GEOM,
             pos=self._rotate_to_scene(self._standard_labels_pos),
             edges=self._standard_labels_edges,
-            r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS),
+            r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS * self.label_scale()),
             c=self.STANDARD_LABEL_COLOR,
             mat="standard_label_material")
 
@@ -438,7 +526,8 @@ class LabelsMixin:
             self.spot_label_features,
             moon_radius=self.MOON_RADIUS,
             offset=0.0,
-            flips_at=self._glyph_flips
+            flips_at=self._glyph_flips,
+            scale=self.label_scale()
         )
 
         self.rt.update_material("spot_label_material", self._no_shadow_flat_material())
@@ -452,7 +541,7 @@ class LabelsMixin:
             self.SPOT_LABELS_GEOM,
             pos=self._rotate_to_scene(self._spot_labels_pos),
             edges=self._spot_labels_edges,
-            r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS),
+            r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS * self.label_scale()),
             c=self.SPOT_LABEL_COLOR,
             mat="spot_label_material")
 
@@ -506,7 +595,7 @@ class LabelsMixin:
         self.rt.update_graph(
             self.SPOT_LABELS_GEOM,
             pos=self._rotate_to_scene(self._spot_labels_pos),
-            r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS))
+            r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS * self.label_scale()))
 
     def update_standard_labels_orientation(self):
         """
@@ -524,7 +613,7 @@ class LabelsMixin:
         self.rt.update_graph(
             self.STANDARD_LABELS_GEOM,
             pos=self._rotate_to_scene(self._standard_labels_pos),
-            r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS))
+            r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS * self.label_scale()))
 
     def update_moon_grid_orientation(self):
         """
