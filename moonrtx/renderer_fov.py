@@ -27,8 +27,12 @@ from moonrtx.view_orientation import VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNW
 class FovMixin:
     """Mixin providing the field-of-view overlay and its setup dialog."""
 
-    FOV_COLOR = "#00e5ff"
-    FOV_TEXT_COLOR = "#00e5ff"
+    # The blue the locator and the compass use, chosen against the render: a
+    # cyan is splendid on shadowed ground and all but gone on a lit highland,
+    # standing at barely one and a half to one against it, and the frame is
+    # drawn over whatever the surface happens to be.
+    FOV_COLOR = "#6666ff"
+    FOV_TEXT_COLOR = "#6666ff"
     FOV_LINE_WIDTH = 2
     FOV_TEXT_FONT = ("Consolas", 10)
     # The screen scale changes with the camera FOV (wheel and Shift+drag zoom),
@@ -173,9 +177,12 @@ class FovMixin:
         text = self._fov_summary(width_rad, height_rad)
         if max(width_px, height_px) > max(self.rt._width, self.rt._height):
             text += "   (zoom out to see the whole frame)"
-        self._fov_items.append(canvas.create_text(
-            centre_x, 10, text=text, anchor='n',
-            fill=self.FOV_TEXT_COLOR, font=self.FOV_TEXT_FONT))
+        # Rimmed in black, as the compass readings and the locator's lettering
+        # are: the line sits across the top of the picture, over whatever the
+        # surface happens to be there, and small text on ground that runs from
+        # black sky to lit highland cannot be read by its colour alone
+        self._fov_items.extend(self._rimmed_text(
+            canvas, centre_x, 10, text, self.FOV_TEXT_COLOR, self.FOV_TEXT_FONT))
 
     def _fov_refresh_tick(self):
         self._fov_refresh_id = None

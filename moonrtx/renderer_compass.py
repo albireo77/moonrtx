@@ -55,13 +55,23 @@ class CompassMixin:
     # the grey it draws its rim and graticule in for the globe as it is meant to
     # stand, and the blue it draws the field in for the globe as it stands now
     COMPASS_REFERENCE_COLOR = "#9aa7bd"     # the default position, in grey
-    COMPASS_CURRENT_COLOR = "#00e5ff"       # blue, well clear of the reference grey
+    COMPASS_CURRENT_COLOR = "#6666ff"       # blue, well clear of the reference grey
     COMPASS_LINE_WIDTH = 3                  # the axis of each globe
     COMPASS_DOT_RADIUS = 4                  # the bumps along it and on the rim
     # The equatorial plane is filled rather than merely outlined, and the fill
     # is stippled: a Tk canvas has no transparency, so a dither is the only way
     # for the disk underneath - and the lines crossing it - to show through.
     COMPASS_DISK_STIPPLE = "gray25"
+    # Lettering over the render has no background it can count on: the ground
+    # beneath it runs from the black of the sky to the white of a lit highland,
+    # and no one colour is legible on both - the readings were measured at a
+    # fifth over one on ordinary grey, where four and a half is what small text
+    # wants. So each is written a second time, in black, at every one of these
+    # offsets, and the coloured text laid on top. The letter then carries its
+    # own dark rim wherever it goes.
+    COMPASS_HALO_COLOR = "#000000"
+    COMPASS_HALO_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0),
+                            (1, 0), (-1, 1), (0, 1), (1, 1))
     COMPASS_FONT = ("Consolas", 10, "bold")
     COMPASS_VALUE_FONT = ("Consolas", 10)
     # Clear of the globe by a bump and a label, the plane reaching the rim when it
@@ -262,11 +272,35 @@ class CompassMixin:
                          else self._compass_turn(angle - angle_default)))
         return readings
 
+    def _rimmed_text(self, canvas, x, y, text, fill, font, anchor="n") -> list:
+        """
+        Write text with a dark rim round it, and hand back every piece of it.
+
+        Tk has no outline for text, so the rim is the same string written once
+        more at each offset around it and the wanted colour laid over the lot.
+        Cheap enough at this size, and the only thing that makes small lettering
+        hold up over ground that is black in one place and white in another.
+
+        The pieces are returned rather than kept here, so that the locator can
+        rim its own lettering with the same hand - both overlays draw on the one
+        canvas and face the same ground, and each keeps its own list of what it
+        has drawn so that it can take it away again.
+        """
+        items = []
+        for dx, dy in self.COMPASS_HALO_OFFSETS:
+            items.append(canvas.create_text(
+                x + dx, y + dy, text=text, anchor=anchor,
+                fill=self.COMPASS_HALO_COLOR, font=font))
+        items.append(canvas.create_text(
+            x, y, text=text, anchor=anchor, fill=fill, font=font))
+        return items
+
     def _draw_compass_readings(self, canvas, centre_x, centre_y, radius):
         """
         Write the three readings under the globe, in the colour of the globe they
-        describe. All three stand at zero when the view is at its default, which is
-        the same thing the blue lying under the grey says.
+        describe, each rimmed in black so that it can be read over ground of any
+        brightness. All three stand at zero when the view is at its default,
+        which is the same thing the blue lying under the grey says.
         """
         readings = self._compass_readings()
         if readings is None:
@@ -277,10 +311,10 @@ class CompassMixin:
         for row, (name, value) in enumerate(readings):
             # A fixed width for the number, so the three read as a column
             written = "   --" if value is None else f"{value:+6.1f}"
-            self._compass_items.append(canvas.create_text(
-                centre_x, top + row * line_height,
-                text=f"\u0394{name} {written}\u00b0", anchor="n",
-                fill=self.COMPASS_CURRENT_COLOR, font=self.COMPASS_VALUE_FONT))
+            self._compass_items.extend(self._rimmed_text(
+                canvas, centre_x, top + row * line_height,
+                f"\u0394{name} {written}\u00b0",
+                self.COMPASS_CURRENT_COLOR, self.COMPASS_VALUE_FONT))
 
     def _compass_placement(self) -> Optional[tuple]:
         """Centre and radius of the globe, in canvas pixels."""

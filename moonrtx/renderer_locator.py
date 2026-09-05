@@ -67,9 +67,16 @@ class LocatorMixin:
     # carry the same stipple, so neither hides what is behind it more than the
     # other and the two read as one disk lit from one side.
     LOCATOR_FACE_STIPPLE = "gray50"
-    # The field is drawn in the colour of the frame it stands for, so that the
-    # rectangle on screen and the outline in the corner read as one thing
-    LOCATOR_FIELD_COLOR = "#00e5ff"
+    # Chosen against the render rather than by eye. The surface runs from about
+    # fifteen out of 255 in the shadows to a flat 255 wherever it is bright and
+    # the exposure is up, and it is very nearly neutral all the way, so the line
+    # has to be seen on near-black and on white at once. A cyan cannot: it is
+    # splendid on the dark ground and all but gone on the bright, standing at
+    # barely one and a half to one against it. This blue keeps its distance from
+    # grey at every lightness - the two ends come out four and a half and four
+    # and a quarter to one - and at sixty per cent saturation it is a good deal
+    # calmer than the cyan it replaces.
+    LOCATOR_FIELD_COLOR = "#6666ff"
     LOCATOR_FIELD_WIDTH = 2
     LOCATOR_LINE_WIDTH = 1
     LOCATOR_FONT = ("Consolas", 10)
@@ -540,8 +547,11 @@ class LocatorMixin:
             at = (centre_x, centre_y)
         else:
             at = (centre_x + x / reach * out, centre_y - y / reach * out)
-        self._locator_items.append(canvas.create_text(
-            *at, text=text, fill=colour, font=self.LOCATOR_LABEL_FONT))
+        # Rimmed, like the compass readings: N, S and the 0 fall wherever the
+        # globe puts them, which may be black sky or lit highland
+        self._locator_items.extend(self._rimmed_text(
+            canvas, at[0], at[1], text, colour, self.LOCATOR_LABEL_FONT,
+            anchor="center"))
 
     def _clear_locator_items(self):
         canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
@@ -675,10 +685,10 @@ class LocatorMixin:
 
         centre = self._locator_centre()
 
-        self._locator_items.append(canvas.create_text(
-            centre_x, centre_y + radius + self.LOCATOR_VALUE_GAP_PX,
-            text=self._locator_reading(centre), anchor="n",
-            fill=self.LOCATOR_FIELD_COLOR, font=self.LOCATOR_FONT))
+        self._locator_items.extend(self._rimmed_text(
+            canvas, centre_x, centre_y + radius + self.LOCATOR_VALUE_GAP_PX,
+            self._locator_reading(centre), self.LOCATOR_FIELD_COLOR,
+            self.LOCATOR_FONT))
 
     # ---- keeping up with the view ----
 
