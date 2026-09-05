@@ -604,7 +604,11 @@ class LocatorMixin:
         # A hair below zero reads as "-0.0", which looks like a fault rather
         # than like the middle of the disk
         lat, lon = round(lat, 1) or 0.0, round(lon, 1) or 0.0
-        return f"{lat:+6.1f}° {lon:+7.1f}°"
+        # Named, as the compass names its own three, and each number given the
+        # width of the widest it can be - ninety of latitude, a hundred and
+        # eighty of longitude - so the pair holds still instead of shuffling
+        # sideways every time a digit comes or goes
+        return f"lat {lat:+5.1f}°  lon {lon:+6.1f}°"
 
     def _draw_locator(self):
         """Redraw the disk and the field from the current camera."""
