@@ -27,12 +27,12 @@ from moonrtx.view_orientation import VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNW
 class FovMixin:
     """Mixin providing the field-of-view overlay and its setup dialog."""
 
-    # The blue the locator and the compass use, chosen against the render: a
-    # cyan is splendid on shadowed ground and all but gone on a lit highland,
-    # standing at barely one and a half to one against it, and the frame is
-    # drawn over whatever the surface happens to be.
-    FOV_COLOR = "#6666ff"
-    FOV_TEXT_COLOR = "#6666ff"
+    # The blue the locator and the compass use; the reasoning for it is written
+    # beside LocatorMixin.LOCATOR_FIELD_COLOR. The summary line carries the same
+    # black rim their lettering does, so it holds up over any ground; the frame
+    # itself is a bare line and is read against the surface behind it.
+    FOV_COLOR = "#6772ab"
+    FOV_TEXT_COLOR = "#6772ab"
     FOV_LINE_WIDTH = 2
     FOV_TEXT_FONT = ("Consolas", 10)
     # The screen scale changes with the camera FOV (wheel and Shift+drag zoom),

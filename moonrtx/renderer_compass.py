@@ -55,7 +55,7 @@ class CompassMixin:
     # the grey it draws its rim and graticule in for the globe as it is meant to
     # stand, and the blue it draws the field in for the globe as it stands now
     COMPASS_REFERENCE_COLOR = "#9aa7bd"     # the default position, in grey
-    COMPASS_CURRENT_COLOR = "#6666ff"       # blue, well clear of the reference grey
+    COMPASS_CURRENT_COLOR = "#6772ab"       # blue, well clear of the reference grey
     COMPASS_LINE_WIDTH = 3                  # the axis of each globe
     COMPASS_DOT_RADIUS = 4                  # the bumps along it and on the rim
     # The equatorial plane is filled rather than merely outlined, and the fill

@@ -67,16 +67,16 @@ class LocatorMixin:
     # carry the same stipple, so neither hides what is behind it more than the
     # other and the two read as one disk lit from one side.
     LOCATOR_FACE_STIPPLE = "gray50"
-    # Chosen against the render rather than by eye. The surface runs from about
-    # fifteen out of 255 in the shadows to a flat 255 wherever it is bright and
-    # the exposure is up, and it is very nearly neutral all the way, so the line
-    # has to be seen on near-black and on white at once. A cyan cannot: it is
-    # splendid on the dark ground and all but gone on the bright, standing at
-    # barely one and a half to one against it. This blue keeps its distance from
-    # grey at every lightness - the two ends come out four and a half and four
-    # and a quarter to one - and at sixty per cent saturation it is a good deal
-    # calmer than the cyan it replaces.
-    LOCATOR_FIELD_COLOR = "#6666ff"
+    # A dark, quiet blue. The rim round the lettering (see
+    # CompassMixin._rimmed_text) is what settled how dark it could be: a letter
+    # is no longer read against the Moon but against its own black edge, and
+    # small text wants four and a half to one against that, which puts a floor
+    # under it - below about a 116 out of 255 in lightness the letter sinks into
+    # its own outline. This sits just clear of that floor, at four and a half on
+    # the rim, and keeps far enough from the reference grey not to be taken for
+    # it. The lines carry no rim and are still read against the ground, where a
+    # colour this dark shows well on the highlands and less well on the maria.
+    LOCATOR_FIELD_COLOR = "#6772ab"
     LOCATOR_FIELD_WIDTH = 2
     LOCATOR_LINE_WIDTH = 1
     LOCATOR_FONT = ("Consolas", 10)
