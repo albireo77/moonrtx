@@ -11,12 +11,12 @@ round the globe is.
 The compass answers that. Two globes are drawn over each other, each as its
 equatorial plane and, out of the middle of it, two rays: one to the north pole and
 one to longitude 0 on the equator, each bumped and named at its tip, with the
-meridian arc between those tips closing them into a quarter of a globe. In yellow,
+meridian arc between those tips closing them into a quarter of a globe. In grey,
 the globe as the default view of this moment shows it - the view the V key returns
 to, so the libration and the parallactic roll of the date are already in the
-yellow. In orange, the globe as it lies now. The difference between the two colours
-is exactly what the rotation keys have done: reset the view and the orange lands
-under the yellow, which is then all that shows.
+grey. In blue, the globe as it lies now. The difference between the two colours
+is exactly what the rotation keys have done: reset the view and the blue lands
+under the grey, which is then all that shows.
 
 The planes are filled rather than outlined, in the stipple a Tk canvas has to use
 for want of transparency. An equator projects to an ellipse however the globe is
@@ -51,8 +51,11 @@ from moonrtx.view_orientation import (FLIP_HORIZONTAL_VIEW_ORIENTATIONS,
 class CompassMixin:
     """Mixin providing the view-orientation globe."""
 
-    COMPASS_REFERENCE_COLOR = "#ffd24a"     # the default position, in yellow
-    COMPASS_CURRENT_COLOR = "#ff7a1a"       # orange, well clear of the reference gold
+    # The locator's two colours, so that the pair of overlays reads as one set:
+    # the grey it draws its rim and graticule in for the globe as it is meant to
+    # stand, and the blue it draws the field in for the globe as it stands now
+    COMPASS_REFERENCE_COLOR = "#9aa7bd"     # the default position, in grey
+    COMPASS_CURRENT_COLOR = "#00e5ff"       # blue, well clear of the reference grey
     COMPASS_LINE_WIDTH = 3                  # the axis of each globe
     COMPASS_DOT_RADIUS = 4                  # the bumps along it and on the rim
     # The equatorial plane is filled rather than merely outlined, and the fill
@@ -263,7 +266,7 @@ class CompassMixin:
         """
         Write the three readings under the globe, in the colour of the globe they
         describe. All three stand at zero when the view is at its default, which is
-        the same thing the orange lying under the yellow says.
+        the same thing the blue lying under the grey says.
         """
         readings = self._compass_readings()
         if readings is None:
@@ -356,7 +359,7 @@ class CompassMixin:
         # Each globe is drawn as its equatorial plane, the axis through it, the
         # point where the prime meridian crosses the equator, and the north pole
         # the axis ends on. The current globe goes down first and the reference
-        # over it: at the default view the two fall on each other, and yellow on
+        # over it: at the default view the two fall on each other, and grey on
         # top is the plainest way of saying so.
         equator = self._compass_equator(self.COMPASS_POINTS)
         globes = []
