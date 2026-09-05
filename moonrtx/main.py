@@ -18,7 +18,8 @@ from plotoptix.install import download_file_from_google_drive
 
 from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_available, free_space,
                                  starmap_cache_available)
-from moonrtx.moon_renderer import run_renderer, starmap_target_width
+from moonrtx.display import make_dpi_aware, starmap_target_width
+from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
 from moonrtx.shared_types import Camera, MapTooLargeError, Observer
 
@@ -347,6 +348,8 @@ def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
         return None
 
 def main():
+
+    make_dpi_aware()
 
     args = parse_args()
 

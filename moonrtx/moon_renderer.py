@@ -3,7 +3,6 @@ MoonRenderer: core renderer class (composing mixins) and run_renderer entry poin
 """
 
 import sys
-import tkinter as tk
 import numpy as np
 from contextlib import contextmanager
 from typing import Optional
@@ -18,6 +17,7 @@ from moonrtx.shared_types import (Camera, MAP_TOO_LARGE_EXIT_CODE,
                                   MapTooLargeError, Observer)
 from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
+from moonrtx.display import make_dpi_aware, screen_size, starmap_target_width
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin, timezone_name
@@ -30,32 +30,6 @@ from moonrtx.renderer_fov import FovMixin
 from moonrtx.renderer_subpoints import SubPointsMixin
 from moonrtx.renderer_compass import CompassMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
-
-
-# The star map is loaded several times wider than the window: it wraps the whole
-# sky, so only a fraction of it is ever on screen at once.
-STARMAP_WIDTH_FACTOR = 6
-
-
-def screen_size() -> tuple[int, int]:
-    """
-    Screen width and usable height (less the taskbar), from a hidden root window.
-    """
-    _tmp = tk.Tk()
-    _tmp.withdraw()
-    size = (_tmp.winfo_screenwidth(), _tmp.winfo_screenheight() - 40)
-    _tmp.destroy()
-    return size
-
-
-def starmap_target_width() -> int:
-    """
-    The width load_starmap is asked for, and so the key its cache is stored
-    under. A module-level function because main.check_starmap_file needs it
-    before a renderer (and its window) exists, to tell whether the source has
-    to be downloaded at all.
-    """
-    return screen_size()[0] * STARMAP_WIDTH_FACTOR
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
@@ -716,7 +690,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         # Background (stars). Loaded locally: uploaded to a GPU texture here and
         # released when this method returns (the host copy is ~760 MB)
         if self.starmap_file is not None:
-            star_map = load_starmap(self.starmap_file, self.width * STARMAP_WIDTH_FACTOR)
+            star_map = load_starmap(self.starmap_file, starmap_target_width())
         else:
             star_map = None
         if star_map is not None:
@@ -1341,11 +1315,16 @@ def run_renderer_process(*args, **kwargs):
     """
     run_renderer as the target of a spawned process (see main_gui_launcher).
 
+    Spawned means a fresh interpreter, which has made no declaration about
+    display scaling of its own and must make one before it opens a window: the
+    launcher process it came from cannot make it on this one's behalf.
+
     A map that does not fit - in system RAM while it is prepared, or in GPU
     memory when it is uploaded - ends the process with its own message and
     MAP_TOO_LARGE_EXIT_CODE rather than a traceback, which the launcher turns
     back into something the user can act on.
     """
+    make_dpi_aware()
     try:
         run_renderer(*args, **kwargs)
     except MapTooLargeError as e:

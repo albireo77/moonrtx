@@ -10,6 +10,7 @@ import json
 
 from tzlocal import get_localzone_name
 
+from moonrtx.display import make_dpi_aware
 from moonrtx.shared_types import MAP_TOO_LARGE_EXIT_CODE, Observer
 from moonrtx.moon_renderer import run_renderer_process
 from moonrtx.view_orientation import (VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE,
@@ -1051,6 +1052,7 @@ class MainWindow(tk.Tk):
         self.status_label.config(text=text)
 
 def main():
+    make_dpi_aware()
     app = MainWindow()
     app.mainloop()
 
