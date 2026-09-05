@@ -1396,6 +1396,7 @@ class DialogsMixin:
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
+            ("Shift + C", "Toggle locator showing where on the Moon the view is"),
             ("Space", "Center and fix view on point under cursor"),
             ("Arrows", "Move view"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),

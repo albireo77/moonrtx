@@ -29,11 +29,13 @@ from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
 from moonrtx.renderer_subpoints import SubPointsMixin
 from moonrtx.renderer_compass import CompassMixin
+from moonrtx.renderer_locator import LocatorMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
-                   VideoMixin, FovMixin, SubPointsMixin, CompassMixin, CatalogueMixin):
+                   VideoMixin, FovMixin, SubPointsMixin, CompassMixin, LocatorMixin,
+                   CatalogueMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -318,6 +320,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
 
         # View-orientation globe state (see renderer_compass.CompassMixin)
         self._init_compass_overlay()
+        self._init_locator()
 
         # Size of the lettering on the surface (see renderer_labels.LabelsMixin)
         self._init_label_scale()
@@ -1160,7 +1163,10 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'r':
             moon_renderer.reset_camera_position()
         elif event.keysym.lower() == 'c':
-            moon_renderer.toggle_compass()
+            if event.state & 0x1:       # Shift
+                moon_renderer.toggle_locator()
+            else:
+                moon_renderer.toggle_compass()
         elif event.keysym == 'F3':
             moon_renderer.fov_overlay_dialog()
         elif event.keysym.lower() == 'b':

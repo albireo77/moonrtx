@@ -80,6 +80,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Q/W** - Go back/forward in time by step minutes (hold the key to get an animation effect)  
 **M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
 **Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
+**Shift + C** - Toggle locator showing where on the Moon the view is  
 **Space** - Center and fix view on point under cursor  
 **Arrows** - Move view  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
