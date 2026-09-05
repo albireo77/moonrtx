@@ -72,7 +72,7 @@ class StatusMixin:
             offset = self.dt_local.strftime('%z')
             offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
             self._status_time_var.set(
-                f"Time: {self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_fmt} (step {self.time_step_minutes} min)")
+                f"{self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_fmt} (step {self.time_step_minutes} min)")
 
     def _update_info_moon(self):
         """Update the info panel with current Moon ephemeris data."""
@@ -273,19 +273,31 @@ class StatusMixin:
                     font = ("Consolas", 9)
                     sun_font = ("Consolas", 7)      # subscript Sun sign
                     # Panels are packed to the right, so this list runs from
-                    # the right edge leftwards. The coords panel carries the
-                    # Sun altitude as well (26 -> 39 characters), and the
-                    # feature panel gives up that room (46 -> 32, which still
-                    # holds all but 17 of the feature database's 4442 entries)
-                    # so the bar stays the width it was.
+                    # the right edge leftwards, and the bar keeps the width it
+                    # has always had: what one panel takes, another gives up.
+                    # The coords panel took room for the Sun altitude (26 -> 39)
+                    # and the feature panel gave it (46 -> 32). The time panel
+                    # has since gone from 47 to 41: it was labelled "Time:" and
+                    # is not any more, a date needing no announcement. The width
+                    # is measured rather than guessed - the longest it ever holds
+                    # is a date, an offset and a step of 1440 minutes, and that
+                    # comes to exactly 41 cells, so 40 would clip it.
+                    #
+                    # Those six cells went to the feature panel (32 -> 38),
+                    # which now holds the whole database: of the 4442 names the
+                    # bar can show, with the size beside them, 17 used to be too
+                    # long and none is. It is a close thing, mind - the longest
+                    # of them, "Promontorium Heraclides", comes to 265 px in a
+                    # panel of 266 - so a name longer than that one would want
+                    # this widened again rather than quietly clipped.
                     panels = [
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
                         (self._status_gamma_var,      10),
-                        (self._status_feature_var,    32),
+                        (self._status_feature_var,    38),
                         ("coords",                    39),  # composite, see below
                         (self._status_measured_var,   27),
-                        (None,                        47),  # placeholder for time panel
+                        (None,                        41),  # placeholder for time panel
                         (self._status_view_var,       10),
                         (self._status_parallactic_var, 21)
                     ]
