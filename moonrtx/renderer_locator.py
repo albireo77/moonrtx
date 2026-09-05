@@ -37,7 +37,10 @@ drawn but the disk.
 
 Day and night are both laid on, pale and black, in the same stipple, so the
 picture behind shows through each alike and the terminator between them is the
-one the ground really has. The equator and the prime meridian are drawn across
+one the ground really has. Two small crosses mark where the Sun and Earth stand
+overhead - the same places the Y key marks on the surface, and in the same
+colours - which say where the middle of the daylight is and how far the libration
+has carried the point that faces us. The equator and the prime meridian are drawn across
 the face with a 0 beside where they cross, which says how the globe is turned and
 how far from the middle of the face the view has gone; N and S mark the poles,
 outside the rim while a pole lies near it and on the pole itself once the eye has
@@ -111,6 +114,12 @@ class LocatorMixin:
     # Clear of the N wherever the pole is lying, the reading being written
     # straight below the disk and the pole free to come round and point there
     LOCATOR_VALUE_GAP_PX = 26
+    # Half the span of the crosses that mark where the Sun and Earth stand
+    # overhead. Small: they are marks, not labels, and the disk is only some
+    # ninety pixels across. Their colours are not written out here - they are
+    # taken from the markers the Y key puts on the surface itself, so that the
+    # two cannot drift apart if one of them is ever recoloured.
+    LOCATOR_SUB_POINT_ARM_PX = 4
     LOCATOR_POINTS = 121                    # samples along the limb, and the terminator
     # Directions swept out from the middle of the view to find the outline, and
     # how many times each is halved to place the point it ends at
@@ -483,6 +492,47 @@ class LocatorMixin:
         """How far outside the rim the N reaches, letter and gap together."""
         return self.LOCATOR_LABEL_GAP_PX + 2 * self.LOCATOR_LABEL_FONT[1]
 
+    @staticmethod
+    def _locator_hex(rgb) -> str:
+        """A colour given as three fractions of one, as Tk wants to be told it."""
+        return "#%02x%02x%02x" % tuple(round(255 * part) for part in rgb)
+
+    def _draw_locator_sub_points(self, canvas, basis, centre_x, centre_y, radius):
+        """
+        A small cross where the Sun stands overhead, and another where Earth does.
+
+        The same two places the Y key marks on the surface, in the same two
+        colours. On the disk they say at a glance what the face alone only
+        hints at: where the middle of the daylight is, and how far the libration
+        has carried the point that faces us. No names against them - there is no
+        room at this size, and the colours are already learned from the surface.
+
+        A point round the back of the half the eye sees is not marked: it is not
+        there to be pointed at.
+        """
+        if self.moon_ephem is None:
+            return
+        forward = self._locator_sightline(basis)
+        if forward is None:
+            return
+
+        places = {"sun": (self.moon_ephem.subsolar_lat, self.moon_ephem.subsolar_lon),
+                  "earth": (self.moon_ephem.libr_lat_topo, self.moon_ephem.libr_long_topo)}
+        arm = self.LOCATOR_SUB_POINT_ARM_PX
+        for key, (lat, lon) in places.items():
+            point = self._sub_point_direction(lat, lon)
+            if float(point @ forward) > self.LOCATOR_TOO_SHORT:
+                continue
+            drawn = self._locator_screen(point[None, :], basis,
+                                         centre_x, centre_y, radius)
+            if drawn is None:
+                continue
+            x, y = drawn[0], drawn[1]
+            colour = self._locator_hex(self.SUB_POINT_COLOR[key])
+            for line in ((x - arm, y, x + arm, y), (x, y - arm, x, y + arm)):
+                self._locator_items.append(canvas.create_line(
+                    *line, fill=colour, width=self.LOCATOR_LINE_WIDTH))
+
     def _draw_locator_letter(self, canvas, basis, point, text, colour,
                              centre_x, centre_y, radius, push_out=False):
         """
@@ -667,6 +717,8 @@ class LocatorMixin:
                 self._locator_items.append(canvas.create_line(
                     *coords, fill=self.LOCATOR_LIMB_COLOR,
                     width=self.LOCATOR_LINE_WIDTH))
+
+        self._draw_locator_sub_points(canvas, basis, centre_x, centre_y, radius)
 
         self._draw_locator_letter(canvas, basis, self._locator_origin_label(), "0",
                                   self.LOCATOR_LIMB_COLOR,
