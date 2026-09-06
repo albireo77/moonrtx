@@ -482,12 +482,13 @@ class LocatorMixin:
         # Room for the N outside the rim, and on every side of it: in the
         # ordinary mount the disk turns through the night with the parallactic
         # angle, so the pole comes round to point anywhere at all
-        margin = self.LOCATOR_MARGIN_PX + self._locator_label_room()
+        margin = self._overlay_px(self.LOCATOR_MARGIN_PX) + self._locator_label_room()
         return margin + radius, margin + radius, radius
 
     def _locator_label_room(self) -> float:
         """How far outside the rim the N reaches, letter and gap together."""
-        return self.LOCATOR_LABEL_GAP_PX + 2 * self.LOCATOR_LABEL_FONT[1]
+        return self._overlay_px(
+            self.LOCATOR_LABEL_GAP_PX + 2 * self.LOCATOR_LABEL_FONT[1])
 
     @staticmethod
     def _locator_hex(rgb) -> str:
@@ -515,7 +516,7 @@ class LocatorMixin:
 
         places = {"sun": (self.moon_ephem.subsolar_lat, self.moon_ephem.subsolar_lon),
                   "earth": (self.moon_ephem.libr_lat_topo, self.moon_ephem.libr_long_topo)}
-        arm = self.LOCATOR_SUB_POINT_ARM_PX
+        arm = self._overlay_px(self.LOCATOR_SUB_POINT_ARM_PX)
         for key, (lat, lon) in places.items():
             point = self._sub_point_direction(lat, lon)
             if float(point @ forward) > self.LOCATOR_TOO_SHORT:
@@ -528,7 +529,8 @@ class LocatorMixin:
             colour = self._locator_hex(self.SUB_POINT_COLOR[key])
             for line in ((x - arm, y, x + arm, y), (x, y - arm, x, y + arm)):
                 self._locator_items.append(canvas.create_line(
-                    *line, fill=colour, width=self.LOCATOR_LINE_WIDTH))
+                    *line, fill=colour,
+                    width=self._overlay_px(self.LOCATOR_LINE_WIDTH)))
 
     def _draw_locator_letter(self, canvas, basis, point, text, colour,
                              centre_x, centre_y, radius, push_out=False):
@@ -588,7 +590,8 @@ class LocatorMixin:
             # the far end too it would instead dawdle as the pole reached the
             # limb, so only the near end is eased and the push goes on growing
             # to the last.
-            beyond = radius + self.LOCATOR_LABEL_GAP_PX + self.LOCATOR_LABEL_FONT[1]
+            beyond = radius + self._overlay_px(
+                self.LOCATOR_LABEL_GAP_PX + self.LOCATOR_LABEL_FONT[1])
             out += part * part * (beyond - out)
         if reach < self.LOCATOR_TOO_SHORT:      # the eye straight over the pole
             at = (centre_x, centre_y)
@@ -633,10 +636,11 @@ class LocatorMixin:
         """
         xs, ys = coords[0::2], coords[1::2]
         style = {"outline": self.LOCATOR_FIELD_COLOR, "fill": "",
-                 "width": self.LOCATOR_FIELD_WIDTH}
-        if max(max(xs) - min(xs), max(ys) - min(ys)) < self.LOCATOR_MIN_FIELD_PX:
+                 "width": self._overlay_px(self.LOCATOR_FIELD_WIDTH)}
+        smallest = self._overlay_px(self.LOCATOR_MIN_FIELD_PX)
+        if max(max(xs) - min(xs), max(ys) - min(ys)) < smallest:
             x, y = sum(xs) / len(xs), sum(ys) / len(ys)
-            mark = self.LOCATOR_MIN_FIELD_PX / 2
+            mark = smallest / 2
             self._locator_items.append(canvas.create_oval(
                 x - mark, y - mark, x + mark, y + mark, **style))
         else:
@@ -689,14 +693,16 @@ class LocatorMixin:
             if coords is not None:
                 self._locator_items.append(canvas.create_polygon(
                     *coords, fill=colour, stipple=self.LOCATOR_FACE_STIPPLE,
-                    outline=self.LOCATOR_LIMB_COLOR, width=self.LOCATOR_LINE_WIDTH))
+                    outline=self.LOCATOR_LIMB_COLOR,
+                    width=self._overlay_px(self.LOCATOR_LINE_WIDTH)))
 
         # The rim. Every point of the limb is at right angles to the sight line,
         # so it projects to the circle the disk is drawn in and needs no working
         # out.
         self._locator_items.append(canvas.create_oval(
             centre_x - radius, centre_y - radius, centre_x + radius, centre_y + radius,
-            outline=self.LOCATOR_LIMB_COLOR, width=self.LOCATOR_LINE_WIDTH))
+            outline=self.LOCATOR_LIMB_COLOR,
+            width=self._overlay_px(self.LOCATOR_LINE_WIDTH)))
 
         # The equator and the prime meridian, which say at a glance how the
         # globe is turned and how far the view is from the middle of the face
@@ -709,7 +715,7 @@ class LocatorMixin:
             if coords is not None:
                 self._locator_items.append(canvas.create_line(
                     *coords, fill=self.LOCATOR_LIMB_COLOR,
-                    width=self.LOCATOR_LINE_WIDTH))
+                    width=self._overlay_px(self.LOCATOR_LINE_WIDTH)))
 
         self._draw_locator_sub_points(canvas, basis, centre_x, centre_y, radius)
 
@@ -731,7 +737,8 @@ class LocatorMixin:
         centre = self._locator_centre()
 
         self._locator_items.extend(self._rimmed_text(
-            canvas, centre_x, centre_y + radius + self.LOCATOR_VALUE_GAP_PX,
+            canvas, centre_x,
+            centre_y + radius + self._overlay_px(self.LOCATOR_VALUE_GAP_PX),
             self._locator_reading(centre), self.LOCATOR_FIELD_COLOR,
             self.LOCATOR_FONT))
 

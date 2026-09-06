@@ -59,6 +59,44 @@ class CanvasOverlayMixin:
     # that the window's own items are neither redrawn nor lost.
     OVERLAY_ITEM_LISTS = ("_compass_items", "_locator_items", "_fov_items")
 
+    # A pixel is not a fixed size, and these overlays are drawn in pixels. Their
+    # lettering escapes that by being asked for in points, which Tk grows with
+    # the display; the marks around it - the margins, the gaps, the dots, the
+    # widths of the lines - were written as plain pixel counts and did not. On a
+    # screen of twice the density that left the globes drawn twice as large,
+    # since they are a fraction of the window, still carrying a four-pixel dot
+    # and a three-pixel gap: the same diagram with everything on it half the
+    # size. Every such length now goes through _overlay_px.
+    #
+    # Ninety-six dots to the inch is what Windows reports at no scaling, and
+    # what these numbers were chosen against, so on such a screen the
+    # multiplication is by one and nothing moves.
+    OVERLAY_REFERENCE_DPI = 96.0
+
+    def _overlay_px(self, length: float) -> float:
+        """
+        A length written for a 96-dpi screen, in the pixels of this one.
+
+        Asked of Tk once and kept. The first ask is on the main thread - an
+        overlay is drawn on the window before it is ever drawn into a saved
+        picture - which matters because Tk may not be touched from the
+        raytracing thread, where the drawing for a video frame is done.
+        """
+        scale = getattr(self, "_overlay_px_scale", None)
+        if scale is None:
+            scale = 1.0
+            root = getattr(self.rt, "_root", None) if self.rt is not None else None
+            if root is not None:
+                try:
+                    # A point is a seventy-second of an inch, so this is the
+                    # display's own dots per inch against the reference
+                    scale = (float(root.winfo_fpixels("1p")) * 72.0
+                             / self.OVERLAY_REFERENCE_DPI)
+                except tk.TclError:     # no window yet; ask again next time
+                    return length
+            self._overlay_px_scale = scale
+        return length * scale
+
     # ---- the canvas, and what has been put on it ----
 
     def _overlay_canvas(self):
@@ -176,6 +214,7 @@ class CanvasOverlayMixin:
         """Reset the offscreen drawing state; called from MoonRenderer.__init__."""
         self._overlay_surface = None
         self._overlay_fonts = None
+        self._overlay_px_scale = None
 
     def _overlay_offscreen(self, width: int, height: int):
         """

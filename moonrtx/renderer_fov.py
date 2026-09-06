@@ -33,6 +33,7 @@ class FovMixin:
     FOV_COLOR = "#6772ab"
     FOV_TEXT_COLOR = "#6772ab"
     FOV_LINE_WIDTH = 2
+    FOV_TEXT_TOP_PX = 10                    # the summary, below the title bar
     FOV_TEXT_FONT = ("Consolas", 10)
 
     def _init_fov_overlay(self):
@@ -151,7 +152,8 @@ class FovMixin:
             radius = width_px / 2
             self._fov_items.append(canvas.create_oval(
                 centre_x - radius, centre_y - radius, centre_x + radius, centre_y + radius,
-                outline=self.FOV_COLOR, width=self.FOV_LINE_WIDTH))
+                outline=self.FOV_COLOR,
+                width=self._overlay_px(self.FOV_LINE_WIDTH)))
         else:
             angle = self._fov_screen_rotation()
             cos_a, sin_a = math.cos(angle), math.sin(angle)
@@ -162,7 +164,8 @@ class FovMixin:
                 corners += [centre_x + dx * cos_a - dy * sin_a,
                             centre_y + dx * sin_a + dy * cos_a]
             self._fov_items.append(canvas.create_polygon(
-                corners, outline=self.FOV_COLOR, width=self.FOV_LINE_WIDTH, fill=""))
+                corners, outline=self.FOV_COLOR, fill="",
+                width=self._overlay_px(self.FOV_LINE_WIDTH)))
 
         text = self._fov_summary(width_rad, height_rad)
         if max(width_px, height_px) > max(self.rt._width, self.rt._height):
@@ -172,7 +175,8 @@ class FovMixin:
         # surface happens to be there, and small text on ground that runs from
         # black sky to lit highland cannot be read by its colour alone
         self._fov_items.extend(self._rimmed_text(
-            canvas, centre_x, 10, text, self.FOV_TEXT_COLOR, self.FOV_TEXT_FONT))
+            canvas, centre_x, self._overlay_px(self.FOV_TEXT_TOP_PX), text,
+            self.FOV_TEXT_COLOR, self.FOV_TEXT_FONT))
 
     def _fov_view_state(self):
         """

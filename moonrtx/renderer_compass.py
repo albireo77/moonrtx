@@ -270,8 +270,8 @@ class CompassMixin:
         if readings is None:
             return
 
-        line_height = self.COMPASS_VALUE_FONT[1] + 4
-        top = centre_y + radius + self.COMPASS_VALUE_GAP_PX
+        line_height = self._overlay_px(self.COMPASS_VALUE_FONT[1] + 4)
+        top = centre_y + radius + self._overlay_px(self.COMPASS_VALUE_GAP_PX)
         for row, (name, value) in enumerate(readings):
             # A fixed width for the number, so the three read as a column
             written = "   --" if value is None else f"{value:+6.1f}"
@@ -291,11 +291,12 @@ class CompassMixin:
             width, height = self.rt._width, self.rt._height
 
         size = min(width, height) * self.COMPASS_SIZE_FRACTION
-        margin = self.COMPASS_MARGIN_PX
+        margin = self._overlay_px(self.COMPASS_MARGIN_PX)
         centre_x = width - margin - size / 2
         centre_y = margin + size / 2
         # Room for the N outside the limb, so the whole thing keeps to its square
-        radius = size / 2 - self.COMPASS_FONT[1] - self.COMPASS_LABEL_GAP_PX
+        radius = size / 2 - self._overlay_px(
+            self.COMPASS_FONT[1] + self.COMPASS_LABEL_GAP_PX)
         if radius <= 0:
             return None
         return centre_x, centre_y, radius
@@ -325,7 +326,7 @@ class CompassMixin:
 
     def _compass_bump(self, canvas, x, y, colour):
         """One dot on a line, drawn as a disk of its own colour."""
-        bump = self.COMPASS_DOT_RADIUS
+        bump = self._overlay_px(self.COMPASS_DOT_RADIUS)
         self._compass_items.append(canvas.create_oval(
             x - bump, y - bump, x + bump, y + bump, fill=colour, outline=""))
 
@@ -393,7 +394,7 @@ class CompassMixin:
 
         self._compass_items.append(canvas.create_line(
             centre_x, centre_y, north[0], north[1],
-            fill=colour, width=self.COMPASS_LINE_WIDTH))
+            fill=colour, width=self._overlay_px(self.COMPASS_LINE_WIDTH)))
         self._compass_bump(canvas, north[0], north[1], colour)
 
     def _draw_compass_prime(self, canvas, centre_x, centre_y, radius, basis, colour):
@@ -415,7 +416,7 @@ class CompassMixin:
 
         self._compass_items.append(canvas.create_line(
             centre_x, centre_y, end[0], end[1],
-            fill=colour, width=self.COMPASS_LINE_WIDTH))
+            fill=colour, width=self._overlay_px(self.COMPASS_LINE_WIDTH)))
         self._compass_bump(canvas, end[0], end[1], colour)
         self._compass_label(canvas, end[0], end[1], centre_x, centre_y,
                             "0", colour, (0.0, -1.0))
@@ -436,7 +437,7 @@ class CompassMixin:
             return
         self._compass_items.append(canvas.create_line(
             *self._compass_polygon(screen, centre_x, centre_y, radius),
-            fill=colour, width=self.COMPASS_LINE_WIDTH))
+            fill=colour, width=self._overlay_px(self.COMPASS_LINE_WIDTH)))
 
     def _compass_label(self, canvas, x, y, centre_x, centre_y, text, colour, fallback):
         """
@@ -447,7 +448,8 @@ class CompassMixin:
         away_x, away_y = x - centre_x, y - centre_y
         length = math.hypot(away_x, away_y)
         out_x, out_y = fallback if length < 1e-6 else (away_x / length, away_y / length)
-        offset = self.COMPASS_FONT[1] * 0.9 + self.COMPASS_LABEL_GAP_PX
+        offset = self._overlay_px(
+            self.COMPASS_FONT[1] * 0.9 + self.COMPASS_LABEL_GAP_PX)
         self._compass_items.append(canvas.create_text(
             x + out_x * offset, y + out_y * offset,
             text=text, fill=colour, font=self.COMPASS_FONT))
