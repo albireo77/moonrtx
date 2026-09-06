@@ -18,6 +18,7 @@ either, and reaches them by being drawn a second time into a picture of its own
 
 import math
 import tkinter as tk
+from tkinter import ttk
 from typing import Optional
 
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNWE
@@ -252,8 +253,9 @@ class FovMixin:
         mode_frame = tk.Frame(main_frame)
         mode_frame.pack(fill=tk.X, pady=(0, 8))
         for label, value in (("Eyepiece", "eyepiece"), ("Camera sensor", "camera")):
-            tk.Radiobutton(mode_frame, text=label, variable=mode_var, value=value,
-                           command=lambda: apply(), anchor='w').pack(side=tk.LEFT, padx=(0, 12))
+            # Themed, so the little circle follows the display
+            ttk.Radiobutton(mode_frame, text=label, variable=mode_var, value=value,
+                            command=lambda: apply()).pack(side=tk.LEFT, padx=(0, 12))
 
         grid = tk.Frame(main_frame)
         grid.pack(fill=tk.X)

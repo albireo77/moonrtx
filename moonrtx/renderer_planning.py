@@ -20,6 +20,7 @@ lays out what comes back.
 import io
 import csv
 import tkinter as tk
+from tkinter import ttk
 import tkinter.font as tkfont
 from tkinter import filedialog, messagebox
 from datetime import datetime, timedelta, timezone
@@ -727,7 +728,8 @@ class PlanningMixin:
 
         visible_only_var = tk.BooleanVar(value=self._clair_obscur_visible_only)
         # Naming the column ties the filter to the figure it acts on
-        tk.Checkbutton(filter_row, variable=visible_only_var, anchor='w',
+        # Themed, so the little box follows the display
+        ttk.Checkbutton(filter_row, variable=visible_only_var,
                        text=f"Only when the Moon altitude (h☾) is at least "
                             f"{self.PLANNER_MOON_ALT_MIN:.0f}° in my sky",
                        command=lambda: rescan()).pack(side=tk.LEFT)
@@ -881,7 +883,7 @@ class PlanningMixin:
         tk.Label(mode_row, text="Show:", anchor='w').pack(side=tk.LEFT)
         for value, label in (("terminator", "near the terminator"),
                              ("libration", "best presented (libration)")):
-            tk.Radiobutton(mode_row, text=label, value=value, variable=mode_var,
+            ttk.Radiobutton(mode_row, text=label, value=value, variable=mode_var,
                            command=lambda: rescan()).pack(side=tk.LEFT)
 
         def rescan():

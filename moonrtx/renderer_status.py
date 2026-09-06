@@ -4,6 +4,7 @@ StatusMixin: status bar and info panel update methods for MoonRenderer.
 
 import math
 import tkinter as tk
+import tkinter.font as tkfont
 import webbrowser
 from typing import Optional
 
@@ -55,6 +56,63 @@ class StatusMixin:
         m = int((value - d) * 60)
         s = (value - d - m / 60) * 3600
         return d, m, s
+
+    # The panels are given their widths in characters, and a character grows
+    # with the display. At 300% scaling the nine of them together ask for 4504
+    # pixels of a 3840-pixel screen, and nothing refuses: the canvas the Moon is
+    # drawn on spans the same grid columns, so it is laid out that wide as well.
+    # The right of it then hangs off the screen, taking the compass with it, and
+    # the Moon - drawn at the middle of the canvas - sits a third of a thousand
+    # pixels right of the middle of what can be seen.
+    #
+    # So the lettering is stepped down until the row fits across. It costs a
+    # point or two and nothing else: at 300% a point is three pixels, so what is
+    # left is still far larger than the whole bar is on an ordinary screen,
+    # where it fits at its full size and nothing is changed at all.
+    STATUS_MIN_FONT_SIZE = 6
+
+    def _fit_status_bar(self, frame, available: int) -> Optional[int]:
+        """
+        Shrink the lettering of the status bar until it fits across the screen,
+        and say what size it settled on - or None if it never had to.
+
+        Every piece of lettering under the frame is scaled by the same ratio, so
+        the smaller sign the Sun altitude is written with stays smaller than the
+        figure beside it.
+        """
+        frame.update_idletasks()
+        if frame.winfo_reqwidth() <= available:
+            return None
+
+        lettered = []
+        stack = [frame]
+        while stack:
+            widget = stack.pop()
+            stack.extend(widget.winfo_children())
+            try:
+                spec = widget.cget("font")
+            except tk.TclError:                 # a frame carries no lettering
+                continue
+            if not spec:
+                continue
+            actual = tkfont.Font(root=frame, font=spec).actual()
+            lettered.append((widget, actual["family"], actual["size"],
+                             actual["weight"] == "bold"))
+
+        base = max((size for _w, _f, size, _b in lettered), default=0)
+        if base <= self.STATUS_MIN_FONT_SIZE:
+            return None
+
+        for size in range(base - 1, self.STATUS_MIN_FONT_SIZE - 1, -1):
+            for widget, family, was, bold in lettered:
+                smaller = max(self.STATUS_MIN_FONT_SIZE,
+                              int(round(was * size / base)))
+                widget.config(font=(family, smaller, "bold") if bold
+                              else (family, smaller))
+            frame.update_idletasks()
+            if frame.winfo_reqwidth() <= available:
+                return size
+        return self.STATUS_MIN_FONT_SIZE
 
     # ---- Status panel update methods ----
 
@@ -361,6 +419,16 @@ class StatusMixin:
                                 relief='sunken',
                                 borderwidth=1,
                             ).pack(side='right', padx=16)
+
+                    # The bar is built at its full size and then brought
+                    # within the window, which on an ordinary screen it already
+                    # is (see STATUS_MIN_FONT_SIZE). self.width is what the
+                    # window was opened at, and what the canvas settles back to
+                    # once nothing is asking for more.
+                    settled = self._fit_status_bar(status_frame, self.width)
+                    if settled is not None:
+                        print(f"Status bar lettering reduced to {settled} pt "
+                              f"to fit a {self.width} px window")
 
                 # Build info panel (bottom-left overlay on canvas)
                 if hasattr(rt, '_canvas'):

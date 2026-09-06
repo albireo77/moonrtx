@@ -312,24 +312,25 @@ class MainWindow(tk.Tk):
         self.init_view.grid(row=13, column=1, sticky=tk.EW, pady=2)
 
         self.parallactic_mode_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(
+        # Themed, so the little box follows the display: Tk's own is drawn at
+        # much the same size whatever the screen, which on a 4K one at 300% is
+        # a tenth the height of the lettering beside it
+        ttk.Checkbutton(
             frm,
             text="(keeps Moon aligned to celestial north)",
             variable=self.parallactic_mode_var,
-            padx=0, borderwidth=0, highlightthickness=0,
         ).grid(row=14, column=1, columnspan=2, sticky=tk.W, pady=2)
 
         self.no_stars_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(
+        ttk.Checkbutton(
             frm,
             text="(saves GPU memory)",
             variable=self.no_stars_var,
-            padx=0, borderwidth=0, highlightthickness=0,
         ).grid(row=15, column=1, columnspan=2, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
-        tk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
-        tk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
+        ttk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
+        ttk.Radiobutton(frm, text="Sexagesimal", variable=self.coord_mode, value='sexagesimal').grid(row=1, column=2, sticky=tk.W, padx=(4, 0))
 
         def _set_time_now():
             # In the timezone the box names, not this machine's: the fields are

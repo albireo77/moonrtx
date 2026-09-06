@@ -14,6 +14,7 @@ import base64
 import struct
 import calendar
 import tkinter as tk
+from tkinter import ttk
 from tkinter import filedialog
 from datetime import datetime
 from typing import Optional
@@ -254,7 +255,9 @@ class DialogsMixin:
         # The status bar is not part of the ray-traced image, so the local time
         # has to be drawn into the frames themselves to appear in the video
         burn_time_var = tk.BooleanVar(value=True)
-        burn_time_cb = tk.Checkbutton(main_frame, variable=burn_time_var, anchor='w', text="Show local time")
+        # Themed, so the little box follows the display (see the launcher)
+        burn_time_cb = ttk.Checkbutton(main_frame, variable=burn_time_var,
+                                       text="Show local time")
         burn_time_cb.pack(fill=tk.X, pady=(4, 0))
 
         time_corner_var = tk.StringVar(value=self.VIDEO_TIME_CORNER)
@@ -266,8 +269,8 @@ class DialogsMixin:
             row.pack(fill=tk.X)
             buttons = []
             for corner in self.VIDEO_CORNERS:
-                rb = tk.Radiobutton(row, text=corner, value=corner, variable=var,
-                                    command=command)
+                rb = ttk.Radiobutton(row, text=corner, value=corner, variable=var,
+                                     command=command)
                 rb.pack(side=tk.LEFT)
                 buttons.append(rb)
             return buttons
@@ -307,8 +310,8 @@ class DialogsMixin:
         showing = (self.compass_visible or self.locator_visible
                    or self.fov_overlay_visible)
         burn_overlays_var = tk.BooleanVar(value=showing)
-        burn_overlays_cb = tk.Checkbutton(
-            main_frame, variable=burn_overlays_var, anchor='w',
+        burn_overlays_cb = ttk.Checkbutton(
+            main_frame, variable=burn_overlays_var,
             text="Show overlays (compass, locator, field of view)")
         burn_overlays_cb.pack(fill=tk.X, pady=(4, 0))
         if not showing:
