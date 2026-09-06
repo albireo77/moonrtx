@@ -21,9 +21,16 @@ Nothing here draws anything. The rim is the one exception and it draws only what
 it is told to, twice over.
 """
 
+import os
+import copy
 from typing import Optional
 
 import tkinter as tk
+
+import cv2
+import numpy as np
+
+from .overlay_raster import FontBook, OverlaySurface, composite
 
 
 class CanvasOverlayMixin:
@@ -47,16 +54,28 @@ class CanvasOverlayMixin:
     OVERLAY_HALO_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0),
                             (1, 0), (-1, 1), (0, 1), (1, 1))
 
+    # What each overlay calls the list of canvas items it is holding. Set aside
+    # while one is being drawn into a picture instead of onto the window, so
+    # that the window's own items are neither redrawn nor lost.
+    OVERLAY_ITEM_LISTS = ("_compass_items", "_locator_items", "_fov_items")
+
     # ---- the canvas, and what has been put on it ----
 
     def _overlay_canvas(self):
         """
-        The canvas the overlays are drawn on, or None while there is no window.
+        What the overlays draw on: the window's canvas, or None while there is
+        no window - or, while one is being drawn into a picture, that picture.
 
         Asked for rather than remembered: an overlay may be switched on before
         the window is up, and every drawing method has to cope with there being
-        nowhere to draw yet.
+        nowhere to draw yet. Being asked for is also what lets `overlay_image`
+        put something else in the canvas's place for the length of one drawing,
+        so that the overlays can be drawn into a saved image or a video frame
+        without knowing they are (see overlay_raster).
         """
+        offscreen = getattr(self, "_overlay_surface", None)
+        if offscreen is not None:
+            return offscreen
         return getattr(self.rt, "_canvas", None) if self.rt is not None else None
 
     def _clear_overlay(self, items) -> list:
@@ -150,3 +169,125 @@ class CanvasOverlayMixin:
                 except tk.TclError:     # the window went before the timer did
                     pass
         return None
+
+    # ---- the same overlays, drawn into a picture ----
+
+    def _init_overlay_raster(self):
+        """Reset the offscreen drawing state; called from MoonRenderer.__init__."""
+        self._overlay_surface = None
+        self._overlay_fonts = None
+
+    def _overlay_offscreen(self, width: int, height: int):
+        """
+        A stand-in for this renderer that draws into a picture of that size
+        instead of onto the window.
+
+        It is a shallow copy, so it answers every question about the view the
+        same way - the same camera, the same Moon, the same moment - while
+        holding the picture and the list of what has been drawn on it as its
+        own. That is what keeps the two drawings out of each other's way:
+        during an export a frame is drawn here, on the raytracing thread, while
+        the window's poll goes on redrawing the same three overlays on the main
+        thread, and neither can now take the other's canvas or lose track of
+        the other's items.
+
+        The fonts are the exception, kept on the renderer and shared: they are
+        measured once and never change, and the first measuring has to happen
+        where there is a Tk to ask (see overlay_raster.FontBook).
+        """
+        if self._overlay_fonts is None:
+            root = getattr(self.rt, "_root", None) if self.rt is not None else None
+            self._overlay_fonts = FontBook(root)
+
+        stand_in = copy.copy(self)
+        stand_in._overlay_surface = OverlaySurface(
+            width, height, self._overlay_fonts)
+        for name in self.OVERLAY_ITEM_LISTS:
+            setattr(stand_in, name, [])
+        return stand_in
+
+    def overlay_image(self, width: int, height: int):
+        """
+        Everything the canvas overlays currently show, drawn at that size as an
+        RGBA array - or None when none of them is switched on.
+
+        This is what puts them into an image saved with F12 and into the frames
+        of an exported video, neither of which carries the canvas. They are
+        drawn afresh rather than copied off the window, so that the picture may
+        be a different size from it and so that this can be done from the
+        raytracing thread, where Tk may not be touched at all.
+        """
+        showing = [(getattr(self, "compass_visible", False), "_draw_compass"),
+                   (getattr(self, "locator_visible", False), "_draw_locator"),
+                   (getattr(self, "fov_overlay_visible", False),
+                    "_draw_fov_overlay")]
+        if not any(visible for visible, _draw in showing):
+            return None
+
+        stand_in = self._overlay_offscreen(width, height)
+        for visible, draw in showing:
+            if visible:
+                getattr(stand_in, draw)()
+        return stand_in._overlay_surface.rgba()
+
+    # ---- and into a saved image ----
+
+    # What the ray tracer can be asked for, by the extension the file is given.
+    # A depth it cannot write is not offered by the save dialog, so an unknown
+    # extension only means the plain save should handle it.
+    OVERLAY_SAVE_DEPTHS = {".jpg": "Bps8", ".jpeg": "Bps8", ".png": "Bps8",
+                           ".bmp": "Bps8", ".tif": "Bps8", ".tiff": "Bps16"}
+    # JPEG at its usual settings averages the colour of every second pixel
+    # away, which is most of what a one-pixel line is; the overlays are drawn
+    # in thin coloured lines, so the colour is kept at full resolution here
+    OVERLAY_SAVE_JPEG_QUALITY = 95
+
+    def save_render_with_overlays(self, filename: str, bps: str) -> bool:
+        """
+        Write the render to a file with the canvas overlays laid over it, and
+        say whether it was written.
+
+        The ray tracer's own save writes the buffer it rendered, which is the
+        picture without them - they are canvas items over the top of it, and
+        nothing of the canvas reaches the file. So the image is taken out
+        instead, the overlays are drawn into one of their own at the same size,
+        and the two are composited here.
+
+        False means nothing was written and the plain save should do it: no
+        overlay is showing, or the file is of a kind not handled here, or
+        something went wrong - in which case the picture still gets saved,
+        without the overlays, which is what it would have been anyway.
+        """
+        if self.rt is None:
+            return False
+        try:
+            overlay = self.overlay_image(self.rt._width, self.rt._height)
+            if overlay is None:                     # nothing switched on
+                return False
+
+            extension = os.path.splitext(filename)[1].lower()
+            if self.OVERLAY_SAVE_DEPTHS.get(extension) != bps:
+                return False
+
+            base = self.rt.get_rt_output(bps=bps, channels="RGB")
+            if base is None:
+                return False
+
+            merged = composite(base, overlay)
+            # OpenCV writes blue first, and encoding to memory rather than
+            # letting it open the file keeps paths it cannot spell working
+            params = ([int(cv2.IMWRITE_JPEG_QUALITY), self.OVERLAY_SAVE_JPEG_QUALITY,
+                       int(cv2.IMWRITE_JPEG_SAMPLING_FACTOR),
+                       int(cv2.IMWRITE_JPEG_SAMPLING_FACTOR_444)]
+                      if extension in (".jpg", ".jpeg") else [])
+            ok, encoded = cv2.imencode(
+                extension, np.ascontiguousarray(merged[:, :, ::-1]), params)
+            if not ok:
+                return False
+            with open(filename, "wb") as out:
+                out.write(encoded.tobytes())
+        except Exception as e:
+            # The picture matters more than the overlays on it
+            print(f"Overlays not saved into the image ({e}); saving without them")
+            return False
+        return True

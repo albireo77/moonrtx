@@ -13,10 +13,12 @@ from datetime import datetime
 class VideoMixin:
     """Mixin providing time-lapse video export methods for MoonRenderer."""
 
-    # Burned-in text for exported videos: the local time of each frame in the
-    # bottom-left corner and an optional user caption in the top-left corner.
-    # The Tk status bar is not part of the ray-traced image, so both are
-    # composited into the frame by the Overlay postprocessing stage: an RGBA
+    # What is burned into exported video frames: the local time of each frame in
+    # the bottom-left corner, an optional user caption in the top-left corner,
+    # and whichever of the canvas overlays the export was asked to carry. None
+    # of the three is part of the ray-traced image - the first two belong to the
+    # Tk status bar and the third to the canvas over the render - so all of them
+    # are composited into the frame by the Overlay postprocessing stage: an RGBA
     # texture blended over the tone-mapped image, which the NVENC encoder then
     # captures along with it. Verified on PlotOptiX 0.19.2: blending is exact
     # alpha compositing (an opaque black patch renders 0, a 50% black patch
@@ -105,17 +107,29 @@ class VideoMixin:
 
     def _set_video_overlay(self, dt_local: Optional[datetime] = None, caption: str = "",
                            time_corner: str = VIDEO_TIME_CORNER,
-                           caption_corner: str = VIDEO_CAPTION_CORNER):
+                           caption_corner: str = VIDEO_CAPTION_CORNER,
+                           canvas_overlays: bool = False):
         """
-        Compose the video frame overlay: the local time of dt_local and the
-        caption, each in its own corner. Either can be omitted, and omitting
-        both clears the overlay to fully transparent - which is how it is
-        switched off, the postprocessing stage itself being impossible to
-        remove once added.
+        Compose the video frame overlay: whichever of the canvas overlays are
+        showing, and over them the local time of dt_local and the caption, each
+        in its own corner. All three can be omitted, and omitting all of them
+        clears the overlay to fully transparent - which is how it is switched
+        off, the postprocessing stage itself being impossible to remove once
+        added.
+
+        The compass, the locator and the field-of-view frame are Tk canvas
+        items over the render, and so are no more part of a video frame than of
+        a saved image; they are drawn into the overlay instead, at the size of
+        the frame (see renderer_overlay.overlay_image). That drawing touches no
+        Tk, which matters here: this runs on the raytracing thread for every
+        frame but the first.
 
         Must be called before the accumulation cycle of the frame it belongs
         to starts: the encoder captures the overlay in place at that moment
-        (see the VIDEO_OVERLAY_TEXTURE comment block).
+        (see the VIDEO_OVERLAY_TEXTURE comment block). The canvas overlays must
+        also be drawn from the time that frame shows, which is why they are
+        composed from update_view rather than ahead of it - see
+        _refresh_export_overlay.
         """
         if self.rt is None:
             return
@@ -127,6 +141,11 @@ class VideoMixin:
             self._video_overlay_buf = buf
         else:
             buf.fill(0)
+
+        if canvas_overlays:
+            drawn = self.overlay_image(w, h)
+            if drawn is not None:
+                buf[:] = drawn
 
         if dt_local is not None:
             self._draw_video_label(buf, self._video_time_text(dt_local), time_corner)
@@ -143,13 +162,35 @@ class VideoMixin:
             self.rt.add_postproc("Overlay")
             self._video_overlay_ready = True
 
+    def _refresh_export_overlay(self):
+        """
+        Recompose the burned-in overlay for the time now in force. Called from
+        update_view, and does nothing unless an export is running that is
+        burning the canvas overlays in.
+
+        They cannot be composed ahead of the frame, as the time and the caption
+        are: the locator carries the terminator and the crosses where the Sun
+        and the Earth stand, and the compass turns with the Moon, so both are
+        drawn from an ephemeris that is the frame's own only once update_view
+        has committed it. This runs at the end of that, still inside the render
+        padlock and still before the accumulation cycle the frame is taken from
+        begins.
+        """
+        st = self._video_export
+        if st is None or not st["overlays"]:
+            return
+        self._set_video_overlay(self.dt_local if st["burn_time"] else None,
+                                st["caption"], st["time_corner"],
+                                st["caption_corner"], canvas_overlays=True)
+
     # ---- export control ----
 
     def start_video_export(self, filename: str, n_frames: int, step_minutes: int,
                            fps: int, bitrate: float, on_progress, on_done,
                            burn_time: bool = True, caption: str = "",
                            time_corner: str = VIDEO_TIME_CORNER,
-                           caption_corner: str = VIDEO_CAPTION_CORNER) -> Optional[str]:
+                           caption_corner: str = VIDEO_CAPTION_CORNER,
+                           burn_overlays: bool = False) -> Optional[str]:
         """
         Start a time-lapse export: from the current observation time, advance
         by step_minutes per video frame, letting every frame converge to the
@@ -189,6 +230,10 @@ class VideoMixin:
         time_corner, caption_corner : str
             Corners to place them in, one of VIDEO_CORNERS. They must differ,
             or the two labels would be drawn on top of each other.
+        burn_overlays : bool
+            Draw whichever canvas overlays are showing - the compass, the
+            locator, the field-of-view frame - into every frame, each redrawn
+            for the time that frame shows
 
         Returns
         -------
@@ -234,6 +279,7 @@ class VideoMixin:
             "caption": self._video_ascii(caption.strip())[:self.VIDEO_CAPTION_MAX_CHARS],
             "time_corner": time_corner,
             "caption_corner": caption_corner,
+            "overlays": burn_overlays,
             "resume_auto_advance": resume_auto_advance,
         }
 
@@ -261,10 +307,10 @@ class VideoMixin:
         # Re-render the current time: it becomes the first video frame, so its
         # burned-in text has to be in place before the cycle starts
         st = self._video_export
-        if burn_time or st["caption"]:
+        if burn_time or st["caption"] or burn_overlays:
             with self.rt._padlock:
                 self._set_video_overlay(self.dt_local if burn_time else None, st["caption"],
-                                        time_corner, caption_corner)
+                                        time_corner, caption_corner, burn_overlays)
         self.rt.refresh_scene()
         return None
 
@@ -304,10 +350,14 @@ class VideoMixin:
                 next_dt = self.in_observer_clock(self.shifted_time(st["step"]))
                 try:
                     with self.rt._padlock:
-                        if st["burn_time"] or st["caption"]:
+                        if (st["burn_time"] or st["caption"]) and not st["overlays"]:
                             self._set_video_overlay(
                                 next_dt if st["burn_time"] else None, st["caption"],
                                 st["time_corner"], st["caption_corner"])
+                        # With the overlays burned in as well, the whole thing
+                        # is composed from inside update_view instead: they are
+                        # drawn from the Moon as it stands, and until the new
+                        # time is committed that is still the last frame's Moon
                         self.update_view(next_dt)
                 except Exception as e:
                     # E.g. the date left the supported ephemeris range: end the
@@ -339,7 +389,8 @@ class VideoMixin:
                 if self.rt is not None and self.rt.encoder_is_open():
                     self.rt.encoder_stop()
 
-                if self.rt is not None and (st["burn_time"] or st["caption"]):
+                if self.rt is not None and (st["burn_time"] or st["caption"]
+                                            or st["overlays"]):
                     # Take the burned-in text back out of the live view. The
                     # postprocessing stage cannot be removed once added, so an
                     # all-transparent texture is what makes it a no-op; the

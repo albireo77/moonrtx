@@ -49,7 +49,8 @@ climbed far enough to bring it inboard.
 The projection is the compass's, which is what makes the two agree - the same
 default camera of the same moment, and the same handling of the mirrored view
 orientations. Like the compass this is drawn on the Tk canvas rather than into
-the scene, so it does not appear in images saved with F12 or in exported video.
+the scene, and reaches a saved image or a video frame by being drawn a second
+time into a picture of its own (see overlay_raster).
 """
 
 import math
@@ -467,7 +468,7 @@ class LocatorMixin:
         upper right, the ephemeris panel the lower left, and the field-of-view
         frame writes its summary across the top middle.
         """
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
+        canvas = self._overlay_canvas()
         if canvas is None:
             return None
 
@@ -666,7 +667,7 @@ class LocatorMixin:
         """Redraw the disk and the field from the current camera."""
         self._clear_locator_items()
 
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
+        canvas = self._overlay_canvas()
         if canvas is None or not self.locator_visible:
             return
 

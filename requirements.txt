@@ -1,5 +1,6 @@
 numpy
 opencv_python_headless
+Pillow
 plotoptix>=0.19.2
 skyfield>=1.54
 tzdata

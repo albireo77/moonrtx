@@ -323,6 +323,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
         self._init_compass_overlay()
         self._init_locator()
 
+        # Drawing all three into a picture, for F12 and for video frames
+        # (see renderer_overlay.CanvasOverlayMixin.overlay_image)
+        self._init_overlay_raster()
+
         # Size of the lettering on the surface (see renderer_labels.LabelsMixin)
         self._init_label_scale()
 
@@ -965,6 +969,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, Navigation
             sun_light_radius = float(self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)
             self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=sun_light_radius)
             self.update_overlays()
+            # A video export burning the canvas overlays into its frames draws
+            # them here, where the new time is in force and the cycle that
+            # carries the frame has not yet started (see renderer_video)
+            self._refresh_export_overlay()
 
         # Keys reach the main window while the date/time window has focus, so
         # the clock can move under it; its fields follow rather than going stale

@@ -10,9 +10,10 @@ leaves room in.
 
 The frame is drawn on the Tk canvas rather than into the scene: it belongs to
 the observer's equipment, not to the Moon, so it must not rotate with the view
-roll, take part in the lighting, or move with the surface. The side effect is
-that it does not appear in images saved with F12, which capture the ray-traced
-image alone.
+roll, take part in the lighting, or move with the surface. Being no part of the
+scene, it is no part of the ray-traced image that F12 and the video encoder take
+either, and reaches them by being drawn a second time into a picture of its own
+(see overlay_raster).
 """
 
 import math
@@ -130,7 +131,7 @@ class FovMixin:
         """Redraw the frame from the current camera and setup."""
         self._clear_fov_items()
 
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
+        canvas = self._overlay_canvas()
         if canvas is None or not self.fov_overlay_visible:
             return
 

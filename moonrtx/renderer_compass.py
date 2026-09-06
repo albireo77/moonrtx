@@ -35,8 +35,9 @@ three read zero when the view is at its default.
 
 Both colours come from a camera - the live one and the default one - so the
 mirrored view orientations apply to both. Like the field-of-view frame this is
-drawn on the Tk canvas rather than into the scene, so it does not appear in
-images saved with F12 or in exported video.
+drawn on the Tk canvas rather than into the scene, and so is no part of the
+ray-traced buffer that F12 and the video encoder take; it reaches them by being
+drawn a second time into a picture of its own (see overlay_raster).
 """
 
 import math
@@ -281,7 +282,7 @@ class CompassMixin:
 
     def _compass_placement(self) -> Optional[tuple]:
         """Centre and radius of the globe, in canvas pixels."""
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
+        canvas = self._overlay_canvas()
         if canvas is None:
             return None
 
@@ -340,7 +341,7 @@ class CompassMixin:
         """Redraw the globe from the current camera."""
         self._clear_compass_items()
 
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
+        canvas = self._overlay_canvas()
         if canvas is None or not self.compass_visible:
             return
 

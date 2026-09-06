@@ -1221,6 +1221,21 @@ class DialogsMixin:
         caption_corner_buttons = corner_row(main_frame, caption_corner_var,
                                             corner_chosen("caption"))
 
+        # The compass, the locator and the field-of-view frame are drawn on the
+        # canvas over the render, not into it, so they reach the video the same
+        # way the time does. Offered as they stand: whichever of them is on
+        # screen when the export starts is what goes into the frames, each
+        # redrawn for the time its own frame shows.
+        showing = (self.compass_visible or self.locator_visible
+                   or self.fov_overlay_visible)
+        burn_overlays_var = tk.BooleanVar(value=showing)
+        burn_overlays_cb = tk.Checkbutton(
+            main_frame, variable=burn_overlays_var, anchor='w',
+            text="Show overlays (compass, locator, field of view)")
+        burn_overlays_cb.pack(fill=tk.X, pady=(4, 0))
+        if not showing:
+            burn_overlays_cb.config(state='disabled')
+
         def limit_caption(*args):
             text = caption_var.get()
             if len(text) > self.VIDEO_CAPTION_MAX_CHARS:
@@ -1243,6 +1258,9 @@ class DialogsMixin:
                 locked = self._video_encoder_cfg is not None and i >= 2
                 e.config(state='disabled' if (active or locked) else 'normal')
             burn_time_cb.config(state=state)
+            # Nothing to burn in leaves it disabled whatever the export is doing
+            burn_overlays_cb.config(
+                state='disabled' if (active or not showing) else 'normal')
             caption_entry.config(state=state)
             for rb in time_corner_buttons + caption_corner_buttons:
                 rb.config(state=state)
@@ -1296,7 +1314,8 @@ class DialogsMixin:
                                             burn_time=burn_time_var.get(),
                                             caption=caption_var.get(),
                                             time_corner=time_corner_var.get(),
-                                            caption_corner=caption_corner_var.get())
+                                            caption_corner=caption_corner_var.get(),
+                                            burn_overlays=burn_overlays_var.get())
             if error is not None:
                 set_exporting(False)
                 status_label.config(fg='red')
@@ -1451,10 +1470,14 @@ class DialogsMixin:
         )
         if filename:
             fname, fext = os.path.splitext(filename)
-            if fext.lower() == ".tiff":
-                self.rt.save_image(filename, bps="Bps16")
-            else:
-                self.rt.save_image(filename, bps="Bps8")
+            bps = "Bps16" if fext.lower() == ".tiff" else "Bps8"
+            # The compass, the locator and the field-of-view frame are drawn on
+            # the canvas over the render and are not in the buffer the ray
+            # tracer saves, so whichever of them is on screen is composited into
+            # the file instead. With none showing - or if that goes wrong - the
+            # ray tracer writes the file itself, exactly as it always has.
+            if not self.save_render_with_overlays(filename, bps):
+                self.rt.save_image(filename, bps=bps)
             print(f"Saved: {filename}")
 
     def get_default_filename(self) -> str:
