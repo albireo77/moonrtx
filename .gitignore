@@ -209,3 +209,10 @@ __marimo__/
 moonrtx/data/
 moonrtx/presets/
 !moonrtx/data/moon_features.csv
+
+/*.jpg
+/*.jpeg
+/*.png
+/*.tif
+/*.tiff
+/*.mp4
