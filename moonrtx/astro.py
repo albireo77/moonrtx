@@ -141,8 +141,8 @@ def _rotation_matrix(
 
 def _phase_name(moon: ICRF, sun: ICRF) -> str:
 
-    _, moon_ecl_lon, _ = moon.frame_latlon(ecliptic_frame)
-    _, sun_ecl_lon, _ = sun.frame_latlon(ecliptic_frame)
+    moon_ecl_lon = moon.frame_latlon(ecliptic_frame)[1]
+    sun_ecl_lon = sun.frame_latlon(ecliptic_frame)[1]
     delta = (moon_ecl_lon.degrees - sun_ecl_lon.degrees) % 360.0
     
     if (delta < 0.5) or (delta > 359.5):
@@ -262,8 +262,8 @@ def find_terminator_windows(start_local: datetime, days: int,
     dts, t = _scan_times(start_local, days, step_minutes)
 
     observer_at = _observer.at(t)
-    moon_alt, _, _ = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")
-    sun_alt_obs, _, _ = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")
+    moon_alt = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")[0]
+    sun_alt_obs = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")[0]
     moon_alt = moon_alt.degrees
     sun_alt_obs = sun_alt_obs.degrees
 
@@ -345,8 +345,8 @@ def find_libration_windows(start_local: datetime, days: int,
 
     observer_at = _observer.at(t)
     moon_at = _moon.at(t)
-    moon_alt, _, _ = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")
-    sun_alt_obs, _, _ = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")
+    moon_alt = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")[0]
+    sun_alt_obs = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")[0]
     moon_alt = moon_alt.degrees
     sun_alt_obs = sun_alt_obs.degrees
 
@@ -472,8 +472,8 @@ def find_clair_obscur_events(start_local: datetime, days: int,
     dts, t = _scan_times(start_local, days, step_minutes)
 
     observer_at = _observer.at(t)
-    moon_alt, _, _ = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")
-    sun_alt_obs, _, _ = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")
+    moon_alt = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")[0]
+    sun_alt_obs = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")[0]
     moon_alt = moon_alt.degrees
     sun_alt_obs = sun_alt_obs.degrees
 
@@ -540,8 +540,13 @@ ASTRONOMICAL_TWILIGHT_DEGREES = -12.0
 
 def _altitude_of(target, when_utc: datetime) -> float:
     """Apparent altitude of a body above the observer's horizon, in degrees."""
-    altitude, _, _ = _observer.at(_timescale.from_datetime(when_utc)).observe(
-        target).apparent().altaz(temperature_C="standard")
+    altitude = (
+        _observer
+        .at(_timescale.from_datetime(when_utc))
+        .observe(target)
+        .apparent()
+        .altaz(temperature_C="standard")[0]
+    )
     return float(altitude.degrees)
 
 
@@ -596,7 +601,13 @@ def _upper_transits(start_utc: datetime, end_utc: datetime) -> list:
     upper = times[np.asarray(kinds) == 1]
     if not len(upper):
         return []
-    altitudes, _, _ = _observer.at(upper).observe(_moon).apparent().altaz(temperature_C="standard")
+    altitudes = (
+        _observer
+        .at(upper)
+        .observe(_moon)
+        .apparent()
+        .altaz(temperature_C="standard")[0]
+    )
     return list(zip(upper.utc_datetime(), (float(a) for a in np.atleast_1d(altitudes.degrees))))
 
 
@@ -674,7 +685,7 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
 
     moon_radec = moon_topo.radec(epoch="date")
     sun_radec = sun_topo.radec(epoch="date")
-    moon_ra, moon_dec, _ = moon_radec
+    moon_ra, moon_dec = moon_radec[:2]
     moon_ra_deg = moon_ra.hours * 15.0
     moon_dec_deg = moon_dec.degrees
 
@@ -685,11 +696,11 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
     if parallactic_mode:
         q_deg = 0.0
     else:
-        moon_hour_angle, _, _ = moon_topo.hadec()
+        moon_hour_angle = moon_topo.hadec()[0]
         moon_hour_angle_deg = moon_hour_angle.hours * 15.0
         q_deg = _parallactic_angle_deg(moon_hour_angle_deg, moon_dec_deg, _observer_lat)
 
-    moon_alt, moon_az, _ = moon_topo.altaz(temperature_C="standard")
+    moon_alt, moon_az = moon_topo.altaz(temperature_C="standard")[:2]
 
     elongation = moon_topo.separation_from(sun_topo).degrees
     bright_limb_angle_deg = position_angle_of(moon_radec, sun_radec).degrees - q_deg
