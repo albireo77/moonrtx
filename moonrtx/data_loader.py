@@ -463,31 +463,41 @@ _REDUCED_COLOR_FLAGS = {
 COLOR_ALBEDO_MIN = 0.2
 COLOR_ALBEDO_RANGE = 0.75
 
+# Color and star maps are published sRGB-encoded, and the renderer works in
+# linear light, so their bytes have to be raised to this before they mean
+# anything physical. It is a property of the files, not a setting: it stays 2.2
+# whatever gamma the viewer asks for. Tying it to that gamma instead - which is
+# what this did until now - made a low --gamma flatten the surface into
+# something metallic and lift every faint star, on top of the tone curve it was
+# meant to change, and left the E/D keys unable to reach the same picture, since
+# they can only move the tone curve.
+SRGB_GAMMA = 2.2
+
 # Rows converted at a time. Large enough that the per-block overhead is lost in
 # the noise, small enough that the temporary each channel lookup produces stays
 # a few tens of megabytes rather than a copy of the whole image.
 _COLOR_BLOCK_ROWS = 1024
 
 
-def _albedo_lut(gamma: float) -> np.ndarray:
+def _albedo_lut() -> np.ndarray:
     """
     The whole color pipeline as a 256-entry table.
 
-    Every step - albedo mapping, the inverse gamma that plotoptix.utils.make_color_2d
-    applies so the Gamma postprocessing returns the intended color, and the scale
-    back to bytes - is the same function of one 8-bit source value, and cv2.imread
-    always hands back 8-bit channels. So the table gives bit-for-bit what running
-    the arithmetic over the whole image gave, at 256 elements instead of billions
-    (verified equal on the 10k default map and on 374-1062 Mpx 8- and 16-bit maps).
+    Every step - albedo mapping, the sRGB decoding into linear light, and the
+    scale back to bytes - is the same function of one 8-bit source value, and
+    cv2.imread always hands back 8-bit channels. So the table gives bit-for-bit
+    what running the arithmetic over the whole image gave, at 256 elements
+    instead of billions (verified equal on the 10k default map and on 374-1062
+    Mpx 8- and 16-bit maps).
     """
     lut = np.arange(256, dtype=np.float32)
     lut = COLOR_ALBEDO_MIN + (COLOR_ALBEDO_RANGE / 255) * lut
-    lut = np.power(lut, gamma, dtype=np.float32)
+    lut = np.power(lut, SRGB_GAMMA, dtype=np.float32)
     lut *= 255
     return lut.astype(np.uint8)
 
 
-def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np.ndarray:
+def load_color_data(filepath: str, downscale: int = 1) -> np.ndarray:
     """
     Load and process the Moon color/albedo data.
 
@@ -495,8 +505,6 @@ def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np
     ----------
     filepath : str
         Path to the color TIFF file
-    gamma : float
-        Gamma correction value
     downscale : int
         Decode the map at 1/downscale of its size, one of COLOR_DOWNSCALE_FACTORS.
         Peak memory falls with the square of it, which is what makes maps beyond
@@ -510,9 +518,9 @@ def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np
     print(f"Loading color data from {filepath}...")
 
     # Disk cache of the decoded, downscaled image (skipped at downscale 1, where
-    # it would be larger than the compressed source for little gain). Gamma is
-    # applied after it is read, so changing gamma does not invalidate it and a
-    # source deleted to reclaim its gigabytes stays deleted.
+    # it would be larger than the compressed source for little gain). It keeps the
+    # decoded source bytes rather than the finished texture, so a source deleted
+    # to reclaim its gigabytes stays deleted.
     cache_base = f"{filepath}.ds{downscale}"
     fingerprint = None
     if downscale > 1:
@@ -521,7 +529,7 @@ def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np
             color_src, _ = _load_cache(cache_base, fingerprint)
         if color_src is not None:
             print(f"  Loaded from cache: {cache_base}.npy, dimensions {color_src.shape}")
-            return _moon_texture(color_src, gamma)
+            return _moon_texture(color_src)
 
     if not os.path.isfile(filepath):
         raise FileNotFoundError(
@@ -541,10 +549,10 @@ def load_color_data(filepath: str, gamma: float = 2.2, downscale: int = 1) -> np
     if fingerprint is not None:
         _save_cache(cache_base, color_src, fingerprint)
 
-    return _moon_texture(color_src, gamma)
+    return _moon_texture(color_src)
 
 
-def _moon_texture(color_src: np.ndarray, gamma: float) -> np.ndarray:
+def _moon_texture(color_src: np.ndarray) -> np.ndarray:
     """
     Turn the decoded BGR bytes into the RGBA texture, a band of rows at a time.
 
@@ -553,7 +561,7 @@ def _moon_texture(color_src: np.ndarray, gamma: float) -> np.ndarray:
     ten times the size of the finished texture and putting large color maps out
     of reach. Here only the source and the result are ever live.
     """
-    lut = _albedo_lut(gamma)
+    lut = _albedo_lut()
     height, width = color_src.shape[:2]
     with _fits_in_memory("the color map texture", COLOR_DOWNSCALE_REMEDY):
         color_data = np.empty((height, width, 4), dtype=np.uint8)

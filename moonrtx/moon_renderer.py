@@ -15,7 +15,8 @@ from plotoptix.materials import m_diffuse
 from moonrtx import astro
 from moonrtx.shared_types import (Camera, MAP_TOO_LARGE_EXIT_CODE,
                                   MapTooLargeError, Observer)
-from moonrtx.data_loader import load_moon_features, load_elevation_data, load_color_data, load_starmap
+from moonrtx.data_loader import (load_moon_features, load_elevation_data, load_color_data,
+                                 load_starmap, SRGB_GAMMA)
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
 from moonrtx.display import make_dpi_aware, screen_size, starmap_target_width
 
@@ -692,7 +693,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         # washing out the night side of a crescent and lifting shadow floors.
         self.rt.set_ambient(0)
 
-        # Tone mapping
+        # Tone mapping. This is the only place the viewer's gamma acts, which is
+        # what lets E/D reach exactly the picture starting at that value gives:
+        # the textures below are decoded with SRGB_GAMMA, a property of the files.
         self.rt.set_float("tonemap_exposure", 0.9)
         self.rt.set_float("tonemap_gamma", self.gamma)
         self.rt.add_postproc("Gamma")
@@ -708,13 +711,13 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
             with self._gpu_upload("the star map", star_map.nbytes,
                                   "Free GPU memory, or raise --downscale / --color-downscale "
                                   "to leave room for it."):
-                self.rt.set_background(star_map, gamma=self.gamma, rt_format="UByte4")
+                self.rt.set_background(star_map, gamma=SRGB_GAMMA, rt_format="UByte4")
         else:
             self.rt.set_background(0)  # Black background
 
         # Setup material with Moon texture (local for the same reason, ~200 MB).
         # Copy the material so the shared plotoptix module dict stays untouched.
-        color_data = load_color_data(self.color_file, self.gamma, self.color_downscale)
+        color_data = load_color_data(self.color_file, self.color_downscale)
         with self._gpu_upload("the color map texture", color_data.nbytes,
                               "Raise --color-downscale, or use a smaller color map."):
             self.rt.set_texture_2d("moon_color", color_data)
