@@ -62,16 +62,6 @@ class CompassMixin:
     # is stippled: a Tk canvas has no transparency, so a dither is the only way
     # for the disk underneath - and the lines crossing it - to show through.
     COMPASS_DISK_STIPPLE = "gray25"
-    # Lettering over the render has no background it can count on: the ground
-    # beneath it runs from the black of the sky to the white of a lit highland,
-    # and no one colour is legible on both - the readings were measured at a
-    # fifth over one on ordinary grey, where four and a half is what small text
-    # wants. So each is written a second time, in black, at every one of these
-    # offsets, and the coloured text laid on top. The letter then carries its
-    # own dark rim wherever it goes.
-    COMPASS_HALO_COLOR = "#000000"
-    COMPASS_HALO_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0),
-                            (1, 0), (-1, 1), (0, 1), (1, 1))
     COMPASS_FONT = ("Consolas", 10, "bold")
     COMPASS_VALUE_FONT = ("Consolas", 10)
     # Clear of the globe by a bump and a label, the plane reaching the rim when it
@@ -92,10 +82,6 @@ class CompassMixin:
     COMPASS_NORTH = (0.0, 0.0, 1.0)
     COMPASS_PRIME = (0.0, -1.0, 0.0)
     COMPASS_ARC_POINTS = 46                 # samples along the quarter between them
-    # The camera is read on a light poll, as the field-of-view frame is: the
-    # view also moves under the mouse and under PlotOptiX's own handlers, where
-    # there is nothing to hook. A redraw is skipped while nothing has moved.
-    COMPASS_REFRESH_MS = 200
 
     def _init_compass_overlay(self):
         """Reset the overlay state; called from MoonRenderer.__init__."""
@@ -272,29 +258,6 @@ class CompassMixin:
                          else self._compass_turn(angle - angle_default)))
         return readings
 
-    def _rimmed_text(self, canvas, x, y, text, fill, font, anchor="n") -> list:
-        """
-        Write text with a dark rim round it, and hand back every piece of it.
-
-        Tk has no outline for text, so the rim is the same string written once
-        more at each offset around it and the wanted colour laid over the lot.
-        Cheap enough at this size, and the only thing that makes small lettering
-        hold up over ground that is black in one place and white in another.
-
-        The pieces are returned rather than kept here, so that the locator can
-        rim its own lettering with the same hand - both overlays draw on the one
-        canvas and face the same ground, and each keeps its own list of what it
-        has drawn so that it can take it away again.
-        """
-        items = []
-        for dx, dy in self.COMPASS_HALO_OFFSETS:
-            items.append(canvas.create_text(
-                x + dx, y + dy, text=text, anchor=anchor,
-                fill=self.COMPASS_HALO_COLOR, font=font))
-        items.append(canvas.create_text(
-            x, y, text=text, anchor=anchor, fill=fill, font=font))
-        return items
-
     def _draw_compass_readings(self, canvas, centre_x, centre_y, radius):
         """
         Write the three readings under the globe, in the colour of the globe they
@@ -339,11 +302,7 @@ class CompassMixin:
     # ---- drawing ----
 
     def _clear_compass_items(self):
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
-        if canvas is not None:
-            for item in self._compass_items:
-                canvas.delete(item)
-        self._compass_items = []
+        self._compass_items = self._clear_overlay(self._compass_items)
 
     def _compass_polygon(self, screen, centre_x, centre_y, radius) -> list:
         """Projected points as the flat list of canvas coordinates Tk takes."""
@@ -508,18 +467,14 @@ class CompassMixin:
 
     def _compass_view_state(self):
         """
-        A reading that changes whenever the compass would look different: the
-        camera, the Moon's own orientation, the mirroring and the window size.
-        Compared between ticks so a still view is not redrawn 5 times a second.
+        What the compass is drawn from: the camera, the Moon's own orientation,
+        the mirroring and the size of the window - which is the whole of the
+        shared reading and nothing besides. The compass shows which way the
+        globe has been turned, and a turn is all it answers to: it looks the
+        same at any zoom, so the field of view is deliberately left out and the
+        wheel does not set it redrawing.
         """
-        if self.rt is None:
-            return None
-        cam = self.rt.get_camera(self.CAMERA_NAME)
-        canvas = getattr(self.rt, "_canvas", None)
-        return (tuple(cam["Eye"]), tuple(cam["Target"]), tuple(cam["Up"]),
-                None if self.moon_rotation is None else self.moon_rotation.tobytes(),
-                self.view_orientation,
-                (canvas.winfo_width(), canvas.winfo_height()) if canvas is not None else None)
+        return self._overlay_view_state()
 
     def _compass_refresh_tick(self):
         self._compass_refresh_id = None
@@ -532,10 +487,7 @@ class CompassMixin:
         self._schedule_compass_refresh()
 
     def _schedule_compass_refresh(self):
-        if self.rt is None or self.rt._root is None:
-            return
-        self._compass_refresh_id = self.rt._root.after(self.COMPASS_REFRESH_MS,
-                                                       self._compass_refresh_tick)
+        self._compass_refresh_id = self._schedule_overlay(self._compass_refresh_tick)
 
     def show_compass(self, visible: bool = True):
         """Show or hide the orientation globe."""
@@ -544,9 +496,7 @@ class CompassMixin:
 
         self.compass_visible = visible
 
-        if self._compass_refresh_id is not None and self.rt._root is not None:
-            self.rt._root.after_cancel(self._compass_refresh_id)
-            self._compass_refresh_id = None
+        self._compass_refresh_id = self._cancel_overlay(self._compass_refresh_id)
 
         if visible:
             self._compass_last_view = self._compass_view_state()

@@ -71,7 +71,7 @@ class LocatorMixin:
     # other and the two read as one disk lit from one side.
     LOCATOR_FACE_STIPPLE = "gray50"
     # A dark, quiet blue. The rim round the lettering (see
-    # CompassMixin._rimmed_text) is what settled how dark it could be: a letter
+    # CanvasOverlayMixin._rimmed_text) is what settled how dark it could be: a letter
     # is no longer read against the Moon but against its own black edge, and
     # small text wants four and a half to one against that, which puts a floor
     # under it - below about a 116 out of 255 in lightness the letter sinks into
@@ -134,10 +134,6 @@ class LocatorMixin:
     # terminator to hinge on, or a sweep starting where the camera happens to
     # point straight along one of its own axes
     LOCATOR_TOO_SHORT = 1e-6
-    # The camera is read on a light poll, as the compass and the field-of-view
-    # frame are: the view moves under the mouse and under PlotOptiX's own
-    # handlers, where there is nothing to hook.
-    LOCATOR_REFRESH_MS = 200
 
     def _init_locator(self):
         """Reset the overlay state; called from MoonRenderer.__init__."""
@@ -604,11 +600,7 @@ class LocatorMixin:
             anchor="center"))
 
     def _clear_locator_items(self):
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
-        if canvas is not None:
-            for item in self._locator_items:
-                canvas.delete(item)
-        self._locator_items = []
+        self._locator_items = self._clear_overlay(self._locator_items)
 
     def _locator_screen(self, body_points: np.ndarray, basis,
                         centre_x: float, centre_y: float,
@@ -746,22 +738,16 @@ class LocatorMixin:
 
     def _locator_view_state(self):
         """
-        A reading that changes whenever the locator would look different: the
-        camera, the Moon's own orientation and lighting, the mirroring and the
-        window size. Compared between ticks so a still view is not redrawn five
-        times a second, every redraw being a dozen canvas items thrown away.
+        What the locator is drawn from: the shared reading, and two things
+        besides. The lighting, because the disk carries the terminator and the
+        crosses where the Sun and Earth stand; and the field of view, because
+        the outline of the picture shrinks with the zoom while nothing else on
+        the disk does.
         """
-        if self.rt is None:
-            return None
-        cam = self.rt.get_camera(self.CAMERA_NAME)
-        canvas = getattr(self.rt, "_canvas", None)
         ephem = self.moon_ephem
-        return (tuple(cam["Eye"]), tuple(cam["Target"]), tuple(cam["Up"]),
-                None if self.moon_rotation is None else self.moon_rotation.tobytes(),
-                None if ephem is None else (ephem.subsolar_lat, ephem.subsolar_lon),
-                self.view_orientation,
-                self.rt._optix.get_camera_fov(0),
-                (canvas.winfo_width(), canvas.winfo_height()) if canvas is not None else None)
+        return self._overlay_view_state((
+            None if ephem is None else (ephem.subsolar_lat, ephem.subsolar_lon),
+            None if self.rt is None else self.rt._optix.get_camera_fov(0)))
 
     def _locator_refresh_tick(self):
         self._locator_refresh_id = None
@@ -774,10 +760,7 @@ class LocatorMixin:
         self._schedule_locator_refresh()
 
     def _schedule_locator_refresh(self):
-        if self.rt is None or self.rt._root is None:
-            return
-        self._locator_refresh_id = self.rt._root.after(self.LOCATOR_REFRESH_MS,
-                                                       self._locator_refresh_tick)
+        self._locator_refresh_id = self._schedule_overlay(self._locator_refresh_tick)
 
     def show_locator(self, visible: bool = True):
         """Show or hide the where-on-the-Moon inset."""
@@ -786,9 +769,7 @@ class LocatorMixin:
 
         self.locator_visible = visible
 
-        if self._locator_refresh_id is not None and self.rt._root is not None:
-            self.rt._root.after_cancel(self._locator_refresh_id)
-            self._locator_refresh_id = None
+        self._locator_refresh_id = self._cancel_overlay(self._locator_refresh_id)
 
         if visible:
             self._locator_last_view = self._locator_view_state()

@@ -28,14 +28,15 @@ from moonrtx.renderer_navigation import NavigationMixin
 from moonrtx.renderer_video import VideoMixin
 from moonrtx.renderer_fov import FovMixin
 from moonrtx.renderer_subpoints import SubPointsMixin
+from moonrtx.renderer_overlay import CanvasOverlayMixin
 from moonrtx.renderer_compass import CompassMixin
 from moonrtx.renderer_locator import LocatorMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
 
 
 class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
-                   VideoMixin, FovMixin, SubPointsMixin, CompassMixin, LocatorMixin,
-                   CatalogueMixin):
+                   VideoMixin, FovMixin, SubPointsMixin, CanvasOverlayMixin,
+                   CompassMixin, LocatorMixin, CatalogueMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.

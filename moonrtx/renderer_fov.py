@@ -35,12 +35,6 @@ class FovMixin:
     FOV_TEXT_COLOR = "#6772ab"
     FOV_LINE_WIDTH = 2
     FOV_TEXT_FONT = ("Consolas", 10)
-    # The screen scale changes with the camera FOV (wheel and Shift+drag zoom),
-    # with the camera distance (Shift+right drag, and the apparent size of the
-    # date) and with the window size. Some of those are handled inside PlotOptiX,
-    # where there is no hook to react to, so the frame is refreshed by a light
-    # poll instead: it reads the camera and moves canvas items, nothing more.
-    FOV_REFRESH_MS = 200
 
     def _init_fov_overlay(self):
         """Reset the overlay state; called from MoonRenderer.__init__."""
@@ -59,6 +53,7 @@ class FovMixin:
         }
         self._fov_items = []
         self._fov_refresh_id = None
+        self._fov_last_view = None
 
     # ---- geometry ----
 
@@ -129,11 +124,7 @@ class FovMixin:
     # ---- drawing ----
 
     def _clear_fov_items(self):
-        canvas = getattr(self.rt, "_canvas", None) if self.rt is not None else None
-        if canvas is not None:
-            for item in self._fov_items:
-                canvas.delete(item)
-        self._fov_items = []
+        self._fov_items = self._clear_overlay(self._fov_items)
 
     def _draw_fov_overlay(self):
         """Redraw the frame from the current camera and setup."""
@@ -184,17 +175,34 @@ class FovMixin:
         self._fov_items.extend(self._rimmed_text(
             canvas, centre_x, 10, text, self.FOV_TEXT_COLOR, self.FOV_TEXT_FONT))
 
+    def _fov_view_state(self):
+        """
+        What the frame is drawn from: the shared reading, and two things besides.
+        The field of view, because the frame is measured against the Moon on
+        screen and the Moon grows with the zoom; and the setup itself, since
+        changing the eyepiece or turning the sensor changes the frame with the
+        camera standing still.
+
+        The apparent size of the date comes in through the camera distance,
+        which the shared reading already carries.
+        """
+        setup = self.fov_setup
+        return self._overlay_view_state((
+            None if self.rt is None else self.rt._optix.get_camera_fov(0),
+            tuple(sorted((key, str(value)) for key, value in setup.items()))))
+
     def _fov_refresh_tick(self):
         self._fov_refresh_id = None
         if not self.fov_overlay_visible:
             return
-        self._draw_fov_overlay()
+        state = self._fov_view_state()
+        if state != self._fov_last_view:
+            self._fov_last_view = state
+            self._draw_fov_overlay()
         self._schedule_fov_refresh()
 
     def _schedule_fov_refresh(self):
-        if self.rt is None or self.rt._root is None:
-            return
-        self._fov_refresh_id = self.rt._root.after(self.FOV_REFRESH_MS, self._fov_refresh_tick)
+        self._fov_refresh_id = self._schedule_overlay(self._fov_refresh_tick)
 
     def show_fov_overlay(self, visible: bool = True):
         """Show or hide the field-of-view frame."""
@@ -203,9 +211,7 @@ class FovMixin:
 
         self.fov_overlay_visible = visible
 
-        if self._fov_refresh_id is not None and self.rt._root is not None:
-            self.rt._root.after_cancel(self._fov_refresh_id)
-            self._fov_refresh_id = None
+        self._fov_refresh_id = self._cancel_overlay(self._fov_refresh_id)
 
         if visible:
             self._draw_fov_overlay()
