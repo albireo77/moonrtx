@@ -97,8 +97,9 @@ def parse_args():
     parser.add_argument("--time-step-minutes", type=int, default=15,
                         help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
-                        help="Initialize view from a screenshot default filename (without extension). "
-                             "This restores exact camera position along with observation time and location when attempt to take a screenshot was made. ")
+                        help="Initialize view from the default filename a saved image or an exported "
+                             "video was offered (without the extension). This restores exact camera "
+                             "position along with observation time and location of the moment it was saved. ")
     parser.add_argument("--init-view-orientation", type=str, default=VIEW_ORIENTATION_NSWE,
                         help=f"View orientation for specific telescope type (e.g. {VIEW_ORIENTATION_SNEW} for refractor). Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
     return parser.parse_args()
@@ -255,6 +256,20 @@ def get_date_time_local(time_iso: str, zone) -> tuple[Optional[datetime], Option
     return dt.astimezone(zone), None
 
 
+# How the camera is packed into a name, and how long that makes it. The writer
+# is encode_camera, which packs these ten floats and writes them in url-safe
+# base64 with the padding taken off; the length follows from the two and is
+# worked out here rather than written down, so it cannot disagree with them.
+#
+# It is needed because base64 spells itself with digits and underscores as well
+# as letters, so where a name carries anything after the camera - a video's
+# carries the number of frames, as "_x120" - there is nothing in the text itself
+# to say where the camera stops. Its length says.
+CAMERA_FORMAT = '<10f'
+CAMERA_TEXT_LENGTH = len(base64.urlsafe_b64encode(
+    bytes(struct.calcsize(CAMERA_FORMAT))).rstrip(b'=').decode('ascii'))
+
+
 def decode_camera(encoded: str) -> Optional[Camera]:
     """
     Decode camera from a base64 string.
@@ -276,7 +291,7 @@ def decode_camera(encoded: str) -> Optional[Camera]:
             encoded += '=' * padding
         
         packed = base64.urlsafe_b64decode(encoded)
-        values = struct.unpack('<10f', packed)
+        values = struct.unpack(CAMERA_FORMAT, packed)
     
         return Camera(
             eye=[values[0], values[1], values[2]],
@@ -292,11 +307,18 @@ def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
     
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>[_par<0|1>]_cam<base64>
+    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>[_par<0|1>]_cam<base64>[_x<frames>]
 
     The _par<0|1> segment is optional for backwards compatibility with
     filenames saved before the parallactic-mode flag was introduced; when
     absent it defaults to OFF.
+
+    The _x<frames> segment is what the video export adds to the name it offers,
+    so that an exported video says how long it is. It is read past and ignored:
+    a video carries the same view a screenshot does, and there is no reason it
+    should be the one thing that cannot be returned to. The camera before it is
+    taken by its length (CAMERA_TEXT_LENGTH), which is what tells the two apart
+    - base64 could otherwise have ended in "_x120" of its own accord.
 
     Parameters
     ----------
@@ -311,7 +333,8 @@ def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
     try:
         pattern = (
             r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)'
-            r'_view([A-Z]+)(?:_par([01]))?_cam([A-Za-z0-9_-]+)$'
+            r'_view([A-Z]+)(?:_par([01]))?'
+            r'_cam([A-Za-z0-9_-]{%d})(?:_x\d+)?$' % CAMERA_TEXT_LENGTH
         )
         match = re.match(pattern, init_view_str)
 

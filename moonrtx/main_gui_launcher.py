@@ -534,9 +534,10 @@ class MainWindow(tk.Tk):
              f"{VIEW_ORIENTATION_SNEW} rotated 180 degrees (Newtonian, refractor without a diagonal),\n"
              f"{VIEW_ORIENTATION_SNWE} mirrored the other way (Newtonian with a diagonal)."),
             (self.init_view,
-             "Default filename of a screenshot, without the extension. It restores the\n"
-             "camera, time and location of the moment that screenshot was taken,\n"
-             "and then some fields (e.g. observer coordinates or time) are ignored."),
+             "Default filename of a saved image or an exported video, without the\n"
+             "extension. It restores the camera, time and location of the moment it\n"
+             "was saved, and then some fields (e.g. observer coordinates or time)\n"
+             "are ignored."),
             (self.preset_name_entry, "Name to save the settings above under."),
             (self.preset_combobox, "A saved set of settings, put back by Load."),
         ):
