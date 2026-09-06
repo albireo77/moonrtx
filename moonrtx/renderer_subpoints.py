@@ -21,10 +21,12 @@ class SubPointsMixin:
     SUB_POINT_GEOM = {"sun": "subsolar_marker", "earth": "subearth_marker"}
     SUB_POINT_COLOR = {"sun": [1.0, 0.85, 0.25], "earth": [0.45, 0.75, 1.0]}
     SUB_POINT_STROKE = 0.012        # line thickness, as the pins use
-    SUB_POINT_ARM_DEG = 4.0         # half-length of the cross arms
+    SUB_POINT_ARM_DEG = 2.0         # half-length of the cross arms
     SUB_POINT_LABEL_SCALE = 0.10
-    SUB_POINT_LABEL_DROP_DEG = 6.0  # how far below the cross the name is written,
-                                    # measured from its centre: the arms reach 4
+    # How far below the cross the name is written, measured from its centre. Kept
+    # a fixed clearance past the end of the arm, so the two stay together if the
+    # cross is ever resized again.
+    SUB_POINT_LABEL_DROP_DEG = SUB_POINT_ARM_DEG + 2.0
 
     @staticmethod
     def _sub_point_direction(lat: float, lon: float) -> np.ndarray:
