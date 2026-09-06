@@ -22,6 +22,7 @@ from moonrtx.display import make_dpi_aware, screen_size, starmap_target_width
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin, timezone_name
 from moonrtx.renderer_dialogs import DialogsMixin
+from moonrtx.renderer_planning import PlanningMixin
 from moonrtx.renderer_labels import LabelsMixin
 from moonrtx.renderer_pins import PinsMixin
 from moonrtx.renderer_navigation import NavigationMixin
@@ -34,8 +35,9 @@ from moonrtx.renderer_locator import LocatorMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
 
 
-class MoonRenderer(StatusMixin, DialogsMixin, LabelsMixin, PinsMixin, NavigationMixin,
-                   VideoMixin, FovMixin, SubPointsMixin, CanvasOverlayMixin,
+class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
+                   PinsMixin, NavigationMixin, VideoMixin, FovMixin,
+                   SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth

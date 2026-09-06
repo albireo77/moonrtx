@@ -20,8 +20,6 @@ import math
 import tkinter as tk
 from typing import Optional
 
-import numpy as np
-
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNWE
 
 
