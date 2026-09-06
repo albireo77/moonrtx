@@ -16,6 +16,7 @@ import calendar
 import tkinter as tk
 from tkinter import filedialog
 from datetime import datetime
+from typing import Optional
 
 from moonrtx.shared_types import Camera
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
@@ -67,6 +68,79 @@ def encode_camera(camera: Camera) -> str:
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
 
+    def _dialog_window(self, title: str, padding=(12, 8), takes_keys: bool = True,
+                       over_main: bool = True, size: Optional[str] = None,
+                       before_close=None):
+        """
+        Put up a dialog, and hand back the window, the frame its contents go
+        in, and the way to shut it.
+
+        Every dialog in the program opens the same way - withdrawn until
+        _show_dialog has placed it, titled, kept above the main window, closed
+        by its own button or by Escape or by the window manager, and everything
+        inside one padded frame - and each of them used to write that out for
+        itself. Which left differences between them that nobody had decided:
+        one not kept above the main window, one that could be resized, one
+        whose Escape reached the main window on the way out. They are arguments
+        now, so each is a choice somebody made rather than a line somebody
+        forgot.
+
+        Parameters
+        ----------
+        title : str
+            The window title
+        padding : tuple
+            Padding of the frame the contents go in, as (padx, pady)
+        takes_keys : bool
+            Hold the main window's key handling for as long as this dialog is
+            open. PlotOptiX binds that handler with bind_all, so without this a
+            dialog being typed into also drives the Moon.
+        over_main : bool
+            Keep the window above the main one and hide it along with it
+        size : str, optional
+            Starting size, as Tk spells it ("400x340"); the window is then free
+            to be resized. Without one it is fixed at whatever it needs.
+        before_close : callable, optional
+            Called before the window is destroyed, for a dialog with state of
+            its own to put down. Returning False stops the close - which is how
+            the video export turns a close during an export into a cancel.
+
+        Returns
+        -------
+        tuple
+            (window, frame, close)
+        """
+        if takes_keys:
+            self.search_dialog_open = True
+
+        win = tk.Toplevel(self.rt._root)
+        # Built withdrawn and shown by _show_dialog once positioned
+        win.withdraw()
+        win.title(title)
+        if over_main:
+            win.transient(self.rt._root)
+        if size is None:
+            win.resizable(False, False)
+        else:
+            win.geometry(size)
+
+        def close():
+            if before_close is not None and before_close() is False:
+                return
+            if takes_keys:
+                self.search_dialog_open = False
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", close)
+        # "break" so the key handler bound with bind_all does not also see the
+        # Escape that shut this window - by then the dialog has already given
+        # the main window its keys back
+        win.bind("<Escape>", lambda e: (close(), "break")[1])
+
+        frame = tk.Frame(win, padx=padding[0], pady=padding[1])
+        frame.pack(fill=tk.BOTH, expand=True)
+        return win, frame, close
+
     def _show_dialog(self, win, position=None, grab: bool = True):
         """
         Map a dialog once it is finished and placed.
@@ -108,33 +182,20 @@ class DialogsMixin:
         if self.rt is None:
             return
 
-        # Reuse the search-dialog flag: it blocks main-window key handling
-        # for this dialog in exactly the same way
-        self.search_dialog_open = True
-
-        win = tk.Toplevel(self.rt._root)
-        # Built withdrawn and shown by _show_dialog once positioned
-        win.withdraw()
-        win.title("Export time-lapse video")
-        win.transient(self.rt._root)
-        win.resizable(False, False)
-
         exporting = {"active": False}
 
-        def on_close():
-            if exporting["active"]:
-                # Closing during export only requests cancellation; the dialog
-                # stays open to show the final status and can be closed then
-                self.cancel_video_export()
-                return
-            self.search_dialog_open = False
-            win.destroy()
+        def still_exporting():
+            """
+            Closing during an export only asks for it to be cancelled; the
+            dialog stays open to show how it ended, and closes then.
+            """
+            if not exporting["active"]:
+                return True
+            self.cancel_video_export()
+            return False
 
-        win.protocol("WM_DELETE_WINDOW", on_close)
-        win.bind('<Escape>', lambda e: on_close())
-
-        main_frame = tk.Frame(win, padx=15, pady=10)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        win, main_frame, on_close = self._dialog_window(
+            "Export time-lapse video", padding=(15, 10), before_close=still_exporting)
 
         tk.Label(main_frame,
                  text=f"Starts at the current observation time: {self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}",
@@ -373,22 +434,15 @@ class DialogsMixin:
             except Exception:
                 pass
 
-        help_win = tk.Toplevel(self.rt._root)
-        # Built withdrawn and shown by _show_dialog once positioned
-        help_win.withdraw()
-        help_win.title("Help - Keys and mouse")
-        help_win.resizable(False, False)
-        self._help_dialog = help_win
-
-        def on_close():
+        def forget_it():
             self._help_dialog = None
-            help_win.destroy()
 
-        help_win.protocol("WM_DELETE_WINDOW", on_close)
-        help_win.bind("<Escape>", lambda e: (on_close(), "break")[1])
-
-        main_frame = tk.Frame(help_win, padx=12, pady=6)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        # Not kept above the main window and not taking its keys: the point of
+        # it is to be read while the Moon is being driven
+        help_win, main_frame, on_close = self._dialog_window(
+            "Help - Keys and mouse", padding=(12, 6), takes_keys=False,
+            over_main=False, before_close=forget_it)
+        self._help_dialog = help_win
 
         # Entries from F1 to M/N use a fixed-width key column so hyphens align
         aligned_lines = [
@@ -559,26 +613,14 @@ class DialogsMixin:
         if self.rt is None:
             return
         
-        # Set flag to prevent main window key handling
-        self.search_dialog_open = True
-        
-        # Create search window
-        search_win = tk.Toplevel(self.rt._root)
-        # Built withdrawn and shown by _show_dialog once positioned
-        search_win.withdraw()
-        search_win.title("Search Moon Feature")
-        search_win.geometry("400x340")
-        search_win.transient(self.rt._root)
-        
-        def on_close():
-            self.search_dialog_open = False
-            search_win.destroy()
-        
-        search_win.protocol("WM_DELETE_WINDOW", on_close)
-        search_win.bind("<Escape>", lambda e: (on_close(), "break")[1])
-        
+        # A list of names, so it opens at a readable size and can be made
+        # bigger. Its parts carry their own padding, so the frame they go in
+        # adds none of its own.
+        search_win, main_frame, on_close = self._dialog_window(
+            "Search Moon Feature", padding=(0, 0), size="400x340")
+
         # Search entry
-        frame = tk.Frame(search_win)
+        frame = tk.Frame(main_frame)
         frame.pack(fill=tk.X, padx=10, pady=10)
         
         tk.Label(frame, text="Search:").pack(side=tk.LEFT)
@@ -587,7 +629,7 @@ class DialogsMixin:
         entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
         
         # Results listbox with scrollbar
-        list_frame = tk.Frame(search_win)
+        list_frame = tk.Frame(main_frame)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         
         scrollbar = tk.Scrollbar(list_frame)
@@ -657,7 +699,7 @@ class DialogsMixin:
         listbox.bind('<Double-Button-1>', on_select)
         listbox.bind('<Return>', on_select)
 
-        btn_frame = tk.Frame(search_win)
+        btn_frame = tk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(side=tk.RIGHT)
 
@@ -693,36 +735,25 @@ class DialogsMixin:
             self.datetime_dialog.focus_set()
             return
         
-        # Create datetime window (non-modal, stays open)
-        dt_win = tk.Toplevel(self.rt._root)
-        # Built withdrawn and shown by _show_dialog once positioned
-        dt_win.withdraw()
-        dt_win.title("Date/Time")
-        dt_win.transient(self.rt._root)
-        dt_win.resizable(False, False)
-        
-        self.datetime_dialog = dt_win
-        
-        def on_close():
+        def forget_it():
             self.datetime_dialog = None
             self._datetime_dialog_show = None
             self.datetime_dialog_focused = False
-            dt_win.destroy()
-        
+
         def on_focus_in(event):
             self.datetime_dialog_focused = True
-        
+
         def on_focus_out(event):
             self.datetime_dialog_focused = False
-        
-        dt_win.protocol("WM_DELETE_WINDOW", on_close)
-        dt_win.bind("<Escape>", lambda e: (on_close(), "break")[1])
+
+        # Non-modal and stays open; it keeps the main window's keys, taking
+        # only the ones its spinboxes are made of (see datetime_dialog_takes_key)
+        dt_win, main_frame, on_close = self._dialog_window(
+            "Date/Time", padding=(15, 5), takes_keys=False, before_close=forget_it)
+        self.datetime_dialog = dt_win
+
         dt_win.bind("<FocusIn>", on_focus_in)
         dt_win.bind("<FocusOut>", on_focus_out)
-        
-        # Main frame with padding
-        main_frame = tk.Frame(dt_win, padx=15, pady=5)
-        main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Get current local time for later use
         current_dt_local = self.dt_local

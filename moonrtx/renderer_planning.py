@@ -111,26 +111,7 @@ class PlanningMixin:
         if self.rt is None:
             return
 
-        # Reuse the search-dialog flag: it blocks main-window key handling
-        # for this dialog in exactly the same way
-        self.search_dialog_open = True
-
-        win = tk.Toplevel(self.rt._root)
-        # Built withdrawn and shown by _show_dialog once positioned
-        win.withdraw()
-        win.title("Moon rise and set")
-        win.transient(self.rt._root)
-        win.resizable(False, False)
-
-        def on_close():
-            self.search_dialog_open = False
-            win.destroy()
-
-        win.protocol("WM_DELETE_WINDOW", on_close)
-        win.bind('<Escape>', lambda e: on_close())
-
-        main_frame = tk.Frame(win, padx=12, pady=8)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        win, main_frame, on_close = self._dialog_window("Moon rise and set")
 
         colours = self.VISIBILITY_COLOURS
         row_h = self.VISIBILITY_ROW_HEIGHT
@@ -485,26 +466,7 @@ class PlanningMixin:
         newlines written into it, so it fills the dialog whatever is in it, and
         given a fixed height so the window does not resize as it changes.
         """
-        # Reuse the search-dialog flag: it blocks main-window key handling
-        # for these dialogs in exactly the same way
-        self.search_dialog_open = True
-
-        win = tk.Toplevel(self.rt._root)
-        # Built withdrawn and shown by _show_dialog once positioned
-        win.withdraw()
-        win.title(title)
-        win.transient(self.rt._root)
-        win.resizable(False, False)
-
-        def close():
-            self.search_dialog_open = False
-            win.destroy()
-
-        win.protocol("WM_DELETE_WINDOW", close)
-        win.bind('<Escape>', lambda e: close())
-
-        frame = tk.Frame(win, padx=12, pady=8)
-        frame.pack(fill=tk.BOTH, expand=True)
+        win, frame, close = self._dialog_window(title)
 
         tk.Label(frame, anchor='w', font=self.RESULTS_FONT,
                  text=caption).pack(fill=tk.X)

@@ -233,26 +233,8 @@ class FovMixin:
         if self.rt is None:
             return
 
-        # Reuse the search-dialog flag: it blocks main-window key handling for
-        # this dialog in exactly the same way
-        self.search_dialog_open = True
-
-        win = tk.Toplevel(self.rt._root)
-        # Built withdrawn and shown by _show_dialog once positioned
-        win.withdraw()
-        win.title("Field of view")
-        win.transient(self.rt._root)
-        win.resizable(False, False)
-
-        def on_close():
-            self.search_dialog_open = False
-            win.destroy()
-
-        win.protocol("WM_DELETE_WINDOW", on_close)
-        win.bind('<Escape>', lambda e: on_close())
-
-        main_frame = tk.Frame(win, padx=15, pady=10)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        win, main_frame, on_close = self._dialog_window(
+            "Field of view", padding=(15, 10))
 
         setup = self.fov_setup
         mode_var = tk.StringVar(value=setup["mode"])
