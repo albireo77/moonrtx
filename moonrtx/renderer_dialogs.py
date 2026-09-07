@@ -70,7 +70,7 @@ class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
 
     def _dialog_window(self, title: str, padding=(12, 8), takes_keys: bool = True,
-                       over_main: bool = True, size: Optional[str] = None,
+                       over_main: bool = True, size: Optional[tuple] = None,
                        before_close=None):
         """
         Put up a dialog, and hand back the window, the frame its contents go
@@ -98,9 +98,10 @@ class DialogsMixin:
             dialog being typed into also drives the Moon.
         over_main : bool
             Keep the window above the main one and hide it along with it
-        size : str, optional
-            Starting size, as Tk spells it ("400x340"); the window is then free
-            to be resized. Without one it is fixed at whatever it needs.
+        size : tuple, optional
+            Starting size as (width, height), written for a 96-dpi screen and
+            scaled to this one; the window is then free to be resized. Without
+            one it is fixed at whatever it needs.
         before_close : callable, optional
             Called before the window is destroyed, for a dialog with state of
             its own to put down. Returning False stops the close - which is how
@@ -123,7 +124,13 @@ class DialogsMixin:
         if size is None:
             win.resizable(False, False)
         else:
-            win.geometry(size)
+            # Scaled, because everything inside is not. The lettering, the entry
+            # measured in characters and the rows of the list all follow the
+            # display's dots per inch, so a window pinned to raw pixels opens too
+            # small to hold its own contents - at 300% scaling the search dialog
+            # came up at a third of the size it wanted.
+            win.geometry("%dx%d" % (round(self._overlay_px(size[0])),
+                                    round(self._overlay_px(size[1]))))
 
         def close():
             if before_close is not None and before_close() is False:
@@ -620,7 +627,7 @@ class DialogsMixin:
         # bigger. Its parts carry their own padding, so the frame they go in
         # adds none of its own.
         search_win, main_frame, on_close = self._dialog_window(
-            "Search Moon Feature", padding=(0, 0), size="400x340")
+            "Search Moon Feature", padding=(0, 0), size=(400, 340))
 
         # Search entry
         frame = tk.Frame(main_frame)
