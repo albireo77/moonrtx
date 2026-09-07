@@ -71,8 +71,8 @@ class PlanningMixin:
     # Rise and set chart. A month of rows shows the whole cycle of the Moon
     # drifting later each night and back again. See astro.find_visibility_chart.
     VISIBILITY_CHART_DAYS = 30
-    VISIBILITY_ROW_HEIGHT = 14
-    VISIBILITY_HOUR_WIDTH = 21
+    VISIBILITY_ROW_LEADING = 1  # pixels of air a row has beyond its lettering
+    VISIBILITY_HOUR_CELLS = 3.5  # character cells of the row font, per hour
     VISIBILITY_DAY_START = 12   # rows run midday to midday, so a night is one row
     VISIBILITY_COLOURS = {
         "day": "#cfe0f5",       # Sun up
@@ -115,29 +115,49 @@ class PlanningMixin:
         win, main_frame, on_close = self._dialog_window("Moon rise and set")
 
         colours = self.VISIBILITY_COLOURS
-        row_h = self.VISIBILITY_ROW_HEIGHT
-        hour_w = self.VISIBILITY_HOUR_WIDTH
         font = ('Consolas', 8)
         head_font = ('Consolas', 8, 'bold')
-        # One character cell, the step the column titles are nudged by. Measured
-        # rather than assumed, the row font being fixed-pitch but not a fixed size
-        cell_w = tkfont.Font(font=font).measure('0')
 
-        date_w = 74                       # "Fri 14 Aug"
+        # Every measurement below is taken from the font rather than written in
+        # pixels. A font asked for in points follows the display's dots per inch
+        # - at 300% scaling it is three times what it is at 100% - while a number
+        # of pixels follows nothing. Written in pixels the rows came out shorter
+        # than the lettering standing in them and the columns narrower than the
+        # times filling them, so on such a screen the chart collapsed into
+        # overlapping text. Taken from the font, it holds its proportions at any
+        # scaling, and at 100% it comes to within a few pixels of the pixel
+        # counts these replace.
+        metrics = tkfont.Font(font=font)
+        head_metrics = tkfont.Font(font=head_font)
+        cell_w = metrics.measure('0')       # one cell of the fixed-pitch row font
+        line_h = metrics.metrics('linespace')
+        pad = max(2, round(cell_w * 2 / 3))  # the air around a piece of lettering
+
+        row_h = line_h + self.VISIBILITY_ROW_LEADING
+        head_h = line_h + pad - 1
+        bar_pad = max(1, row_h // 4)        # over and under the Moon-up bar
+        hour_w = max(1, round(cell_w * self.VISIBILITY_HOUR_CELLS))
+
+        date_w = metrics.measure('Fri 14 Aug') + 2 * pad + cell_w
         chart_w = 24 * hour_w
         # Title, column width, and how many characters to nudge the title by:
         # the values are right-aligned in their columns, so a title shorter or
-        # longer than them does not sit over them squarely on its own
-        columns = (("Rise", 42, -1), ("Transit", 48, 1), ("Set", 42, -1), ("Max", 40, -1))
-        head_h = 16
+        # longer than them does not sit over them squarely on its own. A column
+        # is as wide as the wider of its title and the times it holds.
+        columns = tuple(
+            (title,
+             max(metrics.measure('00:00'), head_metrics.measure(title)) + 2 * cell_w,
+             nudge)
+            for title, nudge in (("Rise", -1), ("Transit", 1), ("Set", -1), ("Max", -1)))
         chart_x = date_w
-        table_x = chart_x + chart_w + 10
+        table_x = chart_x + chart_w + 2 * cell_w
         phase_x = table_x + sum(w for _, w, _ in columns)
-        phase_w = 26
+        phase_w = row_h + 2 * cell_w
         width = phase_x + phase_w
+        rule = max(1, cell_w // 3)          # the line marking the moment on show
 
         canvas = tk.Canvas(main_frame, width=width,
-                           height=head_h + self.VISIBILITY_CHART_DAYS * row_h + 2,
+                           height=head_h + self.VISIBILITY_CHART_DAYS * row_h + pad // 2,
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
 
@@ -186,7 +206,7 @@ class PlanningMixin:
             painted lit and that ellipse then either eats into it, leaving a
             crescent, or fills out beside it, leaving a gibbous disc.
             """
-            radius = (row_h - 4) // 2
+            radius = (row_h - pad) // 2
             centre_x = phase_x + phase_w // 2
             box = (centre_x - radius, centre_y - radius, centre_x + radius, centre_y + radius)
             canvas.create_oval(*box, fill=colours["unlit"], outline="")
@@ -224,7 +244,7 @@ class PlanningMixin:
                 return
             x_now = x_of(hour_of(self.dt_local))
             now_marker.append(canvas.create_line(x_now, y_of(row), x_now, y_of(row) + row_h,
-                                                 fill=colours["today"], width=2))
+                                                 fill=colours["today"], width=rule))
 
         def redraw():
             """Draw the chart afresh over the span it currently sits on."""
@@ -240,8 +260,9 @@ class PlanningMixin:
                 # This page falls outside the bundled ephemeris kernel range.
                 # The date it was asked for is kept, so paging back off the end
                 # returns to where it came from rather than to the clock
-                canvas.config(height=48)
-                canvas.create_text(4, 4, text=str(e), anchor='nw', width=width - 8, font=font)
+                canvas.config(height=3 * line_h + 2 * pad)
+                canvas.create_text(pad, pad, text=str(e), anchor='nw',
+                                   width=width - 2 * pad, font=font)
                 return
 
             # The span is trimmed where it would run past the dates the kernels
@@ -249,7 +270,7 @@ class PlanningMixin:
             rows = max(1, min(self.VISIBILITY_CHART_DAYS,
                               -((chart.start - chart.end).days)))
             span["rows"] = rows
-            canvas.config(height=head_h + rows * row_h + 2)
+            canvas.config(height=head_h + rows * row_h + pad // 2)
 
             def pieces(spells: list) -> list:
                 """
@@ -278,7 +299,7 @@ class PlanningMixin:
             # midday a row opens at round to the midday it closes at
             for hour in range(0, 25, 3):
                 clock = (self.VISIBILITY_DAY_START + hour) % 24
-                canvas.create_text(x_of(hour), head_h - 4, text=f"{clock:02d}",
+                canvas.create_text(x_of(hour), head_h - pad, text=f"{clock:02d}",
                                    font=font, anchor='s')
 
             # Night first, then the lighter spells over it: the Sun above the
@@ -295,7 +316,8 @@ class PlanningMixin:
                                    fill=colours["grid"])
 
             for row, a, b in pieces(chart.moon_up):
-                canvas.create_rectangle(x_of(a), y_of(row) + 3, x_of(b), y_of(row) + row_h - 3,
+                canvas.create_rectangle(x_of(a), y_of(row) + bar_pad,
+                                        x_of(b), y_of(row) + row_h - bar_pad,
                                         fill=colours["moon"], outline=colours["moon_edge"])
 
             # Per-row times: the rise and set of the night that row stands for,
@@ -318,8 +340,8 @@ class PlanningMixin:
                 row = row_of(local)
                 transit_on.setdefault(row, (local, altitude))
                 if 0 <= row < rows and altitude > 0.0:
-                    canvas.create_line(x_of(hour_of(local)), y_of(row) + 3,
-                                       x_of(hour_of(local)), y_of(row) + row_h - 3,
+                    canvas.create_line(x_of(hour_of(local)), y_of(row) + bar_pad,
+                                       x_of(hour_of(local)), y_of(row) + row_h - bar_pad,
                                        fill=colours["transit"])
 
             # How much of the disc is lit through each night, and which way it
@@ -340,16 +362,16 @@ class PlanningMixin:
 
             x = table_x
             for title, column_w, nudge in columns:
-                canvas.create_text(x + column_w - 4 + nudge * cell_w, head_h - 4, text=title,
-                                   font=head_font, anchor='se')
+                canvas.create_text(x + column_w - pad + nudge * cell_w, head_h - pad,
+                                   text=title, font=head_font, anchor='se')
                 x += column_w
-            canvas.create_text(phase_x + phase_w // 2, head_h - 4, text="Lit",
+            canvas.create_text(phase_x + phase_w // 2, head_h - pad, text="Lit",
                                font=head_font, anchor='s')
 
             for row in range(rows):
                 date = first_date + timedelta(days=row)
                 centre = y_of(row) + row_h // 2
-                canvas.create_text(date_w - 8, centre, text=f"{date:%a %d %b}",
+                canvas.create_text(date_w - 2 * pad, centre, text=f"{date:%a %d %b}",
                                    font=font, anchor='e')
                 transit = transit_on.get(row)
                 values = (
@@ -360,7 +382,8 @@ class PlanningMixin:
                 )
                 x = table_x
                 for (_, column_w, _), value in zip(columns, values):
-                    canvas.create_text(x + column_w - 4, centre, text=value, font=font, anchor='e')
+                    canvas.create_text(x + column_w - pad, centre, text=value,
+                                       font=font, anchor='e')
                     x += column_w
                 if row in lit_on:
                     phase_icon(centre, *lit_on[row])
@@ -381,14 +404,15 @@ class PlanningMixin:
         canvas.bind('<Button-1>', go_to)
 
         legend = tk.Frame(main_frame)
-        legend.pack(fill=tk.X, pady=(8, 0))
+        legend.pack(fill=tk.X, pady=(2 * pad, 0))
         for text, colour in (("Moon up", colours["moon"]), ("Daylight", colours["day"]),
                              ("Twilight", colours["twilight"]), ("Dark", colours["night"])):
-            swatch = tk.Frame(legend, bg=colour, width=14, height=10,
+            swatch = tk.Frame(legend, bg=colour, width=row_h, height=line_h - bar_pad,
                               highlightthickness=1, highlightbackground="#808080")
             swatch.pack(side=tk.LEFT)
             swatch.pack_propagate(False)
-            tk.Label(legend, text=text, font=font).pack(side=tk.LEFT, padx=(3, 10))
+            tk.Label(legend, text=text, font=font).pack(
+                side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
         tk.Label(legend, text="Click the chart to go to that moment", font=font,
                  fg='#606060').pack(side=tk.LEFT)
         def page(days: int):
@@ -411,9 +435,11 @@ class PlanningMixin:
         # Close packed first so it keeps the right-hand end, then Reset, then
         # the pager - which reads left to right once packed in that order
         tk.Button(legend, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
-        tk.Button(legend, text="Reset", command=reset, width=10).pack(side=tk.RIGHT, padx=(0, 6))
+        tk.Button(legend, text="Reset", command=reset,
+                  width=10).pack(side=tk.RIGHT, padx=(0, pad + 2))
         tk.Button(legend, text="▶", width=2,
-                  command=lambda: page(self.VISIBILITY_CHART_DAYS)).pack(side=tk.RIGHT, padx=(0, 6))
+                  command=lambda: page(self.VISIBILITY_CHART_DAYS)).pack(
+            side=tk.RIGHT, padx=(0, pad + 2))
         tk.Button(legend, text="◀", width=2,
                   command=lambda: page(-self.VISIBILITY_CHART_DAYS)).pack(side=tk.RIGHT)
 
