@@ -19,6 +19,7 @@ from tkinter import filedialog
 from datetime import datetime
 from typing import Optional
 
+from moonrtx.display import screen_size
 from moonrtx.shared_types import Camera
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
@@ -68,6 +69,14 @@ def encode_camera(camera: Camera) -> str:
 
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
+
+    # How far below the top of the screen the help window opens, and the room
+    # left under it, written for a 96-dpi screen and scaled like every other
+    # length here. It is put against the top rather than centred on the main
+    # window: it is a tall list, at a high display scaling nearly as tall as the
+    # screen, and centring something almost full height leaves it sitting low
+    # with nowhere to go.
+    HELP_TOP_PX = 8
 
     def _dialog_window(self, title: str, padding=(12, 8), takes_keys: bool = True,
                        over_main: bool = True, size: Optional[tuple] = None,
@@ -174,7 +183,10 @@ class DialogsMixin:
             root = self.rt._root
             position = (root.winfo_x() + (root.winfo_width() - win.winfo_width()) // 2,
                         root.winfo_y() + (root.winfo_height() - win.winfo_height()) // 2)
-        win.geometry(f"+{position[0]}+{position[1]}")
+        # Never off the top or the left: a dialog taller or wider than the
+        # window it is centred on would otherwise be given a negative corner,
+        # putting its title bar - the only handle for moving it - off the screen
+        win.geometry("+%d+%d" % (max(0, position[0]), max(0, position[1])))
         win.deiconify()
         if grab:
             win.wait_visibility()
@@ -454,6 +466,23 @@ class DialogsMixin:
             over_main=False, before_close=forget_it)
         self._help_dialog = help_win
 
+        # The list is put on a canvas so that it can be scrolled. Its lettering
+        # is asked for in points and so follows the display's dots per inch,
+        # while the number of lines does not change: at 300% scaling the window
+        # it wanted was taller than the screen, and opened with its first and
+        # last rows cut off above and below. Where there is room for the whole
+        # list the canvas is simply made as tall as its contents and no
+        # scrollbar appears, which is every ordinary screen - nothing about the
+        # window changes there.
+        viewport = tk.Canvas(main_frame, highlightthickness=0,
+                             bg=help_win.cget('bg'))
+        scrollbar = tk.Scrollbar(main_frame, orient=tk.VERTICAL,
+                                 command=viewport.yview)
+        viewport.configure(yscrollcommand=scrollbar.set)
+        body = tk.Frame(viewport, bg=help_win.cget('bg'))
+        viewport.create_window(0, 0, window=body, anchor='nw')
+        viewport.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
         # Entries from F1 to M/N use a fixed-width key column so hyphens align
         aligned_lines = [
             ("F1", "Help"),
@@ -513,20 +542,61 @@ class DialogsMixin:
         max_key_len = max(len(k) for k, _ in aligned_lines if k)
 
         for key, desc in aligned_lines:
-            row = tk.Frame(main_frame)
+            row = tk.Frame(body)
             row.pack(fill=tk.X)
             key_label = tk.Label(row, text=key, width=max_key_len, anchor='e', font=('Consolas', 9, 'bold'))
             key_label.pack(side=tk.LEFT)
             tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
 
         for key, desc in other_lines:
-            row = tk.Frame(main_frame)
+            row = tk.Frame(body)
             row.pack(fill=tk.X)
             key_label = tk.Label(row, text=key, anchor='e', font=('Consolas', 9, 'bold'))
             key_label.pack(side=tk.LEFT)
             tk.Label(row, text=" - " + desc, anchor='w', font=('Consolas', 9)).pack(side=tk.LEFT)
 
-        self._show_dialog(help_win, grab=False)
+        # As tall as the list where the screen has room for it, and as tall as
+        # the screen has room for where it does not.
+        #
+        # The room is not guessed at. The window is first made as tall as the
+        # whole list and asked how tall that makes it, which counts the padding
+        # round the list; what the window manager adds on top of that - the
+        # title bar and the border - is read off the main window, whose frame
+        # corner and client corner are both there to be asked. So the only thing
+        # taken on trust is that the screen's usable area starts at its top edge.
+        body.update_idletasks()
+        wanted_w, wanted_h = body.winfo_reqwidth(), body.winfo_reqheight()
+        viewport.config(width=wanted_w, height=wanted_h,
+                        scrollregion=(0, 0, wanted_w, wanted_h))
+        help_win.update_idletasks()
+
+        root = self.rt._root
+        caption = max(0, root.winfo_rooty() - root.winfo_y())
+        top = round(self._overlay_px(self.HELP_TOP_PX))
+        excess = help_win.winfo_reqheight() - (screen_size()[1] - caption - 2 * top)
+        if excess > 0:
+            viewport.config(height=wanted_h - excess)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y, before=viewport)
+            help_win.resizable(False, True)
+            # A row at a time, so the wheel moves the list by whole lines
+            rows = body.winfo_children()
+            viewport.config(yscrollincrement=rows[0].winfo_reqheight() if rows else 1)
+
+            def on_wheel(event):
+                # Three lines to the notch, as Windows scrolls everything else
+                viewport.yview_scroll(3 * (-event.delta // 120), "units")
+
+            # Bound on the window, not on the canvas: the wheel arrives at
+            # whichever label is under the pointer, and a label does nothing
+            # with it, so it travels up to here. The main window's own wheel is
+            # bound on its render canvas and is not disturbed.
+            help_win.bind("<MouseWheel>", on_wheel)
+
+        # Centred across the main window as any other dialog is, but at the top
+        # of the screen rather than centred down it
+        help_win.update_idletasks()
+        left = root.winfo_x() + (root.winfo_width() - help_win.winfo_reqwidth()) // 2
+        self._show_dialog(help_win, position=(left, top), grab=False)
 
     def save_image_dialog(self):
         """
