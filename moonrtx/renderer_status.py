@@ -163,7 +163,7 @@ class StatusMixin:
         # from the same topocentric distance as the row above: 29.4' to 33.5' geocentric,
         # up to 34.1' for a perigee Moon in the zenith
         self._info_diameter_var.set(f"Diameter: {math.degrees(2 * self.moon_apparent_radius()) * 60:6.2f}'")
-        self._info_illum_var.set(f"💡:        {(1 + math.cos(math.radians(e.phase_angle))) * 50.0:6.2f}%")
+        self._info_illum_var.set(f"💡:       {(1 + math.cos(math.radians(e.phase_angle))) * 50.0:6.2f}%")
         self._info_geo_libr_l_var.set(f"⊕ Libr L: {e.libr_long_geo:+6.3f}°")
         self._info_geo_libr_b_var.set(f"⊕ Libr B: {e.libr_lat_geo:+6.3f}°")
         self._info_topo_libr_l_var.set(f"⌖ Libr L: {e.libr_long_topo:+6.3f}°")
