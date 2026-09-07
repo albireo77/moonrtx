@@ -84,7 +84,13 @@ class LocatorMixin:
     LOCATOR_FIELD_WIDTH = 2
     LOCATOR_LINE_WIDTH = 1
     LOCATOR_FONT = ("Consolas", 10)
-    LOCATOR_LABEL_FONT = ("Consolas", 10, "bold")
+    # The N, S and 0 carry no size of their own: it is taken from the disk they
+    # are written on, by _locator_label_px. The fraction is what ten point
+    # Consolas came to beside the disk on a 1920x1080 screen at 96 dpi, which is
+    # the proportion this now keeps on every screen.
+    LOCATOR_LABEL_FACE = ("Consolas", "bold")
+    LOCATOR_LABEL_HEIGHT = 0.144            # of the disk's radius
+    LOCATOR_LABEL_MIN_PX = 9                # a small window stops shrinking here
     LOCATOR_SIZE_FRACTION = 0.18            # of the shorter side of the window
     LOCATOR_MARGIN_PX = 16                  # from the corner of the window
     LOCATOR_LABEL_GAP_PX = 4                # between the rim and the N
@@ -482,13 +488,43 @@ class LocatorMixin:
         # Room for the N outside the rim, and on every side of it: in the
         # ordinary mount the disk turns through the night with the parallactic
         # angle, so the pole comes round to point anywhere at all
-        margin = self._overlay_px(self.LOCATOR_MARGIN_PX) + self._locator_label_room()
+        margin = self._overlay_px(self.LOCATOR_MARGIN_PX) + self._locator_label_room(radius)
         return margin + radius, margin + radius, radius
 
-    def _locator_label_room(self) -> float:
-        """How far outside the rim the N reaches, letter and gap together."""
-        return self._overlay_px(
-            self.LOCATOR_LABEL_GAP_PX + 2 * self.LOCATOR_LABEL_FONT[1])
+    def _locator_label_px(self, radius: float) -> float:
+        """
+        How tall the N, S and 0 are drawn, in the pixels of this screen.
+
+        Taken from the disk rather than from the display, because the two do not
+        grow together. The disk is a fraction of the window; a font asked for in
+        points follows the screen's dots per inch. Going from 1920x1080 to
+        3840x2160 not quite doubles the window - so not quite doubles the disk -
+        while Windows' scaling for such a screen may be a half as much again,
+        twice, or three times. Lettering that sat right beside the disk on the
+        one therefore came out a sixteenth too large beside it at 200%, and half
+        as large again at 300%. Sized from the disk it is written on, the locator
+        reads the same on any screen at any scaling.
+        """
+        return max(self.LOCATOR_LABEL_MIN_PX,
+                   round(radius * self.LOCATOR_LABEL_HEIGHT))
+
+    def _locator_label_font(self, radius: float) -> tuple:
+        """
+        That face at that size. Tk reads a negative size as a size in pixels,
+        which is what lets it be said outright; a positive one would be in
+        points and back to following the display.
+        """
+        family = self.LOCATOR_LABEL_FACE[0]
+        return (family, -int(self._locator_label_px(radius))) + \
+            tuple(self.LOCATOR_LABEL_FACE[1:])
+
+    def _locator_label_room(self, radius: float) -> float:
+        """
+        How far outside the rim the N reaches: the gap and the push out to the
+        middle of the letter, and half a letter more past that.
+        """
+        return (self._overlay_px(self.LOCATOR_LABEL_GAP_PX)
+                + 1.5 * self._locator_label_px(radius))
 
     @staticmethod
     def _locator_hex(rgb) -> str:
@@ -590,8 +626,8 @@ class LocatorMixin:
             # the far end too it would instead dawdle as the pole reached the
             # limb, so only the near end is eased and the push goes on growing
             # to the last.
-            beyond = radius + self._overlay_px(
-                self.LOCATOR_LABEL_GAP_PX + self.LOCATOR_LABEL_FONT[1])
+            beyond = (radius + self._overlay_px(self.LOCATOR_LABEL_GAP_PX)
+                      + self._locator_label_px(radius))
             out += part * part * (beyond - out)
         if reach < self.LOCATOR_TOO_SHORT:      # the eye straight over the pole
             at = (centre_x, centre_y)
@@ -600,7 +636,7 @@ class LocatorMixin:
         # Rimmed, like the compass readings: N, S and the 0 fall wherever the
         # globe puts them, which may be black sky or lit highland
         self._locator_items.extend(self._rimmed_text(
-            canvas, at[0], at[1], text, colour, self.LOCATOR_LABEL_FONT,
+            canvas, at[0], at[1], text, colour, self._locator_label_font(radius),
             anchor="center"))
 
     def _clear_locator_items(self):
