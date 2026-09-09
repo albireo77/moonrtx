@@ -1134,8 +1134,8 @@ def run_renderer(dt_local: datetime,
     # (F9/F10). A running video export drives update_view from the raytracing
     # thread, so these are ignored while it lasts - see the export guard in
     # custom_key_handler.
-    update_view_keysyms = {'F4', 'F9', 'F10'}
-    update_view_letters = set('qwtkxu') | {'Home'}
+    update_view_keysyms = {'F4', 'F9', 'F10', 'Home'}
+    update_view_letters = set('qwtkxu')
 
     def custom_key_handler(event):
         # The search dialog wants every key, being a place to type a name; the
