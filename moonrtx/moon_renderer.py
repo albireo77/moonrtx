@@ -1128,14 +1128,14 @@ def run_renderer(dt_local: datetime,
     preview_letters = set('qwazedhj')
 
     # Keys that reach update_view: time stepping (Q/W), the resets that restore
-    # the initial time (R), the dialogs that jump to a time (T, the planners K
+    # the initial time (Home), the dialogs that jump to a time (T, the planners K
     # and X, and the rise and set chart U, which goes to whatever moment in it
     # is clicked), the parallactic toggle (F4) and the set-time-now keys
     # (F9/F10). A running video export drives update_view from the raytracing
     # thread, so these are ignored while it lasts - see the export guard in
     # custom_key_handler.
     update_view_keysyms = {'F4', 'F9', 'F10'}
-    update_view_letters = set('qwrtkxu')
+    update_view_letters = set('qwtkxu') | {'Home'}
 
     def custom_key_handler(event):
         # The search dialog wants every key, being a place to type a name; the
@@ -1174,13 +1174,14 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'F8':
             moon_renderer.set_view_orientation(VIEW_ORIENTATION_SNWE)
             original_key_handler(event)
-        elif event.keysym.lower() == 'r':
+        elif event.keysym == 'Home':
             moon_renderer.reset_camera_position()
+        elif event.keysym == 'End':
+            moon_renderer.reset_to_default_view()
+        elif event.keysym.lower() == 'r':
+            moon_renderer.toggle_locator()
         elif event.keysym.lower() == 'c':
-            if event.state & 0x1:       # Shift
-                moon_renderer.toggle_locator()
-            else:
-                moon_renderer.toggle_compass()
+            moon_renderer.toggle_compass()
         elif event.keysym == 'F3':
             moon_renderer.fov_overlay_dialog()
         elif event.keysym.lower() == 'b':
@@ -1201,6 +1202,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.open_status_feature_usgs_page()
         elif event.keysym.lower() == 'o':
             moon_renderer.open_status_feature_www_page()
+        elif event.keysym == 'v':
+            moon_renderer.toggle_catalogue()
         elif event.keysym.lower() == 'h':
             moon_renderer.rotate_around_view_direction('ccw')
         elif event.keysym.lower() == 'j':
@@ -1210,8 +1213,6 @@ def run_renderer(dt_local: datetime,
                 moon_renderer.rotate_around_moon_axis(event.keysym)
             else:
                 moon_renderer.navigate_view(event.keysym)
-        elif event.keysym.lower() == 'v':
-            moon_renderer.reset_to_default_view()
         elif event.keysym.lower() == 'a':
             moon_renderer.change_brightness(10)
         elif event.keysym.lower() == 'z':
@@ -1246,8 +1247,6 @@ def run_renderer(dt_local: datetime,
             moon_renderer.set_time_to_now()
         elif event.keysym == 'F10':
             moon_renderer.set_time_to_now_and_auto_advance()
-        elif event.keysym == '0':
-            moon_renderer.toggle_catalogue()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:
