@@ -82,6 +82,13 @@ class StatusMixin:
     # differently named crater.
     STATUS_PANEL_WIDTH = 19
 
+    # The column the rows below the time step end in, which is where the time
+    # step itself ends at its longest: a whole day of minutes. Those rows carry
+    # units of different lengths - kilometres against metres, a degree sign
+    # alone against a degree sign and a compass point - so lining them up by
+    # what they end with is the only way to line them up at all.
+    STATUS_PANEL_ALIGN = len("Step: 1440 min")
+
     # The window is two rows: the canvas across the top, and along the bottom
     # PlotOptiX's own selection readout beside the panels this mixin builds.
     # Only the canvas row carries any weight, so taking the bottom one out gives
@@ -175,10 +182,15 @@ class StatusMixin:
             self._status_time_var.set(
                 f"{self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_fmt} (step {self.time_step_minutes} min)")
         if self._status_panel_datetime_var is not None and self.dt_local:
-            # No zone and no step: the panel says when the picture is of, and
-            # the observer's clock is the only one it ever shows
+            # No zone: the panel says when the picture is of, and the observer's
+            # clock is the only one it ever shows. The step gets a row of its
+            # own rather than the parenthesis the status bar puts it in, and its
+            # number is given the width of the largest it can be - a day - so
+            # that the "min" holds still as it changes.
             self._status_panel_datetime_var.set(
                 self.dt_local.strftime('%Y-%m-%d %H:%M:%S'))
+            self._status_panel_step_var.set(
+                f"Step: {self.time_step_minutes:4d} min")
 
     def _update_info_moon(self):
         """Update the info panel with current Moon ephemeris data."""
@@ -218,21 +230,28 @@ class StatusMixin:
         self._info_topo_libr_b_var.set(f"⌖ Libr B: {e.libr_lat_topo:+6.3f}°")
         self._info_colong_var.set(f"Colongit: {e.colongitude:6.2f}°")
 
+    def _status_panel_row(self, label: str, value: str) -> str:
+        """One row of the status panel: the label flush left, the value flush
+        right against STATUS_PANEL_ALIGN."""
+        return f"{label}{value:>{self.STATUS_PANEL_ALIGN - len(label)}}"
+
     def _update_status_measured(self):
         if self._status_measured_var:
             measured_text = "             " if self.measured_distance is None else f"d: {self.measured_distance:7.2f} km"
             measured_text += "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:6.0f} m"
             self._status_measured_var.set(measured_text)
             if self._status_panel_distance_var is not None:
-                # A row each. The label of the one and the number of the other
-                # are given a column more than the status bar allows them, so
-                # that the two numbers end in the same place.
+                # A row each, both ending in the panel's aligned column. No
+                # width is given to the numbers themselves: the row is laid out
+                # from its right-hand end, so they hold still without one.
                 self._status_panel_distance_var.set(
                     "" if self.measured_distance is None
-                    else f"d: {self.measured_distance:7.2f} km")
+                    else self._status_panel_row(
+                        "d:", f"{self.measured_distance:.2f} km"))
                 self._status_panel_height_var.set(
                     "" if self.measured_height_diff is None
-                    else f"Δh: {self.measured_height_diff:7.0f} m")
+                    else self._status_panel_row(
+                        "Δh:", f"{self.measured_height_diff:.0f} m"))
 
     def _update_info_coords(self, lat=None, lon=None):
         """
@@ -260,11 +279,9 @@ class StatusMixin:
         lat_dir = 'N' if lat >= 0 else 'S'
         lon_dir = 'E' if lon >= 0 else 'W'
         coords = f"Lat: {abs(lat):5.2f}°{lat_dir} Lon: {abs(lon):6.2f}°{lon_dir}"
-        # A row each in the full-screen panel. The latitude is given the
-        # longitude's width, which it does not need, so that the two numbers
-        # stand in one column instead of a digit apart.
-        lat_row = f"Lat: {abs(lat):6.2f}°{lat_dir}"
-        lon_row = f"Lon: {abs(lon):6.2f}°{lon_dir}"
+        # A row each in the status panel, laid out from the right
+        lat_row = self._status_panel_row("Lat:", f"{abs(lat):.2f}°{lat_dir}")
+        lon_row = self._status_panel_row("Lon:", f"{abs(lon):.2f}°{lon_dir}")
         if self.moon_ephem is None:
             self._status_coords_var.set(coords)
             self._status_coords_alt_var.set("")
@@ -281,11 +298,11 @@ class StatusMixin:
         altitude = f": {sun_alt:+5.1f}°"
         self._status_coords_alt_var.set(altitude)
         # The Sun sign sits beside the "h" here rather than under it as the
-        # status bar has it: that is three labels in two font sizes, and a row
-        # of this panel is one label and so one font. The two spaces after the
-        # colon bring its degree sign into the column the other two rows keep.
-        self._set_status_panel_coords(lat_row, lon_row,
-                                    f"h☉:   {sun_alt:+6.1f}°")
+        # status bar has it: that is three labels in two font sizes, and a
+        # row of this panel is one label and so one font.
+        self._set_status_panel_coords(
+            lat_row, lon_row,
+            self._status_panel_row("h☉:", f"{sun_alt:+.1f}°"))
 
     def _set_status_panel_coords(self, lat_row: str, lon_row: str, sun_row: str):
         """
@@ -628,6 +645,7 @@ class StatusMixin:
                     # starts hidden, having nothing to say that the status bar is
                     # not already saying while there is a status bar to say it.
                     self._status_panel_datetime_var = tk.StringVar()
+                    self._status_panel_step_var = tk.StringVar()
                     self._status_panel_distance_var = tk.StringVar()
                     self._status_panel_height_var = tk.StringVar()
                     self._status_panel_lat_var = tk.StringVar()
@@ -640,6 +658,7 @@ class StatusMixin:
                     self._status_panel_frame = status_panel_frame
                     for var in (self._status_panel_feature_var,
                                 self._status_panel_datetime_var,
+                                self._status_panel_step_var,
                                 self._status_panel_lat_var,
                                 self._status_panel_lon_var,
                                 self._status_panel_sun_var,

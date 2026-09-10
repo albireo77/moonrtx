@@ -369,6 +369,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self.show_status_panel = False
         self._status_panel_frame = None
         self._status_panel_datetime_var = None
+        self._status_panel_step_var = None
         self._status_panel_distance_var = None
         self._status_panel_height_var = None
         self._status_panel_lat_var = None
