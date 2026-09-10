@@ -1154,12 +1154,12 @@ def run_renderer(dt_local: datetime,
             return
         if event.keysym in preview_keysyms or event.keysym.lower() in preview_letters:
             moon_renderer._begin_interactive_preview()
-        if event.keysym.lower() == 'g':
-            moon_renderer.toggle_grid()
-        elif event.keysym.lower() == 'l':
-            moon_renderer.toggle_standard_labels()
-        elif event.keysym.lower() == 's':
-            moon_renderer.toggle_spot_labels()
+        if event.keysym == 'F1':
+            moon_renderer.show_help_dialog()
+        elif event.keysym == 'F2':
+            moon_renderer.toggle_info_panel()
+        elif event.keysym == 'F3':
+            moon_renderer.fov_overlay_dialog()
         elif event.keysym == 'F4':
             moon_renderer.toggle_parallactic_mode()
         elif event.keysym == 'F5':
@@ -1174,22 +1174,30 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'F8':
             moon_renderer.set_view_orientation(VIEW_ORIENTATION_SNWE)
             original_key_handler(event)
-        elif event.keysym == 'Home':
-            moon_renderer.reset_camera_position()
-        elif event.keysym == 'End':
-            moon_renderer.reset_to_default_view()
-        elif event.keysym.lower() == 'r':
-            moon_renderer.toggle_locator()
-        elif event.keysym.lower() == 'c':
-            moon_renderer.toggle_compass()
-        elif event.keysym == 'F3':
-            moon_renderer.fov_overlay_dialog()
-        elif event.keysym.lower() == 'b':
-            moon_renderer.toggle_fov_overlay()
+        elif event.keysym == 'F9':
+            moon_renderer.set_time_to_now()
+        elif event.keysym == 'F10':
+            moon_renderer.set_time_to_now_and_auto_advance()
         elif event.keysym == 'F11':
             moon_renderer.export_video_dialog()
         elif event.keysym == 'F12':
             moon_renderer.save_image_dialog()
+        elif event.keysym == 'Home':
+            moon_renderer.reset_camera_position()
+        elif event.keysym == 'End':
+            moon_renderer.reset_to_default_view()
+        elif event.keysym.lower() == 'g':
+            moon_renderer.toggle_grid()
+        elif event.keysym.lower() == 'l':
+            moon_renderer.toggle_standard_labels()
+        elif event.keysym.lower() == 's':
+            moon_renderer.toggle_spot_labels()
+        elif event.keysym.lower() == 'r':
+            moon_renderer.toggle_locator()
+        elif event.keysym.lower() == 'c':
+            moon_renderer.toggle_compass()
+        elif event.keysym.lower() == 'b':
+            moon_renderer.toggle_fov_overlay()
         elif event.keysym.lower() == 'f':
             moon_renderer.search_feature_dialog()
         elif event.keysym.lower() == 'k':
@@ -1227,10 +1235,6 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'n':
             step = 60 if event.state & 0x1 else 1
             moon_renderer.change_time_step(-step)
-        elif event.keysym == 'F2':
-            moon_renderer.toggle_info_panel()
-        elif event.keysym.lower() == 'p':
-            moon_renderer.toggle_pins()
         elif event.keysym.lower() == 'y':
             moon_renderer.toggle_sub_points()
         elif event.keysym == 'space':
@@ -1241,12 +1245,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_time(moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 't':
             moon_renderer.open_datetime_dialog()
-        elif event.keysym == 'F1':
-            moon_renderer.show_help_dialog()
-        elif event.keysym == 'F9':
-            moon_renderer.set_time_to_now()
-        elif event.keysym == 'F10':
-            moon_renderer.set_time_to_now_and_auto_advance()
+        elif event.keysym == '0':
+            moon_renderer.toggle_pins()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:
