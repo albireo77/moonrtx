@@ -363,11 +363,11 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._info_frame = None
         self.show_info_panel = True
 
-        # The full-screen panel (F3): what the status bar says, drawn on the
+        # The status panel (F3): what the status bar says, drawn on the
         # canvas so that it survives full screen, F12 and the video export.
-        # Off to begin with - see StatusMixin.toggle_fullscreen_panel
+        # Off to begin with - see StatusMixin.toggle_status_panel
         self._fullscreen_frame = None
-        self.show_fullscreen_panel = False
+        self.show_status_panel = False
         self._fullscreen_datetime_var = None
         self._fullscreen_distance_var = None
         self._fullscreen_height_var = None
@@ -1193,7 +1193,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'F2':
             moon_renderer.toggle_info_panel()
         elif event.keysym == 'F3':
-            moon_renderer.toggle_fullscreen_panel()
+            moon_renderer.toggle_status_panel()
         elif event.keysym == 'F4':
             moon_renderer.toggle_parallactic_mode()
         elif event.keysym == 'F5':

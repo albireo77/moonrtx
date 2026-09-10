@@ -376,9 +376,9 @@ class StatusMixin:
             else:
                 self._info_frame.place_forget()
 
-    def toggle_fullscreen_panel(self):
+    def toggle_status_panel(self):
         """
-        Show or hide the full-screen panel: the same four readings the status
+        Show or hide the status panel: the same four readings the status
         bar carries, in the opposite corner of the picture.
 
         Worth having twice because the status bar is not part of the picture.
@@ -386,9 +386,9 @@ class StatusMixin:
         frame in full screen and has never appeared in a saved image or a video
         frame. This panel is drawn on the canvas, so it is in all three.
         """
-        self.show_fullscreen_panel = not self.show_fullscreen_panel
+        self.show_status_panel = not self.show_status_panel
         if self._fullscreen_frame is not None:
-            if self.show_fullscreen_panel:
+            if self.show_status_panel:
                 self._fullscreen_frame.place(relx=1.0, rely=1.0, anchor='se',
                                              x=-6, y=-6)
             else:
@@ -614,7 +614,7 @@ class StatusMixin:
                             self._info_alt_label = label
                     info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
 
-                    # The full-screen panel: the same lettering as the
+                    # The status panel: the same lettering as the
                     # ephemeris panel, in the opposite corner, on black rather
                     # than the ephemeris panel's near-black - the same black the
                     # canvas is set to in full screen (FULL_SCREEN_CANVAS), so
@@ -650,7 +650,7 @@ class StatusMixin:
                             anchor='w',
                             width=self.FULLSCREEN_PANEL_WIDTH,
                         ).pack(anchor='w')
-                    if self.show_fullscreen_panel:
+                    if self.show_status_panel:
                         fullscreen_frame.place(relx=1.0, rely=1.0, anchor='se',
                                                x=-6, y=-6)
 
