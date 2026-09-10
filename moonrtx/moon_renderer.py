@@ -22,6 +22,7 @@ from moonrtx.display import make_dpi_aware, screen_size, starmap_target_width
 
 # Mixins – each adds a focused group of methods
 from moonrtx.renderer_status import StatusMixin, timezone_name
+from moonrtx.renderer_fullscreen import FullScreenMixin
 from moonrtx.renderer_dialogs import DialogsMixin
 from moonrtx.renderer_planning import PlanningMixin
 from moonrtx.renderer_labels import LabelsMixin
@@ -36,9 +37,9 @@ from moonrtx.renderer_locator import LocatorMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
 
 
-class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
-                   PinsMixin, NavigationMixin, VideoMixin, FovMixin,
-                   SubPointsMixin, CanvasOverlayMixin,
+class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
+                   LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
+                   FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
@@ -146,20 +147,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
     CAMERA_NAME = "cam1"
     LIGHT_NAME = "sun"
     MOON_OBJECT_NAME = "moon"
-
-    # What the render canvas is set to while full screen lasts. PlotOptiX builds
-    # it with Tk's defaults, which give a canvas a two-pixel focus highlight in
-    # the system's button-face grey and paint the same grey anywhere the rendered
-    # image does not reach. Against a window frame neither is noticeable; with
-    # the frame gone they are a light border round the Moon, and a light band
-    # for as long as it takes the render buffer to catch up with a resize.
-    FULL_SCREEN_CANVAS = {"highlightthickness": 0, "background": "black"}
-
-    # The window is two rows: the canvas across the top, and along the bottom
-    # PlotOptiX's own selection readout beside the panels this program puts
-    # there (see renderer_status). Only the canvas row carries any weight, so
-    # taking the bottom one out gives the picture the whole window.
-    STATUS_BAR_ROW = 1
 
     def __init__(self,
                  elevation_file: str,
@@ -275,13 +262,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         self._window_maximized = False
 
         # What was along the bottom of the window before full screen took it
-        # away, so that leaving full screen puts back that and nothing else
+        # away (see renderer_status._hide_status_row)
         self._windowed_status = []
-
-        # And what the canvas looked like before, read off the canvas rather
-        # than written down here, so that leaving restores what was actually
-        # there whatever PlotOptiX built it with
-        self._windowed_canvas = {}
 
         # Standard labels settings
         self.standard_labels_visible = False
@@ -346,6 +328,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         self._preview_active = False
         self._preview_restore_id = None
 
+        # The window with nothing on it but the Moon
+        # (see renderer_fullscreen.FullScreenMixin)
+        self._init_full_screen()
+
         # Time-lapse video export state (see renderer_video.VideoMixin)
         self._init_video_export()
 
@@ -401,67 +387,6 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         self.brightness = new_brightness
         self.rt.update_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE)
         self._update_status_brightness()
-
-    def toggle_full_screen(self):
-        """
-        Show the Moon alone, or give the window its frame and readouts back.
-
-        Full screen here is the picture and nothing else: no title bar, no
-        border, and none of the bottom row. The canvas is the only thing in the
-        window's grid with any weight, so once that row is out it has the whole
-        window, and PlotOptiX resizes the render buffer to whatever the canvas
-        becomes without being asked. The overlays follow it on their own poll.
-
-        What comes back afterwards is what was there, not everything that could
-        be. Tk lists only the widgets a row is actually managing, so the two
-        readouts taken out at start-up - PlotOptiX's frames-per-second panel and
-        the action label the status panels replaced - are not among those put
-        back, and grid_remove holds each one's place until it is.
-
-        The canvas loses its own light edging at the same time, which is Tk's
-        rather than the window manager's - see FULL_SCREEN_CANVAS.
-
-        The order matters at both ends: the row goes before the window grows,
-        and comes back after it has shrunk, so neither is seen against a window
-        of the wrong size.
-        """
-        root = self.rt._root
-        if root.attributes("-fullscreen"):
-            self.exit_full_screen()
-            return
-        self._windowed_status = root.grid_slaves(row=self.STATUS_BAR_ROW)
-        for widget in self._windowed_status:
-            widget.grid_remove()
-        canvas = self.rt._canvas
-        self._windowed_canvas = {name: canvas.cget(name)
-                                 for name in self.FULL_SCREEN_CANVAS}
-        canvas.configure(**self.FULL_SCREEN_CANVAS)
-        root.attributes("-fullscreen", True)
-
-    def exit_full_screen(self):
-        """
-        Give the window back its frame and readouts, or do nothing if it never
-        lost them.
-
-        Escape is bound to this rather than to the toggle, and the two are not
-        the same thing. In full screen there is no title bar and no taskbar, so
-        F11 is the only way out and a reader who does not know it has nothing to
-        try; Escape is what everything else on the desktop answers to. Bound to
-        the toggle it would be a way in as well, which is not what anyone means
-        by pressing it - so at any other time this is simply nothing happening.
-
-        A dialog's own Escape closes the dialog and stops the press there (see
-        DialogsMixin._dialog_window), so the two never both act on one key.
-        """
-        root = self.rt._root
-        if not root.attributes("-fullscreen"):
-            return
-        root.attributes("-fullscreen", False)
-        self.rt._canvas.configure(**self._windowed_canvas)
-        self._windowed_canvas = {}
-        for widget in self._windowed_status:
-            widget.grid()
-        self._windowed_status = []
 
     def change_gamma(self, delta: float):
         """

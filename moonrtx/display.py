@@ -119,6 +119,60 @@ def _work_area(screen_width: int, screen_height: int) -> tuple:
     return screen_width, max(screen_height - ASSUMED_PANEL_HEIGHT, 1)
 
 
+def bring_to_front(window) -> None:
+    """
+    Make a window the one the keyboard is talking to.
+
+    Tk's lift and focus_force are not enough on Windows, and the reason is worth
+    writing down. SetForegroundWindow is refused, silently, to a process that is
+    not already the foreground one - and the renderer is never that: it is
+    started from the launcher or from a console, and does not open its window
+    until the maps have loaded, by which time any right to come forward that it
+    inherited from its parent is long spent. focus_force only moves Tk's own
+    idea of the focus, which is a different thing from the desktop's and not
+    what decides where a key press is delivered.
+
+    Measured with another process holding the foreground: lift and focus_force
+    left the window in the background, flipping the topmost attribute left it in
+    the background, and only the call below brought it forward. The way through
+    is to borrow the foreground window's input queue for the length of the call.
+    Two threads sharing a queue share a notion of which window is active, so the
+    refusal does not apply. Nothing outside this process is changed by it, and
+    nothing is left attached afterwards.
+
+    Anywhere but Windows, and if any part of it fails, Tk's own way is all that
+    happens - and the worst that leaves is a window in the background, which is
+    where it was already.
+
+    Parameters
+    ----------
+    window : tkinter.Misc
+        The window to bring forward. It must be on the screen already: the
+        handle Windows knows it by does not exist before that.
+    """
+    window.lift()
+    if sys.platform == "win32":
+        try:
+            user32 = ctypes.windll.user32
+            handle = int(window.wm_frame(), 16)
+            theirs = user32.GetWindowThreadProcessId(
+                user32.GetForegroundWindow(), None)
+            ours = ctypes.windll.kernel32.GetCurrentThreadId()
+            attached = user32.AttachThreadInput(theirs, ours, True)
+            try:
+                user32.BringWindowToTop(handle)
+                user32.SetForegroundWindow(handle)
+            finally:
+                if attached:
+                    user32.AttachThreadInput(theirs, ours, False)
+        except (AttributeError, OSError, ValueError, tk.TclError):
+            pass
+    # Which widget inside the window the keys then reach is Tk's business, and
+    # this is what settles it. PlotOptiX binds its key handler with bind_all, so
+    # anything in the window will do, the window itself included.
+    window.focus_force()
+
+
 def screen_size() -> tuple:
     """
     The usable width and height of the primary screen, in real pixels.

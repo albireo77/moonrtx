@@ -9,6 +9,7 @@ import webbrowser
 from typing import Optional
 
 from moonrtx import astro
+from moonrtx.display import bring_to_front
 from moonrtx.view_orientation import VIEW_ORIENTATIONS
 from moonrtx.shared_types import MoonFeature
 
@@ -70,6 +71,38 @@ class StatusMixin:
     # left is still far larger than the whole bar is on an ordinary screen,
     # where it fits at its full size and nothing is changed at all.
     STATUS_MIN_FONT_SIZE = 6
+
+    # The window is two rows: the canvas across the top, and along the bottom
+    # PlotOptiX's own selection readout beside the panels this mixin builds.
+    # Only the canvas row carries any weight, so taking the bottom one out gives
+    # the picture the whole window - which is what full screen does with it.
+    STATUS_BAR_ROW = 1
+
+    def _hide_status_row(self):
+        """
+        Take away the row along the bottom, remembering what was in it.
+
+        For renderer_fullscreen, which needs the row gone but has no business
+        knowing what is in it. Only what the row is actually managing is
+        remembered, so the two readouts removed at start-up - PlotOptiX's
+        frames-per-second panel and the action label these panels replaced - are
+        not in the list and are never put back by _show_status_row.
+        """
+        root = self.rt._root
+        self._windowed_status = root.grid_slaves(row=self.STATUS_BAR_ROW)
+        for widget in self._windowed_status:
+            widget.grid_remove()
+
+    def _show_status_row(self):
+        """
+        Put back what _hide_status_row took, and nothing else.
+
+        grid_remove keeps each widget's place - its row, column, span and
+        padding - so each goes back exactly where it was.
+        """
+        for widget in self._windowed_status:
+            widget.grid()
+        self._windowed_status = []
 
     def _fit_status_bar(self, frame, available: int) -> Optional[int]:
         """
@@ -301,6 +334,13 @@ class StatusMixin:
             # Schedule maximize and title change on the main thread
             def init_window():
                 rt._root.state('zoomed')
+
+                # Before the status bar below rather than after it: everything
+                # that follows repaints the window at its windowed size, so
+                # switched on at the end full screen arrived visibly late. The
+                # row itself still has to wait - see _full_screen_window.
+                if self.initial_fullscreen:
+                    self._full_screen_window()
                 rt._root.title(self.window_title())
 
                 # Hide FPS panel from status bar
@@ -528,9 +568,21 @@ class StatusMixin:
                 # needs the window, and the window is only now up
                 self._schedule_label_scale_poll()
 
-                # Last of all, because it takes away the row that has only just
-                # been finished - and the lettering in it was fitted a moment
-                # ago to the width the window has while it still has a frame
+                # The row can only go now: the panels above were built into
+                # it, and were told where it sits by asking the label they
+                # replace, which a removed widget can no longer answer. The
+                # window does not move for this - it has been full screen since
+                # the top of this callback - only the canvas grows.
                 if self.initial_fullscreen:
-                    self.toggle_full_screen()
+                    self._hide_status_row()
+
+                # And the keyboard. PlotOptiX builds this window on its own
+                # thread while whatever started the renderer still holds the
+                # focus, so it opens without it - and it binds its key handler
+                # with bind_all, which reaches every widget of this window and
+                # none of any other. So with the focus elsewhere F1 and the rest
+                # never arrive at all, and the window has to be clicked before
+                # it answers anything. Claimed last, when there is nothing left
+                # to build that could take it back.
+                bring_to_front(rt._root)
             rt._root.after_idle(init_window)
