@@ -555,7 +555,16 @@ class StatusMixin:
                     info_font = ("Consolas", 9)
                     info_fg = "#808080"
                     info_alt_negative_fg = "#404040"
-                    info_bg = "#010104"
+                    # The colour of the Moon's own night side, so that a panel
+                    # reads as a patch of unlit surface rather than as a hole
+                    # cut in the sky. Measured off a render at gamma 2.2 and
+                    # brightness 80: over 700,000 pixels of the unlit disk it
+                    # runs from 0 to about 10, with a median of 2 and three
+                    # quarters of it at 3 or below, while the sky beside it is a
+                    # flat 0. Taken at that median, so the panel is the shade
+                    # the unlit surface most often is, one step above the sky.
+                    # Both panels use it.
+                    info_bg = "#020202"
                     info_width = 17  # Fixed width in chars (fits DEC: +89°59'59.9")
 
                     self._info_fg = info_fg
@@ -614,15 +623,10 @@ class StatusMixin:
                             self._info_alt_label = label
                     info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
 
-                    # The status panel: the same lettering as the
-                    # ephemeris panel, in the opposite corner, on black rather
-                    # than the ephemeris panel's near-black - the same black the
-                    # canvas is set to in full screen (FULL_SCREEN_CANVAS), so
-                    # that it has no edge of its own against the sky. Unlike the
-                    # ephemeris panel it starts hidden, having nothing to say
-                    # that the status bar is not already saying while there is a
-                    # status bar to say it.
-                    fullscreen_bg = "black"
+                    # The status panel: the same lettering and ground as the
+                    # ephemeris panel, in the opposite corner. Unlike that one it
+                    # starts hidden, having nothing to say that the status bar is
+                    # not already saying while there is a status bar to say it.
                     self._fullscreen_datetime_var = tk.StringVar()
                     self._fullscreen_distance_var = tk.StringVar()
                     self._fullscreen_height_var = tk.StringVar()
@@ -631,7 +635,7 @@ class StatusMixin:
                     self._fullscreen_sun_var = tk.StringVar()
                     self._fullscreen_feature_var = tk.StringVar()
 
-                    fullscreen_frame = tk.Frame(rt._canvas, bg=fullscreen_bg,
+                    fullscreen_frame = tk.Frame(rt._canvas, bg=info_bg,
                                                 padx=6, pady=4)
                     self._fullscreen_frame = fullscreen_frame
                     for var in (self._fullscreen_feature_var,
@@ -646,7 +650,7 @@ class StatusMixin:
                             textvariable=var,
                             font=info_font,
                             fg=info_fg,
-                            bg=fullscreen_bg,
+                            bg=info_bg,
                             anchor='w',
                             width=self.FULLSCREEN_PANEL_WIDTH,
                         ).pack(anchor='w')
