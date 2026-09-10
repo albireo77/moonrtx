@@ -72,6 +72,16 @@ class StatusMixin:
     # where it fits at its full size and nothing is changed at all.
     STATUS_MIN_FONT_SIZE = 6
 
+    # Character width of the full-screen panel, taken from the one row that is
+    # always the same length: the date and time. Everything else of a fixed
+    # shape is shorter - the coordinates 13, the measurements 14 - and a feature
+    # name is trimmed to fit rather than allowed to widen the panel, which costs
+    # little: 11 of the bundled catalogue's 4488 names are longer than this.
+    # Fixed on purpose. The panel is anchored by its right edge, so a width that
+    # followed its contents would step sideways every time the cursor crossed a
+    # differently named crater.
+    FULLSCREEN_PANEL_WIDTH = 19
+
     # The window is two rows: the canvas across the top, and along the bottom
     # PlotOptiX's own selection readout beside the panels this mixin builds.
     # Only the canvas row carries any weight, so taking the bottom one out gives
@@ -164,6 +174,11 @@ class StatusMixin:
             offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
             self._status_time_var.set(
                 f"{self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_fmt} (step {self.time_step_minutes} min)")
+        if self._fullscreen_datetime_var is not None and self.dt_local:
+            # No zone and no step: the panel says when the picture is of, and
+            # the observer's clock is the only one it ever shows
+            self._fullscreen_datetime_var.set(
+                self.dt_local.strftime('%Y-%m-%d %H:%M:%S'))
 
     def _update_info_moon(self):
         """Update the info panel with current Moon ephemeris data."""
@@ -208,6 +223,16 @@ class StatusMixin:
             measured_text = "             " if self.measured_distance is None else f"d: {self.measured_distance:7.2f} km"
             measured_text += "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:6.0f} m"
             self._status_measured_var.set(measured_text)
+            if self._fullscreen_distance_var is not None:
+                # A row each. The label of the one and the number of the other
+                # are given a column more than the status bar allows them, so
+                # that the two numbers end in the same place.
+                self._fullscreen_distance_var.set(
+                    "" if self.measured_distance is None
+                    else f"d: {self.measured_distance:7.2f} km")
+                self._fullscreen_height_var.set(
+                    "" if self.measured_height_diff is None
+                    else f"Δh: {self.measured_height_diff:7.0f} m")
 
     def _update_info_coords(self, lat=None, lon=None):
         """
@@ -228,15 +253,22 @@ class StatusMixin:
         if lat is None or lon is None:
             self._status_coords_var.set("")
             self._status_coords_alt_var.set("")
+            self._set_fullscreen_coords("", "", "")
             show_sun(False)
             return
 
         lat_dir = 'N' if lat >= 0 else 'S'
         lon_dir = 'E' if lon >= 0 else 'W'
         coords = f"Lat: {abs(lat):5.2f}°{lat_dir} Lon: {abs(lon):6.2f}°{lon_dir}"
+        # A row each in the full-screen panel. The latitude is given the
+        # longitude's width, which it does not need, so that the two numbers
+        # stand in one column instead of a digit apart.
+        lat_row = f"Lat: {abs(lat):6.2f}°{lat_dir}"
+        lon_row = f"Lon: {abs(lon):6.2f}°{lon_dir}"
         if self.moon_ephem is None:
             self._status_coords_var.set(coords)
             self._status_coords_alt_var.set("")
+            self._set_fullscreen_coords(lat_row, lon_row, "")
             show_sun(False)
             return
 
@@ -244,8 +276,30 @@ class StatusMixin:
         # (see the coords panel in _on_launch_finished)
         self._status_coords_var.set(f"{coords}  h")
         show_sun(True)
-        self._status_coords_alt_var.set(
-            f": {astro.sun_altitude_at(self.moon_ephem.subsolar_lat, self.moon_ephem.subsolar_lon, lat, lon):+5.1f}°")
+        sun_alt = astro.sun_altitude_at(self.moon_ephem.subsolar_lat,
+                                        self.moon_ephem.subsolar_lon, lat, lon)
+        altitude = f": {sun_alt:+5.1f}°"
+        self._status_coords_alt_var.set(altitude)
+        # The Sun sign sits beside the "h" here rather than under it as the
+        # status bar has it: that is three labels in two font sizes, and a row
+        # of this panel is one label and so one font. The two spaces after the
+        # colon bring its degree sign into the column the other two rows keep.
+        self._set_fullscreen_coords(lat_row, lon_row,
+                                    f"h☉:   {sun_alt:+6.1f}°")
+
+    def _set_fullscreen_coords(self, lat_row: str, lon_row: str, sun_row: str):
+        """
+        The three coordinate rows of the full-screen panel, when there is one.
+
+        Always all three together: they are read from the cursor and are either
+        all known or none of them, and the Sun's altitude needs an ephemeris
+        besides, so it alone can be blank while the other two are not.
+        """
+        if self._fullscreen_lat_var is None:
+            return
+        self._fullscreen_lat_var.set(lat_row)
+        self._fullscreen_lon_var.set(lon_row)
+        self._fullscreen_sun_var.set(sun_row)
 
     def _update_status_feature(self, feature: Optional[MoonFeature] = None):
         """Update feature name in the status bar and remember the active feature."""
@@ -253,6 +307,14 @@ class StatusMixin:
         if self._status_feature_var:
             feature_text = "" if feature is None else f"{feature.name} (⌀ = {feature.diameter_km:.2f} km)"
             self._status_feature_var.set(feature_text)
+            if self._fullscreen_feature_var is not None:
+                # The name alone: the diameter is in the status bar and in the
+                # search results, and it is what made this row the long one.
+                # Trimmed to the panel's width, so that nothing in the panel can
+                # change the panel's width - see FULLSCREEN_PANEL_WIDTH.
+                name = "" if feature is None else feature.name
+                self._fullscreen_feature_var.set(
+                    name[:self.FULLSCREEN_PANEL_WIDTH])
 
     def _open_feature_url(self, url: str, feature_name: str) -> bool:
         try:
@@ -313,6 +375,24 @@ class StatusMixin:
                 self._info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
             else:
                 self._info_frame.place_forget()
+
+    def toggle_fullscreen_panel(self):
+        """
+        Show or hide the full-screen panel: the same four readings the status
+        bar carries, in the opposite corner of the picture.
+
+        Worth having twice because the status bar is not part of the picture.
+        It is a row of widgets under the canvas, so it goes with the window
+        frame in full screen and has never appeared in a saved image or a video
+        frame. This panel is drawn on the canvas, so it is in all three.
+        """
+        self.show_fullscreen_panel = not self.show_fullscreen_panel
+        if self._fullscreen_frame is not None:
+            if self.show_fullscreen_panel:
+                self._fullscreen_frame.place(relx=1.0, rely=1.0, anchor='se',
+                                             x=-6, y=-6)
+            else:
+                self._fullscreen_frame.place_forget()
 
     def window_title(self) -> str:
         lat = self.observer.lat
@@ -533,6 +613,46 @@ class StatusMixin:
                         if var is self._info_alt_var:
                             self._info_alt_label = label
                     info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
+
+                    # The full-screen panel: the same lettering as the
+                    # ephemeris panel, in the opposite corner, on black rather
+                    # than the ephemeris panel's near-black - the same black the
+                    # canvas is set to in full screen (FULL_SCREEN_CANVAS), so
+                    # that it has no edge of its own against the sky. Unlike the
+                    # ephemeris panel it starts hidden, having nothing to say
+                    # that the status bar is not already saying while there is a
+                    # status bar to say it.
+                    fullscreen_bg = "black"
+                    self._fullscreen_datetime_var = tk.StringVar()
+                    self._fullscreen_distance_var = tk.StringVar()
+                    self._fullscreen_height_var = tk.StringVar()
+                    self._fullscreen_lat_var = tk.StringVar()
+                    self._fullscreen_lon_var = tk.StringVar()
+                    self._fullscreen_sun_var = tk.StringVar()
+                    self._fullscreen_feature_var = tk.StringVar()
+
+                    fullscreen_frame = tk.Frame(rt._canvas, bg=fullscreen_bg,
+                                                padx=6, pady=4)
+                    self._fullscreen_frame = fullscreen_frame
+                    for var in (self._fullscreen_feature_var,
+                                self._fullscreen_datetime_var,
+                                self._fullscreen_lat_var,
+                                self._fullscreen_lon_var,
+                                self._fullscreen_sun_var,
+                                self._fullscreen_distance_var,
+                                self._fullscreen_height_var):
+                        tk.Label(
+                            fullscreen_frame,
+                            textvariable=var,
+                            font=info_font,
+                            fg=info_fg,
+                            bg=fullscreen_bg,
+                            anchor='w',
+                            width=self.FULLSCREEN_PANEL_WIDTH,
+                        ).pack(anchor='w')
+                    if self.show_fullscreen_panel:
+                        fullscreen_frame.place(relx=1.0, rely=1.0, anchor='se',
+                                               x=-6, y=-6)
 
                 # Add 4-char left padding to shift panels right
                 status_frame.grid(

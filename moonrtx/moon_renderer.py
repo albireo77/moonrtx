@@ -362,6 +362,19 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # Info panel variables (bottom-left overlay)
         self._info_frame = None
         self.show_info_panel = True
+
+        # The full-screen panel (F3): what the status bar says, drawn on the
+        # canvas so that it survives full screen, F12 and the video export.
+        # Off to begin with - see StatusMixin.toggle_fullscreen_panel
+        self._fullscreen_frame = None
+        self.show_fullscreen_panel = False
+        self._fullscreen_datetime_var = None
+        self._fullscreen_distance_var = None
+        self._fullscreen_height_var = None
+        self._fullscreen_lat_var = None
+        self._fullscreen_lon_var = None
+        self._fullscreen_sun_var = None
+        self._fullscreen_feature_var = None
         self._info_az_var = None
         self._info_alt_var = None
         self._info_ra_var = None
@@ -1180,7 +1193,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'F2':
             moon_renderer.toggle_info_panel()
         elif event.keysym == 'F3':
-            moon_renderer.fov_overlay_dialog()
+            moon_renderer.toggle_fullscreen_panel()
         elif event.keysym == 'F4':
             moon_renderer.toggle_parallactic_mode()
         elif event.keysym == 'F5':
@@ -1222,7 +1235,11 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'c':
             moon_renderer.toggle_compass()
         elif event.keysym.lower() == 'b':
-            moon_renderer.toggle_fov_overlay()
+            # Shift sets the frame up, B alone turns it on and off
+            if event.state & 0x1:
+                moon_renderer.fov_overlay_dialog()
+            else:
+                moon_renderer.toggle_fov_overlay()
         elif event.keysym.lower() == 'f':
             moon_renderer.search_feature_dialog()
         elif event.keysym.lower() == 'k':
@@ -1297,6 +1314,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.rt._status_action_text.set('')
             moon_renderer._update_info_coords(lat, lon)
             moon_renderer._update_status_feature(feature)
+            if lat is None:
+                moon_renderer.clear_measurement()
 
     moon_renderer.rt._gui_motion = custom_motion_handler
 

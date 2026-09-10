@@ -764,3 +764,23 @@ class NavigationMixin:
         self.measured_distance = distance_km
         self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
         self._update_status_measured()
+
+    def clear_measurement(self):
+        """
+        Forget the last measurement, and take its reading off the status bar and
+        the full-screen panel alike.
+
+        Called from the motion handler when the cursor leaves the Moon (see
+        run_renderer). A distance and a height difference are between two places
+        on the surface; once the cursor is off the surface they answer a
+        question nobody is asking any more, and left standing they read as
+        though they still applied to wherever the cursor has gone.
+
+        Nothing is written when there was nothing to forget: the handler runs on
+        every movement of the mouse, and the sky is most of the window.
+        """
+        if self.measured_distance is None and self.measured_height_diff is None:
+            return
+        self.measured_distance = None
+        self.measured_height_diff = None
+        self._update_status_measured()

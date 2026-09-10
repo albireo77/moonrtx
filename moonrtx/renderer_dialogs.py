@@ -487,7 +487,7 @@ class DialogsMixin:
         aligned_lines = [
             ("F1", "Help"),
             ("F2", "Toggle Moon ephemeris panel"),
-            ("F3", "Set up the eyepiece / camera field of view frame"),
+            ("F3", "Toggle full-screen panel"),
             ("F4", "Toggle parallactic mode (maintains Moon aligned to celestial north)"),
             ("F5", "NSWE view orientation"),
             ("F6", "NSEW view orientation"),
@@ -504,7 +504,7 @@ class DialogsMixin:
             ("S", "Toggle spot labels"),
             ("G", "Toggle selenographic grid"),
             ("Y", "Toggle markers for sub-solar and sub-Earth points"),
-            ("B", "Toggle the field of view frame (set it up with F3)"),
+            ("B", "Toggle the field of view frame (set it up with Shift + B)"),
             ("C", "Toggle compass showing how far the view is turned (rotated) from default"),
             ("R", "Toggle locator showing where on the Moon the view is"),
             ("F", "Search for Moon features (craters, mounts etc.)"),
@@ -525,6 +525,7 @@ class DialogsMixin:
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
+            ("Shift + B", "Set up the eyepiece / camera field of view frame"),
             ("Escape", "Leave full screen"),
             ("Home", "Reset camera and time to initial state"),
             ("End", "Reset camera to default state (useful after starting with `--init-view` parameter)"),
@@ -534,7 +535,6 @@ class DialogsMixin:
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),
             ("Hold and drag right mouse button", "Rotate Moon around the eye (move view)"),
-            ("Hold Shift + right mouse button and drag up/down", "Move eye backward/forward"),
             ("Hold Ctrl + drag left mouse button", "Measure distance and elevation difference on Moon surface"),
             ("Hold Shift + left mouse button and drag up/down", "Zoom out/in (more reliable)"),
             ("Mouse wheel up/down", "Zoom in/out (less reliable)"),
