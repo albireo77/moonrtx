@@ -147,6 +147,12 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
     LIGHT_NAME = "sun"
     MOON_OBJECT_NAME = "moon"
 
+    # The window is two rows: the canvas across the top, and along the bottom
+    # PlotOptiX's own selection readout beside the panels this program puts
+    # there (see renderer_status). Only the canvas row carries any weight, so
+    # taking the bottom one out gives the picture the whole window.
+    STATUS_BAR_ROW = 1
+
     def __init__(self,
                  elevation_file: str,
                  color_file: str,
@@ -161,7 +167,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
                  time_step_minutes: int = 15,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
-                 parallactic_mode: bool = False):
+                 parallactic_mode: bool = False,
+                 fullscreen: bool = False):
         """
         Initialize the planetarium.
 
@@ -193,6 +200,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
             Observer latitude, longitude, and elevation
         gamma : float
             Gamma correction value (default 2.2)
+        fullscreen : bool
+            Open with the window frame and the status bar already gone. It is a
+            starting state and nothing more: from then on the window answers to
+            F11 and Escape, and this is not consulted again.
         parallactic_mode : bool
             Whether to use parallactic projection mode (default False)
         """
@@ -201,6 +212,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         self.gamma = gamma
         self.time_step_minutes = time_step_minutes
         self.parallactic_mode = parallactic_mode
+        # Acted on once the window exists, in StatusMixin._on_launch_finished
+        self.initial_fullscreen = fullscreen
         self.observer = observer
 
         # Load data (color and star map are loaded in init_renderer, where they
@@ -234,14 +247,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         self.sub_points_visible = False
 
         self.view_orientation = init_view_orientation
-        self.initial_view_orientation = init_view_orientation  # For reset with R/V keys
+        self.initial_view_orientation = init_view_orientation  # For reset with Home/End keys
 
         self.dt_local = dt_local
 
-        # Initial time for reset with R key
+        # Initial time for reset with Home key
         self.initial_dt_local = self.dt_local
 
-        # Initial camera for reset with R key. When none is given it is the
+        # Initial camera for reset with Home key. When none is given it is the
         # whole-disk view of the initial date, which needs the ephemeris and is
         # therefore resolved in init_astro.
         self.initial_camera = initial_camera
@@ -252,6 +265,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
 
         # Flag to track if window has been maximized
         self._window_maximized = False
+
+        # What was along the bottom of the window before full screen took it
+        # away, so that leaving full screen puts back that and nothing else
+        self._windowed_status = []
 
         # Standard labels settings
         self.standard_labels_visible = False
@@ -371,6 +388,58 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         self.brightness = new_brightness
         self.rt.update_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE)
         self._update_status_brightness()
+
+    def toggle_full_screen(self):
+        """
+        Show the Moon alone, or give the window its frame and readouts back.
+
+        Full screen here is the picture and nothing else: no title bar, no
+        border, and none of the bottom row. The canvas is the only thing in the
+        window's grid with any weight, so once that row is out it has the whole
+        window, and PlotOptiX resizes the render buffer to whatever the canvas
+        becomes without being asked. The overlays follow it on their own poll.
+
+        What comes back afterwards is what was there, not everything that could
+        be. Tk lists only the widgets a row is actually managing, so the two
+        readouts taken out at start-up - PlotOptiX's frames-per-second panel and
+        the action label the status panels replaced - are not among those put
+        back, and grid_remove holds each one's place until it is.
+
+        The order matters at both ends: the row goes before the window grows,
+        and comes back after it has shrunk, so neither is seen against a window
+        of the wrong size.
+        """
+        root = self.rt._root
+        if root.attributes("-fullscreen"):
+            self.exit_full_screen()
+            return
+        self._windowed_status = root.grid_slaves(row=self.STATUS_BAR_ROW)
+        for widget in self._windowed_status:
+            widget.grid_remove()
+        root.attributes("-fullscreen", True)
+
+    def exit_full_screen(self):
+        """
+        Give the window back its frame and readouts, or do nothing if it never
+        lost them.
+
+        Escape is bound to this rather than to the toggle, and the two are not
+        the same thing. In full screen there is no title bar and no taskbar, so
+        F11 is the only way out and a reader who does not know it has nothing to
+        try; Escape is what everything else on the desktop answers to. Bound to
+        the toggle it would be a way in as well, which is not what anyone means
+        by pressing it - so at any other time this is simply nothing happening.
+
+        A dialog's own Escape closes the dialog and stops the press there (see
+        DialogsMixin._dialog_window), so the two never both act on one key.
+        """
+        root = self.rt._root
+        if not root.attributes("-fullscreen"):
+            return
+        root.attributes("-fullscreen", False)
+        for widget in self._windowed_status:
+            widget.grid()
+        self._windowed_status = []
 
     def change_gamma(self, delta: float):
         """
@@ -1039,7 +1108,8 @@ def run_renderer(dt_local: datetime,
                  init_view_orientation: str = VIEW_ORIENTATION_NSWE,
                  gamma: float = 2.2,
                  parallactic_mode: bool = False,
-                 color_downscale: int = 1) -> TkOptiX:
+                 color_downscale: int = 1,
+                 fullscreen: bool = False) -> TkOptiX:
     """
     Quick function to render the Moon for a specific time and location.
 
@@ -1067,6 +1137,8 @@ def run_renderer(dt_local: datetime,
         Whether to use parallactic projection mode (default False)
     color_downscale : int
         Color map downscale factor (default 1)
+    fullscreen : bool
+        Start with no window frame and no status bar (default False)
 
     Returns
     -------
@@ -1089,6 +1161,7 @@ def run_renderer(dt_local: datetime,
     print(f"  Time Step (minutes): {time_step_minutes}")
     print(f"  Initial View Orientation: {init_view_orientation}")
     print(f"  Parallactic Mode: {'ON' if parallactic_mode else 'OFF'}")
+    print(f"  Fullscreen: {'ON' if fullscreen else 'OFF'}")
     if initial_camera is not None:
         print("  Location, time and view set from --init-view parameter value")
     print()
@@ -1106,6 +1179,7 @@ def run_renderer(dt_local: datetime,
         observer=observer,
         gamma=gamma,
         parallactic_mode=parallactic_mode,
+        fullscreen=fullscreen,
         dt_local=dt_local,
         initial_camera=initial_camera
     )
@@ -1179,13 +1253,17 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'F10':
             moon_renderer.set_time_to_now_and_auto_advance()
         elif event.keysym == 'F11':
-            moon_renderer.export_video_dialog()
+            moon_renderer.toggle_full_screen()
         elif event.keysym == 'F12':
             moon_renderer.save_image_dialog()
+        elif event.keysym == 'Escape':
+            moon_renderer.exit_full_screen()
         elif event.keysym == 'Home':
             moon_renderer.reset_camera_position()
         elif event.keysym == 'End':
             moon_renderer.reset_to_default_view()
+        elif event.keysym.lower() == 'p':
+            moon_renderer.export_video_dialog()
         elif event.keysym.lower() == 'g':
             moon_renderer.toggle_grid()
         elif event.keysym.lower() == 'l':

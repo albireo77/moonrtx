@@ -210,6 +210,7 @@ class MainWindow(tk.Tk):
         tk.Label(frm, text="Init view parameter:").grid(row=13, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="Parallactic mode:").grid(row=14, column=0, sticky=tk.E, pady=2)
         tk.Label(frm, text="No stars:").grid(row=15, column=0, sticky=tk.E, pady=2)
+        tk.Label(frm, text="Full screen:").grid(row=16, column=0, sticky=tk.E, pady=2)
 
         self.lat_dir_var = tk.StringVar(value="N")
         self.lon_dir_var = tk.StringVar(value="E")
@@ -327,6 +328,13 @@ class MainWindow(tk.Tk):
             text="(saves GPU memory)",
             variable=self.no_stars_var,
         ).grid(row=15, column=1, columnspan=2, sticky=tk.W, pady=2)
+
+        self.fullscreen_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            frm,
+            text="(no title and status bar)",
+            variable=self.fullscreen_var,
+        ).grid(row=16, column=1, columnspan=2, sticky=tk.W, pady=2)
 
         self.coord_mode = tk.StringVar(value='decimal')
         ttk.Radiobutton(frm, text="Decimal", variable=self.coord_mode, value='decimal').grid(row=0, column=2, sticky=tk.W, padx=(4, 0))
@@ -598,6 +606,7 @@ class MainWindow(tk.Tk):
             "init_view_orientation": self.init_view_orientation.get(),
             "parallactic_mode": bool(self.parallactic_mode_var.get()),
             "no_stars": bool(self.no_stars_var.get()),
+            "fullscreen": bool(self.fullscreen_var.get()),
             "init_view": self.init_view.get(),
         }
 
@@ -740,6 +749,8 @@ class MainWindow(tk.Tk):
             self.parallactic_mode_var.set(bool(settings.get("parallactic_mode", False)))
 
             self.no_stars_var.set(bool(settings.get("no_stars", False)))
+
+            self.fullscreen_var.set(bool(settings.get("fullscreen", False)))
 
             self.init_view.delete(0, tk.END)
             self.init_view.insert(0, settings.get("init_view", ""))
@@ -992,6 +1003,7 @@ class MainWindow(tk.Tk):
             starmap_file = get_starmap_file()
         
         parallactic_mode = bool(self.parallactic_mode_var.get())
+        fullscreen = bool(self.fullscreen_var.get())
         
         self._set_status("Starting renderer...")
         self.update_idletasks()
@@ -1015,7 +1027,8 @@ class MainWindow(tk.Tk):
                 init_view_orientation,
                 gamma,
                 parallactic_mode,
-                color_downscale)
+                color_downscale,
+                fullscreen)
         )
         p.start()
         

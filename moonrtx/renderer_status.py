@@ -527,4 +527,10 @@ class StatusMixin:
                 # From here the lettering follows the magnification: the poll
                 # needs the window, and the window is only now up
                 self._schedule_label_scale_poll()
+
+                # Last of all, because it takes away the row that has only just
+                # been finished - and the lettering in it was fitted a moment
+                # ago to the width the window has while it still has a frame
+                if self.initial_fullscreen:
+                    self.toggle_full_screen()
             rt._root.after_idle(init_window)

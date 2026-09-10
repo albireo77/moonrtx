@@ -54,7 +54,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **F5-F8** - Change view orientation (NSWE, NSEW, SNEW, SNWE)  
 **F9** - Set time to now (in the session timezone)  
 **F10** - Set time to now + start auto-advance  
-**F11** - Export time-lapse video (MP4)  
+**F11** - Toggle full screen  
 **F12** - Save image  
 **1-9** - Create/Remove pin (when pins are ON)  
 **0** - Toggle pins ON/OFF  
@@ -73,12 +73,14 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **I** - Open USGS web page for Moon feature in status bar  
 **O** - Open user defined web page (Wikipedia by default) for Moon feature in status bar  
 **T** - Open date/time window  
+**P** - Export time-lapse video (MP4)  
 **A/Z** - Increase/Decrease brightness  
 **E/D** - Increase/Decrease gamma correction  
 **H/J** - Roll view around current view direction  
 **Q/W** - Go back/forward in time by step minutes (hold the key to get an animation effect)  
 **M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
 **Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
+**Escape** - Leave full screen  
 **Home** - Reset camera and time to initial state  
 **End** - Reset camera to default state (useful after starting with `--init-view` parameter)  
 **Space** - Center and fix view on point under cursor  

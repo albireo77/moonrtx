@@ -94,6 +94,8 @@ def parse_args():
                         help="Turn on parallactic mode (maintains Moon aligned to celestial north)")
     parser.add_argument("--no-stars", action="store_true",
                         help="Black background (saves GPU memory)")
+    parser.add_argument("--fullscreen", action="store_true",
+                        help="Start in full screen. F11 toggles it, Escape leaves it.")
     parser.add_argument("--time-step-minutes", type=int, default=15,
                         help="Time step in minutes for Q/W keys")
     parser.add_argument("--init-view", type=str, default=None,
@@ -474,7 +476,8 @@ def main():
                      time_step_minutes=args.time_step_minutes,
                      init_view_orientation=init_view_orientation,
                      gamma=args.gamma,
-                     parallactic_mode=parallactic_mode)
+                     parallactic_mode=parallactic_mode,
+                     fullscreen=args.fullscreen)
     except MapTooLargeError as e:
         # Says which map and what to change, so a traceback would only bury it
         print(f"\n{e}")
