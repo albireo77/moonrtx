@@ -12,7 +12,7 @@ The compass answers that. Two globes are drawn over each other, each as its
 equatorial plane and, out of the middle of it, two rays: one to the north pole and
 one to longitude 0 on the equator, each bumped and named at its tip, with the
 meridian arc between those tips closing them into a quarter of a globe. In grey,
-the globe as the default view of this moment shows it - the view the V key returns
+the globe as the default view of this moment shows it - the view the End key returns
 to, so the libration and the parallactic roll of the date are already in the
 grey. In blue, the globe as it lies now. The difference between the two colours
 is exactly what the rotation keys have done: reset the view and the blue lands
@@ -130,7 +130,7 @@ class CompassMixin:
 
     def _compass_default_basis(self) -> Optional[tuple]:
         """
-        Screen axes of the default view of this moment - what the V key gives
+        Screen axes of the default view of this moment - what the End key gives
         back. The Moon's own orientation is not part of a camera, so the
         libration and the parallactic roll of the date reach the reference
         lines through moon_rotation, the same way they reach the live ones.

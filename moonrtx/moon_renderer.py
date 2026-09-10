@@ -183,7 +183,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         brightness : int
             Brightness
         initial_camera : Optional[Camera]
-            Initial camera for resets with R key (if None, a default camera will be calculated from ephemeris)
+            Initial camera for resets with Home key (if None, a default camera will be calculated from ephemeris)
         dt_local : datetime
             Local datetime for the view 
         starmap_file : Optional[str]
@@ -601,7 +601,7 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
     @property
     def default_camera(self) -> Camera:
         """
-        Whole-disk view of the currently rendered date (reset with the V key):
+        Whole-disk view of the currently rendered date (reset with the End key):
         Moon centered and shown at the apparent size it has on that date.
         """
         visible_height = 2 * self.MOON_RADIUS / self.MOON_FILL_FRACTION
