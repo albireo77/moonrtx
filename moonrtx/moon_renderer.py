@@ -1262,7 +1262,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.reset_camera_position()
         elif event.keysym == 'End':
             moon_renderer.reset_to_default_view()
-        elif event.keysym.lower() == 'p':
+        elif event.keysym.lower() == 'v':
             moon_renderer.export_video_dialog()
         elif event.keysym.lower() == 'g':
             moon_renderer.toggle_grid()
@@ -1288,7 +1288,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.open_status_feature_usgs_page()
         elif event.keysym.lower() == 'o':
             moon_renderer.open_status_feature_www_page()
-        elif event.keysym == 'v':
+        elif event.keysym.lower() == 'p':
             moon_renderer.toggle_catalogue()
         elif event.keysym.lower() == 'h':
             moon_renderer.rotate_around_view_direction('ccw')
