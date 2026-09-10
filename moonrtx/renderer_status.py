@@ -80,7 +80,7 @@ class StatusMixin:
     # Fixed on purpose. The panel is anchored by its right edge, so a width that
     # followed its contents would step sideways every time the cursor crossed a
     # differently named crater.
-    FULLSCREEN_PANEL_WIDTH = 19
+    STATUS_PANEL_WIDTH = 19
 
     # The window is two rows: the canvas across the top, and along the bottom
     # PlotOptiX's own selection readout beside the panels this mixin builds.
@@ -174,10 +174,10 @@ class StatusMixin:
             offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
             self._status_time_var.set(
                 f"{self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_fmt} (step {self.time_step_minutes} min)")
-        if self._fullscreen_datetime_var is not None and self.dt_local:
+        if self._status_panel_datetime_var is not None and self.dt_local:
             # No zone and no step: the panel says when the picture is of, and
             # the observer's clock is the only one it ever shows
-            self._fullscreen_datetime_var.set(
+            self._status_panel_datetime_var.set(
                 self.dt_local.strftime('%Y-%m-%d %H:%M:%S'))
 
     def _update_info_moon(self):
@@ -223,14 +223,14 @@ class StatusMixin:
             measured_text = "             " if self.measured_distance is None else f"d: {self.measured_distance:7.2f} km"
             measured_text += "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:6.0f} m"
             self._status_measured_var.set(measured_text)
-            if self._fullscreen_distance_var is not None:
+            if self._status_panel_distance_var is not None:
                 # A row each. The label of the one and the number of the other
                 # are given a column more than the status bar allows them, so
                 # that the two numbers end in the same place.
-                self._fullscreen_distance_var.set(
+                self._status_panel_distance_var.set(
                     "" if self.measured_distance is None
                     else f"d: {self.measured_distance:7.2f} km")
-                self._fullscreen_height_var.set(
+                self._status_panel_height_var.set(
                     "" if self.measured_height_diff is None
                     else f"Δh: {self.measured_height_diff:7.0f} m")
 
@@ -253,7 +253,7 @@ class StatusMixin:
         if lat is None or lon is None:
             self._status_coords_var.set("")
             self._status_coords_alt_var.set("")
-            self._set_fullscreen_coords("", "", "")
+            self._set_status_panel_coords("", "", "")
             show_sun(False)
             return
 
@@ -268,7 +268,7 @@ class StatusMixin:
         if self.moon_ephem is None:
             self._status_coords_var.set(coords)
             self._status_coords_alt_var.set("")
-            self._set_fullscreen_coords(lat_row, lon_row, "")
+            self._set_status_panel_coords(lat_row, lon_row, "")
             show_sun(False)
             return
 
@@ -284,10 +284,10 @@ class StatusMixin:
         # status bar has it: that is three labels in two font sizes, and a row
         # of this panel is one label and so one font. The two spaces after the
         # colon bring its degree sign into the column the other two rows keep.
-        self._set_fullscreen_coords(lat_row, lon_row,
+        self._set_status_panel_coords(lat_row, lon_row,
                                     f"h☉:   {sun_alt:+6.1f}°")
 
-    def _set_fullscreen_coords(self, lat_row: str, lon_row: str, sun_row: str):
+    def _set_status_panel_coords(self, lat_row: str, lon_row: str, sun_row: str):
         """
         The three coordinate rows of the full-screen panel, when there is one.
 
@@ -295,11 +295,11 @@ class StatusMixin:
         all known or none of them, and the Sun's altitude needs an ephemeris
         besides, so it alone can be blank while the other two are not.
         """
-        if self._fullscreen_lat_var is None:
+        if self._status_panel_lat_var is None:
             return
-        self._fullscreen_lat_var.set(lat_row)
-        self._fullscreen_lon_var.set(lon_row)
-        self._fullscreen_sun_var.set(sun_row)
+        self._status_panel_lat_var.set(lat_row)
+        self._status_panel_lon_var.set(lon_row)
+        self._status_panel_sun_var.set(sun_row)
 
     def _update_status_feature(self, feature: Optional[MoonFeature] = None):
         """Update feature name in the status bar and remember the active feature."""
@@ -307,14 +307,14 @@ class StatusMixin:
         if self._status_feature_var:
             feature_text = "" if feature is None else f"{feature.name} (⌀ = {feature.diameter_km:.2f} km)"
             self._status_feature_var.set(feature_text)
-            if self._fullscreen_feature_var is not None:
+            if self._status_panel_feature_var is not None:
                 # The name alone: the diameter is in the status bar and in the
                 # search results, and it is what made this row the long one.
                 # Trimmed to the panel's width, so that nothing in the panel can
-                # change the panel's width - see FULLSCREEN_PANEL_WIDTH.
+                # change the panel's width - see STATUS_PANEL_WIDTH.
                 name = "" if feature is None else feature.name
-                self._fullscreen_feature_var.set(
-                    name[:self.FULLSCREEN_PANEL_WIDTH])
+                self._status_panel_feature_var.set(
+                    name[:self.STATUS_PANEL_WIDTH])
 
     def _open_feature_url(self, url: str, feature_name: str) -> bool:
         try:
@@ -387,12 +387,12 @@ class StatusMixin:
         frame. This panel is drawn on the canvas, so it is in all three.
         """
         self.show_status_panel = not self.show_status_panel
-        if self._fullscreen_frame is not None:
+        if self._status_panel_frame is not None:
             if self.show_status_panel:
-                self._fullscreen_frame.place(relx=1.0, rely=1.0, anchor='se',
+                self._status_panel_frame.place(relx=1.0, rely=1.0, anchor='se',
                                              x=-6, y=-6)
             else:
-                self._fullscreen_frame.place_forget()
+                self._status_panel_frame.place_forget()
 
     def window_title(self) -> str:
         lat = self.observer.lat
@@ -627,35 +627,35 @@ class StatusMixin:
                     # ephemeris panel, in the opposite corner. Unlike that one it
                     # starts hidden, having nothing to say that the status bar is
                     # not already saying while there is a status bar to say it.
-                    self._fullscreen_datetime_var = tk.StringVar()
-                    self._fullscreen_distance_var = tk.StringVar()
-                    self._fullscreen_height_var = tk.StringVar()
-                    self._fullscreen_lat_var = tk.StringVar()
-                    self._fullscreen_lon_var = tk.StringVar()
-                    self._fullscreen_sun_var = tk.StringVar()
-                    self._fullscreen_feature_var = tk.StringVar()
+                    self._status_panel_datetime_var = tk.StringVar()
+                    self._status_panel_distance_var = tk.StringVar()
+                    self._status_panel_height_var = tk.StringVar()
+                    self._status_panel_lat_var = tk.StringVar()
+                    self._status_panel_lon_var = tk.StringVar()
+                    self._status_panel_sun_var = tk.StringVar()
+                    self._status_panel_feature_var = tk.StringVar()
 
-                    fullscreen_frame = tk.Frame(rt._canvas, bg=info_bg,
+                    status_panel_frame = tk.Frame(rt._canvas, bg=info_bg,
                                                 padx=6, pady=4)
-                    self._fullscreen_frame = fullscreen_frame
-                    for var in (self._fullscreen_feature_var,
-                                self._fullscreen_datetime_var,
-                                self._fullscreen_lat_var,
-                                self._fullscreen_lon_var,
-                                self._fullscreen_sun_var,
-                                self._fullscreen_distance_var,
-                                self._fullscreen_height_var):
+                    self._status_panel_frame = status_panel_frame
+                    for var in (self._status_panel_feature_var,
+                                self._status_panel_datetime_var,
+                                self._status_panel_lat_var,
+                                self._status_panel_lon_var,
+                                self._status_panel_sun_var,
+                                self._status_panel_distance_var,
+                                self._status_panel_height_var):
                         tk.Label(
-                            fullscreen_frame,
+                            status_panel_frame,
                             textvariable=var,
                             font=info_font,
                             fg=info_fg,
                             bg=info_bg,
                             anchor='w',
-                            width=self.FULLSCREEN_PANEL_WIDTH,
+                            width=self.STATUS_PANEL_WIDTH,
                         ).pack(anchor='w')
                     if self.show_status_panel:
-                        fullscreen_frame.place(relx=1.0, rely=1.0, anchor='se',
+                        status_panel_frame.place(relx=1.0, rely=1.0, anchor='se',
                                                x=-6, y=-6)
 
                 # Add 4-char left padding to shift panels right

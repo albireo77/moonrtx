@@ -366,15 +366,15 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # The status panel (F3): what the status bar says, drawn on the
         # canvas so that it survives full screen, F12 and the video export.
         # Off to begin with - see StatusMixin.toggle_status_panel
-        self._fullscreen_frame = None
         self.show_status_panel = False
-        self._fullscreen_datetime_var = None
-        self._fullscreen_distance_var = None
-        self._fullscreen_height_var = None
-        self._fullscreen_lat_var = None
-        self._fullscreen_lon_var = None
-        self._fullscreen_sun_var = None
-        self._fullscreen_feature_var = None
+        self._status_panel_frame = None
+        self._status_panel_datetime_var = None
+        self._status_panel_distance_var = None
+        self._status_panel_height_var = None
+        self._status_panel_lat_var = None
+        self._status_panel_lon_var = None
+        self._status_panel_sun_var = None
+        self._status_panel_feature_var = None
         self._info_az_var = None
         self._info_alt_var = None
         self._info_ra_var = None
