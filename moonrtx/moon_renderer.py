@@ -147,6 +147,14 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
     LIGHT_NAME = "sun"
     MOON_OBJECT_NAME = "moon"
 
+    # What the render canvas is set to while full screen lasts. PlotOptiX builds
+    # it with Tk's defaults, which give a canvas a two-pixel focus highlight in
+    # the system's button-face grey and paint the same grey anywhere the rendered
+    # image does not reach. Against a window frame neither is noticeable; with
+    # the frame gone they are a light border round the Moon, and a light band
+    # for as long as it takes the render buffer to catch up with a resize.
+    FULL_SCREEN_CANVAS = {"highlightthickness": 0, "background": "black"}
+
     # The window is two rows: the canvas across the top, and along the bottom
     # PlotOptiX's own selection readout beside the panels this program puts
     # there (see renderer_status). Only the canvas row carries any weight, so
@@ -269,6 +277,11 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         # What was along the bottom of the window before full screen took it
         # away, so that leaving full screen puts back that and nothing else
         self._windowed_status = []
+
+        # And what the canvas looked like before, read off the canvas rather
+        # than written down here, so that leaving restores what was actually
+        # there whatever PlotOptiX built it with
+        self._windowed_canvas = {}
 
         # Standard labels settings
         self.standard_labels_visible = False
@@ -405,6 +418,9 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         the action label the status panels replaced - are not among those put
         back, and grid_remove holds each one's place until it is.
 
+        The canvas loses its own light edging at the same time, which is Tk's
+        rather than the window manager's - see FULL_SCREEN_CANVAS.
+
         The order matters at both ends: the row goes before the window grows,
         and comes back after it has shrunk, so neither is seen against a window
         of the wrong size.
@@ -416,6 +432,10 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         self._windowed_status = root.grid_slaves(row=self.STATUS_BAR_ROW)
         for widget in self._windowed_status:
             widget.grid_remove()
+        canvas = self.rt._canvas
+        self._windowed_canvas = {name: canvas.cget(name)
+                                 for name in self.FULL_SCREEN_CANVAS}
+        canvas.configure(**self.FULL_SCREEN_CANVAS)
         root.attributes("-fullscreen", True)
 
     def exit_full_screen(self):
@@ -437,6 +457,8 @@ class MoonRenderer(StatusMixin, DialogsMixin, PlanningMixin, LabelsMixin,
         if not root.attributes("-fullscreen"):
             return
         root.attributes("-fullscreen", False)
+        self.rt._canvas.configure(**self._windowed_canvas)
+        self._windowed_canvas = {}
         for widget in self._windowed_status:
             widget.grid()
         self._windowed_status = []
