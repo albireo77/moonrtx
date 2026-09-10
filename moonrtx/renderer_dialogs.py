@@ -525,7 +525,7 @@ class DialogsMixin:
         # Remaining entries have longer keys, no fixed-width alignment
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
-            ("Escape", "Leave fullscreen"),
+            ("Escape", "Leave full screen"),
             ("Home", "Reset camera and time to initial state"),
             ("End", "Reset camera to default state (useful after starting with `--init-view` parameter)"),
             ("Space", "Center and fix view on point under cursor"),
