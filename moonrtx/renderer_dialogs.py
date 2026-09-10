@@ -487,7 +487,7 @@ class DialogsMixin:
         aligned_lines = [
             ("F1", "Help"),
             ("F2", "Toggle Moon ephemeris panel"),
-            ("F3", "Toggle full-screen panel"),
+            ("F3", "Toggle status panel"),
             ("F4", "Toggle parallactic mode (maintains Moon aligned to celestial north)"),
             ("F5", "NSWE view orientation"),
             ("F6", "NSEW view orientation"),
