@@ -49,7 +49,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 ## Keyboard and Mouse Actions
 **F1** - Help  
 **F2** - Toggle Moon ephemeris panel  
-**F3** - Toggle status panel  
+**F3** - Toggle status panel (useful in full screen)  
 **F4** - Toggle parallactic mode (maintains Moon aligned to celestial north)  
 **F5-F8** - Change view orientation (NSWE, NSEW, SNEW, SNWE)  
 **F9** - Set time to now (in the session timezone)  
