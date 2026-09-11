@@ -111,6 +111,7 @@ class FontBook:
         self._root = root
         self._metrics = {}          # spec -> (px, ascent, descent, linespace)
         self._faces = {}            # (file, size) -> ImageFont
+        self._chosen = {}           # (spec, scale) -> what face() answers
 
     # ---- what Tk makes of a font ----
 
@@ -197,8 +198,21 @@ class FontBook:
         magnification is taken - the text then grows with the picture and with
         nothing else.
 
+        Kept, because the search below is not cheap and the answer never
+        changes: it depends on the font asked for and the magnification, and
+        both hold still for a whole picture. Measured before it was kept, one
+        call cost 424 microseconds, and there is a call for every string drawn -
+        nine of them per string, each overlay writing its lettering once more
+        for each offset of its dark rim. The locator alone spent some 40
+        milliseconds of every saved frame choosing fonts it had already chosen.
+
         Returns (face, ascent, linespace), the last two already magnified.
         """
+        key = (tuple(spec) if not isinstance(spec, str) else spec, scale)
+        got = self._chosen.get(key)
+        if got is not None:
+            return got
+
         px, ascent, _descent, linespace = self._tk_metrics(spec)
         family, _points, bold = self._parse(spec)
 
@@ -209,7 +223,10 @@ class FontBook:
             off = abs(face.getlength(CALIBRATION_SAMPLE) - wanted)
             if best_off is None or off < best_off:
                 best, best_off = face, off
-        return best, ascent * scale, linespace * scale
+
+        got = (best, ascent * scale, linespace * scale)
+        self._chosen[key] = got
+        return got
 
 
 class OverlaySurface:
