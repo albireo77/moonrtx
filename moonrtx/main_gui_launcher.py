@@ -2,6 +2,7 @@ from multiprocessing import Process
 import calendar
 import threading
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
 from datetime import datetime
 from zoneinfo import available_timezones
@@ -388,6 +389,9 @@ class MainWindow(tk.Tk):
 
         # Run button and status
         self.run_btn = tk.Button(self, text=f"Run {APP_NAME}", command=self.on_run)
+        self._run_font = tkfont.Font(font=self.run_btn.cget("font"))
+        self._run_font.configure(weight="bold")
+        self.run_btn.configure(font=self._run_font)
         self.run_btn.pack(padx=10, fill=tk.X)
 
         # Preset controls. The row is the width of the window now that the
