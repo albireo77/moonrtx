@@ -30,9 +30,19 @@ class NavigationMixin:
         """
         Center the view on a selenographic position.
 
-        Works exactly like center_view_on_cursor (C key): the camera keeps its
-        current distance and FOV, only the target moves to the position. Zooming
-        in on it is left to the user (mouse wheel / Shift+drag).
+        Keeps the camera's current distance and FOV, like center_view_on_cursor
+        (C key) does; zooming in on it is left to the user (mouse wheel /
+        Shift+drag). Unlike center_view_on_cursor, the position given here is
+        not necessarily one already on screen - a planning dialog can jump the
+        clock by weeks in the same action that recentres, moving what
+        libration presents by a long way round the disk. center_view_on_cursor
+        can safely carry the camera's current facing over to the new point
+        because a cursor hit is always already close to it; carrying it over
+        for an arbitrary point risks placing the eye beside or inside the
+        sphere once the point is no longer nearby. The Moon is a static sphere
+        at the scene origin (only its texture rotates - see update_view), so
+        the point's own direction from that origin is always a valid outward
+        normal to approach it from, however far the jump.
 
         Parameters
         ----------
@@ -62,13 +72,12 @@ class NavigationMixin:
         cam = self.rt.get_camera(self.CAMERA_NAME)
         eye = np.array(cam["Eye"])
         target = np.array(cam["Target"])
+        distance = np.linalg.norm(eye - target)
 
-        # Keep the current camera distance, like center_view_on_cursor does
-        direction = eye - target
-        distance = np.linalg.norm(direction)
-        direction = direction / distance
-
+        # Approach from directly outside the sphere at the new point, not from
+        # whatever direction the camera used to face - see the note above
         new_target = scene_pos
+        direction = new_target / np.linalg.norm(new_target)
         new_eye = new_target + direction * distance
 
         # Update camera

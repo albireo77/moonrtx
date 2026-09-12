@@ -288,8 +288,12 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
 
-        # Flag to track if search dialog is open
-        self.search_dialog_open = False
+        # Count of dialogs currently open that want every key (see
+        # DialogsMixin._dialog_window) - a count rather than a flag because a
+        # planning dialog can open another on top of it (the observation
+        # planner's graph) and closing one must not clear this while the
+        # other is still up.
+        self.search_dialog_open = 0
 
         # Datetime dialog tracking
         self.datetime_dialog = None

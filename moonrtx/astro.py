@@ -218,6 +218,68 @@ def _split_windows(idx: np.ndarray) -> list:
     return [idx[s:e + 1] for s, e in zip(starts, ends)]
 
 
+def sample_feature_series(start_local: datetime, days: int,
+                          feature_lat: float, feature_lon: float,
+                          step_minutes: int = 60) -> dict:
+    """
+    Sample a Moon feature's geometry over a span, one row per step: the same
+    vectorized quantities find_terminator_windows and find_libration_windows
+    compute before collapsing them into windows, handed back here in full for
+    anything that wants the curve rather than just the stretches that qualify
+    (see PlanningMixin.feature_graph_dialog).
+
+    Parameters
+    ----------
+    start_local : datetime
+        Timezone-aware start of the scan
+    days : int
+        Scan length in days (clamped to the bundled kernel range)
+    feature_lat, feature_lon : float
+        Selenographic position of the feature in degrees
+    step_minutes : int
+        Sample spacing
+
+    Returns
+    -------
+    dict
+        "times": UTC datetimes, one per sample.
+        "sun_alt": Sun altitude over the feature (degrees) - sets shadow
+        length, negative while the feature is in lunar night.
+        "earth_alt": Earth altitude over the feature (degrees) - the
+        libration figure of merit, 90 at the centre of the disk, negative
+        once the feature is turned past the limb out of view.
+        "moon_alt", "observer_sun_alt": Moon and Sun altitude at the
+        observer's own site (degrees), for judging local visibility and sky
+        darkness.
+    """
+    dts, t = _scan_times(start_local, days, step_minutes)
+
+    observer_at = _observer.at(t)
+    moon_at = _moon.at(t)
+    moon_alt = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")[0]
+    sun_alt_obs = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")[0]
+    moon_alt = moon_alt.degrees
+    sun_alt_obs = sun_alt_obs.degrees
+
+    subsolar_lat, subsolar_lon = _sub_point(_sun, t, moon_at)
+    sun_alt_f = _body_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
+
+    # Sub-Earth point = the libration of the moment, seen from the observer
+    # (topocentric, so the daily rocking of up to ~1 degree counts too)
+    libr_lat, libr_lon = _sub_point(_observer, t, moon_at)
+    earth_alt = _body_altitude_at_feature(libr_lat, libr_lon, feature_lat, feature_lon)
+
+    return {
+        "times": dts,
+        "sun_alt": sun_alt_f,
+        "earth_alt": earth_alt,
+        "moon_alt": moon_alt,
+        "observer_sun_alt": sun_alt_obs,
+        "libr_lat": libr_lat,
+        "libr_lon": libr_lon,
+    }
+
+
 def find_terminator_windows(start_local: datetime, days: int,
                             feature_lat: float, feature_lon: float,
                             step_minutes: int = 60,
@@ -259,16 +321,11 @@ def find_terminator_windows(start_local: datetime, days: int,
         (degrees at "best"), "observer_sun_alt" (degrees at "best", for
         judging sky darkness).
     """
-    dts, t = _scan_times(start_local, days, step_minutes)
-
-    observer_at = _observer.at(t)
-    moon_alt = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")[0]
-    sun_alt_obs = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")[0]
-    moon_alt = moon_alt.degrees
-    sun_alt_obs = sun_alt_obs.degrees
-
-    subsolar_lat, subsolar_lon = _sub_point(_sun, t, _moon.at(t))
-    sun_alt_f = _body_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
+    series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
+    dts = series["times"]
+    sun_alt_f = series["sun_alt"]
+    moon_alt = series["moon_alt"]
+    sun_alt_obs = series["observer_sun_alt"]
 
     ok = (sun_alt_f >= 0.0) & (sun_alt_f <= sun_alt_max) & (moon_alt >= moon_alt_min)
     idx = np.flatnonzero(ok)
@@ -341,22 +398,13 @@ def find_libration_windows(start_local: datetime, days: int,
         (topocentric libration there), "sun_alt" (Sun altitude over the
         feature), "moon_alt" and "observer_sun_alt" (degrees at "best").
     """
-    dts, t = _scan_times(start_local, days, step_minutes)
-
-    observer_at = _observer.at(t)
-    moon_at = _moon.at(t)
-    moon_alt = observer_at.observe(_moon).apparent().altaz(temperature_C="standard")[0]
-    sun_alt_obs = observer_at.observe(_sun).apparent().altaz(temperature_C="standard")[0]
-    moon_alt = moon_alt.degrees
-    sun_alt_obs = sun_alt_obs.degrees
-
-    # Sub-Earth point = the libration of the moment, seen from the observer
-    # (topocentric, so the daily rocking of up to ~1 degree counts too)
-    libr_lat, libr_lon = _sub_point(_observer, t, moon_at)
-    earth_alt = _body_altitude_at_feature(libr_lat, libr_lon, feature_lat, feature_lon)
-
-    subsolar_lat, subsolar_lon = _sub_point(_sun, t, moon_at)
-    sun_alt_f = _body_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
+    series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
+    dts = series["times"]
+    sun_alt_f = series["sun_alt"]
+    earth_alt = series["earth_alt"]
+    moon_alt = series["moon_alt"]
+    sun_alt_obs = series["observer_sun_alt"]
+    libr_lat, libr_lon = series["libr_lat"], series["libr_lon"]
 
     ok = (earth_alt > 0.0) & (sun_alt_f >= sun_alt_min) & (moon_alt >= moon_alt_min)
     idx = np.flatnonzero(ok)

@@ -210,3 +210,58 @@ def starmap_target_width() -> int:
             width = step
             break
     return width * STARMAP_WIDTH_FACTOR
+
+
+class ToolTip:
+    """
+    A hint shown while the pointer rests on a widget, as Delphi's Hint property
+    gives for free: tkinter has none, so a borderless window goes up beside the
+    widget after a pause and comes down when the pointer leaves it.
+
+    Bound with add="+" so the handlers a widget already has still run.
+
+    Here rather than with either of the windows that use it - the launcher's
+    form and the renderer's own dialogs - because it belongs to neither, and
+    this module is already where the screen itself is dealt with. Importing it
+    from the launcher instead would have the renderer import the launcher that
+    starts the renderer.
+    """
+
+    DELAY_MS = 600          # long enough not to flash while crossing the form
+    BACKGROUND = "#ffffe1"  # the yellow Windows uses for its own tips
+
+    def __init__(self, widget, text: str):
+        self.widget = widget
+        self.text = text
+        self.tip = None
+        self.after_id = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self.hide, add="+")
+        widget.bind("<ButtonPress>", self.hide, add="+")
+
+    def _schedule(self, _event=None):
+        self.hide()
+        self.after_id = self.widget.after(self.DELAY_MS, self._show)
+
+    def _show(self):
+        self.after_id = None
+        if self.tip is not None or not self.widget.winfo_viewable():
+            return
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.overrideredirect(True)      # no title bar, no taskbar entry
+        tk.Label(self.tip, text=self.text, justify=tk.LEFT, background=self.BACKGROUND,
+                 relief=tk.SOLID, borderwidth=1, padx=4, pady=2).pack()
+        # Below the widget, and pulled back left if that would run off screen
+        self.tip.update_idletasks()
+        x = self.widget.winfo_rootx()
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        x = min(x, self.widget.winfo_screenwidth() - self.tip.winfo_width() - 8)
+        self.tip.geometry(f"+{max(x, 0)}+{y}")
+
+    def hide(self, _event=None):
+        if self.after_id is not None:
+            self.widget.after_cancel(self.after_id)
+            self.after_id = None
+        if self.tip is not None:
+            self.tip.destroy()
+            self.tip = None

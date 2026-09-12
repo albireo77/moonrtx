@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, NamedTuple, Optional
 
 from moonrtx import astro
+from moonrtx.display import ToolTip
 from moonrtx.shared_types import MoonFeature
 
 
@@ -96,6 +97,31 @@ class PlanningMixin:
     # for the rest of the session and start over on the next run.
     _clair_obscur_filter = CLAIR_OBSCUR_ALL_EVENTS
     _clair_obscur_visible_only = True
+
+    # Feature graph. Same span as the observation planner it is opened from,
+    # so the two agree on what "the next while" means; a coarser step than the
+    # planner's default since a 60-day line plot has no use for hour-level
+    # wiggle. See astro.sample_feature_series / PlanningMixin.feature_graph_dialog.
+    GRAPH_DAYS = PLANNER_SCAN_DAYS
+    GRAPH_STEP_MINUTES = 120
+    # Share of the screen's width the plot fills. Libration cycles once a
+    # lunation, so a click that lands even a few days off its intended date
+    # can recentre on a very differently-presented feature; the wider the
+    # plot, the smaller that miss is in real time, not just on screen.
+    GRAPH_WIDTH_FRACTION = 0.9
+    GRAPH_PLOT_LINES = 18       # plot height, in lines of the axis font
+    GRAPH_COLOURS = {
+        "sun_alt": "#e8a33d",     # Sun altitude over the feature
+        "earth_alt": "#1c6fb0",   # libration figure of merit (Earth altitude)
+        "zero": "#8a8a8a",        # the feature's own horizon / limb
+        "threshold": "#c0602a",   # the terminator planner's Sun altitude cap
+        "grid": "#d0d0d0",
+        "today": "#c02020",
+        "day": "#cfe0f5",
+        "twilight": "#5f7ea8",
+        "night": "#101a2b",
+        "moon": "#f0c419",
+    }
 
     def visibility_chart_dialog(self):
         """
@@ -527,7 +553,7 @@ class PlanningMixin:
         return ResultsFrame(win, frame, controls, description, header, listbox,
                             close)
 
-    def _results_actions(self, results, go_to, table, name):
+    def _results_actions(self, results, go_to, table, name, extra=None):
         """
         The row of buttons a results dialog ends with: go to the one selected,
         put them all on the clipboard, write them to a file, close.
@@ -536,6 +562,10 @@ class PlanningMixin:
         whatever is listed at the time it is asked, and `name` with the stem to
         offer the save under - both of them called rather than passed in, since
         both follow the filter the dialog is left on.
+
+        `extra`, when given, is a (label, command) pair for one more button
+        placed next to "Go to selected" - the observation planner's way in to
+        feature_graph_dialog, which the clair-obscur finder has no use for.
         """
         def copy():
             columns, rows, _entries = table()
@@ -553,6 +583,10 @@ class PlanningMixin:
         row.pack(fill=tk.X, pady=(8, 0))
         tk.Button(row, text="Go to selected", command=go_to,
                   width=16).pack(side=tk.LEFT)
+        if extra is not None:
+            label, command = extra
+            tk.Button(row, text=label, command=command, width=10).pack(
+                side=tk.LEFT, padx=(6, 0))
         copy_button = tk.Button(row, text="Copy", command=copy, width=8)
         copy_button.pack(side=tk.LEFT, padx=(6, 0))
         tk.Button(row, text="Save...", command=save,
@@ -1018,10 +1052,284 @@ class PlanningMixin:
                 })
             return columns, rows, events
 
+        def open_graph():
+            # Tk's grab is exclusive application-wide, so this dialog and the
+            # graph cannot both be modal and both stay clickable; closing this
+            # one rather than the other keeps the graph - the one meant for
+            # repeated clicking - modal, so it still blocks the main view.
+            on_close()
+            self.feature_graph_dialog(feature)
+
         self._results_actions(
             dialog, go_to, results_for_export,
-            lambda: f"{feature.name.replace(' ', '_')}_{mode_var.get()}")
+            lambda: f"{feature.name.replace(' ', '_')}_{mode_var.get()}",
+            extra=("Graph...", open_graph))
 
         rescan()
+
+        self._show_dialog(win)
+
+    def feature_graph_dialog(self, feature: MoonFeature):
+        """
+        Plot Sun altitude and libration presentation for a feature across the
+        planner's scan span, rather than the discrete windows the planner
+        reduces them to - so a trend (a shallowing terminator pass, a
+        libration peak drifting later each month) shows at a glance.
+
+        Local visibility is drawn as a Sky/Moon ribbon rather than a third
+        curve: it swings through a full cycle about once a day, which over a
+        span of weeks would draw as a scribble rather than a trend - see
+        astro.sample_feature_series. Clicking the plot jumps the view to that
+        moment, as the other planning dialogs do.
+        """
+        if self.rt is None or feature is None:
+            return
+
+        win, main_frame, on_close = self._dialog_window(f"{feature.name} - graph")
+
+        colours = self.GRAPH_COLOURS
+        font = ('Consolas', 8)
+        metrics = tkfont.Font(font=font)
+        cell_w = metrics.measure('0')
+        line_h = metrics.metrics('linespace')
+        pad = max(2, round(cell_w * 2 / 3))
+        line_w = max(1, cell_w // 5)
+        rule = max(1, cell_w // 3)
+
+        plot_h = self.GRAPH_PLOT_LINES * line_h
+        ribbon_h = line_h
+        label_w = max(metrics.measure('-90°'), metrics.measure('Moon')) + 2 * pad
+
+        # The plot fills a fixed share of the screen rather than a fixed
+        # number of pixels per day: at 90% of screen width every day gets as
+        # much room to click as the display allows, on a small window and a
+        # 4K one alike, rather than the window's total size following the
+        # screen only by accident of the font metrics scaling with it.
+        width = round(win.winfo_screenwidth() * self.GRAPH_WIDTH_FRACTION)
+        plot_w = max(self.GRAPH_DAYS, width - label_w - pad)
+        day_w = plot_w / self.GRAPH_DAYS
+
+        plot_x0, plot_x1 = label_w, label_w + plot_w
+        plot_y0 = pad
+        plot_y1 = plot_y0 + plot_h
+        sky_y0, sky_y1 = plot_y1 + pad, plot_y1 + pad + ribbon_h
+        moon_y0, moon_y1 = sky_y1, sky_y1 + ribbon_h
+        date_y = moon_y1 + pad
+        width = plot_x1 + pad
+        height = date_y + line_h + pad
+
+        tk.Label(main_frame, anchor='w', font=font,
+                 text=f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
+                      f"Sun altitude and libration over {self.GRAPH_DAYS} days").pack(fill=tk.X)
+
+        canvas = tk.Canvas(main_frame, width=width, height=height,
+                           highlightthickness=0, bg=win.cget('bg'))
+        canvas.pack(pady=(4, 0))
+
+        status_var = tk.StringVar()
+        tk.Label(main_frame, textvariable=status_var, font=font,
+                 fg='#a06010', anchor='w').pack(fill=tk.X, pady=(2, 0))
+
+        state = {"start": None, "dts": [], "earth_alt": []}
+
+        def x_of(moment_utc) -> float:
+            return plot_x0 + (moment_utc - state["dts"][0]).total_seconds() / 86400.0 * day_w
+
+        def clip_x(x: float) -> float:
+            return min(max(x, plot_x0), plot_x1)
+
+        def y_of(deg: float) -> float:
+            return plot_y0 + (90.0 - deg) / 180.0 * plot_h
+
+        def band(y0: float, y1: float, spells: list, fill: str):
+            for start_utc, end_utc in spells:
+                x0 = clip_x(x_of(max(start_utc, state["dts"][0])))
+                x1 = clip_x(x_of(min(end_utc, state["dts"][-1])))
+                if x1 > x0:
+                    canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline="")
+
+        def curve(values, colour: str):
+            points = []
+            for t_utc, deg in zip(state["dts"], values):
+                points += [x_of(t_utc), y_of(float(deg))]
+            if len(points) >= 4:
+                canvas.create_line(*points, fill=colour, width=line_w)
+
+        def redraw():
+            canvas.delete('all')
+            try:
+                series = astro.sample_feature_series(
+                    state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
+                    step_minutes=self.GRAPH_STEP_MINUTES)
+                chart = astro.find_visibility_chart(state["start"], self.GRAPH_DAYS)
+            except ValueError as e:
+                # Scan start outside the bundled ephemeris kernel range
+                state["dts"] = []
+                canvas.config(height=3 * line_h + 2 * pad)
+                canvas.create_text(pad, pad, text=str(e), anchor='nw',
+                                   width=width - 2 * pad, font=font)
+                return
+
+            state["dts"] = series["times"]
+            state["earth_alt"] = series["earth_alt"]
+            canvas.config(height=height)
+
+            for deg in range(-90, 91, 30):
+                y = y_of(deg)
+                canvas.create_line(plot_x0, y, plot_x1, y, fill=colours["grid"])
+                canvas.create_text(plot_x0 - pad, y, anchor='e', font=font,
+                                   text=f"{deg:+d}°" if deg else "0°")
+            canvas.create_line(plot_x0, y_of(0.0), plot_x1, y_of(0.0),
+                               fill=colours["zero"], width=2)
+            y_thr = y_of(self.PLANNER_SUN_ALT_MAX)
+            canvas.create_line(plot_x0, y_thr, plot_x1, y_thr,
+                               fill=colours["threshold"], dash=(4, 2))
+
+            tick_days = max(1, self.GRAPH_DAYS // 10)
+            for k in range(0, self.GRAPH_DAYS + 1, tick_days):
+                moment = state["dts"][0] + timedelta(days=k)
+                x = x_of(moment)
+                canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["grid"])
+                canvas.create_text(x, date_y, anchor='n', font=font,
+                                   text=f"{self.in_observer_clock(moment):%d %b}")
+
+            canvas.create_rectangle(plot_x0, sky_y0, plot_x1, sky_y1,
+                                    fill=colours["night"], outline="")
+            canvas.create_rectangle(plot_x0, moon_y0, plot_x1, moon_y1,
+                                    fill=colours["night"], outline="")
+            band(sky_y0, sky_y1, chart.sun_twilight, colours["twilight"])
+            band(sky_y0, sky_y1, chart.sun_up, colours["day"])
+            band(moon_y0, moon_y1, chart.moon_up, colours["moon"])
+            canvas.create_text(plot_x0 - pad, (sky_y0 + sky_y1) / 2, text="Sky",
+                               anchor='e', font=font)
+            canvas.create_text(plot_x0 - pad, (moon_y0 + moon_y1) / 2, text="Moon",
+                               anchor='e', font=font)
+            canvas.create_rectangle(plot_x0, plot_y0, plot_x1, moon_y1, outline=colours["grid"])
+
+            curve(series["sun_alt"], colours["sun_alt"])
+            curve(series["earth_alt"], colours["earth_alt"])
+
+            now_utc = self.dt_local.astimezone(timezone.utc)
+            if state["dts"][0] <= now_utc <= state["dts"][-1]:
+                x = x_of(now_utc)
+                canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["today"], width=rule)
+
+        def go_to(event):
+            if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
+                    or not (plot_y0 <= event.y <= moon_y1):
+                return
+            elapsed_days = (event.x - plot_x0) / day_w
+            target = state["dts"][0] + timedelta(days=elapsed_days)
+            # center_on_feature keeps the camera's current direction and only
+            # moves it to point at the new target - fine when the feature is
+            # roughly where the camera already looks, as it is wherever else
+            # this is called (only a point actually on screen can be clicked).
+            # Here the feature can have rotated past the limb since the clock
+            # last stood at this date; forcing the camera onto a point on the
+            # far side of the sphere from a direction meant for the near side
+            # drives it almost into the surface, not into a sensible view.
+            idx = min(max(round(elapsed_days * 1440.0 / self.GRAPH_STEP_MINUTES), 0),
+                      len(state["dts"]) - 1)
+            on_near_side = state["earth_alt"][idx] > 0.0
+            self._go_to_moment(self.in_observer_clock(target))
+            if on_near_side:
+                self.center_on_feature(feature)
+            redraw()
+            status_var.set("" if on_near_side else
+                           f"{feature.name} is beyond the limb at that moment - "
+                           f"the clock moved, but the view was left where it was.")
+
+        canvas.bind('<Button-1>', go_to)
+
+        legend = tk.Frame(main_frame)
+        legend.pack(fill=tk.X, pady=(2 * pad, 0))
+        # Each curve carries what it means as a hint: both are altitudes above
+        # the feature's own horizon rather than anything an eyepiece shows
+        # directly, and the libration one is a single figure standing for what
+        # an almanac prints as two (see astro.sample_feature_series).
+        sun_hint = (
+            "Sun altitude over the feature, which sets how long its shadows are.\n"
+            "0° is sunrise or sunset there; below that the feature is in lunar\n"
+            f"night. The dashed line is the {self.PLANNER_SUN_ALT_MAX:.0f}° the observation planner\n"
+            "takes as the top of the terminator window.")
+        libration_hint = (
+            "Topocentric libration: how far inside the limb the feature lies,\n"
+            "measured as the altitude of the Earth above the feature's own\n"
+            "horizon. 90° is the centre of the disk, 0° exactly on the limb,\n"
+            "and below 0° it has turned onto the far side, out of sight.\n"
+            "It doubles as the foreshortening angle - the feature is squashed\n"
+            "across the line of sight by the sine of it.\n"
+            "Libration in longitude and latitude together, as seen from your\n"
+            "own site rather than the centre of the Earth.")
+        for text, colour, hint in (("Sun over feature", colours["sun_alt"], sun_hint),
+                                   ("Libration (Earth alt)", colours["earth_alt"],
+                                    libration_hint)):
+            swatch = tk.Frame(legend, bg=colour, width=2 * cell_w, height=line_w + 2,
+                              highlightthickness=0)
+            swatch.pack(side=tk.LEFT)
+            swatch.pack_propagate(False)
+            label = tk.Label(legend, text=text, font=font)
+            label.pack(side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
+            # On the lettering as well as the swatch, which is a few pixels tall
+            ToolTip(swatch, hint)
+            ToolTip(label, hint)
+        # The threshold line is dashed, which a coloured Frame cannot show, so
+        # its sample is drawn the way the line itself is drawn on the plot
+        dash_h = line_w + 2
+        dash_swatch = tk.Canvas(legend, width=2 * cell_w, height=dash_h,
+                                highlightthickness=0, bg=legend.cget('bg'))
+        dash_swatch.pack(side=tk.LEFT)
+        dash_swatch.create_line(0, dash_h / 2, 2 * cell_w, dash_h / 2,
+                                fill=colours["threshold"], dash=(4, 2), width=line_w)
+        dash_label = tk.Label(legend, font=font,
+                              text=f"Terminator window top ({self.PLANNER_SUN_ALT_MAX:.0f}°)")
+        dash_label.pack(side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
+        dash_hint = (
+            "The top of the band the observation planner counts as near the\n"
+            f"terminator: it lists the times the Sun stands between 0° and {self.PLANNER_SUN_ALT_MAX:.0f}°\n"
+            "over the feature (see find_terminator_windows).\n"
+            "Below 0° the feature is in lunar night. Between 0° and this line\n"
+            "the Sun is low over it, so it is lit with long shadows and its\n"
+            "relief stands out. Above the line the Sun climbs, the shadows\n"
+            "shorten and the detail flattens.\n"
+            f"{self.PLANNER_SUN_ALT_MAX:.0f}° is about one Earth day past sunrise there, the Sun\n"
+            "crossing a lunar location at some 0.5° an hour.\n"
+            "It is a mark for the Sun curve alone - the libration curve shares\n"
+            "the same axis, and crosses it meaning nothing.")
+        ToolTip(dash_swatch, dash_hint)
+        ToolTip(dash_label, dash_hint)
+        for text, colour in (("Moon up", colours["moon"]), ("Daylight", colours["day"]),
+                             ("Twilight", colours["twilight"])):
+            swatch = tk.Frame(legend, bg=colour, width=line_w + 4, height=line_h - pad,
+                              highlightthickness=1, highlightbackground="#808080")
+            swatch.pack(side=tk.LEFT)
+            swatch.pack_propagate(False)
+            tk.Label(legend, text=text, font=font).pack(
+                side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
+        tk.Label(legend, text="Click the graph to go to that moment", font=font,
+                 fg='#606060').pack(side=tk.LEFT)
+
+        def page(days: int):
+            state["start"] += timedelta(days=days)
+            status_var.set("")
+            redraw()
+
+        def reset():
+            state["start"] = self.dt_local
+            status_var.set("")
+            redraw()
+
+        # Sharing the legend's row rather than one of its own: at 90% of
+        # screen width the legend leaves most of the row empty, and the
+        # buttons fit that space without the dialog needing to be any taller.
+        tk.Button(legend, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
+        tk.Button(legend, text="Reset", command=reset, width=10).pack(
+            side=tk.RIGHT, padx=(0, pad + 2))
+        tk.Button(legend, text="▶", width=2,
+                  command=lambda: page(self.GRAPH_DAYS)).pack(side=tk.RIGHT, padx=(0, pad + 2))
+        tk.Button(legend, text="◀", width=2,
+                  command=lambda: page(-self.GRAPH_DAYS)).pack(side=tk.RIGHT)
+
+        reset()   # the first draw starts at the moment the app is showing
 
         self._show_dialog(win)

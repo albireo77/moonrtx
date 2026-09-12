@@ -19,7 +19,7 @@ from tkinter import filedialog
 from datetime import datetime
 from typing import Optional
 
-from moonrtx.display import screen_size
+from moonrtx.display import bring_to_front, screen_size
 from moonrtx.shared_types import Camera
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
@@ -122,7 +122,7 @@ class DialogsMixin:
             (window, frame, close)
         """
         if takes_keys:
-            self.search_dialog_open = True
+            self.search_dialog_open += 1
 
         win = tk.Toplevel(self.rt._root)
         # Built withdrawn and shown by _show_dialog once positioned
@@ -145,7 +145,7 @@ class DialogsMixin:
             if before_close is not None and before_close() is False:
                 return
             if takes_keys:
-                self.search_dialog_open = False
+                self.search_dialog_open -= 1
             win.destroy()
 
         win.protocol("WM_DELETE_WINDOW", close)
@@ -191,6 +191,15 @@ class DialogsMixin:
         if grab:
             win.wait_visibility()
             win.grab_set()
+            # The grab settles which window may be used, not which one the
+            # keyboard is talking to, and those come apart for a dialog opened
+            # from a button in another dialog: that one closes itself first, the
+            # desktop hands its focus back to the main window, and every key
+            # meant for this dialog is then discarded by this dialog's own grab
+            # - Escape included, leaving it closable only by its button. Asked
+            # for here because it is the grab that makes the difference, and the
+            # window is on screen by now, which bring_to_front requires.
+            bring_to_front(win)
 
     def export_video_dialog(self):
         """
@@ -526,10 +535,10 @@ class DialogsMixin:
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
             ("Shift + B", "Set up the eyepiece / camera field of view frame"),
-            ("Escape", "Leave full screen"),
             ("Home", "Reset camera and time to initial state"),
             ("End", "Reset camera to default state (useful after starting with `--init-view` parameter)"),
             ("Space", "Center and fix view on point under cursor"),
+            ("Escape", "Leave full screen"),
             ("Arrows", "Move view"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
@@ -762,6 +771,16 @@ class DialogsMixin:
             on_close()
             self.observation_planner_dialog(feature)
 
+        def on_graph():
+            feature = selected_feature()
+            if feature is None:
+                return
+            # This window closed first: Tk's grab is exclusive, so two dialogs
+            # both holding one leave the older unclickable (see
+            # PlanningMixin.observation_planner_dialog)
+            on_close()
+            self.feature_graph_dialog(feature)
+
         def on_key(event):
             if event.keysym == 'Return':
                 # If listbox has selection, use it; otherwise select first
@@ -784,6 +803,7 @@ class DialogsMixin:
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(side=tk.RIGHT)
+        tk.Button(btn_frame, text="Graph", command=on_graph).pack(side=tk.RIGHT, padx=(0, 6))
 
         self._show_dialog(search_win)
 

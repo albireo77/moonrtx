@@ -11,7 +11,7 @@ import json
 
 from tzlocal import get_localzone_name
 
-from moonrtx.display import make_dpi_aware
+from moonrtx.display import ToolTip, make_dpi_aware
 from moonrtx.shared_types import MAP_TOO_LARGE_EXIT_CODE, Observer
 from moonrtx.moon_renderer import run_renderer_process
 from moonrtx.view_orientation import (VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE,
@@ -129,55 +129,6 @@ class CalendarPopup(tk.Toplevel):
     def _select(self, day):
         self.result = f"{self.year:04d}-{self.month:02d}-{day:02d}"
         self.destroy()
-
-
-class ToolTip:
-    """
-    A hint shown while the pointer rests on a widget, as Delphi's Hint property
-    gives for free: tkinter has none, so a borderless window goes up beside the
-    widget after a pause and comes down when the pointer leaves it.
-
-    Bound with add="+" so the handlers a widget already has still run.
-    """
-
-    DELAY_MS = 600          # long enough not to flash while crossing the form
-    BACKGROUND = "#ffffe1"  # the yellow Windows uses for its own tips
-
-    def __init__(self, widget, text: str):
-        self.widget = widget
-        self.text = text
-        self.tip = None
-        self.after_id = None
-        widget.bind("<Enter>", self._schedule, add="+")
-        widget.bind("<Leave>", self.hide, add="+")
-        widget.bind("<ButtonPress>", self.hide, add="+")
-
-    def _schedule(self, _event=None):
-        self.hide()
-        self.after_id = self.widget.after(self.DELAY_MS, self._show)
-
-    def _show(self):
-        self.after_id = None
-        if self.tip is not None or not self.widget.winfo_viewable():
-            return
-        self.tip = tk.Toplevel(self.widget)
-        self.tip.overrideredirect(True)      # no title bar, no taskbar entry
-        tk.Label(self.tip, text=self.text, justify=tk.LEFT, background=self.BACKGROUND,
-                 relief=tk.SOLID, borderwidth=1, padx=4, pady=2).pack()
-        # Below the widget, and pulled back left if that would run off screen
-        self.tip.update_idletasks()
-        x = self.widget.winfo_rootx()
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
-        x = min(x, self.widget.winfo_screenwidth() - self.tip.winfo_width() - 8)
-        self.tip.geometry(f"+{max(x, 0)}+{y}")
-
-    def hide(self, _event=None):
-        if self.after_id is not None:
-            self.widget.after_cancel(self.after_id)
-            self.after_id = None
-        if self.tip is not None:
-            self.tip.destroy()
-            self.tip = None
 
 
 class MainWindow(tk.Tk):
