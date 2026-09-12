@@ -110,6 +110,12 @@ class PlanningMixin:
     # plot, the smaller that miss is in real time, not just on screen.
     GRAPH_WIDTH_FRACTION = 0.9
     GRAPH_PLOT_LINES = 18       # plot height, in lines of the axis font
+    # Floor of the altitude axis. Below it the Sun curve only says the feature
+    # is in lunar night, however deep, and a near-side feature's libration never
+    # gets there - around -10° at most, for one on the limb - so the room goes to
+    # the 0-12° terminator band instead. A curve under the floor is left out
+    # rather than pinned to the edge, where it would read as standing at -30°.
+    GRAPH_ALT_MIN = -30
     GRAPH_COLOURS = {
         "sun_alt": "#e8a33d",     # Sun altitude over the feature
         "earth_alt": "#1c6fb0",   # libration figure of merit (Earth altitude)
@@ -1157,8 +1163,10 @@ class PlanningMixin:
         def clip_x(x: float) -> float:
             return min(max(x, plot_x0), plot_x1)
 
+        alt_span = 90.0 - self.GRAPH_ALT_MIN
+
         def y_of(deg: float) -> float:
-            return plot_y0 + (90.0 - deg) / 180.0 * plot_h
+            return plot_y0 + (90.0 - deg) / alt_span * plot_h
 
         def band(y0: float, y1: float, spells: list, fill: str):
             for start_utc, end_utc in spells:
@@ -1168,11 +1176,25 @@ class PlanningMixin:
                     canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline="")
 
         def curve(values, colour: str):
-            points = []
+            floor = self.GRAPH_ALT_MIN
+            runs, run, prev = [], [], None
             for t_utc, deg in zip(state["dts"], values):
-                points += [x_of(t_utc), y_of(float(deg))]
-            if len(points) >= 4:
-                canvas.create_line(*points, fill=colour, width=line_w)
+                x, deg = x_of(t_utc), float(deg)
+                if prev is not None and (prev[1] < floor) != (deg < floor):
+                    # Cut at the floor itself, so a run meets the edge of the
+                    # plot rather than stopping a sample short of it
+                    px, pdeg = prev
+                    run += [px + (x - px) * (floor - pdeg) / (deg - pdeg), y_of(floor)]
+                    if deg < floor:
+                        runs.append(run)
+                        run = []
+                if deg >= floor:
+                    run += [x, y_of(deg)]
+                prev = (x, deg)
+            runs.append(run)
+            for run in runs:
+                if len(run) >= 4:
+                    canvas.create_line(*run, fill=colour, width=line_w)
 
         def redraw():
             canvas.delete('all')
@@ -1193,7 +1215,7 @@ class PlanningMixin:
             state["earth_alt"] = series["earth_alt"]
             canvas.config(height=height)
 
-            for deg in range(-90, 91, 30):
+            for deg in range(self.GRAPH_ALT_MIN, 91, 30):
                 y = y_of(deg)
                 canvas.create_line(plot_x0, y, plot_x1, y, fill=colours["grid"])
                 canvas.create_text(plot_x0 - pad, y, anchor='e', font=font,
@@ -1227,6 +1249,15 @@ class PlanningMixin:
 
             curve(series["sun_alt"], colours["sun_alt"])
             curve(series["earth_alt"], colours["earth_alt"])
+            # A far-side feature's libration curve is below the floor from end
+            # to end, and so not drawn at all - said here, or its absence would
+            # look like a fault
+            if (series["earth_alt"] < self.GRAPH_ALT_MIN).all():
+                canvas.create_text(
+                    plot_x0 + pad, plot_y1 - pad, anchor='sw', font=font,
+                    fill=colours["earth_alt"],
+                    text=f"Libration stays below {self.GRAPH_ALT_MIN}° throughout: this feature "
+                         "is on the far side and never turns toward Earth")
 
             now_utc = self.dt_local.astimezone(timezone.utc)
             if state["dts"][0] <= now_utc <= state["dts"][-1]:
