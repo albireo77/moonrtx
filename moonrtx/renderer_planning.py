@@ -1272,14 +1272,12 @@ class PlanningMixin:
             f"night. The dashed line is the {self.PLANNER_SUN_ALT_MAX:.0f}° the observation planner\n"
             "takes as the top of the terminator window.")
         libration_hint = (
-            "Topocentric libration: how far inside the limb the feature lies,\n"
-            "measured as the altitude of the Earth above the feature's own\n"
-            "horizon. 90° is the centre of the disk, 0° exactly on the limb,\n"
-            "and below 0° it has turned onto the far side, out of sight.\n"
-            "It doubles as the foreshortening angle - the feature is squashed\n"
-            "across the line of sight by the sine of it.\n"
-            "Libration in longitude and latitude together, as seen from your\n"
-            "own site rather than the centre of the Earth.")
+            "How far inside the limb the feature lies, as seen from your site:\n"
+            "the altitude of the Earth above the feature's own horizon. 90° is\n"
+            "the centre of the disk, 0° exactly on the limb, and below 0° it has\n"
+            "turned onto the far side, out of sight.\n"
+            "The lower it is, the more the feature is squashed toward the limb:\n"
+            "at 30° it looks half as wide as at the centre, at 10° about a sixth.")
         for text, colour, hint in (("Sun over feature", colours["sun_alt"], sun_hint),
                                    ("Libration (Earth alt)", colours["earth_alt"],
                                     libration_hint)):
