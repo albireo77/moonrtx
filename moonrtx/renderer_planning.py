@@ -1143,13 +1143,18 @@ class PlanningMixin:
         tk.Label(title_row, anchor='w', font=font,
                  text=f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
                       f"Sun altitude and libration over {self.GRAPH_DAYS} days").pack(side=tk.LEFT)
-        centre_var = tk.BooleanVar(value=False)
-        # Themed, as in the launcher, so the little box follows the display: Tk's
-        # own is drawn at much the same size whatever the screen, which on a 4K
-        # one at 300% is a tenth the height of the lettering beside it
-        ttk.Checkbutton(title_row, text="View centered and fixed on the feature", variable=centre_var,
-                        command=lambda: apply_view(self.dt_local.astimezone(timezone.utc))
-                        ).pack(side=tk.RIGHT)
+        # What a click on the graph does to the camera, besides moving the clock.
+        # Themed, as in the launcher, so the little circles follow the display:
+        # Tk's own are drawn at much the same size whatever the screen, which on
+        # a 4K one at 300% is a tenth the height of the lettering beside them
+        view_var = tk.StringVar(value="standard")
+        view_row = tk.Frame(title_row)
+        view_row.pack(side=tk.RIGHT)
+        for value, text in (("keep", "Keep view"), ("standard", "Standard view"),
+                            ("centre", "Centered and fixed on feature")):
+            ttk.Radiobutton(view_row, text=text, value=value, variable=view_var,
+                            command=lambda: apply_view(self.dt_local.astimezone(timezone.utc))
+                            ).pack(side=tk.LEFT)
         # The feature's name on the Moon, pinned into the catalogue while this
         # is ticked, so it is drawn the way the P key draws names and never
         # twice; unpinned again when the window closes - see CatalogueMixin
@@ -1313,14 +1318,21 @@ class PlanningMixin:
 
         def apply_view(moment_utc):
             """
-            Put the camera where the checkbox says: on the feature, or back on
-            the standard view the End key gives.
+            Put the camera where the view choice says: left as it is, back on
+            the standard view the End key gives, or on the feature.
+
+            Left as it is, the camera still follows the Moon's apparent size for
+            the new date, as a Q or W step does; the Moon turns under it all the
+            same, by libration and, out of parallactic mode, with the hour.
 
             A feature turned past the limb is not centred on even when asked:
             the camera would be swung round to the far side of the Moon, a view
             no one on Earth can have.
             """
-            if not centre_var.get():
+            mode = view_var.get()
+            if mode == "keep":
+                status_var.set("")
+            elif mode == "standard":
                 self.reset_to_default_view()
                 status_var.set("")
             elif near_side_at(moment_utc):
