@@ -27,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, NamedTuple, Optional
 
 from moonrtx import astro
-from moonrtx.display import ToolTip
+from moonrtx.display import ToolTip, bring_to_front
 from moonrtx.shared_types import MoonFeature
 
 
@@ -1440,4 +1440,14 @@ class PlanningMixin:
 
         reset()   # the first draw starts at the moment the app is showing
 
-        self._show_dialog(win)
+        # Not modal, so the renderer's mouse stays in use while the graph is
+        # open - the view dragged with the right button, turned with the left -
+        # which a grab would stop, as it stops every button pressed outside the
+        # window. The renderer's keys stay held all the same (search_dialog_open),
+        # so nothing typed there moves the clock or opens a dialog over this one.
+        # Brought to the front here because _show_dialog does that only for a
+        # window taking the grab, and a graph opened from the planner - which
+        # closes itself first - would otherwise not get the keys, Escape included
+        self._show_dialog(win, grab=False)
+        win.wait_visibility()
+        bring_to_front(win)
