@@ -27,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, NamedTuple, Optional
 
 from moonrtx import astro
-from moonrtx.display import ToolTip, bring_to_front
+from moonrtx.display import ToolTip
 from moonrtx.shared_types import MoonFeature
 
 
@@ -1064,35 +1064,10 @@ class PlanningMixin:
             return columns, rows, events
 
         def open_graph():
-            # This window stays open underneath, so the list is still there
-            # when the graph is closed. Tk allows one grab at a time: the graph
-            # takes it while it is up, which leaves this window visible but not
-            # clickable, and gives it back on closing.
-            self.feature_graph_dialog(feature, return_to=win, on_shown=match_height)
-
-        def match_height(graph_win):
-            """
-            Make this window as tall as the graph laid over it.
-
-            Done once the graph is up, since its height is only known then: it
-            comes from font metrics and the screen, not from anything this
-            window has. The list takes the difference, a row at a time, so it
-            never asks for more than the target and the buttons under it are
-            never cut off; the last part of a row is taken up by the list
-            stretching to fill.
-            """
-            target = graph_win.winfo_height()
-            row_h = max(1, tkfont.Font(font=self.RESULTS_FONT).metrics('linespace'))
-            win.update_idletasks()
-            rows = max(3, int(listbox.cget('height'))
-                       + (target - win.winfo_reqheight()) // row_h)
-            listbox.config(height=rows)
-            win.update_idletasks()
-            while rows > 3 and win.winfo_reqheight() > target:
-                rows -= 1
-                listbox.config(height=rows)
-                win.update_idletasks()
-            win.geometry(f"{win.winfo_width()}x{target}")
+            # This window closes first: Tk allows one grab at a time, so it and
+            # the graph cannot both be modal and both be usable
+            on_close()
+            self.feature_graph_dialog(feature)
 
         self._results_actions(
             dialog, go_to, results_for_export,
@@ -1103,8 +1078,7 @@ class PlanningMixin:
 
         self._show_dialog(win)
 
-    def feature_graph_dialog(self, feature: MoonFeature, return_to: Optional[tk.Toplevel] = None,
-                             on_shown: Optional[Callable[[tk.Toplevel], None]] = None):
+    def feature_graph_dialog(self, feature: MoonFeature):
         """
         Plot Sun altitude and libration presentation for a feature across the
         planner's scan span, rather than the discrete windows the planner
@@ -1116,35 +1090,13 @@ class PlanningMixin:
         span of weeks would draw as a scribble rather than a trend - see
         astro.sample_feature_series. Clicking the plot jumps the view to that
         moment, as the other planning dialogs do.
-
-        Parameters
-        ----------
-        feature : MoonFeature
-            The feature to plot
-        return_to : tk.Toplevel, optional
-            A modal dialog left open underneath, which this one takes the grab
-            from and gives it back to on closing
-        on_shown : callable, optional
-            Called with this window once it is on screen and has its final
-            size, for a caller that lays itself out to match it
         """
         if self.rt is None or feature is None:
             return
 
-        def give_grab_back():
-            # Tk has one grab at a time and does not restore the previous one
-            # when a grab is released, so without this the window underneath
-            # would stay open but no longer modal. Run once this window is
-            # destroyed rather than before, since destroying the window that
-            # has the focus is what hands the desktop's focus elsewhere.
-            if return_to is not None and return_to.winfo_exists():
-                return_to.grab_set()
-                bring_to_front(return_to)
-
         def before_close():
             if label_var.get():
                 self.unpin_catalogue_feature(feature)
-            self.rt._root.after_idle(give_grab_back)
 
         win, main_frame, on_close = self._dialog_window(
             f"{feature.name} - graph", before_close=before_close)
@@ -1489,5 +1441,3 @@ class PlanningMixin:
         reset()   # the first draw starts at the moment the app is showing
 
         self._show_dialog(win)
-        if on_shown is not None:
-            on_shown(win)
