@@ -1141,9 +1141,15 @@ class PlanningMixin:
                 return_to.grab_set()
                 bring_to_front(return_to)
 
+        def before_close():
+            self.unpin_catalogue_feature(feature)
+            self.rt._root.after_idle(give_grab_back)
+
         win, main_frame, on_close = self._dialog_window(
-            f"{feature.name} - graph",
-            before_close=lambda: self.rt._root.after_idle(give_grab_back))
+            f"{feature.name} - graph", before_close=before_close)
+        # Named on the Moon for as long as this window is open, if nothing else
+        # already names it - see CatalogueMixin
+        self.pin_catalogue_feature(feature)
 
         colours = self.GRAPH_COLOURS
         font = ('Consolas', 8)

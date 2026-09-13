@@ -104,7 +104,7 @@ class LabelsMixin:
 
         # The names of everything else in view answer to the view itself, which
         # moves under the wheel and the mouse where nothing else would see it
-        if self.catalogue_visible:
+        if self._catalogue_active():
             self.update_catalogue()
         self._schedule_label_scale_poll()
 

@@ -18,6 +18,12 @@ last of them a tenth of a kilometre across - are named whenever they are in view
 over and above the count: ranking by size would never reach them. There are only
 a couple of dozen in the table, so they cost little.
 
+A feature can also be pinned - the one a feature graph is plotting, for as long
+as that window is open. It is named on the same terms as every other, in view,
+in daylight and not already named by another overlay, over and above the count,
+and whether or not the catalogue itself is on: so the feature being studied is
+always named, and never twice.
+
 Only the chosen names are built, and only when the choice changes - forty of them
 cost about seven milliseconds, against the eight hundred the whole table would.
 The choice is looked at on the same poll that follows the lettering size, so it
@@ -54,6 +60,11 @@ class CatalogueMixin:
         self._catalogue_diameters = None
         self._catalogue_drawn = None        # what is on screen, to spot a change
         self._catalogue_pos = None
+        self._catalogue_pinned = set()      # indices into moon_features
+
+    def _catalogue_active(self) -> bool:
+        """Whether there are names to keep up: the catalogue is on, or a feature is pinned."""
+        return self.catalogue_visible or bool(self._catalogue_pinned)
 
     # ---- choosing ----
 
@@ -139,13 +150,20 @@ class CatalogueMixin:
             for f in self.moon_features])
 
         shown = ~taken & self._lit_mask(units) & self._catalogue_in_view(units)
+        pinned = np.zeros(len(self.moon_features), dtype=bool)
+        pinned[list(self._catalogue_pinned)] = True
+        if not self.catalogue_visible:
+            return np.flatnonzero(shown & pinned)
+
         marked = np.array([f.spot_label for f in self.moon_features])
 
         rest = np.flatnonzero(shown & ~marked)
         if rest.size > self.CATALOGUE_LIMIT:
             biggest = np.argsort(diameters[rest])[::-1][:self.CATALOGUE_LIMIT]
             rest = rest[biggest]
-        return np.sort(np.concatenate((np.flatnonzero(shown & marked), rest)))
+        # unique sorts too, and drops a pinned feature already chosen on its size
+        return np.unique(np.concatenate((np.flatnonzero(shown & marked), rest,
+                                         np.flatnonzero(shown & pinned))))
 
     # ---- drawing ----
 
@@ -166,7 +184,7 @@ class CatalogueMixin:
             names need placing again even where the choice of them stands.
             update_overlays passes this; the poll that watches the view does not.
         """
-        if self.rt is None or not self.catalogue_visible:
+        if self.rt is None or not self._catalogue_active():
             return
 
         chosen = self._catalogue_selection()
@@ -212,11 +230,30 @@ class CatalogueMixin:
             return
 
         self.catalogue_visible = visible
-        if visible:
+        self._refresh_catalogue()
+
+    def _refresh_catalogue(self):
+        """
+        Draw the names afresh after what is wanted has changed, or take them all
+        off when nothing is: turning the catalogue off leaves a pinned name up.
+        """
+        if self.rt is None:
+            return
+        if self._catalogue_active():
             self._catalogue_drawn = None    # nothing on screen to compare against
             self.update_catalogue()
         else:
             self._hide_catalogue()
+
+    def pin_catalogue_feature(self, feature):
+        """Keep a feature named, the catalogue on or off, until it is unpinned."""
+        self._catalogue_pinned |= {i for i, f in enumerate(self.moon_features) if f == feature}
+        self._refresh_catalogue()
+
+    def unpin_catalogue_feature(self, feature):
+        """Stop keeping a feature named that pin_catalogue_feature pinned."""
+        self._catalogue_pinned -= {i for i, f in enumerate(self.moon_features) if f == feature}
+        self._refresh_catalogue()
 
     def _hide_catalogue(self):
         """Take the names off, whether or not any were ever drawn."""

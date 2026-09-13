@@ -934,7 +934,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             self.update_pins_orientation()
         if self.sub_points_visible:
             self.update_sub_points()
-        if self.catalogue_visible:
+        if self._catalogue_active():
             self.update_catalogue(moved=True)
 
 
