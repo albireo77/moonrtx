@@ -1124,18 +1124,15 @@ class PlanningMixin:
         day_w = plot_w / self.GRAPH_DAYS
 
         plot_x0, plot_x1 = label_w, label_w + plot_w
-        # Two thin strips for the planner's windows over the plot's top edge -
-        # marks on the time axis rather than rows of their own, so they take no
-        # labels. At the top rather than the bottom because the window is kept
-        # low on the screen, out of the Moon's way, with only its top in sight:
-        # the strips stay there to be seen and clicked
-        strip_h = max(3, line_h // 3)
-        frame_y0 = pad                          # top of everything framed
-        libr_y0, libr_y1 = frame_y0, frame_y0 + strip_h
-        term_y0, term_y1 = libr_y1, libr_y1 + strip_h
-        plot_y0 = term_y1
+        plot_y0 = pad
         plot_y1 = plot_y0 + plot_h
-        sky_y0, sky_y1 = plot_y1 + pad, plot_y1 + pad + ribbon_h
+        # Two thin strips straight under the plot's bottom edge for the
+        # planner's windows - marks on the time axis rather than rows of their
+        # own, so they take no labels
+        strip_h = max(3, line_h // 3)
+        term_y0, term_y1 = plot_y1, plot_y1 + strip_h
+        libr_y0, libr_y1 = term_y1, term_y1 + strip_h
+        sky_y0, sky_y1 = libr_y1 + pad, libr_y1 + pad + ribbon_h
         moon_y0, moon_y1 = sky_y1, sky_y1 + ribbon_h
         date_y = moon_y1 + pad
         width = plot_x1 + pad
@@ -1260,7 +1257,7 @@ class PlanningMixin:
             for k in range(0, self.GRAPH_DAYS + 1, tick_days):
                 moment = state["dts"][0] + timedelta(days=k)
                 x = x_of(moment)
-                canvas.create_line(x, frame_y0, x, moon_y1, fill=colours["grid"])
+                canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["grid"])
                 canvas.create_text(x, date_y, anchor='n', font=font,
                                    text=f"{self.in_observer_clock(moment):%d %b}")
 
@@ -1279,7 +1276,7 @@ class PlanningMixin:
                                anchor='e', font=font)
             canvas.create_text(plot_x0 - pad, (moon_y0 + moon_y1) / 2, text="Moon",
                                anchor='e', font=font)
-            canvas.create_rectangle(plot_x0, frame_y0, plot_x1, moon_y1, outline=colours["grid"])
+            canvas.create_rectangle(plot_x0, plot_y0, plot_x1, moon_y1, outline=colours["grid"])
 
             curve(series["sun_alt"], colours["sun_alt"])
             curve(series["earth_alt"], colours["earth_alt"])
@@ -1296,7 +1293,7 @@ class PlanningMixin:
             now_utc = self.dt_local.astimezone(timezone.utc)
             if state["dts"][0] <= now_utc <= state["dts"][-1]:
                 x = x_of(now_utc)
-                canvas.create_line(x, frame_y0, x, moon_y1, fill=colours["today"], width=rule)
+                canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["today"], width=rule)
 
         def near_side_at(moment_utc) -> bool:
             """Whether the feature faces Earth at that moment, by the nearest sample."""
@@ -1328,7 +1325,7 @@ class PlanningMixin:
 
         def go_to(event):
             if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
-                    or not (frame_y0 <= event.y <= moon_y1):
+                    or not (plot_y0 <= event.y <= moon_y1):
                 return
             target = state["dts"][0] + timedelta(days=(event.x - plot_x0) / day_w)
             self._go_to_moment(self.in_observer_clock(target))
