@@ -1142,14 +1142,12 @@ class PlanningMixin:
                 bring_to_front(return_to)
 
         def before_close():
-            self.unpin_catalogue_feature(feature)
+            if label_var.get():
+                self.unpin_catalogue_feature(feature)
             self.rt._root.after_idle(give_grab_back)
 
         win, main_frame, on_close = self._dialog_window(
             f"{feature.name} - graph", before_close=before_close)
-        # Named on the Moon for as long as this window is open, if nothing else
-        # already names it - see CatalogueMixin
-        self.pin_catalogue_feature(feature)
 
         colours = self.GRAPH_COLOURS
         font = ('Consolas', 8)
@@ -1197,9 +1195,17 @@ class PlanningMixin:
         # Themed, as in the launcher, so the little box follows the display: Tk's
         # own is drawn at much the same size whatever the screen, which on a 4K
         # one at 300% is a tenth the height of the lettering beside it
-        ttk.Checkbutton(title_row, text="Moon's view centered and fixed on feature", variable=centre_var,
+        ttk.Checkbutton(title_row, text="View centered and fixed on the feature", variable=centre_var,
                         command=lambda: apply_view(self.dt_local.astimezone(timezone.utc))
                         ).pack(side=tk.RIGHT)
+        # The feature's name on the Moon, pinned into the catalogue while this
+        # is ticked, so it is drawn the way the P key draws names and never
+        # twice; unpinned again when the window closes - see CatalogueMixin
+        label_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(title_row, text="Show feature name", variable=label_var,
+                        command=lambda: (self.pin_catalogue_feature(feature) if label_var.get()
+                                         else self.unpin_catalogue_feature(feature))
+                        ).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
 
         canvas = tk.Canvas(main_frame, width=width, height=height,
                            highlightthickness=0, bg=win.cget('bg'))
