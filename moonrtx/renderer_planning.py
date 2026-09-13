@@ -127,6 +127,11 @@ class PlanningMixin:
         "twilight": "#5f7ea8",
         "night": "#101a2b",
         "moon": "#f0c419",
+        # The observation planner's two lists, marked on the time axis. Far
+        # apart in lightness as well as hue, since their windows often overlap
+        # and the two strips sit directly on top of each other
+        "terminator_window": "#7ddc5a",
+        "libration_window": "#146b2e",
     }
 
     def visibility_chart_dialog(self):
@@ -1063,7 +1068,31 @@ class PlanningMixin:
             # when the graph is closed. Tk allows one grab at a time: the graph
             # takes it while it is up, which leaves this window visible but not
             # clickable, and gives it back on closing.
-            self.feature_graph_dialog(feature, return_to=win)
+            self.feature_graph_dialog(feature, return_to=win, on_shown=match_height)
+
+        def match_height(graph_win):
+            """
+            Make this window as tall as the graph laid over it.
+
+            Done once the graph is up, since its height is only known then: it
+            comes from font metrics and the screen, not from anything this
+            window has. The list takes the difference, a row at a time, so it
+            never asks for more than the target and the buttons under it are
+            never cut off; the last part of a row is taken up by the list
+            stretching to fill.
+            """
+            target = graph_win.winfo_height()
+            row_h = max(1, tkfont.Font(font=self.RESULTS_FONT).metrics('linespace'))
+            win.update_idletasks()
+            rows = max(3, int(listbox.cget('height'))
+                       + (target - win.winfo_reqheight()) // row_h)
+            listbox.config(height=rows)
+            win.update_idletasks()
+            while rows > 3 and win.winfo_reqheight() > target:
+                rows -= 1
+                listbox.config(height=rows)
+                win.update_idletasks()
+            win.geometry(f"{win.winfo_width()}x{target}")
 
         self._results_actions(
             dialog, go_to, results_for_export,
@@ -1074,7 +1103,8 @@ class PlanningMixin:
 
         self._show_dialog(win)
 
-    def feature_graph_dialog(self, feature: MoonFeature, return_to: Optional[tk.Toplevel] = None):
+    def feature_graph_dialog(self, feature: MoonFeature, return_to: Optional[tk.Toplevel] = None,
+                             on_shown: Optional[Callable[[tk.Toplevel], None]] = None):
         """
         Plot Sun altitude and libration presentation for a feature across the
         planner's scan span, rather than the discrete windows the planner
@@ -1094,6 +1124,9 @@ class PlanningMixin:
         return_to : tk.Toplevel, optional
             A modal dialog left open underneath, which this one takes the grab
             from and gives it back to on closing
+        on_shown : callable, optional
+            Called with this window once it is on screen and has its final
+            size, for a caller that lays itself out to match it
         """
         if self.rt is None or feature is None:
             return
@@ -1137,15 +1170,30 @@ class PlanningMixin:
         plot_x0, plot_x1 = label_w, label_w + plot_w
         plot_y0 = pad
         plot_y1 = plot_y0 + plot_h
-        sky_y0, sky_y1 = plot_y1 + pad, plot_y1 + pad + ribbon_h
+        # Two thin strips straight under the plot's bottom edge for the
+        # planner's windows - marks on the time axis rather than rows of their
+        # own, so they take no labels
+        strip_h = max(3, line_h // 3)
+        term_y0, term_y1 = plot_y1, plot_y1 + strip_h
+        libr_y0, libr_y1 = term_y1, term_y1 + strip_h
+        sky_y0, sky_y1 = libr_y1 + pad, libr_y1 + pad + ribbon_h
         moon_y0, moon_y1 = sky_y1, sky_y1 + ribbon_h
         date_y = moon_y1 + pad
         width = plot_x1 + pad
         height = date_y + line_h + pad
 
-        tk.Label(main_frame, anchor='w', font=font,
+        title_row = tk.Frame(main_frame)
+        title_row.pack(fill=tk.X)
+        tk.Label(title_row, anchor='w', font=font,
                  text=f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
-                      f"Sun altitude and libration over {self.GRAPH_DAYS} days").pack(fill=tk.X)
+                      f"Sun altitude and libration over {self.GRAPH_DAYS} days").pack(side=tk.LEFT)
+        centre_var = tk.BooleanVar(value=False)
+        # Themed, as in the launcher, so the little box follows the display: Tk's
+        # own is drawn at much the same size whatever the screen, which on a 4K
+        # one at 300% is a tenth the height of the lettering beside it
+        ttk.Checkbutton(title_row, text="Moon's view centered and fixed on feature", variable=centre_var,
+                        command=lambda: apply_view(self.dt_local.astimezone(timezone.utc))
+                        ).pack(side=tk.RIGHT)
 
         canvas = tk.Canvas(main_frame, width=width, height=height,
                            highlightthickness=0, bg=win.cget('bg'))
@@ -1168,10 +1216,13 @@ class PlanningMixin:
         def y_of(deg: float) -> float:
             return plot_y0 + (90.0 - deg) / alt_span * plot_h
 
-        def band(y0: float, y1: float, spells: list, fill: str):
+        def band(y0: float, y1: float, spells: list, fill: str, min_w: float = 0.0):
             for start_utc, end_utc in spells:
                 x0 = clip_x(x_of(max(start_utc, state["dts"][0])))
                 x1 = clip_x(x_of(min(end_utc, state["dts"][-1])))
+                # A planner window can be a single sample, starting and ending
+                # at the same moment, and would otherwise draw nothing at all
+                x1 = max(x1, min(x0 + min_w, plot_x1))
                 if x1 > x0:
                     canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline="")
 
@@ -1203,6 +1254,18 @@ class PlanningMixin:
                     state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
                     step_minutes=self.GRAPH_STEP_MINUTES)
                 chart = astro.find_visibility_chart(state["start"], self.GRAPH_DAYS)
+                # Asked with exactly the planner's own settings, so a strip
+                # marks the same windows its list shows - including only the
+                # best PLANNER_MAX_RESULTS in libration mode, as the list does
+                term_windows = astro.find_terminator_windows(
+                    state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
+                    sun_alt_max=self.PLANNER_SUN_ALT_MAX,
+                    moon_alt_min=self.PLANNER_MOON_ALT_MIN)
+                libr_windows = astro.find_libration_windows(
+                    state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
+                    sun_alt_min=self.PLANNER_LIBRATION_SUN_ALT_MIN,
+                    moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+                    max_results=self.PLANNER_MAX_RESULTS)
             except ValueError as e:
                 # Scan start outside the bundled ephemeris kernel range
                 state["dts"] = []
@@ -1241,6 +1304,10 @@ class PlanningMixin:
             band(sky_y0, sky_y1, chart.sun_twilight, colours["twilight"])
             band(sky_y0, sky_y1, chart.sun_up, colours["day"])
             band(moon_y0, moon_y1, chart.moon_up, colours["moon"])
+            band(term_y0, term_y1, [(w["start"], w["end"]) for w in term_windows],
+                 colours["terminator_window"], min_w=1)
+            band(libr_y0, libr_y1, [(w["start"], w["end"]) for w in libr_windows],
+                 colours["libration_window"], min_w=1)
             canvas.create_text(plot_x0 - pad, (sky_y0 + sky_y1) / 2, text="Sky",
                                anchor='e', font=font)
             canvas.create_text(plot_x0 - pad, (moon_y0 + moon_y1) / 2, text="Moon",
@@ -1264,30 +1331,42 @@ class PlanningMixin:
                 x = x_of(now_utc)
                 canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["today"], width=rule)
 
+        def near_side_at(moment_utc) -> bool:
+            """Whether the feature faces Earth at that moment, by the nearest sample."""
+            if not state["dts"]:
+                return True
+            elapsed_days = (moment_utc - state["dts"][0]).total_seconds() / 86400.0
+            idx = min(max(round(elapsed_days * 1440.0 / self.GRAPH_STEP_MINUTES), 0),
+                      len(state["dts"]) - 1)
+            return state["earth_alt"][idx] > 0.0
+
+        def apply_view(moment_utc):
+            """
+            Put the camera where the checkbox says: on the feature, or back on
+            the standard view the End key gives.
+
+            A feature turned past the limb is not centred on even when asked:
+            the camera would be swung round to the far side of the Moon, a view
+            no one on Earth can have.
+            """
+            if not centre_var.get():
+                self.reset_to_default_view()
+                status_var.set("")
+            elif near_side_at(moment_utc):
+                self.center_on_feature(feature)
+                status_var.set("")
+            else:
+                status_var.set(f"{feature.name} is beyond the limb at that moment, "
+                               f"so the view was not centred on it.")
+
         def go_to(event):
             if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
                     or not (plot_y0 <= event.y <= moon_y1):
                 return
-            elapsed_days = (event.x - plot_x0) / day_w
-            target = state["dts"][0] + timedelta(days=elapsed_days)
-            # center_on_feature keeps the camera's current direction and only
-            # moves it to point at the new target - fine when the feature is
-            # roughly where the camera already looks, as it is wherever else
-            # this is called (only a point actually on screen can be clicked).
-            # Here the feature can have rotated past the limb since the clock
-            # last stood at this date; forcing the camera onto a point on the
-            # far side of the sphere from a direction meant for the near side
-            # drives it almost into the surface, not into a sensible view.
-            idx = min(max(round(elapsed_days * 1440.0 / self.GRAPH_STEP_MINUTES), 0),
-                      len(state["dts"]) - 1)
-            on_near_side = state["earth_alt"][idx] > 0.0
+            target = state["dts"][0] + timedelta(days=(event.x - plot_x0) / day_w)
             self._go_to_moment(self.in_observer_clock(target))
-            if on_near_side:
-                self.center_on_feature(feature)
             redraw()
-            status_var.set("" if on_near_side else
-                           f"{feature.name} is beyond the limb at that moment - "
-                           f"the clock moved, but the view was left where it was.")
+            apply_view(target)
 
         canvas.bind('<Button-1>', go_to)
 
@@ -1346,14 +1425,31 @@ class PlanningMixin:
             "the same axis, and crosses it meaning nothing.")
         ToolTip(dash_swatch, dash_hint)
         ToolTip(dash_label, dash_hint)
-        for text, colour in (("Moon up", colours["moon"]), ("Daylight", colours["day"]),
-                             ("Twilight", colours["twilight"])):
+        terminator_window_hint = (
+            "Windows the Observation Planner lists under \"near the terminator\":\n"
+            f"the Sun 0-{self.PLANNER_SUN_ALT_MAX:.0f}° over the feature and the Moon at least "
+            f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+        libration_window_hint = (
+            "Windows the Observation Planner lists under \"best presented (libration)\":\n"
+            f"the feature turned toward Earth, the Sun at least {self.PLANNER_LIBRATION_SUN_ALT_MIN:.0f}° "
+            f"over it and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up.\n"
+            f"Only its {self.PLANNER_MAX_RESULTS} best, as in the list.")
+        for text, colour, hint in (("Moon up", colours["moon"], None),
+                                   ("Daylight", colours["day"], None),
+                                   ("Twilight", colours["twilight"], None),
+                                   ("Terminator window", colours["terminator_window"],
+                                    terminator_window_hint),
+                                   ("Libration window", colours["libration_window"],
+                                    libration_window_hint)):
             swatch = tk.Frame(legend, bg=colour, width=line_w + 4, height=line_h - pad,
                               highlightthickness=1, highlightbackground="#808080")
             swatch.pack(side=tk.LEFT)
             swatch.pack_propagate(False)
-            tk.Label(legend, text=text, font=font).pack(
-                side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
+            label = tk.Label(legend, text=text, font=font)
+            label.pack(side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
+            if hint:
+                ToolTip(swatch, hint)
+                ToolTip(label, hint)
         tk.Label(legend, text="Click the graph to go to that moment", font=font,
                  fg='#606060').pack(side=tk.LEFT)
 
@@ -1381,3 +1477,5 @@ class PlanningMixin:
         reset()   # the first draw starts at the moment the app is showing
 
         self._show_dialog(win)
+        if on_shown is not None:
+            on_shown(win)
