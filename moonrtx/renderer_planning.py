@@ -1258,8 +1258,15 @@ class PlanningMixin:
                 moment = state["dts"][0] + timedelta(days=k)
                 x = x_of(moment)
                 canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["grid"])
-                canvas.create_text(x, date_y, anchor='n', font=font,
-                                   text=f"{self.in_observer_clock(moment):%d %b}")
+                # The first date carries the year. Started at its tick rather than
+                # centred on it: with the year it is wider than the margin left
+                # of the plot, and centred it would run off the canvas
+                if k == 0:
+                    canvas.create_text(x, date_y, anchor='nw', font=font,
+                                       text=f"{self.in_observer_clock(moment):%d %b %Y}")
+                else:
+                    canvas.create_text(x, date_y, anchor='n', font=font,
+                                       text=f"{self.in_observer_clock(moment):%d %b}")
 
             canvas.create_rectangle(plot_x0, sky_y0, plot_x1, sky_y1,
                                     fill=colours["night"], outline="")
