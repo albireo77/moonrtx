@@ -42,9 +42,6 @@ class CatalogueMixin:
     """Mixin naming the features of the table that are in view."""
 
     CATALOGUE_GEOM = "catalogue_labels"
-    # Dimmer than the standard labels, which stay the brighter of the two so the
-    # names worth knowing still read first
-    CATALOGUE_COLOR = [0.70, 0.70, 0.70]
     CATALOGUE_LABEL_RADIUS = 0.008
     # How many names at once. Enough to be worth having, few enough to read: the
     # picture holds about this many at the density the standard labels are drawn.
@@ -221,7 +218,9 @@ class CatalogueMixin:
             edges=edges,
             r=np.repeat(self.CATALOGUE_LABEL_RADIUS * self.label_scale(),
                         counts.sum()).astype(np.float32),
-            c=self.CATALOGUE_COLOR,
+            # The yellow of the standard and spot labels (LabelsMixin): grey was
+            # lost against the brightly lit middle of the disk
+            c=self.SPOT_LABEL_COLOR,
             mat="catalogue_material")
 
     def show_catalogue(self, visible: bool = True):

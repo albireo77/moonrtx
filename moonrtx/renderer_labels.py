@@ -43,8 +43,11 @@ class LabelsMixin:
     # magnification is read on a light poll - as the field-of-view frame is.
     LABEL_SCALE_POLL_MS = 250
     GRID_COLOR = [0.50, 0.50, 0.50]
-    STANDARD_LABEL_COLOR = [0.85, 0.85, 0.85]
     SPOT_LABEL_COLOR = [1.0, 0.9, 0.3]
+    # The spot labels' yellow rather than a light grey of their own: grey is lost
+    # against the brightly lit middle of the disk, where the ground is as pale as
+    # the lettering, and the hue still reads there
+    STANDARD_LABEL_COLOR = SPOT_LABEL_COLOR
 
     GRID_LINES_GEOM = "grid_lines"
     GRID_LABELS_GEOM = "grid_labels"
