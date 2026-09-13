@@ -122,7 +122,8 @@ This export uses PlotOptiX's hardware-accelerated NVENC encoder producing high q
 ![Theophilus](images/fov.jpg)
 **Rise and set window**
 ![Rise and set window](images/rise_and_set.jpg)
-
+**Observation Planner (graph) window**
+![Observation Planner](images/graph.jpg)
 
 
 
