@@ -990,8 +990,8 @@ class PlanningMixin:
             else:
                 desc_var.set(
                     f"Times when the Sun stands 0-{self.PLANNER_SUN_ALT_MAX:.0f}° above the feature, "
-                    f"lighting it with long shadows, and the Moon is at least "
-                    f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+                    f"lighting it with long shadows, the feature is turned toward Earth, and the "
+                    f"Moon is at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
                 header_var.set(terminator_header)
 
             if not windows:
@@ -1415,8 +1415,8 @@ class PlanningMixin:
         ToolTip(dash_label, dash_hint)
         terminator_window_hint = (
             "Windows the Observation Planner lists under \"near the terminator\":\n"
-            f"the Sun 0-{self.PLANNER_SUN_ALT_MAX:.0f}° over the feature and the Moon at least "
-            f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+            f"the Sun 0-{self.PLANNER_SUN_ALT_MAX:.0f}° over the feature, the feature turned toward\n"
+            f"Earth and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
         libration_window_hint = (
             "Windows the Observation Planner lists under \"best presented (libration)\":\n"
             f"the feature turned toward Earth, the Sun at least {self.PLANNER_LIBRATION_SUN_ALT_MIN:.0f}° "

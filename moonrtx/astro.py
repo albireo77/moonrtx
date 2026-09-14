@@ -289,7 +289,9 @@ def find_terminator_windows(start_local: datetime, days: int,
     Find upcoming windows when a Moon feature can be observed near the
     terminator: the Sun is low over the feature (0..sun_alt_max degrees, so
     the terrain is lit with long shadows) while the Moon stands at least
-    moon_alt_min degrees above the observer's horizon.
+    moon_alt_min degrees above the observer's horizon, and the feature itself
+    is turned toward Earth. Without that last condition a far-side feature
+    had windows too, lit at a low Sun and wholly out of sight.
 
     The scan is a single vectorized Skyfield evaluation over the whole range
     (a per-sample calculate_moon_ephemeris loop would take tens of seconds
@@ -324,10 +326,12 @@ def find_terminator_windows(start_local: datetime, days: int,
     series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
     dts = series["times"]
     sun_alt_f = series["sun_alt"]
+    earth_alt = series["earth_alt"]
     moon_alt = series["moon_alt"]
     sun_alt_obs = series["observer_sun_alt"]
 
-    ok = (sun_alt_f >= 0.0) & (sun_alt_f <= sun_alt_max) & (moon_alt >= moon_alt_min)
+    ok = ((sun_alt_f >= 0.0) & (sun_alt_f <= sun_alt_max) & (moon_alt >= moon_alt_min)
+          & (earth_alt > 0.0))
     idx = np.flatnonzero(ok)
     if idx.size == 0:
         return []
