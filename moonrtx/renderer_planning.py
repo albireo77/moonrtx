@@ -1153,8 +1153,7 @@ class PlanningMixin:
         for value, text in (("keep", "Keep view"), ("standard", "Standard view"),
                             ("centre", "View fixed on feature")):
             ttk.Radiobutton(view_row, text=text, value=value, variable=view_var,
-                            command=lambda: apply_view(self.dt_local.astimezone(timezone.utc))
-                            ).pack(side=tk.LEFT)
+                            command=lambda: apply_view()).pack(side=tk.LEFT)
         # The feature's name on the Moon, pinned into the catalogue while this
         # is ticked, so it is drawn the way the P key draws names and never
         # twice; unpinned again when the window closes - see CatalogueMixin
@@ -1172,7 +1171,7 @@ class PlanningMixin:
         tk.Label(main_frame, textvariable=status_var, font=font,
                  fg='#a06010', anchor='w').pack(fill=tk.X, pady=(2, 0))
 
-        state = {"start": None, "dts": [], "earth_alt": []}
+        state = {"start": None, "dts": []}
 
         def x_of(moment_utc) -> float:
             return plot_x0 + (moment_utc - state["dts"][0]).total_seconds() / 86400.0 * day_w
@@ -1244,7 +1243,6 @@ class PlanningMixin:
                 return
 
             state["dts"] = series["times"]
-            state["earth_alt"] = series["earth_alt"]
             canvas.config(height=height)
 
             for deg in range(self.GRAPH_ALT_MIN, 91, 30):
@@ -1307,16 +1305,7 @@ class PlanningMixin:
                 x = x_of(now_utc)
                 canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["today"], width=rule)
 
-        def near_side_at(moment_utc) -> bool:
-            """Whether the feature faces Earth at that moment, by the nearest sample."""
-            if not state["dts"]:
-                return True
-            elapsed_days = (moment_utc - state["dts"][0]).total_seconds() / 86400.0
-            idx = min(max(round(elapsed_days * 1440.0 / self.GRAPH_STEP_MINUTES), 0),
-                      len(state["dts"]) - 1)
-            return state["earth_alt"][idx] > 0.0
-
-        def apply_view(moment_utc):
+        def apply_view():
             """
             Put the camera where the view choice says: left as it is, back on
             the standard view the End key gives, or on the feature.
@@ -1325,22 +1314,37 @@ class PlanningMixin:
             the new date, as a Q or W step does; the Moon turns under it all the
             same, by libration and, out of parallactic mode, with the hour.
 
-            A feature turned past the limb is not centred on even when asked:
-            the camera would be swung round to the far side of the Moon, a view
-            no one on Earth can have.
+            On the feature it is centred even when turned past the limb, the
+            camera swinging round to face it on the far side: center_on_lat_lon
+            approaches any point along its own outward normal, so that is as
+            sound a view as any on the near side.
             """
             mode = view_var.get()
-            if mode == "keep":
-                status_var.set("")
-            elif mode == "standard":
+            if mode == "standard":
                 self.reset_to_default_view()
-                status_var.set("")
-            elif near_side_at(moment_utc):
+            elif mode == "centre":
                 self.center_on_feature(feature)
-                status_var.set("")
-            else:
-                status_var.set(f"{feature.name} is beyond the limb at that moment, "
-                               f"so the view was not centred on it.")
+
+        def show_visibility():
+            """
+            Say so when the feature cannot be seen at the moment the app is
+            showing, and why - either or both of two reasons, each where its
+            curve on the graph is below 0°:
+
+            - turned past the limb onto the far side (the libration curve)
+            - in lunar night, the Sun under its horizon (the Sun curve)
+
+            Worked out for that moment itself rather than read off the nearest
+            sample of the curves, which a paged graph may not even include.
+            """
+            at = astro.sample_feature_series(self.dt_local, 0, feature.lat, feature.lon)
+            reasons = []
+            if at["earth_alt"][0] < 0.0:
+                reasons.append("on the far side of the Moon, beyond the limb")
+            if at["sun_alt"][0] < 0.0:
+                reasons.append("in lunar night, unlit by the Sun")
+            status_var.set(f"{feature.name} is not visible at this moment - it is "
+                           f"{', and '.join(reasons)}." if reasons else "")
 
         def go_to(event):
             if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
@@ -1349,7 +1353,8 @@ class PlanningMixin:
             target = state["dts"][0] + timedelta(days=(event.x - plot_x0) / day_w)
             self._go_to_moment(self.in_observer_clock(target))
             redraw()
-            apply_view(target)
+            apply_view()
+            show_visibility()
 
         canvas.bind('<Button-1>', go_to)
 
@@ -1438,13 +1443,12 @@ class PlanningMixin:
 
         def page(days: int):
             state["start"] += timedelta(days=days)
-            status_var.set("")
             redraw()
 
         def reset():
             state["start"] = self.dt_local
-            status_var.set("")
             redraw()
+            show_visibility()
 
         # Sharing the legend's row rather than one of its own: at 90% of
         # screen width the legend leaves most of the row empty, and the
