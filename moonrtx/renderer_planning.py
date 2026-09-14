@@ -1237,7 +1237,7 @@ class PlanningMixin:
             """Sampling step for a span: GRAPH_STEP_MINUTES at the full span, finer in proportion."""
             return max(1, self.GRAPH_STEP_MINUTES * days // self.GRAPH_DAYS)
 
-        state = {"start": None, "dts": [], "sun_alt": None, "earth_alt": None,
+        state = {"start": None, "dts": [],
                  "days": self._graph_span, "step": step_for(self._graph_span),
                  "day_w": plot_w / self._graph_span}
 
@@ -1316,8 +1316,6 @@ class PlanningMixin:
                 return
 
             state["dts"] = series["times"]
-            state["sun_alt"] = series["sun_alt"]
-            state["earth_alt"] = series["earth_alt"]
             canvas.config(height=height)
 
             for deg in range(self.GRAPH_ALT_MIN, 91, 30):
@@ -1412,44 +1410,73 @@ class PlanningMixin:
 
         canvas.bind('<Button-1>', go_to)
 
+        pointer = {"x": None, "y": None, "pending": False}
+
         def hover(event):
             """
-            Read out the moment under the pointer - its date, the Sun over the
-            feature and the libration - in the status line, so a click can be
-            aimed rather than guessed from the curves - with a short note by
-            either value when it means the feature cannot be seen: in lunar
-            night, or turned onto the far side. Off the plot the line is cleared.
+            Note where the pointer is, and read out that moment once Tk is idle.
 
-            Taken between the two samples either side of the pointer, so the
-            figures move smoothly with it rather than a two-hour step at a time.
+            The readout is worked out exactly for the moment rather than taken
+            between the graph's samples: the Moon's altitude moves fast and
+            bends near the horizon, and between two-hour samples it was out by
+            degrees. One exact calculation takes a few
+            milliseconds, and asking for it when idle rather than on every
+            motion event means a quick sweep of the pointer asks only once.
             """
-            n = len(state["dts"])
-            if n < 2 or not (plot_x0 <= event.x <= plot_x1) \
-                    or not (plot_y0 <= event.y <= moon_y1):
+            pointer["x"], pointer["y"] = event.x, event.y
+            if not pointer["pending"]:
+                pointer["pending"] = True
+                canvas.after_idle(read_out)
+
+        def read_out():
+            """
+            Read out the moment under the pointer - its date, the Sun over the
+            feature, the libration and the Moon's altitude in the observer's sky
+            - so a click can be aimed rather than guessed from the curves, with
+            a short note by a value when it means the feature cannot be seen.
+            Off the plot the line is cleared.
+            """
+            pointer["pending"] = False
+            if not canvas.winfo_exists():
+                return
+            x, y = pointer["x"], pointer["y"]
+            if x is None or not state["dts"] or not (plot_x0 <= x <= plot_x1) \
+                    or not (plot_y0 <= y <= moon_y1):
                 status_var.set("")
                 return
-            days = (event.x - plot_x0) / state["day_w"]
-            at = days * 1440.0 / state["step"]
-            i = min(max(int(at), 0), n - 2)
-            f = min(max(at - i, 0.0), 1.0)
-
-            def between(values):
-                return float(values[i]) * (1.0 - f) + float(values[i + 1]) * f
-
-            moment = self.in_observer_clock(state["dts"][0] + timedelta(days=days))
-            # A short note beside a value when it means the feature cannot be seen,
-            # each where its curve is below 0°. The Sun part is padded to the widest
-            # it gets, note and all, so in the fixed-pitch status font the libration
-            # starts in the same place whatever the Sun reads
-            sun, libration = between(state["sun_alt"]), between(state["earth_alt"])
+            moment_utc = state["dts"][0] + timedelta(days=(x - plot_x0) / state["day_w"])
+            try:
+                at = astro.sample_feature_series(moment_utc, 0, feature.lat, feature.lon)
+            except ValueError:
+                # Past the end of the bundled ephemeris kernels
+                status_var.set("")
+                return
+            moment = self.in_observer_clock(moment_utc)
+            # A short note beside the Sun or the libration when it means the feature
+            # cannot be seen: in lunar night or on the far side, where those curves
+            # are below 0°. The Moon's altitude has none - its note flickered on and
+            # off as the pointer crossed the thresholds. The Sun and libration parts
+            # are padded to the widest they get, note and all, so in the fixed-pitch
+            # status font each value after them starts in the same place
+            sun = float(at["sun_alt"][0])
+            libration = float(at["earth_alt"][0])
+            moon = float(at["moon_alt"][0])
             sun_part = f"{sun:+5.1f}°{' (lunar night)' if sun < 0.0 else ''}"
             sun_width = len(f"{-90.0:+5.1f}° (lunar night)")
+            libration_part = f"{libration:+5.1f}°{' (far side)' if libration < 0.0 else ''}"
+            libration_width = len(f"{-90.0:+5.1f}° (far side)")
             status_var.set(f"{moment:%Y-%m-%d %a %H:%M}                Sun over {feature.name} "
-                           f"{sun_part:<{sun_width}}  libration {libration:+5.1f}°"
-                           f"{' (far side)' if libration < 0.0 else ''}")
+                           f"{sun_part:<{sun_width}}  libration {libration_part:<{libration_width}}"
+                           f"  Moon alt {moon:+5.1f}°")
 
         canvas.bind('<Motion>', hover)
-        canvas.bind('<Leave>', lambda event: status_var.set(""))
+        def leave(event):
+            # Forget the pointer too, so a readout still waiting for idle
+            # does not put the line back once the pointer has gone
+            pointer["x"] = None
+            status_var.set("")
+
+        canvas.bind('<Leave>', leave)
 
         legend = tk.Frame(main_frame)
         legend.pack(fill=tk.X, pady=(2 * pad, 0))
