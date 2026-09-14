@@ -1237,7 +1237,7 @@ class PlanningMixin:
             """Sampling step for a span: GRAPH_STEP_MINUTES at the full span, finer in proportion."""
             return max(1, self.GRAPH_STEP_MINUTES * days // self.GRAPH_DAYS)
 
-        state = {"start": None, "dts": [],
+        state = {"start": None, "dts": [], "now_line": None,
                  "days": self._graph_span, "step": step_for(self._graph_span),
                  "day_w": plot_w / self._graph_span}
 
@@ -1373,10 +1373,25 @@ class PlanningMixin:
                     text=f"Libration stays below {self.GRAPH_ALT_MIN}° throughout: this feature "
                          "is on the far side and never turns toward Earth")
 
+            # Everything was deleted above, the line with it
+            state["now_line"] = None
+            place_now_line()
+
+        def place_now_line():
+            """
+            Draw the red line at the moment the app is showing, moving it from
+            wherever it stood, or leave it off when that moment is outside the
+            span. On its own, so a step in time moves the line without the whole
+            graph - and its searches - being done again.
+            """
+            if state["now_line"] is not None:
+                canvas.delete(state["now_line"])
+                state["now_line"] = None
             now_utc = self.dt_local.astimezone(timezone.utc)
-            if state["dts"][0] <= now_utc <= state["dts"][-1]:
+            if state["dts"] and state["dts"][0] <= now_utc <= state["dts"][-1]:
                 x = x_of(now_utc)
-                canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["today"], width=rule)
+                state["now_line"] = canvas.create_line(x, plot_y0, x, moon_y1,
+                                                       fill=colours["today"], width=rule)
 
         def apply_view():
             """
@@ -1478,6 +1493,35 @@ class PlanningMixin:
 
         canvas.bind('<Leave>', leave)
 
+        def step_time(direction: int):
+            """
+            Step the time back or on by the Q/W step, as those keys do - the
+            renderer's own keys being held while this window is open.
+
+            Taken the same way as Q/W: nothing while a video export owns the
+            clock, and the single-frame preview switched on first, so a held
+            key shows each step rather than stalling on converged frames. The
+            red line moves on its own; only a step past either end of the span
+            pages the graph, by the span, as the arrow buttons do. The view then
+            follows the choice above, as it does for a click.
+            """
+            if self._video_export is not None:
+                return "break"
+            self._begin_interactive_preview()
+            self.change_time(direction * self.time_step_minutes)
+            now_utc = self.dt_local.astimezone(timezone.utc)
+            if state["dts"] and not (state["dts"][0] <= now_utc <= state["dts"][-1]):
+                state["start"] += timedelta(days=direction * state["days"])
+                redraw()
+            else:
+                place_now_line()
+            apply_view()
+            # The renderer's own arrow keys move the view; not these
+            return "break"
+
+        win.bind('<Left>', lambda event: step_time(-1))
+        win.bind('<Right>', lambda event: step_time(1))
+
         legend = tk.Frame(main_frame)
         legend.pack(fill=tk.X, pady=(2 * pad, 0))
         # Each curve carries what it means as a hint: both are altitudes above
@@ -1563,7 +1607,7 @@ class PlanningMixin:
             if hint:
                 ToolTip(swatch, hint)
                 ToolTip(label, hint)
-        tk.Label(legend, text="Click the graph to go to that moment", font=font,
+        tk.Label(legend, text="Click the graph to go to that moment, or step with ← →", font=font,
                  fg='#606060').pack(side=tk.LEFT)
 
         def page(days: int):
