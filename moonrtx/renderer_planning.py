@@ -1151,7 +1151,7 @@ class PlanningMixin:
         view_row = tk.Frame(title_row)
         view_row.pack(side=tk.RIGHT)
         for value, text in (("keep", "Keep view"), ("standard", "Standard view"),
-                            ("centre", "View centered and fixed on feature")):
+                            ("centre", "View fixed on feature")):
             ttk.Radiobutton(view_row, text=text, value=value, variable=view_var,
                             command=lambda: apply_view(self.dt_local.astimezone(timezone.utc))
                             ).pack(side=tk.LEFT)
