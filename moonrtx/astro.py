@@ -284,7 +284,8 @@ def find_terminator_windows(start_local: datetime, days: int,
                             feature_lat: float, feature_lon: float,
                             step_minutes: int = 60,
                             sun_alt_max: float = 12.0,
-                            moon_alt_min: float = 5.0) -> list[dict]:
+                            moon_alt_min: float = 5.0,
+                            observer_sun_alt_max: float = 90.0) -> list[dict]:
     """
     Find upcoming windows when a Moon feature can be observed near the
     terminator: the Sun is low over the feature (0..sun_alt_max degrees, so
@@ -313,6 +314,10 @@ def find_terminator_windows(start_local: datetime, days: int,
         terminator" (12 degrees is roughly a day past sunrise/before sunset)
     moon_alt_min : float
         Minimum Moon altitude at the observer site
+    observer_sun_alt_max : float
+        Highest Sun altitude at the observer site. -12 keeps a window to a dark
+        sky, trimming it to the part after nautical twilight so that "best"
+        falls in the dark too; the default sets no limit
 
     Returns
     -------
@@ -331,7 +336,7 @@ def find_terminator_windows(start_local: datetime, days: int,
     sun_alt_obs = series["observer_sun_alt"]
 
     ok = ((sun_alt_f >= 0.0) & (sun_alt_f <= sun_alt_max) & (moon_alt >= moon_alt_min)
-          & (earth_alt > 0.0))
+          & (earth_alt > 0.0) & (sun_alt_obs <= observer_sun_alt_max))
     idx = np.flatnonzero(ok)
     if idx.size == 0:
         return []
@@ -358,7 +363,8 @@ def find_libration_windows(start_local: datetime, days: int,
                            step_minutes: int = 60,
                            sun_alt_min: float = 3.0,
                            moon_alt_min: float = 5.0,
-                           max_results: int = 20) -> list[dict]:
+                           max_results: int = 20,
+                           observer_sun_alt_max: float = 90.0) -> list[dict]:
     """
     Find upcoming windows when a Moon feature is best presented, that is when
     libration tilts it toward Earth. This is what decides whether a limb
@@ -391,6 +397,10 @@ def find_libration_windows(start_local: datetime, days: int,
         Minimum Moon altitude at the observer site
     max_results : int
         Cap on the number of windows returned
+    observer_sun_alt_max : float
+        Highest Sun altitude at the observer site. -12 keeps a window to a dark
+        sky, and the cap then takes the best of the dark ones; the default sets
+        no limit
 
     Returns
     -------
@@ -410,7 +420,8 @@ def find_libration_windows(start_local: datetime, days: int,
     sun_alt_obs = series["observer_sun_alt"]
     libr_lat, libr_lon = series["libr_lat"], series["libr_lon"]
 
-    ok = (earth_alt > 0.0) & (sun_alt_f >= sun_alt_min) & (moon_alt >= moon_alt_min)
+    ok = ((earth_alt > 0.0) & (sun_alt_f >= sun_alt_min) & (moon_alt >= moon_alt_min)
+          & (sun_alt_obs <= observer_sun_alt_max))
     idx = np.flatnonzero(ok)
     if idx.size == 0:
         return []

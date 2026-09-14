@@ -64,6 +64,9 @@ class PlanningMixin:
     PLANNER_MOON_ALT_MIN = 5.0
     PLANNER_LIBRATION_SUN_ALT_MIN = 3.0
     PLANNER_MAX_RESULTS = 20
+    # How far the Sun has to be under the observer's horizon for the sky to
+    # count as dark: nautical twilight, where the Sky column turns to night
+    PLANNER_DARK_SUN_ALT = -12.0
 
     # Clair-obscur finder. The events last hours, so the scan reaches over
     # several lunations to find ones that are actually up at the observer's
@@ -97,6 +100,9 @@ class PlanningMixin:
     # for the rest of the session and start over on the next run.
     _clair_obscur_filter = CLAIR_OBSCUR_ALL_EVENTS
     _clair_obscur_visible_only = True
+    # The observation planner's dark-sky filter, kept the same way. The feature
+    # graph reads it too, so its window strips mark what the planner lists
+    _planner_dark_only = False
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -615,7 +621,15 @@ class PlanningMixin:
         """
         if record["observer_sun_alt"] > 0.0:
             return "day"
-        return "twilight" if record["observer_sun_alt"] > -12.0 else "night"
+        return "twilight" if record["observer_sun_alt"] > PlanningMixin.PLANNER_DARK_SUN_ALT else "night"
+
+    def _planner_observer_sun_alt_max(self) -> float:
+        """
+        The Sun altitude at the observer's site the planner's windows have to
+        stay under: dark sky only when the planner's filter asks for it,
+        otherwise no limit.
+        """
+        return self.PLANNER_DARK_SUN_ALT if self._planner_dark_only else 90.0
 
     def _copy_lines_to_clipboard(self, lines: list[str]) -> bool:
         """
@@ -956,23 +970,33 @@ class PlanningMixin:
                              ("libration", "best presented (libration)")):
             ttk.Radiobutton(mode_row, text=label, value=value, variable=mode_var,
                            command=lambda: rescan()).pack(side=tk.LEFT)
+        # Resumes where this session last left it, as the clair-obscur filter does
+        dark_only_var = tk.BooleanVar(value=self._planner_dark_only)
+        ttk.Checkbutton(mode_row, variable=dark_only_var,
+                        text=f"Only when the sky is dark (Sun {-self.PLANNER_DARK_SUN_ALT:.0f}° "
+                             f"below my horizon)",
+                        command=lambda: rescan()).pack(side=tk.LEFT, padx=(12, 0))
 
         def rescan():
             nonlocal windows
             listbox.delete(0, tk.END)
             libration = mode_var.get() == "libration"
+            self._planner_dark_only = dark_only_var.get()
+            dark = ", while the sky is dark" if self._planner_dark_only else ""
             try:
                 if libration:
                     windows = astro.find_libration_windows(
                         self.dt_local, self.PLANNER_SCAN_DAYS, feature.lat, feature.lon,
                         sun_alt_min=self.PLANNER_LIBRATION_SUN_ALT_MIN,
                         moon_alt_min=self.PLANNER_MOON_ALT_MIN,
-                        max_results=self.PLANNER_MAX_RESULTS)
+                        max_results=self.PLANNER_MAX_RESULTS,
+                        observer_sun_alt_max=self._planner_observer_sun_alt_max())
                 else:
                     windows = astro.find_terminator_windows(
                         self.dt_local, self.PLANNER_SCAN_DAYS, feature.lat, feature.lon,
                         sun_alt_max=self.PLANNER_SUN_ALT_MAX,
-                        moon_alt_min=self.PLANNER_MOON_ALT_MIN)
+                        moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+                        observer_sun_alt_max=self._planner_observer_sun_alt_max())
             except ValueError as e:
                 # Scan start outside the bundled ephemeris kernel range
                 windows = []
@@ -985,17 +1009,20 @@ class PlanningMixin:
                     "How far inside the limb libration turns the feature, best first: 90° is the "
                     "centre of the disk, 0° exactly on the limb, and the feature is squashed by the "
                     "sine of it. Listed only while the feature is sunlit and the Moon at least "
-                    f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+                    f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky{dark}.")
                 header_var.set(libration_header)
             else:
                 desc_var.set(
                     f"Times when the Sun stands 0-{self.PLANNER_SUN_ALT_MAX:.0f}° above the feature, "
                     f"lighting it with long shadows, the feature is turned toward Earth, and the "
-                    f"Moon is at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+                    f"Moon is at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky{dark}.")
                 header_var.set(terminator_header)
 
             if not windows:
-                listbox.insert(tk.END, "  No opportunities found in the scanned period.")
+                message = "  No opportunities found in the scanned period."
+                if self._planner_dark_only:
+                    message += "  Untick the dark-sky filter to include twilight and daylight."
+                listbox.insert(tk.END, message)
                 return
 
             for w in windows:
@@ -1228,12 +1255,14 @@ class PlanningMixin:
                 term_windows = astro.find_terminator_windows(
                     state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
                     sun_alt_max=self.PLANNER_SUN_ALT_MAX,
-                    moon_alt_min=self.PLANNER_MOON_ALT_MIN)
+                    moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+                    observer_sun_alt_max=self._planner_observer_sun_alt_max())
                 libr_windows = astro.find_libration_windows(
                     state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
                     sun_alt_min=self.PLANNER_LIBRATION_SUN_ALT_MIN,
                     moon_alt_min=self.PLANNER_MOON_ALT_MIN,
-                    max_results=self.PLANNER_MAX_RESULTS)
+                    max_results=self.PLANNER_MAX_RESULTS,
+                    observer_sun_alt_max=self._planner_observer_sun_alt_max())
             except ValueError as e:
                 # Scan start outside the bundled ephemeris kernel range
                 state["dts"] = []
@@ -1413,15 +1442,20 @@ class PlanningMixin:
             "the same axis, and crosses it meaning nothing.")
         ToolTip(dash_swatch, dash_hint)
         ToolTip(dash_label, dash_hint)
+        # The planner's dark-sky filter is set there and cannot change while this
+        # window is open, the planner being closed, so it is read once here
+        dark_hint = ("\nOnly while the sky is dark, as the planner is set to."
+                     if self._planner_dark_only else "")
         terminator_window_hint = (
             "Windows the Observation Planner lists under \"near the terminator\":\n"
             f"the Sun 0-{self.PLANNER_SUN_ALT_MAX:.0f}° over the feature, the feature turned toward\n"
-            f"Earth and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky.")
+            f"Earth and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky."
+            f"{dark_hint}")
         libration_window_hint = (
             "Windows the Observation Planner lists under \"best presented (libration)\":\n"
             f"the feature turned toward Earth, the Sun at least {self.PLANNER_LIBRATION_SUN_ALT_MIN:.0f}° "
             f"over it and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up.\n"
-            f"Only its {self.PLANNER_MAX_RESULTS} best, as in the list.")
+            f"Only its {self.PLANNER_MAX_RESULTS} best, as in the list.{dark_hint}")
         for text, colour, hint in (("Moon up", colours["moon"], None),
                                    ("Daylight", colours["day"], None),
                                    ("Twilight", colours["twilight"], None),
