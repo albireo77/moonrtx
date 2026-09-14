@@ -526,7 +526,8 @@ class PlanningMixin:
     # column does not sit against the scrollbar
     RESULTS_WIDTH_MARGIN = 2
 
-    def _results_frame(self, title: str, caption: str, header_width: int):
+    def _results_frame(self, title: str, caption: str, header_width: int,
+                       before_close: Optional[Callable[[], object]] = None):
         """
         Build a results dialog with nothing in it yet, and hand back the parts
         its caller has to fill: the controls row, the description and header
@@ -536,7 +537,9 @@ class PlanningMixin:
         newlines written into it, so it fills the dialog whatever is in it, and
         given a fixed height so the window does not resize as it changes.
         """
-        win, frame, close = self._dialog_window(title)
+        # before_close is handed on to _dialog_window, for a caller with state
+        # of its own to put down whichever way the window is shut
+        win, frame, close = self._dialog_window(title, before_close=before_close)
 
         tk.Label(frame, anchor='w', font=self.RESULTS_FONT,
                  text=caption).pack(fill=tk.X)
@@ -815,7 +818,7 @@ class PlanningMixin:
         # Naming the column ties the filter to the figure it acts on
         # Themed, so the little box follows the display
         ttk.Checkbutton(filter_row, variable=visible_only_var,
-                       text=f"Only when the Moon altitude (h☾) is at least "
+                       text=f"only when the Moon altitude (h☾) is at least "
                             f"{self.PLANNER_MOON_ALT_MIN:.0f}° in my sky",
                        command=lambda: rescan()).pack(side=tk.LEFT)
 
@@ -955,11 +958,18 @@ class PlanningMixin:
         libration_header = (f"{'Best time (local)':<22}{'Window (local)':<29}{'Presented':>10}"
                             f"{'Libr L':>9}{'Libr B':>9}{'Sun@feat':>10}{'Moon alt':>10}  {'Sky':<8}")
 
+        def before_close():
+            # The name comes off with the window, whichever way it is shut -
+            # the Graph button included, the graph having a checkbox of its own
+            if name_var.get():
+                self.unpin_catalogue_feature(feature)
+
         dialog = self._results_frame(
             f"Observation Planner - {feature.name}",
             f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)"
             f"  -  next {self.PLANNER_SCAN_DAYS} days",
-            max(len(terminator_header), len(libration_header)))
+            max(len(terminator_header), len(libration_header)),
+            before_close=before_close)
         win, on_close, listbox = dialog.win, dialog.close, dialog.listbox
         desc_var, header_var = dialog.description, dialog.header
 
@@ -973,9 +983,17 @@ class PlanningMixin:
         # Resumes where this session last left it, as the clair-obscur filter does
         dark_only_var = tk.BooleanVar(value=self._planner_dark_only)
         ttk.Checkbutton(mode_row, variable=dark_only_var,
-                        text=f"Only when the sky is dark (Sun {-self.PLANNER_DARK_SUN_ALT:.0f}° "
+                        text=f"only when the sky is dark (Sun {-self.PLANNER_DARK_SUN_ALT:.0f}° "
                              f"below my horizon)",
                         command=lambda: rescan()).pack(side=tk.LEFT, padx=(12, 0))
+        # The feature's name on the Moon, as the graph's checkbox has it: pinned
+        # into the catalogue while ticked, so drawn the way the P key draws names
+        # and never twice - see CatalogueMixin
+        name_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(mode_row, variable=name_var, text="feature name",
+                        command=lambda: (self.pin_catalogue_feature(feature) if name_var.get()
+                                         else self.unpin_catalogue_feature(feature))
+                        ).pack(side=tk.LEFT, padx=(12, 0))
 
         def rescan():
             nonlocal windows
@@ -1047,7 +1065,6 @@ class PlanningMixin:
             if not windows or not selection or selection[0] >= len(windows):
                 return
             target = self.in_observer_clock(windows[selection[0]]["best"])
-            on_close()
             self._go_to_moment(target)
             self.center_on_feature(feature)
 
