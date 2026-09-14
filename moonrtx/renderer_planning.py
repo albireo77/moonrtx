@@ -103,6 +103,11 @@ class PlanningMixin:
     # The observation planner's dark-sky filter, kept the same way. The feature
     # graph reads it too, so its window strips mark what the planner lists
     _planner_dark_only = False
+    # The feature graph's choices, kept the same way: what a click does to the
+    # view, whether the feature's name is shown, and the span of the time axis
+    _graph_view = "standard"
+    _graph_show_name = False
+    _graph_span = PLANNER_SCAN_DAYS
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -110,6 +115,10 @@ class PlanningMixin:
     # wiggle. See astro.sample_feature_series / PlanningMixin.feature_graph_dialog.
     GRAPH_DAYS = PLANNER_SCAN_DAYS
     GRAPH_STEP_MINUTES = 120
+    # Spans the time axis can be set to, the first of them the default. The
+    # shorter the span the finer the sampling (GRAPH_STEP_MINUTES scaled with
+    # it), so a curve stretched across a zoomed plot stays smooth
+    GRAPH_SPANS = (GRAPH_DAYS, 15, 5)
     # Share of the screen's width the plot fills. Libration cycles once a
     # lunation, so a click that lands even a few days off its intended date
     # can recentre on a very differently-presented feature; the wider the
@@ -1165,7 +1174,6 @@ class PlanningMixin:
         # screen only by accident of the font metrics scaling with it.
         width = round(win.winfo_screenwidth() * self.GRAPH_WIDTH_FRACTION)
         plot_w = max(self.GRAPH_DAYS, width - label_w - pad)
-        day_w = plot_w / self.GRAPH_DAYS
 
         plot_x0, plot_x1 = label_w, label_w + plot_w
         plot_y0 = pad
@@ -1184,14 +1192,13 @@ class PlanningMixin:
 
         title_row = tk.Frame(main_frame)
         title_row.pack(fill=tk.X)
-        tk.Label(title_row, anchor='w', font=font,
-                 text=f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
-                      f"Sun altitude and libration over {self.GRAPH_DAYS} days").pack(side=tk.LEFT)
+        title_var = tk.StringVar()             # says the span, so set on each redraw
+        tk.Label(title_row, anchor='w', font=font, textvariable=title_var).pack(side=tk.LEFT)
         # What a click on the graph does to the camera, besides moving the clock.
         # Themed, as in the launcher, so the little circles follow the display:
         # Tk's own are drawn at much the same size whatever the screen, which on
         # a 4K one at 300% is a tenth the height of the lettering beside them
-        view_var = tk.StringVar(value="standard")
+        view_var = tk.StringVar(value=self._graph_view)
         view_row = tk.Frame(title_row)
         view_row.pack(side=tk.RIGHT)
         for value, text in (("keep", "Keep view"), ("standard", "Standard view"),
@@ -1201,11 +1208,20 @@ class PlanningMixin:
         # The feature's name on the Moon, pinned into the catalogue while this
         # is ticked, so it is drawn the way the P key draws names and never
         # twice; unpinned again when the window closes - see CatalogueMixin
-        label_var = tk.BooleanVar(value=False)
+        label_var = tk.BooleanVar(value=self._graph_show_name)
+
+        def toggle_name():
+            self._graph_show_name = label_var.get()
+            if label_var.get():
+                self.pin_catalogue_feature(feature)
+            else:
+                self.unpin_catalogue_feature(feature)
+
         ttk.Checkbutton(title_row, text="Show feature name", variable=label_var,
-                        command=lambda: (self.pin_catalogue_feature(feature) if label_var.get()
-                                         else self.unpin_catalogue_feature(feature))
-                        ).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
+                        command=toggle_name).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
+        # Left ticked last time, so named from the start this time
+        if label_var.get():
+            self.pin_catalogue_feature(feature)
 
         canvas = tk.Canvas(main_frame, width=width, height=height,
                            highlightthickness=0, bg=win.cget('bg'))
@@ -1215,10 +1231,19 @@ class PlanningMixin:
         tk.Label(main_frame, textvariable=status_var, font=font,
                  fg='#a06010', anchor='w').pack(fill=tk.X, pady=(2, 0))
 
-        state = {"start": None, "dts": []}
+        # "days" is the span on show, "step" its sampling in minutes and "day_w"
+        # the width a day takes at that span - see set_span
+        def step_for(days: int) -> int:
+            """Sampling step for a span: GRAPH_STEP_MINUTES at the full span, finer in proportion."""
+            return max(1, self.GRAPH_STEP_MINUTES * days // self.GRAPH_DAYS)
+
+        state = {"start": None, "dts": [], "sun_alt": None, "earth_alt": None,
+                 "days": self._graph_span, "step": step_for(self._graph_span),
+                 "day_w": plot_w / self._graph_span}
 
         def x_of(moment_utc) -> float:
-            return plot_x0 + (moment_utc - state["dts"][0]).total_seconds() / 86400.0 * day_w
+            return (plot_x0 + (moment_utc - state["dts"][0]).total_seconds() / 86400.0
+                    * state["day_w"])
 
         def clip_x(x: float) -> float:
             return min(max(x, plot_x0), plot_x1)
@@ -1261,21 +1286,23 @@ class PlanningMixin:
 
         def redraw():
             canvas.delete('all')
+            title_var.set(f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
+                          f"Sun altitude and libration over {state['days']} days")
             try:
                 series = astro.sample_feature_series(
-                    state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
-                    step_minutes=self.GRAPH_STEP_MINUTES)
-                chart = astro.find_visibility_chart(state["start"], self.GRAPH_DAYS)
+                    state["start"], state["days"], feature.lat, feature.lon,
+                    step_minutes=state["step"])
+                chart = astro.find_visibility_chart(state["start"], state["days"])
                 # Asked with exactly the planner's own settings, so a strip
                 # marks the same windows its list shows - including only the
                 # best PLANNER_MAX_RESULTS in libration mode, as the list does
                 term_windows = astro.find_terminator_windows(
-                    state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
+                    state["start"], state["days"], feature.lat, feature.lon,
                     sun_alt_max=self.PLANNER_SUN_ALT_MAX,
                     moon_alt_min=self.PLANNER_MOON_ALT_MIN,
                     observer_sun_alt_max=self._planner_observer_sun_alt_max())
                 libr_windows = astro.find_libration_windows(
-                    state["start"], self.GRAPH_DAYS, feature.lat, feature.lon,
+                    state["start"], state["days"], feature.lat, feature.lon,
                     sun_alt_min=self.PLANNER_LIBRATION_SUN_ALT_MIN,
                     moon_alt_min=self.PLANNER_MOON_ALT_MIN,
                     max_results=self.PLANNER_MAX_RESULTS,
@@ -1289,6 +1316,8 @@ class PlanningMixin:
                 return
 
             state["dts"] = series["times"]
+            state["sun_alt"] = series["sun_alt"]
+            state["earth_alt"] = series["earth_alt"]
             canvas.config(height=height)
 
             for deg in range(self.GRAPH_ALT_MIN, 91, 30):
@@ -1302,8 +1331,8 @@ class PlanningMixin:
             canvas.create_line(plot_x0, y_thr, plot_x1, y_thr,
                                fill=colours["threshold"], dash=(4, 2))
 
-            tick_days = max(1, self.GRAPH_DAYS // 10)
-            for k in range(0, self.GRAPH_DAYS + 1, tick_days):
+            tick_days = max(1, state["days"] // 10)
+            for k in range(0, state["days"] + 1, tick_days):
                 moment = state["dts"][0] + timedelta(days=k)
                 x = x_of(moment)
                 canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["grid"])
@@ -1366,43 +1395,61 @@ class PlanningMixin:
             sound a view as any on the near side.
             """
             mode = view_var.get()
+            self._graph_view = mode
             if mode == "standard":
                 self.reset_to_default_view()
             elif mode == "centre":
                 self.center_on_feature(feature)
 
-        def show_visibility():
-            """
-            Say so when the feature cannot be seen at the moment the app is
-            showing, and why - either or both of two reasons, each where its
-            curve on the graph is below 0°:
-
-            - turned past the limb onto the far side (the libration curve)
-            - in lunar night, the Sun under its horizon (the Sun curve)
-
-            Worked out for that moment itself rather than read off the nearest
-            sample of the curves, which a paged graph may not even include.
-            """
-            at = astro.sample_feature_series(self.dt_local, 0, feature.lat, feature.lon)
-            reasons = []
-            if at["earth_alt"][0] < 0.0:
-                reasons.append("on the far side of the Moon, beyond the limb")
-            if at["sun_alt"][0] < 0.0:
-                reasons.append("in lunar night, unlit by the Sun")
-            status_var.set(f"{feature.name} is not visible at this moment - it is "
-                           f"{', and '.join(reasons)}." if reasons else "")
-
         def go_to(event):
             if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
                     or not (plot_y0 <= event.y <= moon_y1):
                 return
-            target = state["dts"][0] + timedelta(days=(event.x - plot_x0) / day_w)
+            target = state["dts"][0] + timedelta(days=(event.x - plot_x0) / state["day_w"])
             self._go_to_moment(self.in_observer_clock(target))
             redraw()
             apply_view()
-            show_visibility()
 
         canvas.bind('<Button-1>', go_to)
+
+        def hover(event):
+            """
+            Read out the moment under the pointer - its date, the Sun over the
+            feature and the libration - in the status line, so a click can be
+            aimed rather than guessed from the curves - with a short note by
+            either value when it means the feature cannot be seen: in lunar
+            night, or turned onto the far side. Off the plot the line is cleared.
+
+            Taken between the two samples either side of the pointer, so the
+            figures move smoothly with it rather than a two-hour step at a time.
+            """
+            n = len(state["dts"])
+            if n < 2 or not (plot_x0 <= event.x <= plot_x1) \
+                    or not (plot_y0 <= event.y <= moon_y1):
+                status_var.set("")
+                return
+            days = (event.x - plot_x0) / state["day_w"]
+            at = days * 1440.0 / state["step"]
+            i = min(max(int(at), 0), n - 2)
+            f = min(max(at - i, 0.0), 1.0)
+
+            def between(values):
+                return float(values[i]) * (1.0 - f) + float(values[i + 1]) * f
+
+            moment = self.in_observer_clock(state["dts"][0] + timedelta(days=days))
+            # A short note beside a value when it means the feature cannot be seen,
+            # each where its curve is below 0°. The Sun part is padded to the widest
+            # it gets, note and all, so in the fixed-pitch status font the libration
+            # starts in the same place whatever the Sun reads
+            sun, libration = between(state["sun_alt"]), between(state["earth_alt"])
+            sun_part = f"{sun:+5.1f}°{' (lunar night)' if sun < 0.0 else ''}"
+            sun_width = len(f"{-90.0:+5.1f}° (lunar night)")
+            status_var.set(f"{moment:%Y-%m-%d %a %H:%M}                Sun over {feature.name} "
+                           f"{sun_part:<{sun_width}}  libration {libration:+5.1f}°"
+                           f"{' (far side)' if libration < 0.0 else ''}")
+
+        canvas.bind('<Motion>', hover)
+        canvas.bind('<Leave>', lambda event: status_var.set(""))
 
         legend = tk.Frame(main_frame)
         legend.pack(fill=tk.X, pady=(2 * pad, 0))
@@ -1496,10 +1543,24 @@ class PlanningMixin:
             state["start"] += timedelta(days=days)
             redraw()
 
+        def set_span():
+            """
+            Stretch or squeeze the time axis to the span chosen, sampling finer
+            the shorter it is. The new span is centred on the moment the app is
+            showing, so a day picked at the wide span can be zoomed into and an
+            hour picked in it.
+            """
+            days = span_var.get()
+            self._graph_span = days
+            state["days"] = days
+            state["step"] = step_for(days)
+            state["day_w"] = plot_w / days
+            state["start"] = self.dt_local - timedelta(days=days / 2)
+            redraw()
+
         def reset():
             state["start"] = self.dt_local
             redraw()
-            show_visibility()
 
         # Sharing the legend's row rather than one of its own: at 90% of
         # screen width the legend leaves most of the row empty, and the
@@ -1508,9 +1569,17 @@ class PlanningMixin:
         tk.Button(legend, text="Reset", command=reset, width=10).pack(
             side=tk.RIGHT, padx=(0, pad + 2))
         tk.Button(legend, text="▶", width=2,
-                  command=lambda: page(self.GRAPH_DAYS)).pack(side=tk.RIGHT, padx=(0, pad + 2))
+                  command=lambda: page(state["days"])).pack(side=tk.RIGHT, padx=(0, pad + 2))
         tk.Button(legend, text="◀", width=2,
-                  command=lambda: page(-self.GRAPH_DAYS)).pack(side=tk.RIGHT)
+                  command=lambda: page(-state["days"])).pack(side=tk.RIGHT)
+        # Themed, as the other choices here, so the circles follow the display
+        span_var = tk.IntVar(value=self._graph_span)
+        span_row = tk.Frame(legend)
+        span_row.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
+        tk.Label(span_row, text="Span (days):", font=font).pack(side=tk.LEFT)
+        for days in self.GRAPH_SPANS:
+            ttk.Radiobutton(span_row, text=str(days), value=days, variable=span_var,
+                            command=set_span).pack(side=tk.LEFT)
 
         reset()   # the first draw starts at the moment the app is showing
 
