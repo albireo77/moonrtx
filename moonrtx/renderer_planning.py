@@ -108,6 +108,9 @@ class PlanningMixin:
     _graph_view = "standard"
     _graph_show_name = False
     _graph_span = PLANNER_SCAN_DAYS
+    # The arrow keys' step in the graph, in minutes; None until first set, when
+    # it starts from the renderer's own Q/W step, which it then leaves alone
+    _graph_step_minutes = None
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -1431,6 +1434,10 @@ class PlanningMixin:
                 self.center_on_feature(feature)
 
         def go_to(event):
+            # A click on a canvas does not take the keyboard focus in Tk, so after
+            # a change in the step box the arrows would go on moving its cursor;
+            # taken here, they step the time again
+            win.focus_set()
             if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
                     or not (plot_y0 <= event.y <= moon_y1):
                 return
@@ -1511,8 +1518,9 @@ class PlanningMixin:
 
         def step_time(direction: int):
             """
-            Step the time back or on by the Q/W step, as those keys do - the
-            renderer's own keys being held while this window is open.
+            Step the time back or on by the step set in this window, which the
+            renderer's own Q/W step does not share - the renderer's keys being
+            held while this window is open.
 
             Taken the same way as Q/W: nothing while a video export owns the
             clock, and the single-frame preview switched on first, so a held
@@ -1521,10 +1529,16 @@ class PlanningMixin:
             pages the graph, by the span, as the arrow buttons do. The view then
             follows the choice above, as it does for a click.
             """
+            # In the step box the arrows move the cursor, not the time
+            try:
+                if win.focus_get() is step_box:
+                    return None
+            except KeyError:
+                pass
             if self._video_export is not None:
                 return "break"
             self._begin_interactive_preview()
-            self.change_time(direction * self.time_step_minutes)
+            self.change_time(direction * graph_step())
             now_utc = self.dt_local.astimezone(timezone.utc)
             if state["dts"] and not (state["dts"][0] <= now_utc <= state["dts"][-1]):
                 state["start"] += timedelta(days=direction * state["days"])
@@ -1608,8 +1622,6 @@ class PlanningMixin:
             f"over it and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up.\n"
             f"Only its {self.PLANNER_MAX_RESULTS} best, as in the list.{dark_hint}")
         for text, colour, hint in (("Moon up", colours["moon"], None),
-                                   ("Daylight", colours["day"], None),
-                                   ("Twilight", colours["twilight"], None),
                                    ("Terminator window", colours["terminator_window"],
                                     terminator_window_hint),
                                    ("Libration window", colours["libration_window"],
@@ -1667,6 +1679,36 @@ class PlanningMixin:
         for days in self.GRAPH_SPANS:
             ttk.Radiobutton(span_row, text=str(days), value=days, variable=span_var,
                             command=set_span).pack(side=tk.LEFT)
+        # The arrow keys' step for this window alone, beside the span: the
+        # renderer's Q/W step (time_step_minutes) is never touched by it. Packed
+        # from the right after the span, so it stands just left of it. Themed, as
+        # the other controls here, so it follows the display
+        step_var = tk.StringVar(value=str(self._graph_step_minutes or self.time_step_minutes))
+        step_row = tk.Frame(legend)
+        step_row.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
+        tk.Label(step_row, text="Step (min):", font=font).pack(side=tk.LEFT)
+        step_box = ttk.Spinbox(step_row, from_=1, to=1440, increment=1, width=5,
+                               textvariable=step_var)
+        step_box.pack(side=tk.LEFT, padx=(max(1, cell_w // 2), 0))
+
+        def graph_step() -> int:
+            """
+            The step in the box, in whole minutes from 1 to 1440 as the
+            renderer's own step allows - put back to the last good value if what
+            is there is not a number - and kept for the rest of the session.
+            """
+            try:
+                minutes = int(step_var.get())
+            except ValueError:
+                minutes = self._graph_step_minutes or self.time_step_minutes
+            minutes = max(1, min(1440, minutes))
+            self._graph_step_minutes = minutes
+            step_var.set(str(minutes))
+            return minutes
+
+        step_box.bind('<FocusOut>', lambda event: graph_step())
+        # Enter settles the value and hands the arrows back to the time
+        step_box.bind('<Return>', lambda event: (graph_step(), win.focus_set()))
 
         reset()   # the first draw starts at the moment the app is showing
 
