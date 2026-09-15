@@ -1433,7 +1433,10 @@ class PlanningMixin:
                 return
             target = state["dts"][0] + timedelta(days=(event.x - plot_x0) / state["day_w"])
             self._go_to_moment(self.in_observer_clock(target))
-            redraw()
+            # Only the red line follows the clock, and a click inside the span
+            # keeps it inside, so the line is moved as a step moves it rather
+            # than the graph and its searches being done again
+            place_now_line()
             apply_view()
 
         canvas.bind('<Button-1>', go_to)
