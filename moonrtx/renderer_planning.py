@@ -1329,20 +1329,36 @@ class PlanningMixin:
             canvas.create_line(plot_x0, y_thr, plot_x1, y_thr,
                                fill=colours["threshold"], dash=(4, 2))
 
+            # A line and a date at local midnight - the first on or after the start
+            # of the span, then every tick_days - so a date stands for the start of
+            # its day rather than for whatever hour the span happened to begin at.
+            # Each midnight is made from its own date on the observer's clock, so
+            # it stays on 00:00 across a daylight saving change
             tick_days = max(1, state["days"] // 10)
-            for k in range(0, state["days"] + 1, tick_days):
-                moment = state["dts"][0] + timedelta(days=k)
+            span_end = state["dts"][-1]
+            day = self.in_observer_clock(state["dts"][0]).date()
+            if self.from_observer_clock(datetime.combine(day, datetime.min.time())) < state["dts"][0]:
+                day += timedelta(days=1)
+            first = True
+            while True:
+                moment = self.from_observer_clock(datetime.combine(day, datetime.min.time()))
+                if moment > span_end:
+                    break
                 x = x_of(moment)
                 canvas.create_line(x, plot_y0, x, moon_y1, fill=colours["grid"])
-                # The first date carries the year. Started at its tick rather than
-                # centred on it: with the year it is wider than the margin left
-                # of the plot, and centred it would run off the canvas
-                if k == 0:
+                if first:
+                    # The first date carries the year, and is started at its line
+                    # rather than centred on it: wider than the others, it would
+                    # otherwise run off the canvas with its line near the left edge
                     canvas.create_text(x, date_y, anchor='nw', font=font,
-                                       text=f"{self.in_observer_clock(moment):%d %b %Y}")
+                                       text=f"{day:%d %b %Y}")
+                    first = False
                 else:
-                    canvas.create_text(x, date_y, anchor='n', font=font,
-                                       text=f"{self.in_observer_clock(moment):%d %b}")
+                    text = f"{day:%d %b}"
+                    # Ended at its line instead near the right edge, for the same reason
+                    anchor = 'ne' if x + metrics.measure(text) / 2 > width else 'n'
+                    canvas.create_text(x, date_y, anchor=anchor, font=font, text=text)
+                day += timedelta(days=tick_days)
 
             canvas.create_rectangle(plot_x0, sky_y0, plot_x1, sky_y1,
                                     fill=colours["night"], outline="")
