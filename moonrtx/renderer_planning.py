@@ -140,6 +140,9 @@ class PlanningMixin:
         "zero": "#8a8a8a",        # the feature's own horizon / limb
         "threshold": "#c0602a",   # the terminator planner's Sun altitude cap
         "grid": "#d0d0d0",
+        # The readout of the moment under the pointer: the line under the plot
+        # and the time over it, one colour for the two
+        "readout": "#a06010",
         "today": "#c02020",
         "day": "#cfe0f5",
         "twilight": "#5f7ea8",
@@ -1161,7 +1164,8 @@ class PlanningMixin:
         plot_w = max(self.GRAPH_DAYS, width - label_w - pad)
 
         plot_x0, plot_x1 = label_w, label_w + plot_w
-        plot_y0 = pad
+        # A line of room above the +90° line, for the time under the pointer
+        plot_y0 = pad + line_h
         plot_y1 = plot_y0 + plot_h
         # Two thin strips straight under the plot's bottom edge for the
         # planner's windows - marks on the time axis rather than rows of their
@@ -1177,8 +1181,14 @@ class PlanningMixin:
 
         title_row = tk.Frame(main_frame)
         title_row.pack(fill=tk.X)
-        title_var = tk.StringVar()             # says the span, so set on each redraw
-        tk.Label(title_row, anchor='w', font=font, textvariable=title_var).pack(side=tk.LEFT)
+        # The readout of the moment under the pointer, on the left of this row; the
+        # graph's own title is in the window's title bar (set on each redraw, as it
+        # says the span). Indented by the plot's left margin so it starts where the
+        # time over the +90° line starts at its leftmost, and with no padding or
+        # border of its own, which would put the lettering a few pixels further in
+        status_var = tk.StringVar()
+        tk.Label(title_row, textvariable=status_var, font=font, padx=0, borderwidth=0,
+                 fg=colours["readout"], anchor='w').pack(side=tk.LEFT, padx=(plot_x0, 0))
         # What a click on the graph does to the camera, besides moving the clock.
         # Themed, as in the launcher, so the little circles follow the display:
         # Tk's own are drawn at much the same size whatever the screen, which on
@@ -1208,13 +1218,13 @@ class PlanningMixin:
         if label_var.get():
             self.pin_catalogue_feature(feature)
 
+        # The readout of the moment under the pointer, packed before the canvas so
+        # it stands over the graph, just above the time shown over the +90° line
+        # Against the left edge, so the plot's left margin measures from the same
+        # place as the readout's indent even when the window is wider than the canvas
         canvas = tk.Canvas(main_frame, width=width, height=height,
                            highlightthickness=0, bg=win.cget('bg'))
-        canvas.pack(pady=(4, 0))
-
-        status_var = tk.StringVar()
-        tk.Label(main_frame, textvariable=status_var, font=font,
-                 fg='#a06010', anchor='w').pack(fill=tk.X, pady=(2, 0))
+        canvas.pack(pady=(4, 0), anchor='w')
 
         # "days" is the span on show, "step" its sampling in minutes and "day_w"
         # the width a day takes at that span - see set_span
@@ -1222,7 +1232,7 @@ class PlanningMixin:
             """Sampling step for a span: GRAPH_STEP_MINUTES at the full span, finer in proportion."""
             return max(1, self.GRAPH_STEP_MINUTES * days // self.GRAPH_DAYS)
 
-        state = {"start": None, "dts": [], "now_line": None,
+        state = {"start": None, "dts": [], "now_line": None, "hover_line": None, "hover_time": None,
                  "days": self._graph_span, "step": step_for(self._graph_span),
                  "day_w": plot_w / self._graph_span}
 
@@ -1271,8 +1281,8 @@ class PlanningMixin:
 
         def redraw():
             canvas.delete('all')
-            title_var.set(f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
-                          f"Sun altitude and libration over {state['days']} days")
+            win.title(f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
+                      f"Sun altitude and libration over {state['days']} days")
             try:
                 series = astro.sample_feature_series(
                     state["start"], state["days"], feature.lat, feature.lon,
@@ -1374,9 +1384,16 @@ class PlanningMixin:
                     text=f"Libration stays below {self.GRAPH_ALT_MIN}° throughout: this feature "
                          "is on the far side and never turns toward Earth")
 
-            # Everything was deleted above, the line with it
+            # Everything was deleted above, both lines and the pointer's time with them
             state["now_line"] = None
+            state["hover_line"] = None
+            state["hover_time"] = None
             place_now_line()
+            # Put the pointer's line and time back if the pointer is still over the
+            # graph - after a click, a page or a change of span - rather than
+            # leaving them gone until it next moves
+            if pointer["x"] is not None:
+                place_hover(pointer["x"], pointer["y"])
 
         def place_now_line():
             """
@@ -1432,6 +1449,51 @@ class PlanningMixin:
 
         pointer = {"x": None, "y": None, "pending": False}
 
+        def place_hover(x, y):
+            """
+            Draw the grey line through the pointer and the time over the +90°
+            line, or take them away when the pointer is off the plot.
+
+            On its own so a redraw can put them back where the pointer still is:
+            a redraw clears the whole canvas, and they would otherwise stay gone
+            until the pointer next moved.
+            """
+            # A vertical line through the pointer, moved at once rather than on
+            # idle: shifting one canvas line is cheap, and a line lagging the
+            # pointer would be the thing noticed. Below the red line for the
+            # moment on show, which stays on top
+            if state["dts"] and plot_x0 <= x <= plot_x1 and plot_y0 <= y <= moon_y1:
+                if state["hover_line"] is None:
+                    state["hover_line"] = canvas.create_line(
+                        x, plot_y0, x, moon_y1, fill=colours["grid"])
+                else:
+                    canvas.coords(state["hover_line"], x, plot_y0, x, moon_y1)
+                if state["now_line"] is not None:
+                    canvas.tag_raise(state["now_line"])
+                # The time at the pointer, over the +90° line on top of the grey
+                # line, in the readout's colour. Only the pointer's place is needed for it,
+                # so it moves with the line rather than waiting for the readout.
+                # Centred on the line, but kept clear of the "+90°" label on the
+                # left and of the canvas edge on the right
+                moment = self.in_observer_clock(
+                    state["dts"][0] + timedelta(days=(x - plot_x0) / state["day_w"]))
+                text = f"{moment:%d %b %a %H:%M}"
+                half = metrics.measure(text) / 2
+                cx = max(plot_x0 + half, min(width - half, x))
+                if state["hover_time"] is None:
+                    state["hover_time"] = canvas.create_text(
+                        cx, plot_y0 - 1, anchor='s', font=font, fill=colours["readout"], text=text)
+                else:
+                    canvas.coords(state["hover_time"], cx, plot_y0 - 1)
+                    canvas.itemconfigure(state["hover_time"], text=text)
+            else:
+                if state["hover_line"] is not None:
+                    canvas.delete(state["hover_line"])
+                    state["hover_line"] = None
+                if state["hover_time"] is not None:
+                    canvas.delete(state["hover_time"])
+                    state["hover_time"] = None
+
         def hover(event):
             """
             Note where the pointer is, and read out that moment once Tk is idle.
@@ -1444,6 +1506,7 @@ class PlanningMixin:
             motion event means a quick sweep of the pointer asks only once.
             """
             pointer["x"], pointer["y"] = event.x, event.y
+            place_hover(event.x, event.y)
             if not pointer["pending"]:
                 pointer["pending"] = True
                 canvas.after_idle(read_out)
@@ -1471,7 +1534,7 @@ class PlanningMixin:
                 # Past the end of the bundled ephemeris kernels
                 status_var.set("")
                 return
-            moment = self.in_observer_clock(moment_utc)
+            # The moment's date and time are shown over the plot, by the pointer
             # A short note beside the Sun or the libration when it means the feature
             # cannot be seen: in lunar night or on the far side, where those curves
             # are below 0°. The Moon's altitude has none - its note flickered on and
@@ -1485,7 +1548,7 @@ class PlanningMixin:
             sun_width = len(f"{-90.0:+5.1f}° (lunar night)")
             libration_part = f"{libration:+5.1f}°{' (far side)' if libration < 0.0 else ''}"
             libration_width = len(f"{-90.0:+5.1f}° (far side)")
-            status_var.set(f"{moment:%Y-%m-%d %a %H:%M}                Sun over {feature.name} "
+            status_var.set(f"Sun over {feature.name} "
                            f"{sun_part:<{sun_width}}  libration {libration_part:<{libration_width}}"
                            f"  Moon alt {moon:+5.1f}°")
 
@@ -1495,6 +1558,12 @@ class PlanningMixin:
             # does not put the line back once the pointer has gone
             pointer["x"] = None
             status_var.set("")
+            if state["hover_line"] is not None:
+                canvas.delete(state["hover_line"])
+                state["hover_line"] = None
+            if state["hover_time"] is not None:
+                canvas.delete(state["hover_time"])
+                state["hover_time"] = None
 
         canvas.bind('<Leave>', leave)
 
