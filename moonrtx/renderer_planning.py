@@ -105,7 +105,7 @@ class PlanningMixin:
     _planner_dark_only = False
     # The feature graph's choices, kept the same way: what a click does to the
     # view, whether the feature's name is shown, and the span of the time axis
-    _graph_view = "standard"
+    _graph_view = "keep"
     _graph_show_name = False
     _graph_span = PLANNER_SCAN_DAYS
     # The arrow keys' step in the graph, in minutes; None until first set, when
