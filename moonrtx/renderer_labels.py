@@ -25,6 +25,13 @@ class LabelsMixin:
     GRID_LABEL_RADIUS = 0.012   # Slightly thicker lines for grid labels
     STANDARD_LABEL_RADIUS = 0.008  # Standard feature label thickness
     SPOT_LABEL_RADIUS = 0.008   # Spot feature label thickness
+    # How far the Sun may be under a feature's horizon and its name still shown.
+    # The terminator is not where light stops: past it the high ground still
+    # catches the Sun, a peak of height h staying lit until the Sun is about
+    # sqrt(2h/R) under the horizon - some 4 degrees for the Moon's 5 km peaks,
+    # a few tens of kilometres per degree beyond the line. A name is worth
+    # having as long as its feature may still show.
+    LABEL_NIGHT_MARGIN_DEG = 2.0
 
     # Lettering on the surface is written in scene units, so magnifying the
     # surface magnifies it with everything else: at the far end of the zoom a
@@ -209,8 +216,9 @@ class LabelsMixin:
 
     def _lit_mask(self, units: np.ndarray) -> np.ndarray:
         """
-        Boolean mask of features on the illuminated hemisphere, given the cached
-        light position and current Moon rotation (vectorized over all features).
+        Boolean mask of features on the illuminated hemisphere, or no further
+        past the terminator than LABEL_NIGHT_MARGIN_DEG, given the cached light
+        position and current Moon rotation (vectorized over all features).
         """
         if self.light_pos is None or self.moon_rotation is None:
             # If we don't have light or rotation info, assume visible to avoid hiding labels
@@ -219,8 +227,11 @@ class LabelsMixin:
         light_norm = np.linalg.norm(light)
         if light_norm == 0:
             return np.ones(units.shape[0], dtype=bool)
-        # dot > 0 => angle < 90° between surface normal and light direction => illuminated
-        return units @ (self.moon_rotation.T @ (light / light_norm)) > 0.0
+        # The dot product is the sine of the Sun's altitude over the feature's
+        # centre: above 0 it is on the lit hemisphere, and down to the sine of
+        # minus the margin it is close enough past the terminator to keep its name
+        return (units @ (self.moon_rotation.T @ (light / light_norm))
+                > -np.sin(np.radians(self.LABEL_NIGHT_MARGIN_DEG)))
 
     def _label_radii(self, units: np.ndarray, counts: np.ndarray, radius: float) -> np.ndarray:
         """Per-vertex radii hiding labels of features on the night side."""
