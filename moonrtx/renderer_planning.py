@@ -1374,15 +1374,6 @@ class PlanningMixin:
 
             curve(series["sun_alt"], colours["sun_alt"])
             curve(series["earth_alt"], colours["earth_alt"])
-            # A far-side feature's libration curve is below the floor from end
-            # to end, and so not drawn at all - said here, or its absence would
-            # look like a fault
-            if (series["earth_alt"] < self.GRAPH_ALT_MIN).all():
-                canvas.create_text(
-                    plot_x0 + pad, plot_y1 - pad, anchor='sw', font=font,
-                    fill=colours["earth_alt"],
-                    text=f"Libration stays below {self.GRAPH_ALT_MIN}° throughout: this feature "
-                         "is on the far side and never turns toward Earth")
 
             # Everything was deleted above, both lines and the pointer's time with them
             state["now_line"] = None
@@ -1548,9 +1539,9 @@ class PlanningMixin:
             sun_width = len(f"{-90.0:+5.1f}° (lunar night)")
             libration_part = f"{libration:+5.1f}°{' (far side)' if libration < 0.0 else ''}"
             libration_width = len(f"{-90.0:+5.1f}° (far side)")
-            status_var.set(f"Sun over {feature.name} "
-                           f"{sun_part:<{sun_width}}  libration {libration_part:<{libration_width}}"
-                           f"  Moon alt {moon:+5.1f}°")
+            status_var.set(f"Sun over {feature.name}: "
+                           f"{sun_part:<{sun_width}}          Libration: {libration_part:<{libration_width}}"
+                           f"          Moon alt: {moon:+5.1f}°")
 
         canvas.bind('<Motion>', hover)
         def leave(event):

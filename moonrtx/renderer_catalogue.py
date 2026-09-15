@@ -255,11 +255,11 @@ class CatalogueMixin:
         self._refresh_catalogue()
 
     def _hide_catalogue(self):
-        """Take the names off, whether or not any were ever drawn."""
-        try:
+        """Take the names off, if any were ever drawn."""
+        # update_graph on a graph never made logs an error rather than raising,
+        # so ask PlotOptiX whether it exists first
+        if self.CATALOGUE_GEOM in self.rt.geometry_data:
             self.rt.update_graph(self.CATALOGUE_GEOM, r=0.0)
-        except Exception:                   # never drawn yet, so nothing to hide
-            pass
 
     def toggle_catalogue(self):
         """Toggle the names of everything else in view."""
