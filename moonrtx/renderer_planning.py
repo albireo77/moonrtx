@@ -107,6 +107,12 @@ class PlanningMixin:
     # view, whether the feature's name is shown, and the span of the time axis
     _graph_view = "keep"
     _graph_show_name = True
+    # Whether the Moon's altitude is drawn, as chosen at a span short enough to
+    # draw it at: the box is cleared at the longer spans, and this is what it
+    # goes back to when the span comes down again. Off to begin with - the graph
+    # is opened for the Sun and the libration, and the ribbon already says when
+    # the Moon is up
+    _graph_show_moon_alt = False
     _graph_span = PLANNER_SCAN_DAYS
     # The arrow keys' step in the graph, in minutes; None until first set, when
     # it starts from the renderer's own Q/W step, which it then leaves alone
@@ -122,6 +128,11 @@ class PlanningMixin:
     # shorter the span the finer the sampling (GRAPH_STEP_MINUTES scaled with
     # it), so a curve stretched across a zoomed plot stays smooth
     GRAPH_SPANS = (GRAPH_DAYS, 15, 5)
+    # The longest span the Moon's altitude in the observer's sky is drawn as a
+    # curve at. It swings through a full cycle about once a day: at 15 days a
+    # day still has a hundred pixels or so of plot, enough for each arc to read
+    # as how high the Moon gets, where over 60 it would draw as a scribble
+    GRAPH_MOON_CURVE_MAX_DAYS = 15
     # Share of the screen's width the plot fills. Libration cycles once a
     # lunation, so a click that lands even a few days off its intended date
     # can recentre on a very differently-presented feature; the wider the
@@ -137,6 +148,9 @@ class PlanningMixin:
     GRAPH_COLOURS = {
         "sun_alt": "#e8a33d",     # Sun altitude over the feature
         "earth_alt": "#1c6fb0",   # libration figure of merit (Earth altitude)
+        # The Moon's altitude in the observer's sky, at the shorter spans. Not
+        # the ribbon's yellow, which beside the Sun curve's orange reads as the same
+        "moon_alt": "#8e44ad",
         "zero": "#8a8a8a",        # the feature's own horizon / limb
         "threshold": "#c0602a",   # the terminator planner's Sun altitude cap
         "grid": "#d0d0d0",
@@ -1126,11 +1140,14 @@ class PlanningMixin:
         reduces them to - so a trend (a shallowing terminator pass, a
         libration peak drifting later each month) shows at a glance.
 
-        Local visibility is drawn as a Sky/Moon ribbon rather than a third
-        curve: it swings through a full cycle about once a day, which over a
-        span of weeks would draw as a scribble rather than a trend - see
-        astro.sample_feature_series. Clicking the plot jumps the view to that
-        moment, as the other planning dialogs do.
+        Local visibility is drawn as a Sky/Moon ribbon: the Moon's altitude
+        swings through a full cycle about once a day, which over a span of
+        weeks would draw as a scribble rather than a trend - see
+        astro.sample_feature_series. At spans up to GRAPH_MOON_CURVE_MAX_DAYS
+        the arcs are wide enough to read, and it is drawn as a third curve as
+        well while its box is ticked; over that span the box is cleared and
+        greyed out. Clicking the plot jumps the view to that moment, as the
+        other planning dialogs do.
         """
         if self.rt is None or feature is None:
             return
@@ -1217,6 +1234,30 @@ class PlanningMixin:
         # Left ticked last time, so named from the start this time
         if label_var.get():
             self.pin_catalogue_feature(feature)
+        # The Moon's altitude in the observer's sky, drawn as a curve while this
+        # is ticked. Over GRAPH_MOON_CURVE_MAX_DAYS it is cleared and greyed
+        # out, a day of plot being too narrow there for the daily arc to read as
+        # anything but a scribble; what was chosen at the shorter spans is kept
+        # and put back when the span comes down again
+        moon_alt_var = tk.BooleanVar(value=self._graph_show_moon_alt)
+
+        def toggle_moon_alt():
+            self._graph_show_moon_alt = moon_alt_var.get()
+            redraw()
+
+        moon_alt_box = ttk.Checkbutton(title_row, text="Show Moon altitude",
+                                       variable=moon_alt_var, command=toggle_moon_alt)
+        moon_alt_box.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
+
+        def moon_alt_shown() -> bool:
+            """Whether the curve is drawn at the span on show, with the box put to match."""
+            if state["days"] > self.GRAPH_MOON_CURVE_MAX_DAYS:
+                moon_alt_var.set(False)
+                moon_alt_box.configure(state=tk.DISABLED)
+                return False
+            moon_alt_box.configure(state=tk.NORMAL)
+            moon_alt_var.set(self._graph_show_moon_alt)
+            return self._graph_show_moon_alt
 
         # The readout of the moment under the pointer, packed before the canvas so
         # it stands over the graph, just above the time shown over the +90° line
@@ -1281,6 +1322,8 @@ class PlanningMixin:
 
         def redraw():
             canvas.delete('all')
+            moon_curve = moon_alt_shown()
+            show_moon_legend(moon_curve)
             win.title(f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  "
                       f"Sun altitude and libration over {state['days']} days")
             try:
@@ -1372,6 +1415,10 @@ class PlanningMixin:
                                anchor='e', font=font)
             canvas.create_rectangle(plot_x0, plot_y0, plot_x1, moon_y1, outline=colours["grid"])
 
+            # The Moon's first, so its daily arcs pass under the two slow curves
+            # rather than breaking them up
+            if moon_curve:
+                curve(series["moon_alt"], colours["moon_alt"])
             curve(series["sun_alt"], colours["sun_alt"])
             curve(series["earth_alt"], colours["earth_alt"])
 
@@ -1666,6 +1713,7 @@ class PlanningMixin:
             f"the feature turned toward Earth, the Sun at least {self.PLANNER_LIBRATION_SUN_ALT_MIN:.0f}° "
             f"over it and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up.\n"
             f"Only its {self.PLANNER_MAX_RESULTS} best, as in the list.{dark_hint}")
+        box_entries = {}
         for text, colour, hint in (("Moon up", colours["moon"], None),
                                    ("Terminator window", colours["terminator_window"],
                                     terminator_window_hint),
@@ -1677,9 +1725,35 @@ class PlanningMixin:
             swatch.pack_propagate(False)
             label = tk.Label(legend, text=text, font=font)
             label.pack(side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
+            box_entries[text] = (swatch, label)
             if hint:
                 ToolTip(swatch, hint)
                 ToolTip(label, hint)
+        # The Moon curve's entry takes the place of "Moon up" at the spans the
+        # curve is drawn at, rather than being added beside it: the row has no
+        # room for one more, and the ribbon keeps its "Moon" by the plot
+        moon_alt_hint = (
+            "The Moon's altitude in your sky. Drawn at spans of\n"
+            f"{self.GRAPH_MOON_CURVE_MAX_DAYS} days or less, where each day's arc is wide enough to\n"
+            "read; over longer spans only the Moon ribbon shows when it is up.\n"
+            f"The observation planner's windows need it at least {self.PLANNER_MOON_ALT_MIN:.0f}° up.")
+        moon_alt_swatch = tk.Frame(legend, bg=colours["moon_alt"], width=2 * cell_w,
+                                   height=line_w + 2, highlightthickness=0)
+        moon_alt_swatch.pack_propagate(False)
+        moon_alt_label = tk.Label(legend, text="Moon altitude", font=font)
+        ToolTip(moon_alt_swatch, moon_alt_hint)
+        ToolTip(moon_alt_label, moon_alt_hint)
+        moon_up_entry = box_entries["Moon up"]
+        next_swatch = box_entries["Terminator window"][0]
+
+        def show_moon_legend(curve_drawn: bool):
+            shown, hidden = (((moon_alt_swatch, moon_alt_label), moon_up_entry) if curve_drawn
+                             else (moon_up_entry, (moon_alt_swatch, moon_alt_label)))
+            for widget in hidden:
+                widget.pack_forget()
+            shown[0].pack(side=tk.LEFT, before=next_swatch)
+            shown[1].pack(side=tk.LEFT, before=next_swatch,
+                          padx=(max(1, cell_w // 2), cell_w + pad))
         tk.Label(legend, text="Click the graph to go to that moment, or step with ← →", font=font,
                  fg='#606060').pack(side=tk.LEFT)
 
