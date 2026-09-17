@@ -1538,10 +1538,11 @@ class PlanningMixin:
 
         def read_out():
             """
-            Read out the moment under the pointer - its date, the Sun over the
-            feature, the libration and the Moon's altitude in the observer's sky
-            - so a click can be aimed rather than guessed from the curves, with
-            a short note by a value when it means the feature cannot be seen.
+            Read out the moment under the pointer - whether the feature can be
+            seen then at all, and the three figures that answer it: the Sun over
+            the feature, the libration and the Moon's altitude in the observer's
+            sky - so a click can be aimed rather than guessed from the curves,
+            with a short note by a value when it is the one standing in the way.
             Off the plot the line is cleared.
             """
             pointer["pending"] = False
@@ -1573,9 +1574,26 @@ class PlanningMixin:
             sun_width = len(f"{-90.0:+5.1f}° (lunar night)")
             libration_part = f"{libration:+5.1f}°{' (far side)' if libration < 0.0 else ''}"
             libration_width = len(f"{-90.0:+5.1f}° (far side)")
+            # The three answers in one word, at the end of the line behind the
+            # figures that decide it: the feature is seen when the Sun is up over
+            # it, when the libration has it turned toward Earth, and when the
+            # Moon itself is above the observer's horizon. A daylit sky is not
+            # counted against it - the Moon is watched by day as well, with the
+            # fainter detail washed out.
+            # Right-aligned in the room "not visible" takes, so that "visible"
+            # itself stands in the same place whether or not the "not" is there,
+            # and the figures behind it stand still too
+            seen = "visible" if sun > 0.0 and libration > 0.0 and moon > 0.0 else "not visible"
+            # The Moon's figure carries no note of its own, so on its own it
+            # would leave the verdict a bare separator away while the figures
+            # before it stand a note's width apart. It is padded to the room the
+            # libration's takes, so the gap before the verdict reads as the gaps
+            # between the figures do
+            moon_part = f"{moon:+5.1f}°"
             status_var.set(f"Sun over {feature.name}: "
                            f"{sun_part:<{sun_width}}          Libration: {libration_part:<{libration_width}}"
-                           f"          Moon alt: {moon:+5.1f}°")
+                           f"          Moon alt: {moon_part:<{libration_width}}"
+                           f"          {feature.name} is {seen:>{len('not visible')}}")
 
         canvas.bind('<Motion>', hover)
         def leave(event):
