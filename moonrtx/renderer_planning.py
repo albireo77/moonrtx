@@ -1416,6 +1416,8 @@ class PlanningMixin:
             # leaving them gone until it next moves
             if pointer["x"] is not None:
                 place_hover(pointer["x"], pointer["y"])
+            else:
+                show_now_readout()
 
         def place_now_line():
             """
@@ -1474,6 +1476,29 @@ class PlanningMixin:
 
         pointer = {"x": None, "y": None, "pending": False}
 
+        def place_time(x, moment_local):
+            """
+            The time over the +90° line, centred on x but kept clear of the
+            "+90°" label on the left and of the canvas edge on the right.
+
+            It stands over whichever line the readout is speaking for: the grey
+            one under the pointer, or the red one when the pointer is away.
+            """
+            text = f"{moment_local:%d %b %a %H:%M}"
+            half = metrics.measure(text) / 2
+            cx = max(plot_x0 + half, min(width - half, x))
+            if state["hover_time"] is None:
+                state["hover_time"] = canvas.create_text(
+                    cx, plot_y0 - 1, anchor='s', font=font, fill=colours["readout"], text=text)
+            else:
+                canvas.coords(state["hover_time"], cx, plot_y0 - 1)
+                canvas.itemconfigure(state["hover_time"], text=text)
+
+        def clear_time():
+            if state["hover_time"] is not None:
+                canvas.delete(state["hover_time"])
+                state["hover_time"] = None
+
         def place_hover(x, y):
             """
             Draw the grey line through the pointer and the time over the +90°
@@ -1496,28 +1521,16 @@ class PlanningMixin:
                 if state["now_line"] is not None:
                     canvas.tag_raise(state["now_line"])
                 # The time at the pointer, over the +90° line on top of the grey
-                # line, in the readout's colour. Only the pointer's place is needed for it,
-                # so it moves with the line rather than waiting for the readout.
-                # Centred on the line, but kept clear of the "+90°" label on the
-                # left and of the canvas edge on the right
-                moment = self.in_observer_clock(
-                    state["dts"][0] + timedelta(days=(x - plot_x0) / state["day_w"]))
-                text = f"{moment:%d %b %a %H:%M}"
-                half = metrics.measure(text) / 2
-                cx = max(plot_x0 + half, min(width - half, x))
-                if state["hover_time"] is None:
-                    state["hover_time"] = canvas.create_text(
-                        cx, plot_y0 - 1, anchor='s', font=font, fill=colours["readout"], text=text)
-                else:
-                    canvas.coords(state["hover_time"], cx, plot_y0 - 1)
-                    canvas.itemconfigure(state["hover_time"], text=text)
+                # line. Only the pointer's place is needed for it, so it moves
+                # with the line rather than waiting for the readout
+                place_time(x, self.in_observer_clock(
+                    state["dts"][0] + timedelta(days=(x - plot_x0) / state["day_w"])))
             else:
+                # Only the grey line goes. The time and the line of figures are
+                # left to read_out, which falls back to the red line's moment
                 if state["hover_line"] is not None:
                     canvas.delete(state["hover_line"])
                     state["hover_line"] = None
-                if state["hover_time"] is not None:
-                    canvas.delete(state["hover_time"])
-                    state["hover_time"] = None
 
         def hover(event):
             """
@@ -1536,30 +1549,20 @@ class PlanningMixin:
                 pointer["pending"] = True
                 canvas.after_idle(read_out)
 
-        def read_out():
+        def status_for(moment_utc) -> str:
             """
-            Read out the moment under the pointer - whether the feature can be
-            seen then at all, and the three figures that answer it: the Sun over
-            the feature, the libration and the Moon's altitude in the observer's
-            sky - so a click can be aimed rather than guessed from the curves,
-            with a short note by a value when it is the one standing in the way.
-            Off the plot the line is cleared.
+            The line for a moment - whether the feature can be seen then at all,
+            and the three figures that answer it: the Sun over the feature, the
+            libration and the Moon's altitude in the observer's sky - so a click
+            can be aimed rather than guessed from the curves, with a short note
+            by a value when it is the one standing in the way.
+
+            Empty past the end of the bundled ephemeris kernels.
             """
-            pointer["pending"] = False
-            if not canvas.winfo_exists():
-                return
-            x, y = pointer["x"], pointer["y"]
-            if x is None or not state["dts"] or not (plot_x0 <= x <= plot_x1) \
-                    or not (plot_y0 <= y <= moon_y1):
-                status_var.set("")
-                return
-            moment_utc = state["dts"][0] + timedelta(days=(x - plot_x0) / state["day_w"])
             try:
                 at = astro.sample_feature_series(moment_utc, 0, feature.lat, feature.lon)
             except ValueError:
-                # Past the end of the bundled ephemeris kernels
-                status_var.set("")
-                return
+                return ""
             # The moment's date and time are shown over the plot, by the pointer
             # A short note beside the Sun or the libration when it means the feature
             # cannot be seen: in lunar night or on the far side, where those curves
@@ -1590,23 +1593,55 @@ class PlanningMixin:
             # libration's takes, so the gap before the verdict reads as the gaps
             # between the figures do
             moon_part = f"{moon:+5.1f}°"
-            status_var.set(f"Sun over {feature.name}: "
-                           f"{sun_part:<{sun_width}}          Libration: {libration_part:<{libration_width}}"
-                           f"          Moon alt: {moon_part:<{libration_width}}"
-                           f"          {feature.name} is {seen:>{len('not visible')}}")
+            return (f"Sun over {feature.name}: "
+                    f"{sun_part:<{sun_width}}          Libration: {libration_part:<{libration_width}}"
+                    f"          Moon alt: {moon_part:<{libration_width}}"
+                    f"          {feature.name} is {seen:>{len('not visible')}}")
+
+        def show_now_readout():
+            """
+            Put the time over the plot and the figures in the line for the red
+            line - the moment the renderer is showing - which is what they stand
+            for whenever the pointer is away from the plot: as the window opens,
+            after a step of the clock, and once the pointer has left. Both are
+            cleared when that moment is outside the span on show, there being no
+            red line then to speak for.
+            """
+            now_utc = self.dt_local.astimezone(timezone.utc)
+            if not state["dts"] or not (state["dts"][0] <= now_utc <= state["dts"][-1]):
+                clear_time()
+                status_var.set("")
+                return
+            place_time(x_of(now_utc), self.in_observer_clock(now_utc))
+            status_var.set(status_for(now_utc))
+
+        def read_out():
+            """
+            Fill the line for the moment under the pointer, or for the red line
+            when the pointer is off the plot. Called when Tk is idle - see hover.
+            """
+            pointer["pending"] = False
+            if not canvas.winfo_exists():
+                return
+            x, y = pointer["x"], pointer["y"]
+            if x is None or not state["dts"] or not (plot_x0 <= x <= plot_x1) \
+                    or not (plot_y0 <= y <= moon_y1):
+                show_now_readout()
+                return
+            status_var.set(status_for(
+                state["dts"][0] + timedelta(days=(x - plot_x0) / state["day_w"])))
 
         canvas.bind('<Motion>', hover)
+
         def leave(event):
-            # Forget the pointer too, so a readout still waiting for idle
-            # does not put the line back once the pointer has gone
+            # Forget the pointer, so a readout still waiting for idle does not
+            # put the grey line back once the pointer has gone; the time and the
+            # figures stay up, now speaking for the red line
             pointer["x"] = None
-            status_var.set("")
             if state["hover_line"] is not None:
                 canvas.delete(state["hover_line"])
                 state["hover_line"] = None
-            if state["hover_time"] is not None:
-                canvas.delete(state["hover_time"])
-                state["hover_time"] = None
+            show_now_readout()
 
         canvas.bind('<Leave>', leave)
 
@@ -1639,6 +1674,10 @@ class PlanningMixin:
                 redraw()
             else:
                 place_now_line()
+                # The time and the figures follow the red line while the pointer
+                # is away; under the pointer they stand for where it is
+                if pointer["x"] is None:
+                    show_now_readout()
             apply_view()
             # The renderer's own arrow keys move the view; not these
             return "break"
