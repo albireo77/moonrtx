@@ -599,51 +599,22 @@ class MainWindow(tk.Tk):
             # Apply settings to UI
             self.coord_mode.set(settings.get("coord_mode", "decimal"))
 
-            # Decimal latitude: detect sign, set direction, store absolute value
-            lat_dec_str = settings.get("lat_decimal", "")
-            try:
-                lat_val = float(lat_dec_str) if lat_dec_str else None
-            except ValueError:
-                lat_val = None
-            if lat_val is not None and lat_val < 0:
-                self.lat_dir_var.set("S")
-                lat_dec_str = str(abs(lat_val))
-            else:
-                self.lat_dir_var.set(settings.get("lat_dir", "N"))
-
+            # The hemisphere is the N/S and E/W box's to say, and it was saved
+            # with the rest: the boxes are filled with what is in the preset and
+            # nothing is read back out of the sign of a coordinate
+            self.lat_dir_var.set(settings.get("lat_dir", "N"))
             self.lat_decimal.delete(0, tk.END)
-            self.lat_decimal.insert(0, lat_dec_str)
+            self.lat_decimal.insert(0, settings.get("lat_decimal", ""))
 
-            # Decimal longitude: detect sign, set direction, store absolute value
-            lon_dec_str = settings.get("lon_decimal", "")
-            try:
-                lon_val = float(lon_dec_str) if lon_dec_str else None
-            except ValueError:
-                lon_val = None
-            if lon_val is not None and lon_val < 0:
-                self.lon_dir_var.set("W")
-                lon_dec_str = str(abs(lon_val))
-            else:
-                self.lon_dir_var.set(settings.get("lon_dir", "E"))
-
+            self.lon_dir_var.set(settings.get("lon_dir", "E"))
             self.lon_decimal.delete(0, tk.END)
-            self.lon_decimal.insert(0, lon_dec_str)
+            self.lon_decimal.insert(0, settings.get("lon_decimal", ""))
 
             self.elevation_entry.delete(0, tk.END)
             self.elevation_entry.insert(0, settings.get("elevation", settings.get("altitude", "0")))
 
-            # Sexagesimal latitude: detect negative degrees, set direction, store absolute
-            lat_deg_str = settings.get("lat_deg", "")
-            try:
-                lat_deg_val = int(lat_deg_str) if lat_deg_str else None
-            except ValueError:
-                lat_deg_val = None
-            if lat_deg_val is not None and lat_deg_val < 0:
-                self.lat_dir_var.set("S")
-                lat_deg_str = str(abs(lat_deg_val))
-
             self.lat_deg.delete(0, tk.END)
-            self.lat_deg.insert(0, lat_deg_str)
+            self.lat_deg.insert(0, settings.get("lat_deg", ""))
 
             self.lat_min.delete(0, tk.END)
             self.lat_min.insert(0, settings.get("lat_min", ""))
@@ -651,18 +622,8 @@ class MainWindow(tk.Tk):
             self.lat_sec.delete(0, tk.END)
             self.lat_sec.insert(0, settings.get("lat_sec", ""))
 
-            # Sexagesimal longitude: detect negative degrees, set direction, store absolute
-            lon_deg_str = settings.get("lon_deg", "")
-            try:
-                lon_deg_val = int(lon_deg_str) if lon_deg_str else None
-            except ValueError:
-                lon_deg_val = None
-            if lon_deg_val is not None and lon_deg_val < 0:
-                self.lon_dir_var.set("W")
-                lon_deg_str = str(abs(lon_deg_val))
-
             self.lon_deg.delete(0, tk.END)
-            self.lon_deg.insert(0, lon_deg_str)
+            self.lon_deg.insert(0, settings.get("lon_deg", ""))
 
             self.lon_min.delete(0, tk.END)
             self.lon_min.insert(0, settings.get("lon_min", ""))
@@ -837,9 +798,7 @@ class MainWindow(tk.Tk):
                     messagebox.showerror("Error", f"Invalid {name} seconds. Must be between 0 and 60.")
                     return None
                 
-                sign = -1 if deg < 0 else 1
-                result = sign * (abs(deg) + minutes / 60.0 + seconds / 3600.0)
-                return round(result, 4)
+                return round(deg + minutes / 60.0 + seconds / 3600.0, 4)
 
             if self.coord_mode.get() == 'decimal':
                 lat_str = self.lat_decimal.get().strip()
