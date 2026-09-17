@@ -381,6 +381,7 @@ class MainWindow(tk.Tk):
         def update_coord_mode(*args):
             mode = self.coord_mode.get()
             if mode == 'sexagesimal':
+                self._carry_to_sexagesimal()
                 # hide decimal frames
                 self.lat_decimal_frame.grid_remove()
                 self.lon_decimal_frame.grid_remove()
@@ -388,6 +389,7 @@ class MainWindow(tk.Tk):
                 self.lat_sexa_frame.grid(row=0, column=1, sticky=tk.EW, pady=2)
                 self.lon_sexa_frame.grid(row=1, column=1, sticky=tk.EW, pady=2)
             else:
+                self._carry_to_decimal()
                 # hide sexagesimal frames
                 self.lat_sexa_frame.grid_remove()
                 self.lon_sexa_frame.grid_remove()
@@ -437,6 +439,64 @@ class MainWindow(tk.Tk):
             return bool(int(widget.tk.eval(f"winfo ismapped {popdown}")))
         except tk.TclError:         # no popdown built yet, so nothing is open
             return False
+
+    # The two coordinate formats hold the same angle, so switching between them
+    # carries it over rather than leaving the other pair of boxes as they were
+    # last left - which was blank, on a form that had only ever been typed into
+    # in one format. Only the size of the angle is carried: the hemisphere is
+    # the N/S and E/W box's to say, and that box is shared by both formats.
+    @staticmethod
+    def _sexa_parts(value: float) -> tuple:
+        """A decimal angle as whole degrees, whole minutes and seconds."""
+        total_seconds = round(abs(value) * 3600.0, 3)
+        degrees, rest = divmod(total_seconds, 3600.0)
+        minutes, seconds = divmod(rest, 60.0)
+        # Rounding can carry the seconds up to a whole minute, and with it the
+        # minutes up to a whole degree
+        if round(seconds, 3) >= 60.0:
+            seconds, minutes = 0.0, minutes + 1
+        if minutes >= 60.0:
+            minutes, degrees = 0.0, degrees + 1
+        return int(degrees), int(minutes), round(seconds, 3)
+
+    @staticmethod
+    def _trimmed(value: float) -> str:
+        """A number without its trailing zeros, so 51.6 does not read 51.600000."""
+        return f"{value:.6f}".rstrip("0").rstrip(".") or "0"
+
+    def _coord_boxes(self) -> tuple:
+        """Each coordinate as its decimal box and its three sexagesimal ones."""
+        return ((self.lat_decimal, self.lat_deg, self.lat_min, self.lat_sec),
+                (self.lon_decimal, self.lon_deg, self.lon_min, self.lon_sec))
+
+    @staticmethod
+    def _refill(box, text: str):
+        box.delete(0, tk.END)
+        box.insert(0, text)
+
+    def _carry_to_sexagesimal(self):
+        """Fill the degree, minute and second boxes from the decimal ones."""
+        for decimal_box, deg_box, min_box, sec_box in self._coord_boxes():
+            try:
+                value = float(decimal_box.get().strip())
+            except ValueError:      # nothing to carry; the boxes are left alone
+                continue
+            degrees, minutes, seconds = self._sexa_parts(value)
+            self._refill(deg_box, str(degrees))
+            self._refill(min_box, str(minutes))
+            self._refill(sec_box, self._trimmed(seconds))
+
+    def _carry_to_decimal(self):
+        """Fill the decimal boxes from the degree, minute and second ones."""
+        for decimal_box, deg_box, min_box, sec_box in self._coord_boxes():
+            try:
+                degrees = abs(int(deg_box.get().strip()))
+                minutes = int(min_box.get().strip() or 0)
+                seconds = float(sec_box.get().strip() or 0)
+            except ValueError:      # nothing to carry; the box is left alone
+                continue
+            self._refill(decimal_box,
+                         self._trimmed(degrees + minutes / 60.0 + seconds / 3600.0))
 
     def _add_hints(self):
         """
@@ -639,7 +699,8 @@ class MainWindow(tk.Tk):
                 self.tz_combo.set(saved_timezone)
 
             self.elevation_file.delete(0, tk.END)
-            self.elevation_file.insert(0, settings.get("elevation_file", ""))
+            self.elevation_file.insert(0, settings.get(
+                "elevation_file", DEFAULT_ELEVATION_FILE_LOCAL_PATH))
 
             self.color_file.delete(0, tk.END)
             self.color_file.insert(0, settings.get("color_file", DEFAULT_COLOR_FILE_LOCAL_PATH))
