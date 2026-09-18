@@ -106,11 +106,59 @@ def parse_args():
                         help=f"View orientation for specific telescope type (e.g. {VIEW_ORIENTATION_SNEW} for refractor). Valid values: {', '.join(VIEW_ORIENTATIONS)}. ")
     return parser.parse_args()
 
+class _DownloadProgress:
+    """
+    Says how far a download has got, as urlretrieve's reporthook
+
+    On a console the figure is rewritten in place on one line. Into a file or a
+    pipe, where a carriage return would only leave junk, a line is written each
+    tenth of the way. When the server gives no length, the megabytes that have
+    come are said every hundred of them instead.
+    """
+
+    def __init__(self):
+        self.out = sys.stdout
+        self.in_place = self.out is not None and getattr(self.out, "isatty", lambda: False)()
+        self.shown = -1          # the last percentage, or hundred megabytes, written
+        self.started = False
+
+    def report(self, blocks: int, block_size: int, total: int):
+        if self.out is None:     # a frozen build with no console
+            return
+        done = blocks * block_size
+        if total > 0:
+            done = min(done, total)
+            mark = done * 100 // total
+            step = 1 if self.in_place else 10
+            text = f"{mark:3d}%  {done / 1024**2:,.0f} of {total / 1024**2:,.0f} MB"
+        else:
+            mark = done // (100 * 1024**2)
+            step = 1
+            text = f"{done / 1024**2:,.0f} MB"
+        if self.shown >= 0 and mark < self.shown + step:
+            return
+        self.shown = mark
+        self.started = True
+        if self.in_place:
+            print(f"\r  {text}", end="", flush=True)
+        else:
+            print(f"  {text}", flush=True)
+
+    def finish(self):
+        """End the line rewritten in place, so what is printed next starts afresh."""
+        if self.in_place and self.started:
+            print(flush=True)
+
+
 def _urlretrieve(url: str, dest: str):
     opener = urllib.request.build_opener()
     opener.addheaders = [('User-Agent', APP_NAME)]
     urllib.request.install_opener(opener)
-    urllib.request.urlretrieve(url, dest)
+    progress = _DownloadProgress()
+    try:
+        urllib.request.urlretrieve(url, dest, reporthook=progress.report)
+    finally:
+        progress.finish()
 
 def check_elevation_file(elevation_file: str, downscale: int) -> bool:
     if not os.path.isfile(elevation_file):
@@ -126,7 +174,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
             if free < DEFAULT_ELEVATION_FILE_SIZE_BYTES * 1.02:
                 print(f"Not enough disk space to download default elevation file ({DEFAULT_ELEVATION_FILE_SIZE_GB} GB required).")
                 return False
-            print(f"Downloading default elevation file (size {DEFAULT_ELEVATION_FILE_SIZE_GB} GB). It can take some time...")
+            print(f"Downloading default elevation file (size {DEFAULT_ELEVATION_FILE_SIZE_GB} GB)...")
             try:
                 os.makedirs(os.path.dirname(elevation_file), exist_ok=True)
                 _urlretrieve(DEFAULT_ELEVATION_FILE_REMOTE_PATH, elevation_file)
@@ -151,7 +199,7 @@ def get_starmap_file() -> Optional[str]:
         if free < STARMAP_FILE_SIZE_BYTES * 1.02:
             print(f"Not enough disk space to download starmap file ({STARMAP_FILE_SIZE_MB} MB required).")
             return None
-        print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB). It can take some time...")
+        print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB)...")
         try:
             os.makedirs(os.path.dirname(STARMAP_FILE_LOCAL_PATH), exist_ok=True)
             _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH)
@@ -173,7 +221,7 @@ def check_color_file(color_file: str, color_downscale: int) -> bool:
             if free < DEFAULT_COLOR_FILE_SIZE_BYTES * 1.02:
                 print(f"Not enough disk space to download color file ({DEFAULT_COLOR_FILE_SIZE_MB} MB required).")
                 return False
-            print(f"Downloading color file (size {DEFAULT_COLOR_FILE_SIZE_MB} MB). It can take some time...")
+            print(f"Downloading color file (size {DEFAULT_COLOR_FILE_SIZE_MB} MB)...")
             try:
                 os.makedirs(os.path.dirname(color_file), exist_ok=True)
                 download_file_from_google_drive("1gJeVic597BUAkpz1GgCYRMJVninKEDKB", color_file)
