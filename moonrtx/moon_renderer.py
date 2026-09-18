@@ -385,13 +385,16 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._info_ra_var = None
         self._info_dec_var = None
         self._info_phase_var = None
+        self._info_phase_name_var = None
         self._info_age_var = None
         self._info_elongation_var = None
         self._info_distance_var = None
         self._info_diameter_var = None
         self._info_illum_var = None
-        self._info_libr_l_var = None
-        self._info_libr_b_var = None
+        self._info_geo_libr_l_var = None
+        self._info_geo_libr_b_var = None
+        self._info_topo_libr_l_var = None
+        self._info_topo_libr_b_var = None
         self._info_colong_var = None
 
     # ---- brightness / time-step / auto-advance ----
