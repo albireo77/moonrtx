@@ -734,7 +734,6 @@ class DialogsMixin:
         matching_features = []
         
         def update_results(*args):
-            nonlocal matching_features
             query = search_var.get().lower().strip()
             listbox.delete(0, tk.END)
             matching_features.clear()

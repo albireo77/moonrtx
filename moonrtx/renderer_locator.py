@@ -107,11 +107,10 @@ class LocatorMixin:
     # is what the letter is for. Past this the pole is well gone and so is it.
     LOCATOR_POLE_BEHIND = 12.0              # degrees
     # The equator stands at right angles to the Moon's axis, and the prime
-    # meridian to the point a quarter turn east of where they cross - which is
-    # the third of these, the origin of the graticule
+    # meridian to the point a quarter turn east of where the two cross - the
+    # origin of the graticule, which falls at (0, -1, 0)
     LOCATOR_AXIS = (0.0, 0.0, 1.0)
     LOCATOR_EAST = (1.0, 0.0, 0.0)
-    LOCATOR_ORIGIN = (0.0, -1.0, 0.0)
     # The 0 is written clear of the crossing rather than on it - a little north
     # of the equator and a little east of the prime meridian - so that neither
     # line runs through the glyph. Given as an angle over the ground and not as
