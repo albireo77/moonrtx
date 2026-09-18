@@ -150,6 +150,33 @@ class _DownloadProgress:
             print(flush=True)
 
 
+def _download_whole(dest: str, fetch):
+    """
+    Have fetch(path) write the file under a ".part" name beside dest, and move it
+    to dest only once it has finished.
+
+    Written straight to dest, a download stopped part way - Ctrl+C, a dropped
+    connection - left a truncated file where the whole one belongs, and every
+    later run found it there, took it as complete, and failed loading it with
+    nothing to say why. Now dest only ever exists whole. A failure removes the
+    part-file and is passed on; one the process does not live through leaves it
+    behind, but under a name nothing reads, and the next download writes over it.
+
+    os.replace moves it in one step, the two names being in the same folder and
+    so on the same drive.
+    """
+    part = dest + ".part"
+    try:
+        fetch(part)
+        os.replace(part, dest)
+    except BaseException:           # KeyboardInterrupt too, which is no Exception
+        try:
+            os.remove(part)
+        except OSError:
+            pass
+        raise
+
+
 def _urlretrieve(url: str, dest: str, on_progress=None):
     """
     Download url to dest, saying on the console how far it has got, and handing
@@ -169,7 +196,7 @@ def _urlretrieve(url: str, dest: str, on_progress=None):
             on_progress(min(done, total) if total > 0 else done, total)
 
     try:
-        urllib.request.urlretrieve(url, dest, reporthook=report)
+        _download_whole(dest, lambda part: urllib.request.urlretrieve(url, part, reporthook=report))
     finally:
         progress.finish()
 
@@ -237,7 +264,8 @@ def check_color_file(color_file: str, color_downscale: int) -> bool:
             print(f"Downloading color file (size {DEFAULT_COLOR_FILE_SIZE_MB} MB)...")
             try:
                 os.makedirs(os.path.dirname(color_file), exist_ok=True)
-                download_file_from_google_drive("1gJeVic597BUAkpz1GgCYRMJVninKEDKB", color_file)
+                _download_whole(color_file, lambda part: download_file_from_google_drive(
+                    "1gJeVic597BUAkpz1GgCYRMJVninKEDKB", part))
             except Exception as e:
                 print(f"Error downloading color file: {e}")
                 return False
