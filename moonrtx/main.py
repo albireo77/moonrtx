@@ -150,17 +150,30 @@ class _DownloadProgress:
             print(flush=True)
 
 
-def _urlretrieve(url: str, dest: str):
+def _urlretrieve(url: str, dest: str, on_progress=None):
+    """
+    Download url to dest, saying on the console how far it has got, and handing
+    the same to on_progress(done_bytes, total_bytes) if one is given - total
+    being 0 or less when the server gives no length. The launcher passes one, so
+    its window can say it too; it may be called on a thread other than Tk's.
+    """
     opener = urllib.request.build_opener()
     opener.addheaders = [('User-Agent', APP_NAME)]
     urllib.request.install_opener(opener)
     progress = _DownloadProgress()
+
+    def report(blocks: int, block_size: int, total: int):
+        progress.report(blocks, block_size, total)
+        if on_progress is not None:
+            done = blocks * block_size
+            on_progress(min(done, total) if total > 0 else done, total)
+
     try:
-        urllib.request.urlretrieve(url, dest, reporthook=progress.report)
+        urllib.request.urlretrieve(url, dest, reporthook=report)
     finally:
         progress.finish()
 
-def check_elevation_file(elevation_file: str, downscale: int) -> bool:
+def check_elevation_file(elevation_file: str, downscale: int, on_progress=None) -> bool:
     if not os.path.isfile(elevation_file):
         # The downscaled cache holds everything the renderer reads, so the
         # source it was made from can be deleted to reclaim its gigabytes and
@@ -177,7 +190,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
             print(f"Downloading default elevation file (size {DEFAULT_ELEVATION_FILE_SIZE_GB} GB)...")
             try:
                 os.makedirs(os.path.dirname(elevation_file), exist_ok=True)
-                _urlretrieve(DEFAULT_ELEVATION_FILE_REMOTE_PATH, elevation_file)
+                _urlretrieve(DEFAULT_ELEVATION_FILE_REMOTE_PATH, elevation_file, on_progress)
             except Exception as e:
                 print(f"Error downloading default elevation file: {e}")
                 return False
@@ -186,7 +199,7 @@ def check_elevation_file(elevation_file: str, downscale: int) -> bool:
             return False
     return True
 
-def get_starmap_file() -> Optional[str]:
+def get_starmap_file(on_progress=None) -> Optional[str]:
     if not os.path.isfile(STARMAP_FILE_LOCAL_PATH):
         # As with the elevation and color maps, what the renderer reads is the
         # cache, so a source deleted to reclaim its megabytes stays deleted.
@@ -202,7 +215,7 @@ def get_starmap_file() -> Optional[str]:
         print(f"Downloading starmap file (size {STARMAP_FILE_SIZE_MB} MB)...")
         try:
             os.makedirs(os.path.dirname(STARMAP_FILE_LOCAL_PATH), exist_ok=True)
-            _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH)
+            _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH, on_progress)
         except Exception as e:
             print(f"Error downloading starmap file: {e}")
             return None

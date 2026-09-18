@@ -11,7 +11,7 @@ import json
 
 from tzlocal import get_localzone_name
 
-from moonrtx.display import ToolTip, make_dpi_aware
+from moonrtx.display import ToolTip, make_dpi_aware, starmap_target_width
 from moonrtx.shared_types import MAP_TOO_LARGE_EXIT_CODE, Observer
 from moonrtx.moon_renderer import run_renderer_process
 from moonrtx.view_orientation import (VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE,
@@ -954,38 +954,91 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error", "No compatible RTX GPU found.")
             return
 
+        # The maps are checked on a thread of their own. A missing default one is
+        # downloaded here - the elevation map alone is 7.9 GB - and done on this
+        # thread the window would stop repainting for as long as that took:
+        # "Not responding", the status stuck on its first words, no way to tell
+        # a download from a hang. The worker writes how far it has got into
+        # `job`, and poll, on this thread, reads it into the status line, so
+        # nothing on the worker touches Tk.
         elevation_file = self.elevation_file.get().strip()
-        self._set_status("Checking elevation file...")
-        self.update_idletasks()
-        if not check_elevation_file(elevation_file, downscale):
-            self._set_status("")
-            messagebox.showerror("Error", "Elevation file is not present or downloading default file failed.")
-            return
-
         color_file = self.color_file.get().strip()
-        self._set_status("Checking color file...")
-        self.update_idletasks()
-        if not check_color_file(color_file, color_downscale):
-            self._set_status("")
-            messagebox.showerror("Error", "Color file is not present or downloading default file failed.")
-            return
-        
-        if self.no_stars_var.get():
-            starmap_file = None
-        else:
-            self._set_status("Checking starmap file...")
-            self.update_idletasks()
-            starmap_file = get_starmap_file()
-        
+        no_stars = bool(self.no_stars_var.get())
         parallactic_mode = bool(self.parallactic_mode_var.get())
         fullscreen = bool(self.fullscreen_var.get())
-        
+        if not no_stars:
+            # The star map's cache is keyed by the screen's width, read through a
+            # hidden Tk window the first time it is asked for and kept after. It
+            # is asked for here, on the thread Tk belongs to, so the worker is
+            # only ever handed the kept answer
+            starmap_target_width()
+
+        # Held from here until the renderer ends, or something fails on the way
+        self.run_btn.config(state=tk.DISABLED)
+        job = {"status": "Checking elevation file...", "result": None}
+
+        def downloading(what: str):
+            def report(done: int, total: int):
+                if total > 0:
+                    job["status"] = (f"Downloading {what}: {done * 100 // total}%  "
+                                     f"({done / 1024**2:,.0f} of {total / 1024**2:,.0f} MB)")
+                else:
+                    job["status"] = f"Downloading {what}: {done / 1024**2:,.0f} MB"
+            return report
+
+        def check_maps():
+            try:
+                if not check_elevation_file(elevation_file, downscale,
+                                            on_progress=downloading("the elevation map")):
+                    job["result"] = ("error", "Elevation file is not present or downloading "
+                                              "default file failed.")
+                    return
+                # Fetched through PlotOptiX's own helper when missing, which says
+                # nothing of how far it has got; at 71 MB it is the shortest wait
+                job["status"] = "Checking color file..."
+                if not check_color_file(color_file, color_downscale):
+                    job["result"] = ("error", "Color file is not present or downloading "
+                                              "default file failed.")
+                    return
+                starmap_file = None
+                if not no_stars:
+                    job["status"] = "Checking starmap file..."
+                    starmap_file = get_starmap_file(on_progress=downloading("the star map"))
+                job["result"] = ("ok", starmap_file)
+            except Exception as e:
+                # Never leave the window waiting on a thread that has died
+                job["result"] = ("error", f"Checking the maps failed: {e}")
+
+        def poll():
+            self._set_status(job["status"])
+            if job["result"] is None:
+                self.after(200, poll)
+                return
+            outcome, value = job["result"]
+            if outcome == "error":
+                self._set_status("")
+                self.run_btn.config(state=tk.NORMAL)
+                messagebox.showerror("Error", value)
+            else:
+                start_renderer(value)
+
+        def start_renderer(starmap_file):
+            self._start_renderer_process(dt_local, lat, lon, elevation, elevation_file, color_file,
+                                         starmap_file, downscale, brightness, init_camera,
+                                         time_step_minutes, init_view_orientation, gamma,
+                                         parallactic_mode, color_downscale, fullscreen)
+
+        threading.Thread(target=check_maps, daemon=True).start()
+        poll()
+
+    def _start_renderer_process(self, dt_local, lat, lon, elevation, elevation_file, color_file,
+                                starmap_file, downscale, brightness, init_camera,
+                                time_step_minutes, init_view_orientation, gamma,
+                                parallactic_mode, color_downscale, fullscreen):
+        """Start the renderer in a process of its own, and watch for its end."""
         self._set_status("Starting renderer...")
         self.update_idletasks()
-        
-        # Disable the Run button while renderer is running
-        self.run_btn.config(state=tk.DISABLED)
-        
+
         p = Process(
             target=run_renderer_process,
             args=(
