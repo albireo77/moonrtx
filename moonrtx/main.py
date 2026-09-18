@@ -381,7 +381,6 @@ def main():
     initial_camera = None
     init_view_orientation = args.init_view_orientation.upper()
     parallactic_mode = args.parallactic_mode
-    starmap_file = None if args.no_stars else get_starmap_file()
     lat = args.lat
     lon = args.lon
 
@@ -461,6 +460,8 @@ def main():
 
     if not check_color_file(args.color_file, args.color_downscale):
         sys.exit(1)
+
+    starmap_file = None if args.no_stars else get_starmap_file()
 
     try:
         run_renderer(dt_local=dt_local,
