@@ -115,6 +115,11 @@ class PlanningMixin:
     # The arrow keys' step in the graph, in minutes; None until first set, when
     # it starts from the renderer's own Q/W step, which it then leaves alone
     _graph_step_minutes = None
+    # Where the graph was last left on the screen, as (x, y); None until one has
+    # been closed, when the next opens centred on the main window as any other
+    # dialog does. A graph is opened, read, closed and opened again for the next
+    # feature, and it is a wide window to drag back into place each time
+    _graph_position = None
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -991,17 +996,21 @@ class PlanningMixin:
 
         mode_var = tk.StringVar(value="terminator")
         mode_row = dialog.controls
+        # Room between the choices, measured in the lettering rather than in a
+        # fixed number of pixels: at 300% on a 4K screen the words are three
+        # times the size, and a dozen pixels between them reads as none at all
+        gap = 2 * tkfont.Font(font='TkDefaultFont').measure('0')
         tk.Label(mode_row, text="Show:", anchor='w').pack(side=tk.LEFT)
         for value, label in (("terminator", "near the terminator"),
                              ("libration", "best presented (libration)")):
             ttk.Radiobutton(mode_row, text=label, value=value, variable=mode_var,
-                           command=lambda: rescan()).pack(side=tk.LEFT)
+                            command=lambda: rescan()).pack(side=tk.LEFT, padx=(0, gap))
         # Resumes where this session last left it, as the clair-obscur filter does
         dark_only_var = tk.BooleanVar(value=self._planner_dark_only)
         ttk.Checkbutton(mode_row, variable=dark_only_var,
                         text=f"only when the sky is dark (Sun {-self.PLANNER_DARK_SUN_ALT:.0f}° "
                              f"below my horizon)",
-                        command=lambda: rescan()).pack(side=tk.LEFT, padx=(12, 0))
+                        command=lambda: rescan()).pack(side=tk.LEFT)
 
         def rescan():
             nonlocal windows
@@ -1152,6 +1161,17 @@ class PlanningMixin:
         def before_close():
             if label_var.get():
                 self.unpin_catalogue_feature(feature)
+            # Where the window was left, for the next graph to open at. Taken
+            # from the geometry string rather than winfo_x and winfo_y, that
+            # being what _show_dialog writes back, so the corner it is put at is
+            # the corner it was read from. "WxH+X+Y", and a negative coordinate
+            # keeps its sign inside its own group ("+-8+-3")
+            try:
+                _, _, corner = win.geometry().partition("+")
+                x, _, y = corner.partition("+")
+                self._graph_position = (int(x), int(y))
+            except ValueError:      # never mapped, so there is nothing to keep
+                pass
 
         win, main_frame, on_close = self._dialog_window(
             f"{feature.name} - graph", before_close=before_close)
@@ -1193,27 +1213,36 @@ class PlanningMixin:
         width = plot_x1 + pad
         height = date_y + line_h + pad
 
-        title_row = tk.Frame(main_frame)
-        title_row.pack(fill=tk.X)
-        # The readout of the moment under the pointer, on the left of this row; the
-        # graph's own title is in the window's title bar (set on each redraw, as it
-        # says the span). Indented by the plot's left margin so it starts where the
-        # time over the +90° line starts at its leftmost, and with no padding or
-        # border of its own, which would put the lettering a few pixels further in
-        status_var = tk.StringVar()
-        tk.Label(title_row, textvariable=status_var, font=font, padx=0, borderwidth=0,
-                 fg=colours["readout"], anchor='w').pack(side=tk.LEFT, padx=(plot_x0, 0))
+        # The choices are gathered in a block of their own, which fit_rows puts
+        # beside the readout or on a row above it once both have been measured
+        controls_row = tk.Frame(main_frame)
         # What a click on the graph does to the camera, besides moving the clock.
         # Themed, as in the launcher, so the little circles follow the display:
         # Tk's own are drawn at much the same size whatever the screen, which on
         # a 4K one at 300% is a tenth the height of the lettering beside them
         view_var = tk.StringVar(value=self._graph_view)
-        view_row = tk.Frame(title_row)
+        view_row = tk.Frame(controls_row)
         view_row.pack(side=tk.RIGHT)
+        view_buttons = []
         for value, text in (("keep", "Keep view"), ("standard", "Standard view"),
                             ("centre", "View fixed on feature")):
-            ttk.Radiobutton(view_row, text=text, value=value, variable=view_var,
-                            command=lambda: apply_view()).pack(side=tk.LEFT)
+            radio = ttk.Radiobutton(view_row, text=text, value=value, variable=view_var,
+                                    command=lambda: apply_view())
+            radio.pack(side=tk.LEFT)
+            view_buttons.append(radio)
+        # The Moon's altitude in the observer's sky, drawn as a curve while this
+        # is ticked, at every span: over weeks its daily arcs run together into
+        # a band rather than a trend, which is worth seeing if it is asked for.
+        # Packed before the name's box, and so standing to the right of it: with
+        # side=RIGHT the first packed is the furthest over
+        moon_alt_var = tk.BooleanVar(value=self._graph_show_moon_alt)
+
+        def toggle_moon_alt():
+            self._graph_show_moon_alt = moon_alt_var.get()
+            redraw()
+
+        ttk.Checkbutton(controls_row, text="Show Moon altitude", variable=moon_alt_var,
+                        command=toggle_moon_alt).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
         # The feature's name on the Moon, pinned into the catalogue while this
         # is ticked, so it is drawn the way the P key draws names and never
         # twice; unpinned again when the window closes - see CatalogueMixin
@@ -1226,25 +1255,24 @@ class PlanningMixin:
             else:
                 self.unpin_catalogue_feature(feature)
 
-        ttk.Checkbutton(title_row, text="Show feature name", variable=label_var,
+        ttk.Checkbutton(controls_row, text="Show feature name", variable=label_var,
                         command=toggle_name).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
         # Left ticked last time, so named from the start this time
         if label_var.get():
             self.pin_catalogue_feature(feature)
-        # The Moon's altitude in the observer's sky, drawn as a curve while this
-        # is ticked, at every span: over weeks its daily arcs run together into
-        # a band rather than a trend, which is worth seeing if it is asked for
-        moon_alt_var = tk.BooleanVar(value=self._graph_show_moon_alt)
 
-        def toggle_moon_alt():
-            self._graph_show_moon_alt = moon_alt_var.get()
-            redraw()
+        # The readout of the moment under the pointer, or of the red line while
+        # the pointer is away, on a row between the choices and the plot; the
+        # graph's own title is in the window's title bar (set on each redraw, as
+        # it says the span). Indented by the plot's left margin so it starts
+        # where the time over the +90° line starts at its leftmost, and with no
+        # padding or border of its own, which would put the lettering further in
+        readout_row = tk.Frame(main_frame)
+        readout_row.pack(fill=tk.X)
+        status_var = tk.StringVar()
+        tk.Label(readout_row, textvariable=status_var, font=font, padx=0, borderwidth=0,
+                 fg=colours["readout"], anchor='w').pack(side=tk.LEFT, padx=(plot_x0, 0))
 
-        ttk.Checkbutton(title_row, text="Show Moon altitude", variable=moon_alt_var,
-                        command=toggle_moon_alt).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
-
-        # The readout of the moment under the pointer, packed before the canvas so
-        # it stands over the graph, just above the time shown over the +90° line
         # Against the left edge, so the plot's left margin measures from the same
         # place as the readout's indent even when the window is wider than the canvas
         canvas = tk.Canvas(main_frame, width=width, height=height,
@@ -1844,19 +1872,20 @@ class PlanningMixin:
             state["start"] = self.dt_local
             redraw()
 
-        # Sharing the legend's row rather than one of its own: at 90% of
-        # screen width the legend leaves most of the row empty, and the
-        # buttons fit that space without the dialog needing to be any taller.
-        tk.Button(legend, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
-        tk.Button(legend, text="Reset", command=reset, width=10).pack(
+        # The span, the step and the buttons in a block of their own, which
+        # fit_rows puts at the end of the legend's row where there is room for
+        # it, and on a row under the legend where there is not
+        legend_controls = tk.Frame(main_frame)
+        tk.Button(legend_controls, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
+        tk.Button(legend_controls, text="Reset", command=reset, width=10).pack(
             side=tk.RIGHT, padx=(0, pad + 2))
-        tk.Button(legend, text="▶", width=2,
+        tk.Button(legend_controls, text="▶", width=2,
                   command=lambda: page(state["days"])).pack(side=tk.RIGHT, padx=(0, pad + 2))
-        tk.Button(legend, text="◀", width=2,
+        tk.Button(legend_controls, text="◀", width=2,
                   command=lambda: page(-state["days"])).pack(side=tk.RIGHT)
         # Themed, as the other choices here, so the circles follow the display
         span_var = tk.IntVar(value=self._graph_span)
-        span_row = tk.Frame(legend)
+        span_row = tk.Frame(legend_controls)
         span_row.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
         tk.Label(span_row, text="Span (days):", font=font).pack(side=tk.LEFT)
         for days in self.GRAPH_SPANS:
@@ -1867,7 +1896,7 @@ class PlanningMixin:
         # from the right after the span, so it stands just left of it. Themed, as
         # the other controls here, so it follows the display
         step_var = tk.StringVar(value=str(self._graph_step_minutes or self.time_step_minutes))
-        step_row = tk.Frame(legend)
+        step_row = tk.Frame(legend_controls)
         step_row.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
         tk.Label(step_row, text="Step (min):", font=font).pack(side=tk.LEFT)
         step_box = ttk.Spinbox(step_row, from_=1, to=1440, increment=1, width=5,
@@ -1942,7 +1971,49 @@ class PlanningMixin:
 
         win.bind('<MouseWheel>', zoom)
 
+        def fit_rows():
+            """
+            Put each block of controls at the end of the row it belongs to, or on
+            a row of its own against the left edge where the two together would
+            be wider than the plot.
+
+            Measured rather than settled once and for all: the plot takes a share
+            of the screen while the lettering follows the display's dots per inch,
+            so a row that sits comfortably at 100% on a FullHD screen runs off a
+            4K one at 300%, the lettering being three times the size where the
+            screen is only twice as wide.
+
+            Called after the first draw, the readout carrying a line by then -
+            and every line it carries is padded to the same width, so one of them
+            measures them all (see status_for).
+            """
+            for block, row, above in ((controls_row, readout_row, True),
+                                      (legend_controls, legend, False)):
+                block.pack_forget()
+                main_frame.update_idletasks()
+                if row.winfo_reqwidth() + block.winfo_reqwidth() <= width:
+                    block.pack(in_=row, side=tk.RIGHT)
+                    # The block belongs to the frame these rows belong to, and is
+                    # only laid out inside this one. Made before the row, it
+                    # stands lower in the stacking order, and the row's own
+                    # background is drawn straight over it - so it is lifted
+                    block.lift(row)
+                elif above:
+                    # Set apart from each other now the row is theirs alone:
+                    # packed tight to share a row with the readout, the three
+                    # read as one run of lettering. Spaced after the measuring
+                    # above, so the width they are judged on is the tight one
+                    for radio in view_buttons[:-1]:
+                        radio.pack_configure(padx=(0, 2 * cell_w))
+                    # Indented as the readout is, so the first box stands over
+                    # the "Sun over ..." the line below it starts with
+                    block.pack(side=tk.TOP, anchor='w', before=readout_row,
+                               padx=(plot_x0, 0))
+                else:
+                    block.pack(side=tk.TOP, anchor='w', after=legend)
+
         reset()   # the first draw starts at the moment the app is showing
+        fit_rows()
 
         # Not modal, so the renderer's mouse stays in use while the graph is
         # open - the view dragged with the right button, turned with the left -
@@ -1952,6 +2023,6 @@ class PlanningMixin:
         # Brought to the front here because _show_dialog does that only for a
         # window taking the grab, and a graph opened from the planner - which
         # closes itself first - would otherwise not get the keys, Escape included
-        self._show_dialog(win, grab=False)
+        self._show_dialog(win, position=self._graph_position, grab=False)
         win.wait_visibility()
         bring_to_front(win)
