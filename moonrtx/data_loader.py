@@ -527,6 +527,27 @@ _REDUCED_COLOR_FLAGS = {
     8: cv2.IMREAD_REDUCED_COLOR_8,
 }
 
+
+def _cv2_imread(filepath: str, flags: int = cv2.IMREAD_COLOR) -> Optional[np.ndarray]:
+    """
+    cv2.imread, for any path.
+
+    OpenCV on Windows opens files through the narrow-character API, so a path
+    with a letter outside ASCII - a user folder such as C:\\Users\\Łukasz - comes
+    back as None, the map unread though it is right there. Such a path is read
+    by Python instead and decoded from memory, which takes the same flags,
+    reduced decoding included. That holds the whole compressed file in memory on
+    top of the picture, so it is kept to the paths that need it: an ASCII one
+    goes the usual way.
+    """
+    if filepath.isascii():
+        return cv2.imread(filepath, flags)
+    try:
+        encoded = np.fromfile(filepath, dtype=np.uint8)
+    except OSError:                 # MemoryError is left to the caller's handling
+        return None
+    return cv2.imdecode(encoded, flags)
+
 # Albedo range the 0-255 source is mapped onto: dark maria at 0.2, brightest
 # highlands at 0.95.
 COLOR_ALBEDO_MIN = 0.2
@@ -607,7 +628,7 @@ def load_color_data(filepath: str, downscale: int = 1) -> np.ndarray:
             f"one has already been cached for.")
 
     with _fits_in_memory("the color map", COLOR_DOWNSCALE_REMEDY):
-        color_src = cv2.imread(filepath, _REDUCED_COLOR_FLAGS.get(downscale, cv2.IMREAD_COLOR))
+        color_src = _cv2_imread(filepath, _REDUCED_COLOR_FLAGS.get(downscale, cv2.IMREAD_COLOR))
 
     if color_src is None:
         raise ValueError(f"Failed to read color file: {filepath}")
@@ -677,7 +698,7 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
             return star_map
 
         print(f"Loading star map from {filepath}...")
-        star_src = cv2.imread(filepath)
+        star_src = _cv2_imread(filepath)
         if star_src is None:
             print(f"Failed to read star map: {filepath}")
             return None
