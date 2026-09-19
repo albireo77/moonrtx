@@ -300,6 +300,7 @@ def load_moon_features(filepath: str) -> list:
 # relative to the reference Moon radius of 1737.4 km.
 LDEM_METERS_PER_UNIT = 0.5
 MOON_REFERENCE_RADIUS_M = 1_737_400.0
+_ELEVATION_SAMPLE_BYTES = 2
 
 ELEVATION_DOWNSCALE_REMEDY = "Raise --downscale (Elevation downscale in the launcher)."
 
@@ -325,47 +326,78 @@ def _downscale_message(height: int, width: int, downscale: int) -> Optional[str]
             f"Use one of: {', '.join(map(str, usable))}.")
 
 
-def elevation_map_shape(filepath: str) -> Optional[tuple[int, int]]:
+def _format_message(filepath: str, bits: int) -> Optional[str]:
     """
-    The map's (height, width), read from its TIFF header alone - milliseconds,
-    where reading the map itself takes about a minute - or None when the header
-    cannot be read.
+    Why a map with samples of this many bits cannot be read as heights, or None
+    when it can. A LOLA LDEM stores them as signed 16-bit numbers, and anything
+    else reinterpreted as those does not fail - it silently comes out twice or
+    half as wide, a surface of noise.
+    """
+    if bits == 8 * _ELEVATION_SAMPLE_BYTES:
+        return None
+    return (f"The elevation map {os.path.basename(filepath)} has {bits}-bit samples, "
+            f"but it is read as a LOLA LDEM, whose heights are signed 16-bit numbers.\n"
+            f"Choose an LDEM product, such as the default map.")
+
+
+def _elevation_header(filepath: str) -> Optional[tuple[int, int, Optional[int]]]:
+    """
+    The map's height, width and bits per sample, read from its TIFF header alone
+    - milliseconds, where reading the map itself takes about a minute - or None
+    when the header cannot be read. The bits are None when the header does not
+    say.
 
     Pillow refuses to open anything past its decompression-bomb limit, which the
     4.2 gigapixel LDEM is far beyond. The limit guards against decoding, and only
     the header is read here, so it is lifted for this one call and put back.
+    The bits come from the TIFF tag rather than from Pillow's mode, which calls
+    signed 16-bit samples and 32-bit ones by the same name.
     """
     limit = Image.MAX_IMAGE_PIXELS
     Image.MAX_IMAGE_PIXELS = None
     try:
         with Image.open(filepath) as image:
             width, height = image.size
-        return height, width
+            bits = getattr(image, "tag_v2", {}).get(258)      # BitsPerSample
+        if isinstance(bits, tuple):
+            bits = bits[0] if bits else None
+        return height, width, bits
     except Exception:
         return None
     finally:
         Image.MAX_IMAGE_PIXELS = limit
 
 
-def downscale_problem(filepath: str, downscale: int,
-                      expected_shape: Optional[tuple[int, int]] = None) -> Optional[str]:
+def elevation_map_problem(filepath: str, downscale: int,
+                          expected_shape: Optional[tuple[int, int]] = None) -> Optional[str]:
     """
-    Why this downscale cannot be used with this elevation map, or None.
+    Why this elevation map cannot be used at this downscale, or None.
 
-    Asked before the renderer starts, so a factor that cannot divide the map is
-    reported at once rather than after the minute it takes to read it. A map not
-    on disk is judged by expected_shape where the caller knows it - the default
-    one's size is fixed - and otherwise passed, for the load to find out.
+    Asked before the renderer starts, so a map that cannot be read as heights,
+    or a factor that cannot divide it, is reported at once rather than after the
+    minute it takes to read it. A map not on disk is judged by expected_shape
+    where the caller knows it - the default one's size is fixed - and otherwise
+    passed, for the load to find out.
 
-    A map already cached at this downscale is fine without looking: it was
-    divided once, and its source may not be there any more.
+    A map already cached at this downscale is fine without looking: it was read
+    and divided once, and its source may not be there any more.
     """
     if downscale_cache_available(filepath, downscale):
         return None
-    shape = elevation_map_shape(filepath) if os.path.isfile(filepath) else expected_shape
-    if shape is None:
+    if os.path.isfile(filepath):
+        header = _elevation_header(filepath)
+        if header is None:
+            return None
+        height, width, bits = header
+        if bits is not None:
+            problem = _format_message(filepath, bits)
+            if problem is not None:
+                return problem
+    elif expected_shape is not None:
+        height, width = expected_shape
+    else:
         return None
-    return _downscale_message(shape[0], shape[1], downscale)
+    return _downscale_message(height, width, downscale)
 
 
 # Rows converted at a time when the full-size map is built (see
@@ -493,7 +525,16 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
         print(f"  Original dimensions: {elev_src.shape}")
         print(f"  Size: {elev_src.nbytes / (1024**3):.2f} GB")
 
-        # Reinterpret as signed 16-bit and convert to displacement factor of the radius
+        # Refused before the renderer starts where the header says so (see
+        # elevation_map_problem); checked again on the samples themselves, as
+        # reinterpreting anything but 16-bit ones would not fail - it would
+        # silently make the map twice or half as wide
+        message = _format_message(filepath, elev_src.dtype.itemsize * 8)
+        if message is not None:
+            raise ValueError(message)
+
+        # Reinterpret as signed 16-bit - read_image hands an LDEM back unsigned -
+        # and convert to displacement factor of the radius
         elev_src.dtype = np.int16
         scale = LDEM_METERS_PER_UNIT / MOON_REFERENCE_RADIUS_M
 
