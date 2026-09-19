@@ -7,7 +7,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tzlocal import get_localzone
-from typing import NamedTuple, Optional
+from typing import Optional
 
 import plotoptix
 from plotoptix.utils import get_gpu_architecture
@@ -19,7 +19,7 @@ from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_availa
 from moonrtx.display import make_dpi_aware, starmap_target_width
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
-from moonrtx.shared_types import Camera, MapTooLargeError, Observer
+from moonrtx.shared_types import InitView, MapTooLargeError, Observer
 
 APP_NAME = "MoonRTX"
 
@@ -46,15 +46,6 @@ DEFAULT_COLOR_FILE_SIZE_MB = 71.3
 DEFAULT_COLOR_FILE_SIZE_BYTES = DEFAULT_COLOR_FILE_SIZE_MB * 1024**2
 
 MOON_FEATURES_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, "moon_features.csv")
-
-class InitView(NamedTuple):
-    """Parsed init-view data for restoring a screenshot view."""
-    dt_local: datetime
-    lat: float
-    lon: float
-    view_orientation: str
-    parallactic_mode: bool
-    camera: Camera
 
 def parse_args():
 
@@ -359,73 +350,6 @@ def get_date_time_local(time_iso: str, zone) -> tuple[Optional[datetime], Option
         return dt.replace(tzinfo=zone), None
     return dt.astimezone(zone), None
 
-def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
-    """
-    Parse an init-view string (filename without extension) back into its components.
-    
-    Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>[_par<0|1>]_cam<base64>[_x<frames>]
-
-    The _par<0|1> segment is optional for backwards compatibility with
-    filenames saved before the parallactic-mode flag was introduced; when
-    absent it defaults to OFF.
-
-    The _x<frames> segment is what the video export adds to the name it offers,
-    so that an exported video says how long it is. It is read past and ignored:
-    a video carries the same view a screenshot does, and there is no reason it
-    should be the one thing that cannot be returned to. The camera before it is
-    taken by its length (Camera.TEXT_LENGTH), which is what tells the two apart
-    - base64 could otherwise have ended in "_x120" of its own accord.
-
-    Parameters
-    ----------
-    init_view_str : str
-        The init-view string to parse
-
-    Returns
-    -------
-    InitView or None
-        Parsed data or None if parsing fails
-    """
-    try:
-        pattern = (
-            r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)'
-            r'_view([A-Z]+)(?:_par([01]))?'
-            r'_cam([A-Za-z0-9_-]{%d})(?:_x\d+)?$' % Camera.TEXT_LENGTH
-        )
-        match = re.match(pattern, init_view_str)
-
-        if not match:
-            return None
-
-        dt_str = match.group(1)
-        lat = float(match.group(2))
-        lon = float(match.group(3))
-        view_orientation = match.group(4)
-        par_flag = match.group(5)
-        camera_encoded = match.group(6)
-
-        # Validate view orientation
-        if view_orientation not in VIEW_ORIENTATIONS:
-            print(f"Invalid view orientation in init-view: {view_orientation}")
-            return None
-
-        parallactic_mode = par_flag == '1'
-
-        camera = Camera.decode(camera_encoded)
-        if camera is None:
-            return None
-
-        dt_local, error = get_date_time_local(dt_str.replace('.', ':'), zone)
-        if error is not None:
-            print(f"Incorrect time: {error}")
-            return None
-
-        return InitView(dt_local, lat, lon, view_orientation, parallactic_mode, camera)
-    
-    except Exception as e:
-        print(f"Error parsing init-view string: {e}")
-        return None
-
 def main():
 
     make_dpi_aware()
@@ -445,7 +369,7 @@ def main():
         sys.exit(1)
 
     if args.init_view:
-        init_view = parse_init_view(args.init_view, timezone)
+        init_view = InitView.decode(args.init_view, timezone)
         if init_view is None:
             print(f"Error: Could not parse --init-view value: {args.init_view}")
             sys.exit(1)

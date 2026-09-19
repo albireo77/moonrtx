@@ -1,9 +1,12 @@
 import base64
+import re
 import struct
 from datetime import datetime
 from typing import NamedTuple, Optional
 
 from numpy.typing import NDArray
+
+from moonrtx.view_orientation import VIEW_ORIENTATIONS
 
 # Exit code run_renderer_process leaves when a map did not fit, so the GUI
 # launcher can tell that apart from any other failure and say what to change.
@@ -85,8 +88,8 @@ class Camera(NamedTuple):
     # How the view is packed into the name a saved image or an exported video is
     # offered: eye, target and up, three floats each, then the field of view -
     # ten little-endian float32s, written in url-safe base64 with the padding
-    # taken off. Both ends of that name read it from here: get_default_filename
-    # writing it (renderer_dialogs), parse_init_view reading it back (main).
+    # taken off, as part of the name InitView writes (encode) and reads back
+    # (decode).
     FORMAT = '<10f'
     # How many characters that makes, which is what tells the camera apart from
     # anything after it in a name: base64 spells itself with digits and
@@ -121,6 +124,86 @@ class Camera(NamedTuple):
             return None
         return cls(eye=list(values[0:3]), target=list(values[3:6]),
                    up=list(values[6:9]), fov=values[9])
+
+
+class InitView(NamedTuple):
+    """
+    A view as it is written into the name a saved image or an exported video is
+    offered, and read back from that name by --init-view and the launcher: the
+    moment, the observer's place, the view orientation, parallactic mode and the
+    camera. The name is laid out as
+
+        <time>_lat<+dd.dddddd>_lon<+ddd.dddddd>_view<orientation>_par<0|1>_cam<camera>[_x<frames>]
+
+    the time in ISO form to the second, its colons written as dots, which a file
+    name cannot hold. encode writes it and decode reads it back, side by side
+    here so that a part added to one is not missed by the other - as Camera does
+    for the camera within it.
+    """
+    dt_local: datetime
+    lat: float
+    lon: float
+    view_orientation: str
+    parallactic_mode: bool
+    camera: Optional[Camera]
+
+    _NAME_PATTERN = (r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)'
+                     r'_view([A-Z]+)(?:_par([01]))?'
+                     r'_cam([A-Za-z0-9_-]{%d})(?:_x\d+)?$' % Camera.TEXT_LENGTH)
+
+    def encode(self) -> str:
+        """
+        The name, without an extension. A camera the renderer could not give is
+        written as "nocam", which decode does not read back: such a name
+        still says when and where, but cannot be returned to.
+        """
+        # To the second: decode turns every dot back into a colon, so a
+        # fractional part would come back as "SS:ffffff", which parses only
+        # through a leniency of the older ISO reader
+        time = self.dt_local.isoformat(timespec='seconds').replace(':', '.')
+        camera = f"cam{self.camera.encode()}" if self.camera is not None else "nocam"
+        return (f"{time}_lat{self.lat:+.6f}_lon{self.lon:+.6f}"
+                f"_view{self.view_orientation}_par{1 if self.parallactic_mode else 0}_{camera}")
+
+    @classmethod
+    def decode(cls, text: str, zone) -> Optional["InitView"]:
+        """
+        The view a name was written from, its time on the clock of `zone`, or
+        None when the name is not one - saying why wherever it is more than the
+        name simply not matching.
+
+        Two parts are optional. _par<0|1> came in with the parallactic-mode
+        flag, and a name from before it is taken as OFF. _x<frames> is what the
+        video export adds, so an exported video says how long it is; it is read
+        past, a video carrying the same view a screenshot does. The camera ahead
+        of it is taken by its length (Camera.TEXT_LENGTH), which is what tells
+        the two apart - base64 could otherwise end in "_x120" of its own accord.
+
+        The time carries its offset, as encode writes it, and so names an
+        instant, re-expressed in `zone`: it means the same moment wherever it is
+        opened. One without an offset is read as a wall clock in `zone`.
+        """
+        try:
+            match = re.match(cls._NAME_PATTERN, text)
+            if not match:
+                return None
+            time_text, lat, lon, orientation, par_flag, camera_text = match.groups()
+            if orientation not in VIEW_ORIENTATIONS:
+                print(f"Invalid view orientation in init-view: {orientation}")
+                return None
+            camera = Camera.decode(camera_text)
+            if camera is None:
+                return None
+            try:
+                dt = datetime.fromisoformat(time_text.replace('.', ':'))
+            except ValueError as e:
+                print(f"Incorrect time: {e}")
+                return None
+            dt_local = dt.replace(tzinfo=zone) if dt.tzinfo is None else dt.astimezone(zone)
+            return cls(dt_local, float(lat), float(lon), orientation, par_flag == '1', camera)
+        except Exception as e:
+            print(f"Error parsing init-view string: {e}")
+            return None
 
 class ClairObscurEvent(NamedTuple):
     """

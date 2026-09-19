@@ -12,7 +12,7 @@ import json
 from tzlocal import get_localzone_name
 
 from moonrtx.display import ToolTip, make_dpi_aware, starmap_target_width
-from moonrtx.shared_types import MAP_TOO_LARGE_EXIT_CODE, Observer
+from moonrtx.shared_types import MAP_TOO_LARGE_EXIT_CODE, InitView, Observer
 from moonrtx.moon_renderer import run_renderer_process
 from moonrtx.view_orientation import (VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE,
                                       VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW,
@@ -20,7 +20,6 @@ from moonrtx.view_orientation import (VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE,
 from moonrtx.main import (
     get_date_time_local,
     resolve_timezone,
-    parse_init_view,
     check_elevation_file,
     elevation_problem,
     check_color_file,
@@ -802,7 +801,7 @@ class MainWindow(tk.Tk):
                     "Error", f"Unknown timezone: {error}\n\n"
                              "Pick an IANA name from the list, e.g. Europe/Warsaw.")
                 return
-            init_view = parse_init_view(init_view_str, timezone)
+            init_view = InitView.decode(init_view_str, timezone)
             if init_view is None:
                 messagebox.showerror("Error", "Could not parse init-view string.")
                 return

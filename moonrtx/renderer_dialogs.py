@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Optional
 
 from moonrtx.display import bring_to_front, screen_size
-from moonrtx.shared_types import Camera
+from moonrtx.shared_types import Camera, InitView
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
 
@@ -616,58 +616,21 @@ class DialogsMixin:
 
     def get_default_filename(self) -> str:
         """
-        Generate a default filename for saving screenshots.
-        
-        Format: datetime_lat+XX.XXXXXX_lon+XX.XXXXXX_view<orientation>_cam<base64>
-        
-        The camera parameters (eye, target, up, fov) are encoded into a compact
-        base64 string for a shorter filename while remaining fully reversible.
-        
-        Returns
-        -------
-        str
-            Default filename (without extension)
+        The name a saved image or an exported video is offered, without its
+        extension: the view now on screen, written by InitView.encode so that
+        --init-view and the launcher can read it back (InitView.decode).
         """
-        parts = []
-        
-        # 1. Local time in ISO format (replace colons with dots for filename compatibility)
-        # Format: YYYY-MM-DDTHH.MM.SS+HH.MM (colons replaced with dots)
-        # Truncated to seconds: parse_init_view turns every dot back into a
-        # colon, so a fractional part would come back as "SS:ffffff", which only
-        # parses at all through a leniency of the older ISO reader
-        iso_str = self.dt_local.isoformat(timespec='seconds')
-        iso_str = iso_str.replace(':', '.')
-        parts.append(iso_str)
-        
-        # 2. Latitude
-        parts.append(f"lat{self.observer.lat:+.6f}")
-        
-        # 3. Longitude
-        parts.append(f"lon{self.observer.lon:+.6f}")
-        
-        # 4. View orientation
-        parts.append(f"view{self.view_orientation}")
-
-        # 5. Parallactic mode flag (0 = OFF, 1 = ON)
-        parts.append(f"par{1 if self.parallactic_mode else 0}")
-
-        # 6. Current camera parameters (at the time of screenshot) - encoded as base64
+        camera = None
         if self.rt is not None:
             try:
                 cam = self.rt.get_camera(self.CAMERA_NAME)
                 if cam is not None:
-                    camera = Camera(eye=cam["Eye"], target=cam["Target"], up=cam["Up"], fov=self.rt._optix.get_camera_fov(0))
-                    camera_encoded = camera.encode()
-                    parts.append(f"cam{camera_encoded}")
-                else:
-                    parts.append("nocam")
+                    camera = Camera(eye=cam["Eye"], target=cam["Target"], up=cam["Up"],
+                                    fov=self.rt._optix.get_camera_fov(0))
             except Exception as e:
                 print(f"Error getting camera: {e}")
-                parts.append("nocam")
-        else:
-            parts.append("nocam")
-        
-        return "_".join(parts)
+        return InitView(self.dt_local, self.observer.lat, self.observer.lon,
+                        self.view_orientation, self.parallactic_mode, camera).encode()
 
     def search_feature_dialog(self):
         """
