@@ -16,8 +16,8 @@ from plotoptix.utils import get_gpu_architecture
 from plotoptix.enums import GpuArchitecture
 from plotoptix.install import download_file_from_google_drive
 
-from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_available, free_space,
-                                 starmap_cache_available)
+from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_available,
+                                 downscale_problem, free_space, starmap_cache_available)
 from moonrtx.display import make_dpi_aware, starmap_target_width
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
@@ -33,6 +33,10 @@ DEFAULT_ELEVATION_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, DEFAULT_EL
 DEFAULT_ELEVATION_FILE_REMOTE_PATH = "http://planetarymaps.usgs.gov/mosaic/" + DEFAULT_ELEVATION_FILE_NAME
 DEFAULT_ELEVATION_FILE_SIZE_GB = 7.91
 DEFAULT_ELEVATION_FILE_SIZE_BYTES = DEFAULT_ELEVATION_FILE_SIZE_GB * 1024**3
+# Height and width in samples, known before the map is fetched, so a downscale
+# that cannot divide it is refused ahead of the download (see
+# elevation_downscale_problem)
+DEFAULT_ELEVATION_FILE_SHAPE = (46080, 92160)
 
 STARMAP_FILE_NAME = "starmap_16k.tif"
 STARMAP_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, STARMAP_FILE_NAME)
@@ -199,6 +203,17 @@ def _urlretrieve(url: str, dest: str, on_progress=None):
         _download_whole(dest, lambda part: urllib.request.urlretrieve(url, part, reporthook=report))
     finally:
         progress.finish()
+
+def elevation_downscale_problem(elevation_file: str, downscale: int) -> Optional[str]:
+    """
+    Why this downscale cannot be used with this elevation map, or None. Asked
+    before anything is fetched or read: the default map's size is known without
+    it being there, so a missing one is not downloaded only to be refused.
+    """
+    expected = (DEFAULT_ELEVATION_FILE_SHAPE
+                if elevation_file == DEFAULT_ELEVATION_FILE_LOCAL_PATH else None)
+    return downscale_problem(elevation_file, downscale, expected)
+
 
 def check_elevation_file(elevation_file: str, downscale: int, on_progress=None) -> bool:
     if not os.path.isfile(elevation_file):
@@ -515,6 +530,11 @@ def main():
 
     if args.downscale < 1:
         print("Invalid downscale factor. Must be a positive integer.")
+        sys.exit(1)
+
+    problem = elevation_downscale_problem(args.elevation_file, args.downscale)
+    if problem is not None:
+        print(problem)
         sys.exit(1)
 
     if not (0 <= args.brightness <= 500):

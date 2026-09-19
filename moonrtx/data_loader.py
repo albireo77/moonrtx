@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import shutil
 import cv2
@@ -6,6 +7,7 @@ from contextlib import contextmanager
 from typing import Optional
 
 import numpy as np
+from PIL import Image
 
 from moonrtx.shared_types import MapTooLargeError, MoonFeature
 
@@ -280,6 +282,70 @@ MOON_REFERENCE_RADIUS_M = 1_737_400.0
 
 ELEVATION_DOWNSCALE_REMEDY = "Raise --downscale (Elevation downscale in the launcher)."
 
+# The largest downscale a refusal suggests: by 16 a sample of the default map
+# stands for nearly 2 km, and the list would otherwise run into the hundreds
+_DOWNSCALE_SUGGEST_MAX = 16
+
+
+def _downscale_message(height: int, width: int, downscale: int) -> Optional[str]:
+    """
+    Why a downscale cannot be used on a map of this size, or None when it can.
+
+    The map is averaged down in whole downscale x downscale blocks, so the factor
+    has to go into its height and its width exactly: one that does not leaves
+    rows or columns over with no block to fall into.
+    """
+    if height % downscale == 0 and width % downscale == 0:
+        return None
+    common = math.gcd(height, width)
+    usable = [d for d in range(1, _DOWNSCALE_SUGGEST_MAX + 1) if common % d == 0]
+    return (f"Elevation downscale {downscale} does not divide the elevation map "
+            f"({width} x {height}) into whole blocks.\n"
+            f"Use one of: {', '.join(map(str, usable))}.")
+
+
+def elevation_map_shape(filepath: str) -> Optional[tuple[int, int]]:
+    """
+    The map's (height, width), read from its TIFF header alone - milliseconds,
+    where reading the map itself takes about a minute - or None when the header
+    cannot be read.
+
+    Pillow refuses to open anything past its decompression-bomb limit, which the
+    4.2 gigapixel LDEM is far beyond. The limit guards against decoding, and only
+    the header is read here, so it is lifted for this one call and put back.
+    """
+    limit = Image.MAX_IMAGE_PIXELS
+    Image.MAX_IMAGE_PIXELS = None
+    try:
+        with Image.open(filepath) as image:
+            width, height = image.size
+        return height, width
+    except Exception:
+        return None
+    finally:
+        Image.MAX_IMAGE_PIXELS = limit
+
+
+def downscale_problem(filepath: str, downscale: int,
+                      expected_shape: Optional[tuple[int, int]] = None) -> Optional[str]:
+    """
+    Why this downscale cannot be used with this elevation map, or None.
+
+    Asked before the renderer starts, so a factor that cannot divide the map is
+    reported at once rather than after the minute it takes to read it. A map not
+    on disk is judged by expected_shape where the caller knows it - the default
+    one's size is fixed - and otherwise passed, for the load to find out.
+
+    A map already cached at this downscale is fine without looking: it was
+    divided once, and its source may not be there any more.
+    """
+    if downscale_cache_available(filepath, downscale):
+        return None
+    shape = elevation_map_shape(filepath) if os.path.isfile(filepath) else expected_shape
+    if shape is None:
+        return None
+    return _downscale_message(shape[0], shape[1], downscale)
+
 
 # Rows converted at a time when the full-size map is built (see
 # _build_full_size_cache), as for the color texture: large enough that the
@@ -415,6 +481,9 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
                 return built            # already scaled and normalized, on disk
             elevation = elev_src.astype(np.float32)
         else:
+            message = _downscale_message(elev_src.shape[0], elev_src.shape[1], downscale)
+            if message is not None:
+                raise ValueError(message)
             # Downscale by averaging
             h = elev_src.shape[0] // downscale
             w = elev_src.shape[1] // downscale

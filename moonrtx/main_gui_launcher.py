@@ -22,6 +22,7 @@ from moonrtx.main import (
     resolve_timezone,
     parse_init_view,
     check_elevation_file,
+    elevation_downscale_problem,
     check_color_file,
     COLOR_DOWNSCALE_FACTORS,
     get_starmap_file,
@@ -909,6 +910,10 @@ class MainWindow(tk.Tk):
             return
         if downscale < 1:
             messagebox.showerror("Error", "Downscale must be a positive integer.")
+            return
+        problem = elevation_downscale_problem(self.elevation_file.get().strip(), downscale)
+        if problem is not None:
+            messagebox.showerror("Error", problem)
             return
 
         color_downscale = int(self.color_downscale.get())
