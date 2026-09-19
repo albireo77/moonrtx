@@ -2,8 +2,6 @@ import argparse
 import os
 import re
 import sys
-import struct
-import base64
 import urllib.request
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -21,7 +19,7 @@ from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_availa
 from moonrtx.display import make_dpi_aware, starmap_target_width
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
-from moonrtx.shared_types import CAMERA_FORMAT, Camera, MapTooLargeError, Observer
+from moonrtx.shared_types import Camera, MapTooLargeError, Observer
 
 APP_NAME = "MoonRTX"
 
@@ -361,53 +359,6 @@ def get_date_time_local(time_iso: str, zone) -> tuple[Optional[datetime], Option
         return dt.replace(tzinfo=zone), None
     return dt.astimezone(zone), None
 
-
-# How long the camera makes a name. It is packed as CAMERA_FORMAT (see
-# shared_types) by encode_camera, which writes it in url-safe base64 with the
-# padding taken off; the length follows from the two and is worked out here
-# rather than written down, so it cannot disagree with them.
-#
-# It is needed because base64 spells itself with digits and underscores as well
-# as letters, so where a name carries anything after the camera - a video's
-# carries the number of frames, as "_x120" - there is nothing in the text itself
-# to say where the camera stops. Its length says.
-CAMERA_TEXT_LENGTH = len(base64.urlsafe_b64encode(
-    bytes(struct.calcsize(CAMERA_FORMAT))).rstrip(b'=').decode('ascii'))
-
-
-def decode_camera(encoded: str) -> Optional[Camera]:
-    """
-    Decode camera from a base64 string.
-    
-    Parameters
-    ----------
-    encoded : str
-        Base64-encoded camera parameters
-        
-    Returns
-    -------
-    Camera or None
-        Camera object or None if decoding fails
-    """
-    try:
-        # Add padding if needed
-        padding = 4 - (len(encoded) % 4)
-        if padding != 4:
-            encoded += '=' * padding
-        
-        packed = base64.urlsafe_b64decode(encoded)
-        values = struct.unpack(CAMERA_FORMAT, packed)
-    
-        return Camera(
-            eye=[values[0], values[1], values[2]],
-            target=[values[3], values[4], values[5]],
-            up=[values[6], values[7], values[8]],
-            fov=values[9]
-            )
-    except Exception as e:
-        print(f"Error decoding camera: {e}")
-        return None
-
 def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
     """
     Parse an init-view string (filename without extension) back into its components.
@@ -422,7 +373,7 @@ def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
     so that an exported video says how long it is. It is read past and ignored:
     a video carries the same view a screenshot does, and there is no reason it
     should be the one thing that cannot be returned to. The camera before it is
-    taken by its length (CAMERA_TEXT_LENGTH), which is what tells the two apart
+    taken by its length (Camera.TEXT_LENGTH), which is what tells the two apart
     - base64 could otherwise have ended in "_x120" of its own accord.
 
     Parameters
@@ -439,7 +390,7 @@ def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
         pattern = (
             r'^(.+?)_lat([+-]?\d+\.\d+)_lon([+-]?\d+\.\d+)'
             r'_view([A-Z]+)(?:_par([01]))?'
-            r'_cam([A-Za-z0-9_-]{%d})(?:_x\d+)?$' % CAMERA_TEXT_LENGTH
+            r'_cam([A-Za-z0-9_-]{%d})(?:_x\d+)?$' % Camera.TEXT_LENGTH
         )
         match = re.match(pattern, init_view_str)
 
@@ -460,7 +411,7 @@ def parse_init_view(init_view_str: str, zone) -> Optional[InitView]:
 
         parallactic_mode = par_flag == '1'
 
-        camera = decode_camera(camera_encoded)
+        camera = Camera.decode(camera_encoded)
         if camera is None:
             return None
 

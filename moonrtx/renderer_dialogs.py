@@ -10,8 +10,6 @@ writing of results to the clipboard, a spreadsheet or a calendar.
 
 import os
 import glob
-import base64
-import struct
 import calendar
 import tkinter as tk
 from tkinter import ttk
@@ -20,7 +18,7 @@ from datetime import datetime
 from typing import Optional
 
 from moonrtx.display import bring_to_front, screen_size
-from moonrtx.shared_types import CAMERA_FORMAT, Camera
+from moonrtx.shared_types import Camera
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
 
@@ -40,32 +38,6 @@ def _ffmpeg_dlls_findable() -> bool:
         except OSError:
             continue
     return False
-
-def encode_camera(camera: Camera) -> str:
-    """
-    Encode camera into a compact base64 string.
-    
-    Packs 10 floats (eye[3], target[3], up[3], fov) into binary and base64 encodes.
-    Uses URL-safe base64 (- and _ instead of + and /) for filename compatibility.
-    
-    Parameters
-    ----------
-    camera : Camera
-        Camera object with eye, target, up, and fov attributes
-    Returns
-    -------
-    str
-        Base64-encoded camera parameters (URL-safe, no padding)
-    """
-    # Pack 10 floats: eye(3) + target(3) + up(3) + fov(1)
-    packed = struct.pack(CAMERA_FORMAT,
-                         camera.eye[0], camera.eye[1], camera.eye[2],
-                         camera.target[0], camera.target[1], camera.target[2],
-                         camera.up[0], camera.up[1], camera.up[2],
-                         camera.fov)
-    # URL-safe base64 without padding (= chars)
-    encoded = base64.urlsafe_b64encode(packed).decode('ascii').rstrip('=')
-    return encoded
 
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
@@ -685,7 +657,7 @@ class DialogsMixin:
                 cam = self.rt.get_camera(self.CAMERA_NAME)
                 if cam is not None:
                     camera = Camera(eye=cam["Eye"], target=cam["Target"], up=cam["Up"], fov=self.rt._optix.get_camera_fov(0))
-                    camera_encoded = encode_camera(camera)
+                    camera_encoded = camera.encode()
                     parts.append(f"cam{camera_encoded}")
                 else:
                     parts.append("nocam")

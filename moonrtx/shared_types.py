@@ -1,3 +1,5 @@
+import base64
+import struct
 from datetime import datetime
 from typing import NamedTuple, Optional
 
@@ -6,11 +8,6 @@ from numpy.typing import NDArray
 # Exit code run_renderer_process leaves when a map did not fit, so the GUI
 # launcher can tell that apart from any other failure and say what to change.
 MAP_TOO_LARGE_EXIT_CODE = 2
-
-# How a camera is packed into the name a saved image or an exported video is
-# offered: eye, target and up, three floats each, then the field of view -
-# 10 little-endian float32s.
-CAMERA_FORMAT = '<10f'
 
 class MapTooLargeError(RuntimeError):
     """
@@ -84,6 +81,46 @@ class Camera(NamedTuple):
     aperture_radius: float = 0.01
     aperture_fract: float = 0.2
     focal_scale: float = 0.7
+
+    # How the view is packed into the name a saved image or an exported video is
+    # offered: eye, target and up, three floats each, then the field of view -
+    # ten little-endian float32s, written in url-safe base64 with the padding
+    # taken off. Both ends of that name read it from here: get_default_filename
+    # writing it (renderer_dialogs), parse_init_view reading it back (main).
+    FORMAT = '<10f'
+    # How many characters that makes, which is what tells the camera apart from
+    # anything after it in a name: base64 spells itself with digits and
+    # underscores as well as letters, so a video's "_x120" could otherwise be
+    # read as more of the camera. Worked out from FORMAT rather than written
+    # down, so the two cannot disagree.
+    TEXT_LENGTH = len(base64.urlsafe_b64encode(bytes(struct.calcsize(FORMAT))).rstrip(b'='))
+
+    def encode(self) -> str:
+        """
+        The view as text for a file name, url-safe base64 without padding.
+
+        The view only - eye, target, up and field of view. The type and the lens
+        parameters are not written, the app using the Pinhole camera throughout,
+        so decode gives those back at their defaults: the two round-trip the
+        view, not the lens.
+        """
+        packed = struct.pack(self.FORMAT, *self.eye, *self.target, *self.up, self.fov)
+        return base64.urlsafe_b64encode(packed).decode('ascii').rstrip('=')
+
+    @classmethod
+    def decode(cls, text: str) -> Optional["Camera"]:
+        """
+        The view read back from encode's text, the lens at its defaults (see
+        encode), or None when the text is not one.
+        """
+        try:
+            packed = base64.urlsafe_b64decode(text + '=' * (-len(text) % 4))
+            values = struct.unpack(cls.FORMAT, packed)
+        except Exception as e:
+            print(f"Error decoding camera: {e}")
+            return None
+        return cls(eye=list(values[0:3]), target=list(values[3:6]),
+                   up=list(values[6:9]), fov=values[9])
 
 class ClairObscurEvent(NamedTuple):
     """
