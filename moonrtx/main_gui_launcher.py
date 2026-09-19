@@ -238,7 +238,7 @@ class MainWindow(tk.Tk):
 
         self.downscale = tk.Entry(frm, width=5)
         self.downscale.grid(row=7, column=1, sticky=tk.EW, pady=2)
-        self.downscale.insert(0, 3)
+        self.downscale.insert(0, 2)
 
         self.color_downscale = ttk.Combobox(frm, width=5, state="readonly",
                                             values=[str(f) for f in COLOR_DOWNSCALE_FACTORS])
@@ -706,7 +706,7 @@ class MainWindow(tk.Tk):
             self.color_file.insert(0, settings.get("color_file", DEFAULT_COLOR_FILE_LOCAL_PATH))
 
             self.downscale.delete(0, tk.END)
-            self.downscale.insert(0, settings.get("downscale", "3"))
+            self.downscale.insert(0, settings.get("downscale", "2"))
 
             saved_color_downscale = str(settings.get("color_downscale", "1"))
             self.color_downscale.set(saved_color_downscale

@@ -80,7 +80,7 @@ def parse_args():
                         help="Path to Moon elevation map local file")
     parser.add_argument("--color-file", type=str, default=DEFAULT_COLOR_FILE_LOCAL_PATH,
                         help="Path to Moon color map local file. Alternate color files can be downloaded from https://svs.gsfc.nasa.gov/4720")
-    parser.add_argument("--downscale", type=int, default=3,
+    parser.add_argument("--downscale", type=int, default=2,
                         help="Elevation downscale factor. The higher value, the lower GPU memory usage but also lower quality of Moon surface. 1 is no downscaling.")
     parser.add_argument("--color-downscale", type=int, default=1, choices=COLOR_DOWNSCALE_FACTORS,
                         help="Color map downscale factor. The map is decoded straight at this fraction of its "
