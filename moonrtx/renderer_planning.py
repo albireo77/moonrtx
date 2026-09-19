@@ -19,6 +19,7 @@ lays out what comes back.
 
 import io
 import csv
+import zlib
 import tkinter as tk
 from tkinter import ttk
 import tkinter.font as tkfont
@@ -734,7 +735,12 @@ class PlanningMixin:
                  "CALSCALE:GREGORIAN"]
         now = stamp(datetime.now(timezone.utc))
         for event in events:
-            uid = f"{stamp(event['start'])}-{abs(hash(event['summary'])) % 10**10}@moonrtx"
+            # CRC-32 of the title rather than hash(): Python gives a string a
+            # different hash in every run, so an identifier built from it held
+            # only within one session, and the same scan exported another day
+            # and imported again doubled every entry instead of updating it
+            title = zlib.crc32(event['summary'].encode('utf-8'))
+            uid = f"{stamp(event['start'])}-{title}@moonrtx"
             lines += ["BEGIN:VEVENT",
                       f"UID:{uid}",
                       f"DTSTAMP:{now}",
