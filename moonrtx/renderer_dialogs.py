@@ -786,8 +786,6 @@ class DialogsMixin:
                 if not listbox.curselection() and listbox.size() > 0:
                     listbox.selection_set(0)
                 on_select()
-            elif event.keysym == 'Escape':
-                on_close()
             elif event.keysym == 'Down':
                 if listbox.size() > 0:
                     listbox.focus_set()
