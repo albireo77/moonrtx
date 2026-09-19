@@ -7,6 +7,10 @@ from numpy.typing import NDArray
 # launcher can tell that apart from any other failure and say what to change.
 MAP_TOO_LARGE_EXIT_CODE = 2
 
+# How a camera is packed into the name a saved image or an exported video is
+# offered: eye, target and up, three floats each, then the field of view -
+# 10 little-endian float32s.
+CAMERA_FORMAT = '<10f'
 
 class MapTooLargeError(RuntimeError):
     """

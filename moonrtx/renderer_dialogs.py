@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Optional
 
 from moonrtx.display import bring_to_front, screen_size
-from moonrtx.shared_types import Camera
+from moonrtx.shared_types import CAMERA_FORMAT, Camera
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
 
@@ -58,7 +58,7 @@ def encode_camera(camera: Camera) -> str:
         Base64-encoded camera parameters (URL-safe, no padding)
     """
     # Pack 10 floats: eye(3) + target(3) + up(3) + fov(1)
-    packed = struct.pack('<10f', 
+    packed = struct.pack(CAMERA_FORMAT,
                          camera.eye[0], camera.eye[1], camera.eye[2],
                          camera.target[0], camera.target[1], camera.target[2],
                          camera.up[0], camera.up[1], camera.up[2],

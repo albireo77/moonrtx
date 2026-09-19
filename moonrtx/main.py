@@ -21,7 +21,7 @@ from moonrtx.data_loader import (COLOR_DOWNSCALE_FACTORS, downscale_cache_availa
 from moonrtx.display import make_dpi_aware, starmap_target_width
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
-from moonrtx.shared_types import Camera, MapTooLargeError, Observer
+from moonrtx.shared_types import CAMERA_FORMAT, Camera, MapTooLargeError, Observer
 
 APP_NAME = "MoonRTX"
 
@@ -362,16 +362,15 @@ def get_date_time_local(time_iso: str, zone) -> tuple[Optional[datetime], Option
     return dt.astimezone(zone), None
 
 
-# How the camera is packed into a name, and how long that makes it. The writer
-# is encode_camera, which packs these ten floats and writes them in url-safe
-# base64 with the padding taken off; the length follows from the two and is
-# worked out here rather than written down, so it cannot disagree with them.
+# How long the camera makes a name. It is packed as CAMERA_FORMAT (see
+# shared_types) by encode_camera, which writes it in url-safe base64 with the
+# padding taken off; the length follows from the two and is worked out here
+# rather than written down, so it cannot disagree with them.
 #
 # It is needed because base64 spells itself with digits and underscores as well
 # as letters, so where a name carries anything after the camera - a video's
 # carries the number of frames, as "_x120" - there is nothing in the text itself
 # to say where the camera stops. Its length says.
-CAMERA_FORMAT = '<10f'
 CAMERA_TEXT_LENGTH = len(base64.urlsafe_b64encode(
     bytes(struct.calcsize(CAMERA_FORMAT))).rstrip(b'=').decode('ascii'))
 
