@@ -164,8 +164,29 @@ def starmap_cache_available(filepath: str, target_width: int) -> bool:
                        _cache_fingerprint(filepath, target_width=target_width)) is not None
 
 
+def _forget_cache(cache_base: str):
+    """
+    Take a cache's .json away before its .npy is written.
+
+    The .json is what says a cache is finished: it is written last, and a cache
+    is only used when it is there and matches. But one left from an earlier
+    build matches just as well, and the full-size elevation map's .npy is made
+    at its whole length before the first row goes into it. Stopped part way -
+    or its .npy deleted to reclaim the space, then rebuilt and stopped - a build
+    left a file of the right size, zeros wherever it had not reached, beside a
+    .json that vouched for it, and the next start loaded that as the map. With
+    the .json gone first, a build that does not finish leaves nothing that
+    passes for a cache.
+    """
+    try:
+        os.remove(cache_base + ".json")
+    except FileNotFoundError:
+        pass
+
+
 def _save_cache(cache_base: str, array: np.ndarray, meta: dict):
     try:
+        _forget_cache(cache_base)
         np.save(cache_base + ".npy", array)
         with open(cache_base + ".json", "w", encoding="utf-8") as f:
             json.dump(meta, f)
@@ -384,6 +405,7 @@ def _build_full_size_cache(elev_src: np.ndarray, scale: float,
     print(f"  Building {path} ({needed / (1024**3):.2f} GB on disk), "
           f"{_ELEVATION_BLOCK_ROWS} rows at a time")
     try:
+        _forget_cache(cache_base)
         elevation = np.lib.format.open_memmap(path, mode="w+", dtype=np.float32,
                                               shape=(height, width))
     except Exception as e:
