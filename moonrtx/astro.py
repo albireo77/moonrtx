@@ -329,9 +329,14 @@ def find_terminator_windows(start_local: datetime, days: int,
         judging sky darkness).
 
         A window the scan catches on a single sample, and so one that starts
-        and ends at the same moment, is left out: what it stands for is a
-        spell shorter than step_minutes, which is nothing to plan a night
-        around, and as a calendar entry it would end where it began.
+        and ends at the same moment, is left out. One sample means the
+        conditions held between that sample's neighbours and nowhere else,
+        which is either a spell shorter than two steps - 45 minutes can fall
+        between hourly samples but for one - or a longer spell clipped by the
+        start or end of the span, with only its last minutes inside. Either
+        way its length is not known, and it would stand in the results as an
+        opportunity of no length at all, in a calendar as an entry ending
+        where it began.
     """
     series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
     dts = series["times"]
