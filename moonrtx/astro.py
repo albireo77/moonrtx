@@ -327,6 +327,11 @@ def find_terminator_windows(start_local: datetime, days: int,
         altitude), "event" ("sunrise" or "sunset" there), "sun_alt" and "moon_alt"
         (degrees at "best"), "observer_sun_alt" (degrees at "best", for
         judging sky darkness).
+
+        A window the scan catches on a single sample, and so one that starts
+        and ends at the same moment, is left out: what it stands for is a
+        spell shorter than step_minutes, which is nothing to plan a night
+        around, and as a calendar entry it would end where it began.
     """
     series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
     dts = series["times"]
@@ -345,10 +350,14 @@ def find_terminator_windows(start_local: datetime, days: int,
 
     windows = []
     for seg in _split_windows(idx):
+        start = dts[seg[0]]
+        end = dts[seg[-1]]
+        if not end > start:
+            continue
         best = seg[np.argmax(moon_alt[seg])]
         windows.append({
-            "start": dts[seg[0]],
-            "end": dts[seg[-1]],
+            "start": start,
+            "end": end,
             "best": dts[best],
             "event": "sunrise" if climbing[best] else "sunset",
             "sun_alt": float(sun_alt_f[best]),
@@ -411,6 +420,10 @@ def find_libration_windows(start_local: datetime, days: int,
         horizon at "best" - the figure of merit), "libr_long" and "libr_lat"
         (topocentric libration there), "sun_alt" (Sun altitude over the
         feature), "moon_alt" and "observer_sun_alt" (degrees at "best").
+
+        A window caught on a single sample is left out, as in
+        find_terminator_windows. max_results is applied after that, so the cap
+        is spent on windows that last rather than on one of no length.
     """
     series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
     dts = series["times"]
@@ -428,10 +441,14 @@ def find_libration_windows(start_local: datetime, days: int,
 
     windows = []
     for seg in _split_windows(idx):
+        start = dts[seg[0]]
+        end = dts[seg[-1]]
+        if not end > start:
+            continue
         best = seg[np.argmax(earth_alt[seg])]
         windows.append({
-            "start": dts[seg[0]],
-            "end": dts[seg[-1]],
+            "start": start,
+            "end": end,
             "best": dts[best],
             "earth_alt": float(earth_alt[best]),
             "libr_long": _wrap_signed_degrees(float(libr_lon[best])),
@@ -531,6 +548,9 @@ def find_clair_obscur_events(start_local: datetime, days: int,
         where the Moon stands highest during the pattern) and "moon_alt" and
         "observer_sun_alt" (degrees there, not at "peak", so they describe the
         best moment to go out and never contradict moon_alt_min).
+
+        An occurrence caught on a single sample is left out, as in
+        find_terminator_windows.
     """
     dts, t = _scan_times(start_local, days, step_minutes)
 
@@ -557,6 +577,10 @@ def find_clair_obscur_events(start_local: datetime, days: int,
 
         middle = 0.5 * (event.sun_alt_min + event.sun_alt_max)
         for seg in _split_windows(idx):
+            start = dts[seg[0]]
+            end = dts[seg[-1]]
+            if not end > start:
+                continue
             peak = seg[np.argmin(np.abs(sun_alt[seg] - middle))]
             # The illumination is reported at the peak, but the observer's sky
             # is reported where the Moon stands highest during the pattern:
@@ -572,8 +596,8 @@ def find_clair_obscur_events(start_local: datetime, days: int,
                 "description": event.description,
                 "lat": event.lat,
                 "lon": event.lon,
-                "start": dts[seg[0]],
-                "end": dts[seg[-1]],
+                "start": start,
+                "end": end,
                 "peak": dts[peak],
                 "highest": dts[highest],
                 "visible_start": dts[visible[0]] if visible.size else None,

@@ -655,20 +655,6 @@ class PlanningMixin:
             return "day"
         return "twilight" if record["observer_sun_alt"] > PlanningMixin.PLANNER_DARK_SUN_ALT else "night"
 
-    @staticmethod
-    def _lasting(windows: list) -> list:
-        """
-        The windows that last, without the ones that start and end at the same
-        moment.
-
-        Such a window is the scan catching its conditions on a single sample and
-        losing them by the next: what it stands for is a spell shorter than the
-        step, somewhere around that moment, which is nothing to plan a night
-        around. Left in, it reads as an opportunity of no length at all, and
-        goes into a calendar as an entry that ends when it begins.
-        """
-        return [w for w in windows if w["end"] > w["start"]]
-
     def _planner_observer_sun_alt_max(self) -> float:
         """
         The Sun altitude at the observer's site the planner's windows have to
@@ -1059,8 +1045,6 @@ class PlanningMixin:
                 header_var.set("")
                 return
 
-            windows = self._lasting(windows)
-
             if libration:
                 desc_var.set(
                     "How far inside the limb libration turns the feature, best first: 90° is the "
@@ -1379,10 +1363,6 @@ class PlanningMixin:
                     moon_alt_min=self.PLANNER_MOON_ALT_MIN,
                     max_results=self.PLANNER_MAX_RESULTS,
                     observer_sun_alt_max=self._planner_observer_sun_alt_max())
-                # Dropped here as the planner's list drops them, the strips
-                # standing for the windows that list holds (see _lasting)
-                term_windows = self._lasting(term_windows)
-                libr_windows = self._lasting(libr_windows)
             except ValueError as e:
                 # Scan start outside the bundled ephemeris kernel range
                 state["dts"] = []
