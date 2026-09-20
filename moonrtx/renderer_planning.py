@@ -141,6 +141,13 @@ class PlanningMixin:
     # can recentre on a very differently-presented feature; the wider the
     # plot, the smaller that miss is in real time, not just on screen.
     GRAPH_WIDTH_FRACTION = 0.9
+    # How much a window's edge must be worth on screen before the graph asks
+    # for it to the minute: pixels per hour of plot, an hour being the step the
+    # planner's windows are found at. Below this an edge moves by less than a
+    # line's width and the scan is left coarse, which matters because the graph
+    # runs it again on every zoom, page and change of span - at 60 days that
+    # saves about a third of a second a redraw (see astro.find_terminator_windows)
+    GRAPH_REFINE_MIN_PX = 2.0
     GRAPH_PLOT_LINES = 18       # plot height, in lines of the axis font
     # Floor of the altitude axis. Below it the Sun curve only says the feature
     # is in lunar night, however deep, and a near-side feature's libration never
@@ -1352,17 +1359,26 @@ class PlanningMixin:
                 # Asked with exactly the planner's own settings, so a strip
                 # marks the same windows its list shows - including only the
                 # best PLANNER_MAX_RESULTS in libration mode, as the list does
+                # Asked for to the minute only where a step is worth seeing.
+                # Over a wide span it is thinner than the strip's own edge and
+                # the windows are many, so the scan is left coarse; over a
+                # short one an hour is a dozen pixels and there are few windows
+                # to place, which is where a strip drawn from samples alone
+                # visibly falls short of the times the planner lists
+                refine = state["day_w"] / 24.0 >= self.GRAPH_REFINE_MIN_PX
                 term_windows = astro.find_terminator_windows(
                     state["start"], state["days"], feature.lat, feature.lon,
                     sun_alt_max=self.PLANNER_SUN_ALT_MAX,
                     moon_alt_min=self.PLANNER_MOON_ALT_MIN,
-                    observer_sun_alt_max=self._planner_observer_sun_alt_max())
+                    observer_sun_alt_max=self._planner_observer_sun_alt_max(),
+                    refine_edges=refine)
                 libr_windows = astro.find_libration_windows(
                     state["start"], state["days"], feature.lat, feature.lon,
                     sun_alt_min=self.PLANNER_LIBRATION_SUN_ALT_MIN,
                     moon_alt_min=self.PLANNER_MOON_ALT_MIN,
                     max_results=self.PLANNER_MAX_RESULTS,
-                    observer_sun_alt_max=self._planner_observer_sun_alt_max())
+                    observer_sun_alt_max=self._planner_observer_sun_alt_max(),
+                    refine_edges=refine)
             except ValueError as e:
                 # Scan start outside the bundled ephemeris kernel range
                 state["dts"] = []

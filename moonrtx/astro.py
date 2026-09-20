@@ -280,12 +280,79 @@ def sample_feature_series(start_local: datetime, days: int,
     }
 
 
+# How finely a window's edges are placed, once the coarse scan has found it.
+# One minute is well past what an observer needs, and costs one evaluation per
+# window: the ephemeris is worked out for a whole array at a time, so a couple
+# of hours of minutes costs about what a single moment does.
+_EDGE_STEP_MINUTES = 1
+
+
+def _window_edges(probe, dts: list, seg: np.ndarray) -> tuple:
+    """
+    Where a window really begins and ends, rather than which samples caught it.
+
+    The scan tests every step_minutes, so the edges of a window fall anywhere
+    within one step of the first and last samples that qualified - and a spell
+    of 45 minutes can meet a single hourly sample, which would record it as
+    beginning and ending at that one moment. The step either side is looked at
+    again here, at _EDGE_STEP_MINUTES, and the edges taken where the conditions
+    really take hold and let go.
+
+    An edge at either end of the scanned span stays where the span does: what
+    lies outside it was never scanned, and a window running past it is reported
+    as reaching the edge, not beyond.
+
+    Parameters
+    ----------
+    probe : callable
+        Asked for (times, ok) over an interval, at _EDGE_STEP_MINUTES: the same
+        conditions the coarse scan applied, tested again more finely
+    dts : list
+        The coarse scan's sample times
+    seg : np.ndarray
+        Indices into dts of one run of qualifying samples
+
+    Returns
+    -------
+    tuple
+        (start, end) as UTC datetimes
+    """
+    first, last = int(seg[0]), int(seg[-1])
+
+    def edge(outside: int, inside: int, leading: bool):
+        """
+        Where the conditions change in the step between a sample that failed
+        and one that qualified. Only that step is looked at, not the window
+        itself, whose middle the coarse scan has already settled: an evaluation
+        costs a fixed six milliseconds and a fraction of one per sample, so two
+        short looks beat one that spans hours of window between them.
+        """
+        if outside < 0 or outside >= len(dts):      # the span ends here
+            return dts[inside]
+        from_utc, to_utc = sorted((dts[outside], dts[inside]))
+        times, ok = probe(from_utc, to_utc)
+        if times is None or len(times) < 2:
+            return dts[inside]
+        # Walking in from the qualifying end, the edge is the last moment
+        # before the conditions fail
+        order = range(len(times) - 1, -1, -1) if leading else range(len(times))
+        edge_at = None
+        for i in order:
+            if not ok[i]:
+                break
+            edge_at = times[i]
+        return edge_at if edge_at is not None else dts[inside]
+
+    return edge(first - 1, first, True), edge(last + 1, last, False)
+
+
 def find_terminator_windows(start_local: datetime, days: int,
                             feature_lat: float, feature_lon: float,
                             step_minutes: int = 60,
                             sun_alt_max: float = 12.0,
                             moon_alt_min: float = 5.0,
-                            observer_sun_alt_max: float = 90.0) -> list[dict]:
+                            observer_sun_alt_max: float = 90.0,
+                            refine_edges: bool = True) -> list[dict]:
     """
     Find upcoming windows when a Moon feature can be observed near the
     terminator: the Sun is low over the feature (0..sun_alt_max degrees, so
@@ -308,7 +375,10 @@ def find_terminator_windows(start_local: datetime, days: int,
     feature_lat, feature_lon : float
         Selenographic position of the feature in degrees
     step_minutes : int
-        Sample spacing; window edges are accurate to this resolution
+        Sample spacing for the scan itself. A window found is then looked at
+        again around its ends, and its edges placed to the minute, so this
+        settles which windows are found rather than how exactly they are
+        timed (see _window_edges)
     sun_alt_max : float
         Highest Sun altitude over the feature still considered "near the
         terminator" (12 degrees is roughly a day past sunrise/before sunset)
@@ -318,6 +388,12 @@ def find_terminator_windows(start_local: datetime, days: int,
         Highest Sun altitude at the observer site. -12 keeps a window to a dark
         sky, trimming it to the part after nautical twilight so that "best"
         falls in the dark too; the default sets no limit
+    refine_edges : bool
+        Place each window's edges to the minute, which costs an evaluation per
+        edge (see _window_edges). Pass False where a step either way does not
+        show - the graph draws a 60-day span about a pixel to the step - and
+        the edges then stay at the samples that caught them, a window met by
+        one sample keeping its zero length rather than being dropped
 
     Returns
     -------
@@ -328,25 +404,37 @@ def find_terminator_windows(start_local: datetime, days: int,
         (degrees at "best"), "observer_sun_alt" (degrees at "best", for
         judging sky darkness).
 
-        A window the scan catches on a single sample, and so one that starts
-        and ends at the same moment, is left out. One sample means the
-        conditions held between that sample's neighbours and nowhere else,
-        which is either a spell shorter than two steps - 45 minutes can fall
-        between hourly samples but for one - or a longer spell clipped by the
-        start or end of the span, with only its last minutes inside. Either
-        way its length is not known, and it would stand in the results as an
-        opportunity of no length at all, in a calendar as an entry ending
-        where it began.
+        "start" and "end" are where the conditions take hold and let go, to
+        the minute, not the first and last samples that caught them: a spell
+        of 45 minutes can meet a single hourly sample, and would otherwise be
+        reported as beginning and ending at that one moment (see
+        _window_edges). A window reaching either end of the scanned span is
+        reported as reaching it, what lies beyond never having been looked at.
+
+        A window still of no length - a spell shorter than a minute, or one
+        that only grazes the edge of the span - is left out: it would stand in
+        the results as an opportunity of no length at all, and in a calendar
+        as an entry ending where it began.
     """
     series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
     dts = series["times"]
     sun_alt_f = series["sun_alt"]
-    earth_alt = series["earth_alt"]
     moon_alt = series["moon_alt"]
     sun_alt_obs = series["observer_sun_alt"]
 
-    ok = ((sun_alt_f >= 0.0) & (sun_alt_f <= sun_alt_max) & (moon_alt >= moon_alt_min)
-          & (earth_alt > 0.0) & (sun_alt_obs <= observer_sun_alt_max))
+    # Written once and asked of both passes, the coarse scan and the finer look
+    # at the edges, so the two cannot come to test different things
+    def condition(s):
+        return ((s["sun_alt"] >= 0.0) & (s["sun_alt"] <= sun_alt_max)
+                & (s["moon_alt"] >= moon_alt_min) & (s["earth_alt"] > 0.0)
+                & (s["observer_sun_alt"] <= observer_sun_alt_max))
+
+    def probe(from_utc, to_utc):
+        fine = sample_feature_series(from_utc, (to_utc - from_utc) / timedelta(days=1),
+                                     feature_lat, feature_lon, _EDGE_STEP_MINUTES)
+        return fine["times"], condition(fine)
+
+    ok = condition(series)
     idx = np.flatnonzero(ok)
     if idx.size == 0:
         return []
@@ -355,10 +443,12 @@ def find_terminator_windows(start_local: datetime, days: int,
 
     windows = []
     for seg in _split_windows(idx):
-        start = dts[seg[0]]
-        end = dts[seg[-1]]
-        if not end > start:
-            continue
+        if refine_edges:
+            start, end = _window_edges(probe, dts, seg)
+            if not end > start:
+                continue
+        else:
+            start, end = dts[seg[0]], dts[seg[-1]]
         best = seg[np.argmax(moon_alt[seg])]
         windows.append({
             "start": start,
@@ -378,7 +468,8 @@ def find_libration_windows(start_local: datetime, days: int,
                            sun_alt_min: float = 3.0,
                            moon_alt_min: float = 5.0,
                            max_results: int = 20,
-                           observer_sun_alt_max: float = 90.0) -> list[dict]:
+                           observer_sun_alt_max: float = 90.0,
+                           refine_edges: bool = True) -> list[dict]:
     """
     Find upcoming windows when a Moon feature is best presented, that is when
     libration tilts it toward Earth. This is what decides whether a limb
@@ -403,7 +494,8 @@ def find_libration_windows(start_local: datetime, days: int,
     feature_lat, feature_lon : float
         Selenographic position of the feature in degrees
     step_minutes : int
-        Sample spacing; window edges are accurate to this resolution
+        Sample spacing for the scan itself; the edges of a window found are
+        placed to the minute afterwards, as in find_terminator_windows
     sun_alt_min : float
         Minimum Sun altitude over the feature, so it is lit rather than in
         night or in the deepest grazing shadow
@@ -415,6 +507,8 @@ def find_libration_windows(start_local: datetime, days: int,
         Highest Sun altitude at the observer site. -12 keeps a window to a dark
         sky, and the cap then takes the best of the dark ones; the default sets
         no limit
+    refine_edges : bool
+        Place each window's edges to the minute, as in find_terminator_windows
 
     Returns
     -------
@@ -426,9 +520,10 @@ def find_libration_windows(start_local: datetime, days: int,
         (topocentric libration there), "sun_alt" (Sun altitude over the
         feature), "moon_alt" and "observer_sun_alt" (degrees at "best").
 
-        A window caught on a single sample is left out, as in
-        find_terminator_windows. max_results is applied after that, so the cap
-        is spent on windows that last rather than on one of no length.
+        "start" and "end" are placed to the minute, and a window still of no
+        length is left out, as in find_terminator_windows. max_results is
+        applied after that, so the cap is spent on windows that last rather
+        than on one of no length.
     """
     series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
     dts = series["times"]
@@ -438,18 +533,37 @@ def find_libration_windows(start_local: datetime, days: int,
     sun_alt_obs = series["observer_sun_alt"]
     libr_lat, libr_lon = series["libr_lat"], series["libr_lon"]
 
-    ok = ((earth_alt > 0.0) & (sun_alt_f >= sun_alt_min) & (moon_alt >= moon_alt_min)
-          & (sun_alt_obs <= observer_sun_alt_max))
+    # Written once and asked of both passes, as in find_terminator_windows
+    def condition(s):
+        return ((s["earth_alt"] > 0.0) & (s["sun_alt"] >= sun_alt_min)
+                & (s["moon_alt"] >= moon_alt_min)
+                & (s["observer_sun_alt"] <= observer_sun_alt_max))
+
+    def probe(from_utc, to_utc):
+        fine = sample_feature_series(from_utc, (to_utc - from_utc) / timedelta(days=1),
+                                     feature_lat, feature_lon, _EDGE_STEP_MINUTES)
+        return fine["times"], condition(fine)
+
+    ok = condition(series)
     idx = np.flatnonzero(ok)
     if idx.size == 0:
         return []
 
+    # The cap is spent before the edges are looked at more closely: which
+    # windows are best presented is decided at "best", which no edge touches,
+    # and refining the ones about to be thrown away would be the bulk of the
+    # work - a scan finds several times max_results of them
+    segments = _split_windows(idx)
+    segments.sort(key=lambda s: earth_alt[s[np.argmax(earth_alt[s])]], reverse=True)
+
     windows = []
-    for seg in _split_windows(idx):
-        start = dts[seg[0]]
-        end = dts[seg[-1]]
-        if not end > start:
-            continue
+    for seg in segments[:max_results]:
+        if refine_edges:
+            start, end = _window_edges(probe, dts, seg)
+            if not end > start:
+                continue
+        else:
+            start, end = dts[seg[0]], dts[seg[-1]]
         best = seg[np.argmax(earth_alt[seg])]
         windows.append({
             "start": start,
