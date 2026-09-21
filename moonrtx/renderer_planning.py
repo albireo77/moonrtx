@@ -1887,20 +1887,30 @@ class PlanningMixin:
             state["start"] += timedelta(days=days)
             redraw()
 
-        def set_span():
+        def show(days: int, start: datetime):
             """
-            Stretch or squeeze the time axis to the span chosen, sampling finer
-            the shorter it is. The new span is centred on the moment the app is
-            showing, so a day picked at the wide span can be zoomed into and an
-            hour picked in it.
+            Draw a span of days from start, stretching or squeezing the time
+            axis to it and sampling finer the shorter it is. The span is kept
+            for the rest of the session.
             """
-            days = span_var.get()
             self._graph_span = days
             state["days"] = days
             state["step"] = step_for(days)
             state["day_w"] = plot_w / days
-            state["start"] = self.dt_local - timedelta(days=days / 2)
+            state["start"] = start
             redraw()
+
+        def centre_on_moment(days: int):
+            """Show a span of days with the moment the app is showing in its middle."""
+            show(days, self.dt_local - timedelta(days=days / 2))
+
+        def set_span():
+            """
+            Show the span chosen, centred on the moment the app is showing, so a
+            day picked at the wide span can be zoomed into and an hour picked in
+            it.
+            """
+            centre_on_moment(span_var.get())
 
         def left():
             """Put the moment on show back at the left edge, where the graph opened with it."""
@@ -1913,8 +1923,7 @@ class PlanningMixin:
             is - what a span button does when it changes the span, without the
             change - so the days either side of it are both in view.
             """
-            state["start"] = self.dt_local - timedelta(days=state["days"] / 2)
-            redraw()
+            centre_on_moment(state["days"])
 
         # The span, the step and the buttons in a block of their own, which
         # fit_rows puts at the end of the legend's row where there is room for
@@ -2009,13 +2018,8 @@ class PlanningMixin:
                 return
             share = (wheel["x"] - plot_x0) / plot_w
             moment = state["start"] + timedelta(days=share * state["days"])
-            self._graph_span = days
             span_var.set(days)   # no button chosen when the span is none of theirs
-            state["days"] = days
-            state["step"] = step_for(days)
-            state["day_w"] = plot_w / days
-            state["start"] = moment - timedelta(days=share * days)
-            redraw()
+            show(days, moment - timedelta(days=share * days))
 
         win.bind('<MouseWheel>', zoom)
 
