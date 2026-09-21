@@ -184,7 +184,7 @@ def _body_altitude_at_feature(sub_lat_deg: np.ndarray, sub_lon_deg: np.ndarray,
     return np.degrees(np.arcsin(np.clip(sin_alt, -1.0, 1.0)))
 
 
-def _scan_times(start_local: datetime, days: int, step_minutes: int) -> tuple:
+def _scan_times(start_local: datetime, days: float, step_minutes: int) -> tuple:
     """
     Sample times for a planner scan, as a list of UTC datetimes and the
     matching Skyfield time array (clamped to the bundled kernel range).
@@ -218,7 +218,7 @@ def _split_windows(idx: np.ndarray) -> list:
     return [idx[s:e + 1] for s, e in zip(starts, ends)]
 
 
-def sample_feature_series(start_local: datetime, days: int,
+def sample_feature_series(start_local: datetime, days: float,
                           feature_lat: float, feature_lon: float,
                           step_minutes: int = 60) -> dict:
     """
@@ -232,8 +232,8 @@ def sample_feature_series(start_local: datetime, days: int,
     ----------
     start_local : datetime
         Timezone-aware start of the scan
-    days : int
-        Scan length in days (clamped to the bundled kernel range)
+    days : float
+        Scan length in days, fractions allowed (clamped to the bundled kernel range)
     feature_lat, feature_lon : float
         Selenographic position of the feature in degrees
     step_minutes : int
@@ -356,7 +356,7 @@ def _window_edges(probe, dts: list, seg: np.ndarray, span_end: datetime = None) 
         else:
             from_utc, to_utc = sorted((dts[outside], dts[inside]))
         times, ok = probe(from_utc, to_utc)
-        if times is None or len(times) < 2:
+        if len(times) < 2:
             return dts[inside]
         # Walking in from the qualifying end, the edge is the last moment
         # before the conditions fail
