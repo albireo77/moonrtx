@@ -1861,8 +1861,9 @@ class PlanningMixin:
             "span when a step passes either end of it.\n"
             "The mouse wheel over the graph zooms the time axis, 60 days down\n"
             "to 1, keeping the moment under the pointer where it is.\n"
-            "◀ ▶ page the graph a span back or on. Reset puts the moment on\n"
-            "show back at the left edge, where the graph opened with it.\n"
+            "◀ ▶ page the graph a span back or on. Left puts the moment on\n"
+            "show back at the left edge, where the graph opened with it, and\n"
+            "Centre puts it in the middle, keeping the span.\n"
             "Span (days) sets the axis to 60, 15 or 5 days about that moment;\n"
             "between those, the wheel's spans show no button chosen.\n"
             "Step (min) is this window's own time step - the renderer's own\n"
@@ -1895,8 +1896,18 @@ class PlanningMixin:
             state["start"] = self.dt_local - timedelta(days=days / 2)
             redraw()
 
-        def reset():
+        def left():
+            """Put the moment on show back at the left edge, where the graph opened with it."""
             state["start"] = self.dt_local
+            redraw()
+
+        def centre():
+            """
+            Put the moment on show in the middle of the span, the span kept as it
+            is - what a span button does when it changes the span, without the
+            change - so the days either side of it are both in view.
+            """
+            state["start"] = self.dt_local - timedelta(days=state["days"] / 2)
             redraw()
 
         # The span, the step and the buttons in a block of their own, which
@@ -1904,7 +1915,11 @@ class PlanningMixin:
         # it, and on a row under the legend where there is not
         legend_controls = tk.Frame(main_frame)
         tk.Button(legend_controls, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
-        tk.Button(legend_controls, text="Reset", command=reset, width=10).pack(
+        # Beside Left, the two of them taking the graph back to the moment on
+        # show - Left to the left edge, Centre to the middle
+        tk.Button(legend_controls, text="Centre", command=centre, width=10).pack(
+            side=tk.RIGHT, padx=(0, pad + 2))
+        tk.Button(legend_controls, text="Left", command=left, width=10).pack(
             side=tk.RIGHT, padx=(0, pad + 2))
         tk.Button(legend_controls, text="▶", width=2,
                   command=lambda: page(state["days"])).pack(side=tk.RIGHT, padx=(0, pad + 2))
@@ -2039,7 +2054,7 @@ class PlanningMixin:
                 else:
                     block.pack(side=tk.TOP, anchor='w', after=legend)
 
-        reset()   # the first draw starts at the moment the app is showing
+        left()    # the first draw starts at the moment the app is showing
         fit_rows()
 
         # Not modal, so the renderer's mouse stays in use while the graph is
