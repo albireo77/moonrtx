@@ -286,8 +286,21 @@ def sample_feature_series(start_local: datetime, days: int,
 # of hours of minutes costs about what a single moment does.
 _EDGE_STEP_MINUTES = 1
 
+# Where the window scans' samples fall. A window shorter than a step is found
+# only when a sample happens to land inside it, so the samples have to sit on a
+# grid fixed to the clock - on the hour, for a step of an hour - rather than be
+# counted from wherever a span begins. Counted from the start instead, the same
+# window came and went with the minute a scan began at: with each turn of the
+# graph's zoom, and with the minute the planner happened to be opened in.
+_GRID_EPOCH = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
-def _window_edges(probe, dts: list, seg: np.ndarray) -> tuple:
+
+def _grid_start(start_utc: datetime, step_minutes: int) -> datetime:
+    """The last moment on the clock-fixed grid of step_minutes at or before start_utc."""
+    return start_utc - (start_utc - _GRID_EPOCH) % timedelta(minutes=step_minutes)
+
+
+def _window_edges(probe, dts: list, seg: np.ndarray, span_end: datetime = None) -> tuple:
     """
     Where a window really begins and ends, rather than which samples caught it.
 
@@ -311,6 +324,11 @@ def _window_edges(probe, dts: list, seg: np.ndarray) -> tuple:
         The coarse scan's sample times
     seg : np.ndarray
         Indices into dts of one run of qualifying samples
+    span_end : datetime, optional
+        Where the span asked for ends. The samples sit on a clock-fixed grid
+        (see _GRID_EPOCH), so the last of them can fall up to a step short of
+        it; a window still on at that sample is looked at again up to here,
+        rather than being cut off at the sample
 
     Returns
     -------
@@ -327,9 +345,16 @@ def _window_edges(probe, dts: list, seg: np.ndarray) -> tuple:
         costs a fixed six milliseconds and a fraction of one per sample, so two
         short looks beat one that spans hours of window between them.
         """
-        if outside < 0 or outside >= len(dts):      # the span ends here
+        if outside < 0:                             # the span starts here
             return dts[inside]
-        from_utc, to_utc = sorted((dts[outside], dts[inside]))
+        if outside >= len(dts):
+            # Past the last sample: up to where the span ends, which the grid
+            # may fall short of, and no further
+            if span_end is None or span_end <= dts[inside]:
+                return dts[inside]
+            from_utc, to_utc = dts[inside], span_end
+        else:
+            from_utc, to_utc = sorted((dts[outside], dts[inside]))
         times, ok = probe(from_utc, to_utc)
         if times is None or len(times) < 2:
             return dts[inside]
@@ -378,7 +403,10 @@ def find_terminator_windows(start_local: datetime, days: int,
         Sample spacing for the scan itself. A window found is then looked at
         again around its ends, and its edges placed to the minute, so this
         settles which windows are found rather than how exactly they are
-        timed (see _window_edges)
+        timed (see _window_edges). The samples fall on a grid fixed to the
+        clock - on the hour for 60 - wherever the span begins, so which
+        windows are found does not change with the minute a scan starts at
+        (see _GRID_EPOCH)
     sun_alt_max : float
         Highest Sun altitude over the feature still considered "near the
         terminator" (12 degrees is roughly a day past sunrise/before sunset)
@@ -416,7 +444,14 @@ def find_terminator_windows(start_local: datetime, days: int,
         the results as an opportunity of no length at all, and in a calendar
         as an entry ending where it began.
     """
-    series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
+    # From the grid point at or before the start (see _GRID_EPOCH), and on as
+    # far as the span asked for reaches; windows are clipped back to its start
+    # below
+    start_utc = _validate_supported_datetime(start_local)
+    grid_utc = _grid_start(start_utc, step_minutes)
+    span_end = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
+    series = sample_feature_series(grid_utc, days + (start_utc - grid_utc) / timedelta(days=1),
+                                   feature_lat, feature_lon, step_minutes)
     dts = series["times"]
     sun_alt_f = series["sun_alt"]
     moon_alt = series["moon_alt"]
@@ -444,16 +479,24 @@ def find_terminator_windows(start_local: datetime, days: int,
     windows = []
     for seg in _split_windows(idx):
         if refine_edges:
-            start, end = _window_edges(probe, dts, seg)
-            if not end > start:
-                continue
+            start, end = _window_edges(probe, dts, seg, span_end)
         else:
             start, end = dts[seg[0]], dts[seg[-1]]
+        # Clipped to the span asked for, the grid having begun up to a step
+        # before it: a window over by then is not reported, and one still on
+        # starts where the span does, as it did when scans began there
+        if end < start_utc:
+            continue
+        start = max(start, start_utc)
+        if refine_edges and not end > start:
+            continue
         best = seg[np.argmax(moon_alt[seg])]
         windows.append({
             "start": start,
             "end": end,
-            "best": dts[best],
+            # A best sample taken just before the span is reported at its start;
+            # the figures below are that sample's, less than a step away
+            "best": max(dts[best], start_utc),
             "event": "sunrise" if climbing[best] else "sunset",
             "sun_alt": float(sun_alt_f[best]),
             "moon_alt": float(moon_alt[best]),
@@ -525,7 +568,12 @@ def find_libration_windows(start_local: datetime, days: int,
         applied after that, so the cap is spent on windows that last rather
         than on one of no length.
     """
-    series = sample_feature_series(start_local, days, feature_lat, feature_lon, step_minutes)
+    # On the clock-fixed grid and clipped to the span, as in find_terminator_windows
+    start_utc = _validate_supported_datetime(start_local)
+    grid_utc = _grid_start(start_utc, step_minutes)
+    span_end = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
+    series = sample_feature_series(grid_utc, days + (start_utc - grid_utc) / timedelta(days=1),
+                                   feature_lat, feature_lon, step_minutes)
     dts = series["times"]
     sun_alt_f = series["sun_alt"]
     earth_alt = series["earth_alt"]
@@ -549,26 +597,32 @@ def find_libration_windows(start_local: datetime, days: int,
     if idx.size == 0:
         return []
 
-    # The cap is spent before the edges are looked at more closely: which
-    # windows are best presented is decided at "best", which no edge touches,
-    # and refining the ones about to be thrown away would be the bulk of the
-    # work - a scan finds several times max_results of them
+    # Taken best first, and only until the cap is filled: which windows are
+    # best presented is decided at "best", which no edge touches, so the ones
+    # past the cap are never refined - they would be the bulk of the work, a
+    # scan finding several times max_results of them - and one dropped on the
+    # way, over before the span began or of no length, does not cost a place
     segments = _split_windows(idx)
     segments.sort(key=lambda s: earth_alt[s[np.argmax(earth_alt[s])]], reverse=True)
 
     windows = []
-    for seg in segments[:max_results]:
+    for seg in segments:
+        if len(windows) == max_results:
+            break
         if refine_edges:
-            start, end = _window_edges(probe, dts, seg)
-            if not end > start:
-                continue
+            start, end = _window_edges(probe, dts, seg, span_end)
         else:
             start, end = dts[seg[0]], dts[seg[-1]]
+        if end < start_utc:
+            continue
+        start = max(start, start_utc)
+        if refine_edges and not end > start:
+            continue
         best = seg[np.argmax(earth_alt[seg])]
         windows.append({
             "start": start,
             "end": end,
-            "best": dts[best],
+            "best": max(dts[best], start_utc),
             "earth_alt": float(earth_alt[best]),
             "libr_long": _wrap_signed_degrees(float(libr_lon[best])),
             "libr_lat": float(libr_lat[best]),
