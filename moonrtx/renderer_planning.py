@@ -1138,8 +1138,9 @@ class PlanningMixin:
             return columns, rows, events
 
         def open_graph():
-            # This window closes first: Tk allows one grab at a time, so it and
-            # the graph cannot both be modal and both be usable
+            # This window closes first: it is modal and holds the grab, and
+            # while it is open the graph - which takes none - could not be
+            # clicked at all
             on_close()
             self.feature_graph_dialog(feature)
 
@@ -1154,10 +1155,12 @@ class PlanningMixin:
 
     def feature_graph_dialog(self, feature: MoonFeature):
         """
-        Plot Sun altitude and libration presentation for a feature across the
-        planner's scan span, rather than the discrete windows the planner
-        reduces them to - so a trend (a shallowing terminator pass, a
-        libration peak drifting later each month) shows at a glance.
+        Plot Sun altitude and libration presentation for a feature over a span
+        of days - opening on the planner's own, the next PLANNER_SCAN_DAYS, and
+        zoomed or paged from there, down to a single day - rather than the
+        discrete windows the planner reduces them to, so a trend (a shallowing
+        terminator pass, a libration peak drifting later each month) shows at a
+        glance.
 
         Local visibility is drawn as a Sky/Moon ribbon: the Moon's altitude
         swings through a full cycle about once a day, which over a span of
@@ -1356,12 +1359,14 @@ class PlanningMixin:
                     state["start"], state["days"], feature.lat, feature.lon,
                     step_minutes=state["step"])
                 chart = astro.find_visibility_chart(state["start"], state["days"])
-                # Asked with exactly the planner's own settings, so a strip
-                # marks the same windows its list shows - including only the
-                # best PLANNER_MAX_RESULTS in libration mode, as the list does
-                # Asked for to the minute only where a step is worth seeing.
-                # Over a wide span it is thinner than the strip's own edge and
-                # the windows are many, so the scan is left coarse; over a
+                # Asked with the planner's own settings, so a strip marks the
+                # same windows its list shows - including only the best
+                # PLANNER_MAX_RESULTS in libration mode, as the list does.
+                #
+                # Their edges are asked for to the minute only where a step is
+                # worth seeing, though. Over a wide span it is thinner than the
+                # strip's own edge and the windows are many, so the scan is left
+                # coarse and a strip stops at the samples that caught it; over a
                 # short one an hour is a dozen pixels and there are few windows
                 # to place, which is where a strip drawn from samples alone
                 # visibly falls short of the times the planner lists
@@ -1856,8 +1861,8 @@ class PlanningMixin:
             "span when a step passes either end of it.\n"
             "The mouse wheel over the graph zooms the time axis, 60 days down\n"
             "to 1, keeping the moment under the pointer where it is.\n"
-            "◀ ▶ page the graph a span back or on. Reset centres it on the\n"
-            "moment on show.\n"
+            "◀ ▶ page the graph a span back or on. Reset puts the moment on\n"
+            "show back at the left edge, where the graph opened with it.\n"
             "Span (days) sets the axis to 60, 15 or 5 days about that moment;\n"
             "between those, the wheel's spans show no button chosen.\n"
             "Step (min) is this window's own time step - the renderer's own\n"
