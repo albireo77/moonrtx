@@ -800,16 +800,26 @@ def _horizon_crossings(found: tuple) -> list[datetime]:
 ASTRONOMICAL_TWILIGHT_DEGREES = -12.0
 
 
-def _altitude_of(target, when_utc: datetime) -> float:
-    """Apparent altitude of a body above the observer's horizon, in degrees."""
-    altitude = (
-        _observer
-        .at(_timescale.from_datetime(when_utc))
-        .observe(target)
-        .apparent()
-        .altaz(temperature_C="standard")[0]
-    )
-    return float(altitude.degrees)
+def _is_up(target, when_utc: datetime, horizon_degrees: float = None) -> bool:
+    """
+    Whether a body stands above the horizon at that moment, decided the way
+    the almanac decides where it rises and sets.
+
+    Which is not simply an altitude above zero: the almanac takes the body as
+    risen once its upper limb clears the horizon, refraction allowed for, and
+    it writes both of those into the depth the body's centre has to reach
+    rather than into the altitude - a Moon of its own apparent size half a
+    degree below the horizon is already up. The altitude is therefore taken
+    without refraction of its own, which would otherwise be counted twice, and
+    the depth comes from the almanac itself. A depth given here is used as it
+    stands, as the almanac uses it for twilight.
+    """
+    position = _observer.at(_timescale.from_datetime(when_utc)).observe(target).apparent()
+    altitude = float(position.altaz()[0].degrees)
+    if horizon_degrees is None:
+        horizon_degrees = math.degrees(
+            almanac.build_horizon_function(target)(position.distance()))
+    return altitude > horizon_degrees
 
 
 def _up_intervals(target, start_utc: datetime, end_utc: datetime,
@@ -830,13 +840,12 @@ def _up_intervals(target, start_utc: datetime, end_utc: datetime,
 
     # A spell already under way when the span opens has no rising to start it.
     # Its first crossing is then a setting - and with no crossing at all, as
-    # through a polar day or a Moon circling above the horizon for a week, only
-    # the altitude can say which way round it is
-    depth = horizon_degrees if horizon_degrees is not None else 0.0
+    # through a polar day or a Moon circling above the horizon for a week,
+    # only where the body stands at the start can say which way round it is
     if crossings:
         up_from = None if crossings[0][1] else start_utc
     else:
-        up_from = start_utc if _altitude_of(target, start_utc) > depth else None
+        up_from = start_utc if _is_up(target, start_utc, horizon_degrees) else None
 
     intervals = []
     for when, rising in crossings:
