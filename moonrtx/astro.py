@@ -454,7 +454,7 @@ def _find_windows(start_local: datetime, days: float, feature_lat: float, featur
     return series, found
 
 
-def find_terminator_windows(start_local: datetime, days: int,
+def find_terminator_windows(start_local: datetime, days: float,
                             feature_lat: float, feature_lon: float,
                             step_minutes: int = 60,
                             sun_alt_max: float = 12.0,
@@ -478,8 +478,9 @@ def find_terminator_windows(start_local: datetime, days: int,
     ----------
     start_local : datetime
         Timezone-aware start of the scan
-    days : int
-        Scan length in days (clamped to the bundled kernel range)
+    days : float
+        Scan length in days, fractions allowed (clamped to the bundled kernel
+        range)
     feature_lat, feature_lon : float
         Selenographic position of the feature in degrees
     step_minutes : int
@@ -551,7 +552,7 @@ def find_terminator_windows(start_local: datetime, days: int,
     } for start, end, best, best_at in found]
 
 
-def find_libration_windows(start_local: datetime, days: int,
+def find_libration_windows(start_local: datetime, days: float,
                            feature_lat: float, feature_lon: float,
                            step_minutes: int = 60,
                            sun_alt_min: float = 3.0,
@@ -578,8 +579,9 @@ def find_libration_windows(start_local: datetime, days: int,
     ----------
     start_local : datetime
         Timezone-aware start of the scan
-    days : int
-        Scan length in days (clamped to the bundled kernel range)
+    days : float
+        Scan length in days, fractions allowed (clamped to the bundled kernel
+        range)
     feature_lat, feature_lon : float
         Selenographic position of the feature in degrees
     step_minutes : int
