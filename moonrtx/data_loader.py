@@ -233,6 +233,15 @@ def _fits_in_memory(what: str, remedy: str):
             f"Not enough memory to prepare {what}: {e}\n{remedy}") from e
 
 
+# The sphere the Moon's surface is measured against: the radius the LOLA
+# products give their heights relative to, and the one a feature's size on the
+# ground is turned into an angle on.
+MOON_REFERENCE_RADIUS_M = 1_737_400.0
+# Kilometres of surface to a degree of arc there, which is what turns a crater's
+# diameter into the angular size the labels and the status bar work in
+KM_PER_DEGREE = math.radians(1.0) * MOON_REFERENCE_RADIUS_M / 1000.0
+
+
 def load_moon_features(filepath: str) -> list:
     """
     Load Moon features from a CSV file.
@@ -279,7 +288,7 @@ def load_moon_features(filepath: str) -> list:
                             name=name,
                             lat=float(lat_str),
                             lon=float(lon_str),
-                            angular_radius=diameter_km / 60.647,
+                            angular_radius=(diameter_km / 2) / KM_PER_DEGREE,
                             diameter_km=diameter_km,
                             standard_label=standard_label,
                             spot_label=spot_label,
@@ -297,9 +306,8 @@ def load_moon_features(filepath: str) -> list:
     return moon_features
 
 # LOLA LDEM products store elevation as signed 16-bit integers, 0.5 m per unit,
-# relative to the reference Moon radius of 1737.4 km.
+# relative to the reference Moon radius above.
 LDEM_METERS_PER_UNIT = 0.5
-MOON_REFERENCE_RADIUS_M = 1_737_400.0
 _ELEVATION_SAMPLE_BYTES = 2
 
 ELEVATION_DOWNSCALE_REMEDY = "Raise --downscale (Elevation downscale in the launcher)."
