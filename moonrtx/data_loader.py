@@ -774,18 +774,22 @@ def load_starmap(filepath: str, target_width: int) -> Optional[np.ndarray]:
             print(f"Failed to read star map: {filepath}")
             return None
         
-        # Convert BGR to RGB and normalize
-        star_src = star_src[..., ::-1].astype(np.float32)
-        star_src *= 1 / 255
-
-        # Downscale if needed
+        # Downscale first, while the map is still bytes, and only then convert
+        # it: a float32 copy of the whole 16k map is four times the decoded
+        # bytes - some 3 GB - and this is the peak that decides whether the sky
+        # can be prepared at all. Shrinking first leaves the float copy the size
+        # of the result instead. Interpolating in bytes rounds the values it
+        # makes up to 8 bits, which the sky it comes from is anyway, and the
+        # overshoot cubic interpolation produces is clamped by OpenCV where it
+        # used to be clipped afterwards.
         if target_width < star_src.shape[1]:
             target_height = int(star_src.shape[0] * target_width / star_src.shape[1])
-            star_map = cv2.resize(star_src, (target_width, target_height),
-                                    interpolation=cv2.INTER_CUBIC)
-            np.clip(star_map, 0, 1, out=star_map)
-        else:
-            star_map = star_src
+            star_src = cv2.resize(star_src, (target_width, target_height),
+                                  interpolation=cv2.INTER_CUBIC)
+
+        # Convert BGR to RGB and normalize
+        star_map = star_src[..., ::-1].astype(np.float32)
+        star_map *= 1 / 255
     except (MemoryError, cv2.error) as e:
         if not _is_out_of_memory(e):
             raise
