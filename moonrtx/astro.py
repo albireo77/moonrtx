@@ -877,8 +877,8 @@ def _daily_illumination(start_utc: datetime, end_utc: datetime) -> list:
     reading is taken at the middle of its day, so it stands for the night on
     either side of it rather than for one end of the day.
     """
-    moments = [start_utc + timedelta(days=day, hours=12)
-               for day in range(-((start_utc - end_utc).days))]
+    days = math.ceil((end_utc - start_utc) / timedelta(days=1))
+    moments = [start_utc + timedelta(days=day, hours=12) for day in range(days)]
     moments = [moment for moment in moments if moment <= end_utc]
     if not moments:
         return []
