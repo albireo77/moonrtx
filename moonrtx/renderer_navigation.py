@@ -14,6 +14,35 @@ from moonrtx.shared_types import MoonFeature
 class NavigationMixin:
     """Mixin providing camera navigation and measurement methods for MoonRenderer."""
 
+    @staticmethod
+    def _rotated(vector: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
+        """
+        A vector turned about an axis through the origin (Rodrigues' formula).
+
+        Every camera move here is one of these - the eye about the target, the
+        view direction about the eye, the up vector about the line of sight -
+        and each of them used to write the three terms out again. Written once,
+        a reader checks the arithmetic once and reads the rest as what it does.
+
+        Parameters
+        ----------
+        vector : np.ndarray
+            The vector to turn
+        axis : np.ndarray
+            Unit vector of the axis, which the rotation is anticlockwise about
+            seen from its far end
+        angle : float
+            How far to turn, in radians
+
+        Returns
+        -------
+        np.ndarray
+            The turned vector
+        """
+        cos_a, sin_a = np.cos(angle), np.sin(angle)
+        return (vector * cos_a + np.cross(axis, vector) * sin_a
+                + axis * np.dot(axis, vector) * (1.0 - cos_a))
+
     def center_on_feature(self, feature: MoonFeature):
         """
         Center the view on a Moon feature.
@@ -208,10 +237,7 @@ class NavigationMixin:
         view = target - eye
         norm = np.linalg.norm(view)
         if norm > 0.0:
-            axis = view / norm
-            cos_a, sin_a = math.cos(-angle), math.sin(-angle)
-            up = (up * cos_a + np.cross(axis, up) * sin_a
-                  + axis * np.dot(axis, up) * (1 - cos_a))
+            up = self._rotated(up, view / norm, -angle)
 
         if (np.allclose(eye, cam["Eye"]) and np.allclose(target, cam["Target"])
                 and np.allclose(up, cam["Up"])):
@@ -330,36 +356,19 @@ class NavigationMixin:
         fov = self.rt._optix.get_camera_fov(0)
         angle = np.radians(fov * step_factor)
         
-        # Determine rotation axis and direction based on arrow key
-        if direction == 'Left':
-            axis = actual_up
-            angle = angle
-        elif direction == 'Right':
-            axis = actual_up
-            angle = -angle
-        elif direction == 'Up':
-            axis = right
-            angle = angle
-        elif direction == 'Down':
-            axis = right
-            angle = -angle
-        else:
+        # Which axis each arrow key turns the eye about, and which way round it
+        turns = {'Left': (actual_up, 1), 'Right': (actual_up, -1),
+                 'Up': (right, 1), 'Down': (right, -1)}
+        if direction not in turns:
             return
-        
-        # Rodrigues' rotation formula to rotate eye around target
-        eye_rel = eye - target
-        cos_a = np.cos(angle)
-        sin_a = np.sin(angle)
-        new_eye_rel = (eye_rel * cos_a + 
-                       np.cross(axis, eye_rel) * sin_a + 
-                       axis * np.dot(axis, eye_rel) * (1 - cos_a))
-        new_eye = target + new_eye_rel
-        
+        axis, sense = turns[direction]
+        angle *= sense
+
+        new_eye = target + self._rotated(eye - target, axis, angle)
+
         # Also rotate the up vector for up/down navigation
         if direction in ('Up', 'Down'):
-            new_up = (up * cos_a + 
-                      np.cross(axis, up) * sin_a + 
-                      axis * np.dot(axis, up) * (1 - cos_a))
+            new_up = self._rotated(up, axis, angle)
             self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), up=new_up.tolist())
         else:
             self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist())
@@ -404,19 +413,11 @@ class NavigationMixin:
         pitch = -dy_px * angle_per_px
 
         # Yaw: rotate the view direction around the view-up axis
-        cos_a, sin_a = np.cos(yaw), np.sin(yaw)
-        view_dir = (view_dir * cos_a +
-                    np.cross(actual_up, view_dir) * sin_a +
-                    actual_up * np.dot(actual_up, view_dir) * (1 - cos_a))
+        view_dir = self._rotated(view_dir, actual_up, yaw)
 
         # Pitch: rotate the view direction and up around the right axis (no roll)
-        cos_a, sin_a = np.cos(pitch), np.sin(pitch)
-        new_up = (up * cos_a +
-                  np.cross(right, up) * sin_a +
-                  right * np.dot(right, up) * (1 - cos_a))
-        view_dir = (view_dir * cos_a +
-                    np.cross(right, view_dir) * sin_a +
-                    right * np.dot(right, view_dir) * (1 - cos_a))
+        new_up = self._rotated(up, right, pitch)
+        view_dir = self._rotated(view_dir, right, pitch)
 
         new_target = eye + view_dir * distance
         self.rt.update_camera(self.CAMERA_NAME, target=new_target.tolist(), up=new_up.tolist())
@@ -464,19 +465,10 @@ class NavigationMixin:
         target = np.array(cam["Target"])
         up = np.array(cam["Up"])
         
-        # Rodrigues' rotation formula to rotate eye around target
-        eye_rel = eye - target
-        cos_a = np.cos(angle)
-        sin_a = np.sin(angle)
-        new_eye_rel = (eye_rel * cos_a + 
-                       np.cross(axis, eye_rel) * sin_a + 
-                       axis * np.dot(axis, eye_rel) * (1 - cos_a))
-        new_eye = target + new_eye_rel
-        
+        new_eye = target + self._rotated(eye - target, axis, angle)
+
         # Also rotate the up vector to maintain proper orientation
-        new_up = (up * cos_a + 
-                  np.cross(axis, up) * sin_a + 
-                  axis * np.dot(axis, up) * (1 - cos_a))
+        new_up = self._rotated(up, axis, angle)
         
         self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), up=new_up.tolist())
 
@@ -508,12 +500,8 @@ class NavigationMixin:
         else:
             angle = np.radians(step_deg)
 
-        # Rodrigues' rotation: rotate only the up vector around the view axis
-        cos_a = np.cos(angle)
-        sin_a = np.sin(angle)
-        new_up = (up * cos_a +
-                  np.cross(axis, up) * sin_a +
-                  axis * np.dot(axis, up) * (1 - cos_a))
+        # Only the up vector turns; the eye and the target stay where they are
+        new_up = self._rotated(up, axis, angle)
 
         self.rt.update_camera(self.CAMERA_NAME, up=new_up.tolist())
 
