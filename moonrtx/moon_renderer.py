@@ -16,7 +16,7 @@ from moonrtx import astro
 from moonrtx.shared_types import (Camera, MAP_TOO_LARGE_EXIT_CODE,
                                   MapTooLargeError, Observer)
 from moonrtx.data_loader import (load_moon_features, load_elevation_data, load_color_data,
-                                 load_starmap, SRGB_GAMMA)
+                                 load_starmap, MOON_REFERENCE_RADIUS_M, SRGB_GAMMA)
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATION_SNWE
 from moonrtx.display import make_dpi_aware, screen_size, starmap_target_width
 
@@ -48,10 +48,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
     # Scene geometry
     MOON_RADIUS = 10.0          # Radius of Moon sphere in scene units
-    MOON_RADIUS_KM = 1737.4     # The real radius that scene radius stands for,
-                                # used wherever the render has to match a real
-                                # angle or length: apparent size, the Sun disk,
-                                # surface distances and elevation differences
+    MOON_RADIUS_KM = MOON_REFERENCE_RADIUS_M / 1000.0
     MOON_FILL_FRACTION = 0.9    # Moon fills 90% of window height (5% margins top/bottom)
                                 # at MOON_REFERENCE_DISTANCE (see moon_camera_distance)
     # Reference camera distance in scene units. Larger distance renders the limb closer
