@@ -951,10 +951,7 @@ class MainWindow(tk.Tk):
                 "Update with: pip install --upgrade -r requirements.txt")
             return
 
-        self._set_status("Checking GPU architecture...")
-        self.update_idletasks()
         if not check_gpu_architecture():
-            self._set_status("")
             messagebox.showerror("Error", "No compatible RTX GPU found.")
             return
 
