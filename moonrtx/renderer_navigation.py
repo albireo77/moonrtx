@@ -625,7 +625,7 @@ class NavigationMixin:
         Returns
         -------
         float
-            Elevation in meters relative to the 1737.4 km reference radius
+            Elevation in meters relative to Moon reference radius
             (positive = above, negative = below)
         """
         h, w = self.elevation.shape
@@ -650,7 +650,7 @@ class NavigationMixin:
 
         # Stored elevation is a displacement factor normalized so that the highest
         # peak is 1.0; elevation_radius_scale converts it back to a factor of the
-        # 1737.4 km reference radius
+        # Moon reference radius
         displacement = val * self.elevation_radius_scale
         return (displacement - 1.0) * self.MOON_RADIUS_KM * 1000.0
 
