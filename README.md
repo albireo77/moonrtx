@@ -91,7 +91,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Hold and drag right mouse button** - Rotate Moon around the eye (move view)  
 **Hold left Ctrl + drag left mouse button** - Measure distance and elevation difference on Moon surface  
 **Hold right Ctrl + drag left mouse button** - Measure, and show the elevation profile along the line  
-**Hold Shift + left mouse button and drag up/down** - Zoom out/in (more reliable)  
+**Hold left Shift + left mouse button and drag up/down** - Zoom out/in (more reliable)  
 **Mouse wheel up/down** - Zoom in/out (less reliable)  
 
 ## Videos
