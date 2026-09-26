@@ -35,12 +35,13 @@ from moonrtx.renderer_overlay import CanvasOverlayMixin
 from moonrtx.renderer_compass import CompassMixin
 from moonrtx.renderer_locator import LocatorMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
+from moonrtx.renderer_profile import ProfileMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
-                   CompassMixin, LocatorMixin, CatalogueMixin):
+                   CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -308,6 +309,11 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self.leading_line_id = None
         self.measured_distance = None
         self.measured_height_diff = None
+        # Whether the measurement under way was begun with the right Ctrl, which
+        # draws its profile as well (see ProfileMixin), and whether that key is
+        # down now: a mouse event says only that some Ctrl is held, not which
+        self.measure_with_profile = False
+        self._right_ctrl_down = False
 
         # Status bar panel variables (set up as StringVars after renderer is created)
         self._status_parallactic_var = None
@@ -352,6 +358,9 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         # Names of everything else in view (see renderer_catalogue.CatalogueMixin)
         self._init_catalogue()
+
+        # The ground along a measurement (see renderer_profile.ProfileMixin)
+        self._init_profile()
 
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
@@ -1177,6 +1186,10 @@ def run_renderer(dt_local: datetime,
     update_view_letters = set('qwtkxu')
 
     def custom_key_handler(event):
+        # Ahead of every early return below: a dialog holding the keys must not
+        # leave the renderer believing the right Ctrl is up while it is down
+        if event.keysym == 'Control_R':
+            moon_renderer._right_ctrl_down = True
         # The search dialog wants every key, being a place to type a name; the
         # date/time window takes only its own (see datetime_dialog_takes_key)
         if moon_renderer.search_dialog_open:
@@ -1301,6 +1314,15 @@ def run_renderer(dt_local: datetime,
 
     moon_renderer.rt._gui_key_pressed = custom_key_handler
 
+    original_key_released = moon_renderer.rt._gui_key_released
+
+    def custom_key_released(event):
+        if event.keysym == 'Control_R':
+            moon_renderer._right_ctrl_down = False
+        original_key_released(event)
+
+    moon_renderer.rt._gui_key_released = custom_key_released
+
     # Override mouse motion handler to show selenographic coordinates
     original_motion_handler = moon_renderer.rt._gui_motion
 
@@ -1331,7 +1353,8 @@ def run_renderer(dt_local: datetime,
 
     def custom_pressed_left(event):
         if event.state & 0x4:
-            moon_renderer.start_measurement(event)
+            # Left Ctrl measures; right Ctrl measures and draws the profile
+            moon_renderer.start_measurement(event, with_profile=moon_renderer._right_ctrl_down)
             return
         original_pressed_left(event)
 

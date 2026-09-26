@@ -654,7 +654,7 @@ class NavigationMixin:
         displacement = val * self.elevation_radius_scale
         return (displacement - 1.0) * self.MOON_RADIUS_KM * 1000.0
 
-    def start_measurement(self, event):
+    def start_measurement(self, event, with_profile: bool = False):
         """
         Start distance measurement on Ctrl+B1 press.
         
@@ -662,10 +662,14 @@ class NavigationMixin:
         ----------
         event : tk.Event
             Mouse button press event
+        with_profile : bool
+            Draw the elevation profile of the line when it is finished, as the
+            right Ctrl asks (see ProfileMixin)
         """
         if self.rt is None:
             return
         
+        self.measure_with_profile = with_profile
         x, y = self.rt._get_image_xy(event.x, event.y)
         hx, hy, hz, hd = self.rt._get_hit_at(x, y)
         
@@ -761,6 +765,10 @@ class NavigationMixin:
         self.measured_distance = distance_km
         self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
         self._update_status_measured()
+
+        # The ground in between, which the two numbers say nothing about
+        if self.measure_with_profile:
+            self.show_profile((lat1, lon1), (lat2, lon2))
 
     def clear_measurement(self):
         """
