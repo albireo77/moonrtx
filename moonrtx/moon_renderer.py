@@ -313,6 +313,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # draws its profile as well (see ProfileMixin), and whether that key is
         # down now: a mouse event says only that some Ctrl is held, not which
         self.measure_with_profile = False
+        self._measure_serial = 0            # names each measurement's line (see start_measurement)
         self._right_ctrl_down = False
 
         # Status bar panel variables (set up as StringVars after renderer is created)

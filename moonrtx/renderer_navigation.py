@@ -14,6 +14,14 @@ from moonrtx.shared_types import MoonFeature
 class NavigationMixin:
     """Mixin providing camera navigation and measurement methods for MoonRenderer."""
 
+    # The measurement line, and the filled arrow a quarter of the way along it
+    # that says which way it runs: which end the height difference is measured
+    # to, and which way its profile reads. Sizes are for a 96-dpi screen.
+    MEASURE_LINE_COLOR = 'yellow'
+    MEASURE_ARROW_AT = 0.25
+    MEASURE_ARROW_LENGTH = 12
+    MEASURE_ARROW_HALF_WIDTH = 5
+
     @staticmethod
     def _rotated(vector: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
         """
@@ -688,10 +696,44 @@ class NavigationMixin:
         self.measure_start_coords = (lat, lon)
         
         if hasattr(self.rt, '_canvas'):
-            self.leading_line_id = self.rt._canvas.create_line(
-                event.x, event.y, event.x, event.y,
-                fill='yellow', width=2, dash=(4, 4)
-            )
+            # The line and its arrow share a tag of their own, which is what
+            # the rest of the measurement holds on to, so the two are moved,
+            # kept and deleted as one (see _place_measure_line)
+            self._measure_serial += 1
+            tag = f"measure{self._measure_serial}"
+            canvas = self.rt._canvas
+            canvas.create_line(event.x, event.y, event.x, event.y, tags=tag,
+                               fill=self.MEASURE_LINE_COLOR, width=2, dash=(4, 4))
+            canvas.create_polygon(event.x, event.y, event.x, event.y, event.x, event.y,
+                                  tags=tag, state='hidden', fill=self.MEASURE_LINE_COLOR,
+                                  outline=self.MEASURE_LINE_COLOR)
+            self.leading_line_id = tag
+
+    def _place_measure_line(self, tag, x0: float, y0: float, x1: float, y1: float):
+        """
+        Lay the measurement line from (x0, y0) to (x1, y1), with its arrow a
+        quarter of the way along and pointing to the end. The arrow is hidden
+        while the line is too short to carry it.
+        """
+        canvas = self.rt._canvas
+        line, arrow = canvas.find_withtag(tag)          # in the order made
+        canvas.coords(line, x0, y0, x1, y1)
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy)
+        arrow_length = self._overlay_px(self.MEASURE_ARROW_LENGTH)
+        if length < 2 * arrow_length:
+            canvas.itemconfigure(arrow, state='hidden')
+            return
+        # Along the line and across it, and the arrow centred on its place
+        ux, uy = dx / length, dy / length
+        half_width = self._overlay_px(self.MEASURE_ARROW_HALF_WIDTH)
+        cx, cy = x0 + self.MEASURE_ARROW_AT * dx, y0 + self.MEASURE_ARROW_AT * dy
+        tip_x, tip_y = cx + ux * arrow_length / 2, cy + uy * arrow_length / 2
+        base_x, base_y = cx - ux * arrow_length / 2, cy - uy * arrow_length / 2
+        canvas.coords(arrow, tip_x, tip_y,
+                      base_x - uy * half_width, base_y + ux * half_width,
+                      base_x + uy * half_width, base_y - ux * half_width)
+        canvas.itemconfigure(arrow, state='normal')
 
     def update_leading_line(self, event):
         """
@@ -709,10 +751,7 @@ class NavigationMixin:
             return
         
         start_x, start_y = self.measure_start_canvas
-        self.rt._canvas.coords(
-            self.leading_line_id,
-            start_x, start_y, event.x, event.y
-        )
+        self._place_measure_line(self.leading_line_id, start_x, start_y, event.x, event.y)
 
         # Live distance update during drag
         x, y = self.rt._get_image_xy(event.x, event.y)

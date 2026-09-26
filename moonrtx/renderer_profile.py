@@ -132,9 +132,10 @@ class ProfileMixin:
         marks the ground only while the view stays as it was measured.
         """
         self._drop_profile_line()
-        canvas = self.rt._canvas
-        x0, y0 = canvas.coords(line_id)[:2]
-        canvas.coords(line_id, x0, y0, end_x, end_y)    # to where the button came up
+        # The line is the first of the measurement's items: where it starts is
+        # read off it, and it is laid again to where the button came up
+        x0, y0 = self.rt._canvas.coords(line_id)[:2]
+        self._place_measure_line(line_id, x0, y0, end_x, end_y)
         self._profile_line = line_id
 
     def _drop_profile_line(self):
