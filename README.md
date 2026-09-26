@@ -118,8 +118,8 @@ This export uses PlotOptiX's hardware-accelerated NVENC encoder producing high q
 ![Mare Smythii](images/mare_smythii.jpg)
 **Measuring the depth Δh of Theophilus**
 ![Theophilus](images/theophilus.jpg)
-**and its elevation profile**
-![Theophilus2](images/theophilus2.jpg)
+**Aristillus elevation profile**
+![Aristillus](images/aristillus.jpg)
 **Rise and set window**
 ![Rise and set window](images/rise_and_set.jpg)
 **Observation Planner (graph) window**
