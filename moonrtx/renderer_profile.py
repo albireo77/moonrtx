@@ -187,10 +187,6 @@ class ProfileMixin:
         canvas = tk.Canvas(frame, width=width, height=height,
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
-        tk.Label(frame, font=font, anchor='w', fg='#606060',
-                 text="Heights from the start of the line, where the drag began, "
-                      "read from the elevation map the surface is drawn with."
-                 ).pack(fill=tk.X)
 
         state = {"x": None, "h": None, "x_of": None, "y_of": None, "base": 0.0}
 
