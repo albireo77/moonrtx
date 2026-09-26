@@ -17,6 +17,7 @@ clock and the view stay in reach while it is up.
 import math
 import tkinter as tk
 import tkinter.font as tkfont
+from tkinter import ttk
 from typing import Optional
 
 import numpy as np
@@ -41,6 +42,11 @@ class ProfileMixin:
     PROFILE_SAMPLES_PER_TEXEL = 2
     PROFILE_MIN_SAMPLES = 64
     PROFILE_MAX_SAMPLES = 2000
+    # Whether the pointer's readout gives the place as well as the distance and
+    # height. Off to begin with, the readout being busy enough without it;
+    # changing it stores it on the instance, so it holds for the rest of the
+    # session as the planner's own choices do
+    _profile_show_place = False
 
     def _init_profile(self):
         """Reset the profile window state; called from MoonRenderer.__init__."""
@@ -49,6 +55,33 @@ class ProfileMixin:
         self._profile_line = None           # the measurement's line, kept while shown
 
     # ---- the numbers ----
+
+    @staticmethod
+    def _unit(lat: float, lon: float) -> np.ndarray:
+        """
+        The body-frame unit vector of a selenographic position - the app's own
+        frame (see center_on_lat_lon): +Z north, longitude 0 towards -Y, +X east.
+        """
+        la, lo = math.radians(lat), math.radians(lon)
+        return np.array([math.cos(la) * math.sin(lo),
+                         -math.cos(la) * math.cos(lo),
+                         math.sin(la)])
+
+    def _along(self, start: tuple, end: tuple, fractions) -> tuple:
+        """
+        Where points that far along the great circle from start to end lie, as
+        (lat, lon) arrays in degrees: 0 is start and 1 is end.
+
+        By spherical interpolation, which spaces them evenly over the ground as
+        a straight chord would not. The two ends must not be the same place.
+        """
+        a, b = self._unit(*start), self._unit(*end)
+        angle = math.acos(max(-1.0, min(1.0, float(a @ b))))
+        t = np.atleast_1d(np.asarray(fractions, dtype=float))
+        points = (np.sin((1 - t) * angle)[:, None] * a
+                  + np.sin(t * angle)[:, None] * b) / math.sin(angle)
+        return (np.degrees(np.arcsin(np.clip(points[:, 2], -1.0, 1.0))),
+                np.degrees(np.arctan2(points[:, 0], -points[:, 1])))
 
     def elevation_profile(self, start: tuple, end: tuple) -> Optional[tuple]:
         """
@@ -65,17 +98,8 @@ class ProfileMixin:
             (distance_km, height_m) arrays, the distances measured from start
             along the surface; None when the two points are the same place
         """
-        def unit(lat, lon):
-            la, lo = math.radians(lat), math.radians(lon)
-            # The app's own body frame (see center_on_lat_lon): +Z north,
-            # longitude 0 towards -Y, +X east
-            return np.array([math.cos(la) * math.sin(lo),
-                             -math.cos(la) * math.cos(lo),
-                             math.sin(la)])
-
-        a, b = unit(*start), unit(*end)
-        angle = math.acos(max(-1.0, min(1.0, float(a @ b))))
-        if angle < 1e-9:
+        a, b = self._unit(*start), self._unit(*end)
+        if math.acos(max(-1.0, min(1.0, float(a @ b)))) < 1e-9:
             return None
 
         length_km = self.calculate_great_circle_distance(*start, *end)
@@ -83,13 +107,8 @@ class ProfileMixin:
         count = int(np.clip(math.ceil(length_km / texel_km * self.PROFILE_SAMPLES_PER_TEXEL),
                             self.PROFILE_MIN_SAMPLES, self.PROFILE_MAX_SAMPLES))
 
-        # Points along the arc by spherical interpolation, which keeps them
-        # evenly spaced over the ground, as a straight chord would not
         t = np.linspace(0.0, 1.0, count)
-        points = (np.sin((1 - t) * angle)[:, None] * a
-                  + np.sin(t * angle)[:, None] * b) / math.sin(angle)
-        lats = np.degrees(np.arcsin(np.clip(points[:, 2], -1.0, 1.0)))
-        lons = np.degrees(np.arctan2(points[:, 0], -points[:, 1]))
+        lats, lons = self._along(start, end, t)
         heights = np.array([self.get_elevation_m(la, lo) for la, lo in zip(lats, lons)])
         return t * length_km, heights
 
@@ -119,7 +138,7 @@ class ProfileMixin:
             return False
         if self._profile is None:
             self._open_profile_window()
-        self._profile["draw"](*profile)
+        self._profile["draw"](*profile, start, end)
         return True
 
     def _keep_profile_line(self, line_id, end_x: float, end_y: float):
@@ -174,8 +193,20 @@ class ProfileMixin:
         pad = max(2, round(cell_w * 2 / 3))
         line_w = max(1, cell_w // 5)
 
+        # The summary on the left of the top row, the readout's choice on its right
+        top_row = tk.Frame(frame)
+        top_row.pack(fill=tk.X)
         summary_var = tk.StringVar()
-        tk.Label(frame, textvariable=summary_var, font=font, anchor='w').pack(fill=tk.X)
+        tk.Label(top_row, textvariable=summary_var, font=font, anchor='w').pack(
+            side=tk.LEFT, fill=tk.X, expand=True)
+        place_var = tk.BooleanVar(value=self._profile_show_place)
+
+        def place_toggled():
+            self._profile_show_place = place_var.get()
+            refresh_readout()
+
+        ttk.Checkbutton(top_row, text="Show coordinates", variable=place_var,
+                        command=place_toggled).pack(side=tk.RIGHT)
 
         label_w = metrics.measure('-10000 m') + 2 * pad
         width = round(win.winfo_screenwidth() * self.PROFILE_WIDTH_FRACTION)
@@ -188,16 +219,17 @@ class ProfileMixin:
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
 
-        state = {"x": None, "h": None, "x_of": None, "y_of": None, "base": 0.0}
+        state = {"x": None, "h": None, "x_of": None, "y_of": None, "base": 0.0,
+                 "pointer": None}
 
         def signed(metres: float) -> str:
             """A height counted from the start of the line: signed, and plain 0 at it."""
             value = round(metres)
             return f"{value:+d} m" if value else "0 m"
 
-        def draw(distance_km: np.ndarray, height_m: np.ndarray):
+        def draw(distance_km: np.ndarray, height_m: np.ndarray, start: tuple, end: tuple):
             canvas.delete("all")
-            state.update(x=distance_km, h=height_m)
+            state.update(x=distance_km, h=height_m, start=start, end=end)
             length = float(distance_km[-1])
             low, high = float(height_m.min()), float(height_m.max())
             # A little room above and below the ground, and a span of at least
@@ -259,28 +291,46 @@ class ProfileMixin:
             # Counted from the start of the line, as the axis is
             rise = float(height_m[-1]) - base
             summary_var.set(
-                f"{length:.1f} km, height difference {signed(rise)}, "
+                f"{length:.1f} km, Δh {signed(rise)}, "
                 f"lowest {signed(low - base)}, highest {signed(high - base)}, "
                 f"vertical exaggeration ×{exaggeration:.0f}")
 
         def readout(event):
+            state.update(pointer=event.x)
+            refresh_readout()
+
+        def pointer_left(_event):
+            state.update(pointer=None)
             canvas.delete("readout")
-            if state["x"] is None or not (plot_x0 <= event.x <= plot_x1):
+
+        def refresh_readout():
+            """The readout for where the pointer is, drawn afresh."""
+            canvas.delete("readout")
+            px = state["pointer"]
+            if state["x"] is None or px is None or not (plot_x0 <= px <= plot_x1):
                 return
-            km = (event.x - plot_x0) / (plot_x1 - plot_x0) * float(state["x"][-1])
+            km = (px - plot_x0) / (plot_x1 - plot_x0) * float(state["x"][-1])
             m = float(np.interp(km, state["x"], state["h"]))
             x, y = state["x_of"](km), state["y_of"](m)
             canvas.create_line(x, plot_y0, x, plot_y1, fill=colours["readout"], tags="readout")
             canvas.create_oval(x - 2 * line_w, y - 2 * line_w, x + 2 * line_w, y + 2 * line_w,
                                outline=colours["readout"], width=line_w, tags="readout")
             anchor = 'sw' if x < (plot_x0 + plot_x1) / 2 else 'se'
-            # Read as the axis reads, from the start of the line
-            canvas.create_text(x, plot_y0 - 1, text=f" {km:.1f} km  {signed(m - state['base'])} ",
+            # The height read as the axis reads, from the start of the line, and
+            # where on the Moon the point is when that is asked for, written as
+            # the status bar writes it
+            text = f" {km:.1f} km  {signed(m - state['base'])} "
+            if self._profile_show_place:
+                lat, lon = (float(v[0]) for v in
+                            self._along(state["start"], state["end"], km / float(state["x"][-1])))
+                text += (f" {abs(lat):.2f}°{'N' if lat >= 0 else 'S'} "
+                         f"{abs(lon):.2f}°{'E' if lon >= 0 else 'W'} ")
+            canvas.create_text(x, plot_y0 - 1, text=text,
                                anchor=anchor, fill=colours["readout"], font=font,
                                tags="readout")
 
         canvas.bind("<Motion>", readout)
-        canvas.bind("<Leave>", lambda e: canvas.delete("readout"))
+        canvas.bind("<Leave>", pointer_left)
 
         self._profile = {"win": win, "draw": draw}
         self._show_dialog(win, position=self._profile_position, grab=False)
