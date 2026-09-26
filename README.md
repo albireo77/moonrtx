@@ -116,8 +116,10 @@ This export uses PlotOptiX's hardware-accelerated NVENC encoder producing high q
 ![Maria](images/maria.jpg)
 **Mare Smythii in 2 projections (standard and Blue Steel)**
 ![Mare Smythii](images/mare_smythii.jpg)
-**Measuring the depth (Δh) of Theophilus**
+**Measuring the depth Δh of Theophilus**
 ![Theophilus](images/theophilus.jpg)
+**and its elevation profile**
+![Theophilus2](images/theophilus2.jpg)
 **Field of view frame**
 ![Theophilus](images/fov.jpg)
 **Rise and set window**

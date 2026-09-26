@@ -46,6 +46,7 @@ class ProfileMixin:
         """Reset the profile window state; called from MoonRenderer.__init__."""
         self._profile = None                # the open window and its redraw, or None
         self._profile_position = None       # where it was left, for the next one
+        self._profile_line = None           # the measurement's line, kept while shown
 
     # ---- the numbers ----
 
@@ -106,19 +107,44 @@ class ProfileMixin:
 
     # ---- the window ----
 
-    def show_profile(self, start: tuple, end: tuple):
+    def show_profile(self, start: tuple, end: tuple) -> bool:
         """
         Draw the profile of the line from start to end, in the profile window -
-        opening it if it is not already open.
+        opening it if it is not already open - and say whether it was drawn.
         """
         if self.rt is None or getattr(self, "elevation", None) is None:
-            return
+            return False
         profile = self.elevation_profile(start, end)
         if profile is None:
-            return
+            return False
         if self._profile is None:
             self._open_profile_window()
         self._profile["draw"](*profile)
+        return True
+
+    def _keep_profile_line(self, line_id, end_x: float, end_y: float):
+        """
+        Leave a measurement's line on the picture for as long as its profile is
+        shown, so the window says what it is the ground of. The line of the
+        profile it replaces goes; this one goes with the window.
+
+        It is drawn in the window's pixels, as it was during the drag, so it
+        marks the ground only while the view stays as it was measured.
+        """
+        self._drop_profile_line()
+        canvas = self.rt._canvas
+        x0, y0 = canvas.coords(line_id)[:2]
+        canvas.coords(line_id, x0, y0, end_x, end_y)    # to where the button came up
+        self._profile_line = line_id
+
+    def _drop_profile_line(self):
+        """Take the kept measurement line off the picture, if there is one."""
+        if self._profile_line is not None and self.rt is not None:
+            try:
+                self.rt._canvas.delete(self._profile_line)
+            except tk.TclError:         # the main window went first
+                pass
+        self._profile_line = None
 
     def _open_profile_window(self):
         colours = self.PROFILE_COLOURS
@@ -133,6 +159,7 @@ class ProfileMixin:
             except ValueError:
                 pass
             self._profile = None
+            self._drop_profile_line()
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up

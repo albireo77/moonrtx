@@ -737,26 +737,37 @@ class NavigationMixin:
         """
         if not self.measuring:
             return
-        
-        if self.leading_line_id is not None and hasattr(self.rt, '_canvas'):
-            self.rt._canvas.delete(self.leading_line_id)
-            self.leading_line_id = None
-        
         self.measuring = False
-        
+
+        # The line drawn during the drag comes off the picture when the
+        # measurement is done - unless it drew a profile, which keeps it for as
+        # long as its window is open (see ProfileMixin._keep_profile_line)
+        line_id, self.leading_line_id = self.leading_line_id, None
+        profile_drawn = self._measure_to(event)
+        if line_id is not None and hasattr(self.rt, '_canvas'):
+            if profile_drawn:
+                self._keep_profile_line(line_id, event.x, event.y)
+            else:
+                self.rt._canvas.delete(line_id)
+
+    def _measure_to(self, event) -> bool:
+        """
+        Complete the measurement at the point the button came up over, and say
+        whether it drew a profile.
+        """
         if self.rt is None or self.measure_start_coords is None:
-            return
+            return False
         
         x, y = self.rt._get_image_xy(event.x, event.y)
         hx, hy, hz, hd = self.rt._get_hit_at(x, y)
         
         if hd <= 0:
-            return
+            return False
         
         lat2, lon2 = self.hit_to_selenographic(hx, hy, hz)
         
         if lat2 is None or lon2 is None:
-            return
+            return False
         
         lat1, lon1 = self.measure_start_coords
         
@@ -767,8 +778,7 @@ class NavigationMixin:
         self._update_status_measured()
 
         # The ground in between, which the two numbers say nothing about
-        if self.measure_with_profile:
-            self.show_profile((lat1, lon1), (lat2, lon2))
+        return self.measure_with_profile and self.show_profile((lat1, lon1), (lat2, lon2))
 
     def clear_measurement(self):
         """
