@@ -596,21 +596,12 @@ class LabelsMixin:
         """Toggle the spot labels visibility."""
         self.show_spot_labels(not self.spot_labels_visible)
 
-    def hide_all_labels(self):
+    def hide_catalogue_labels(self):
         """
-        Take every feature name off the Moon at once (the Delete key): the
-        standard labels, the spot labels, the names of everything in view, and
-        the names a feature graph or the Find window left behind (see
-        feature_graph_dialog and search_feature_dialog). The
-        grid, its numbers and the N over the pole stay: they are the grid, not
-        names; so do the pins and the sub-point markers.
+        Hide catalogue labels.
         """
         if self.rt is None:
             return
-        if self.standard_labels_visible:
-            self.show_standard_labels(False)
-        if self.spot_labels_visible:
-            self.show_spot_labels(False)
         self._catalogue_pinned.clear()
         self.show_catalogue(False)
 
