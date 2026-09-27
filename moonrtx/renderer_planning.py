@@ -1162,7 +1162,7 @@ class PlanningMixin:
         self._results_actions(
             dialog, go_to, results_for_export,
             lambda: f"{feature.name.replace(' ', '_')}_{mode_var.get()}",
-            extra=("Graph...", open_graph))
+            extra=("Graph", open_graph))
 
         rescan()
 
@@ -1190,8 +1190,6 @@ class PlanningMixin:
             return
 
         def before_close():
-            if label_var.get():
-                self.unpin_catalogue_feature(feature)
             # Where the window was left, for the next graph to open at. Taken
             # from the geometry string rather than winfo_x and winfo_y, that
             # being what _show_dialog writes back, so the corner it is put at is

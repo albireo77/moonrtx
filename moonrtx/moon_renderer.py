@@ -1239,6 +1239,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.exit_full_screen()
         elif event.keysym == 'Home':
             moon_renderer.reset_camera_position()
+        elif event.keysym == 'Delete':
+            moon_renderer.hide_all_labels()
         elif event.keysym == 'End':
             moon_renderer.reset_to_default_view()
         elif event.keysym.lower() == 'v':

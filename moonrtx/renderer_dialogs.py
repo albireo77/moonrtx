@@ -507,9 +507,11 @@ class DialogsMixin:
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
             ("Shift + B", "Set up the eyepiece / camera field of view frame"),
+            ("Space", "Center and fix view on point under cursor"),
             ("Home", "Reset camera and time to initial state"),
             ("End", "Reset camera to default state (useful after starting with `--init-view` parameter)"),
-            ("Space", "Center and fix view on point under cursor"),
+            ("Delete", "Turn off any displayed Moon feature labels"),
+            ("Escape", "Leave full screen"),
             ("Arrows", "Move view"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
@@ -697,6 +699,10 @@ class DialogsMixin:
             if selection and matching_features:
                 feature = matching_features[selection[0]]
                 self.center_on_feature(feature)
+                # Named where the view has just been taken, and left named once
+                # this window has gone, as a feature graph leaves its own - until
+                # Delete takes the names off (see LabelsMixin.hide_all_labels)
+                self.pin_catalogue_feature(feature)
                 on_close()
 
         def on_planner():
