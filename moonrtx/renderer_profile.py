@@ -10,8 +10,8 @@ surface with, so it shows the terrain the picture is made of.
 
 Drawn for a measurement made with the right Ctrl; the left one measures as it
 always has. One window, kept open across measurements: each one made with the
-right Ctrl redraws it rather than opening another. It does not take the renderer's keys, so the
-clock and the view stay in reach while it is up.
+right Ctrl redraws it rather than opening another. It does not take the
+renderer's keys, so the clock and the view stay in reach while it is up.
 """
 
 import math
@@ -21,6 +21,8 @@ from tkinter import ttk
 from typing import Optional
 
 import numpy as np
+
+from moonrtx.display import ToolTip
 
 
 class ProfileMixin:
@@ -207,6 +209,35 @@ class ProfileMixin:
 
         ttk.Checkbutton(top_row, text="Show coordinates", variable=place_var,
                         command=place_toggled).pack(side=tk.RIGHT)
+
+        # What the window does not say on its face, as the graph keeps its own
+        # (see feature_graph_dialog) - among it how finely the map holds the
+        # ground: along a short line most of the curve lies between the map's
+        # own heights, and looks more detailed than the map can know
+        spacing_m = 2 * math.pi * self.MOON_RADIUS_KM * 1000.0 / self.elevation.shape[1]
+        # Why the map is that coarse: the elevation downscale averages the full
+        # map in square blocks, and a lower one keeps more of the ground
+        downscale = self.downscale
+        if downscale > 1:
+            averaged = (f" - Elevation downscale {downscale} averages the\n"
+                        f"{spacing_m / downscale:.0f} m map in blocks of {downscale} × {downscale}")
+        else:
+            averaged = " - the full map, not downscaled"
+        help_hint = (
+            "The ground along a line measured with the right Ctrl, from the\n"
+            "elevation map the surface is drawn with. Heights are counted from\n"
+            "the start of the line, where the drag began.\n"
+            f"The map holds one height every {spacing_m:.0f} m{averaged}.\n"
+            "Between those heights the curve is blended from the nearest of\n"
+            "them, so a line only a few times that long shows less of the\n"
+            "ground than its shape suggests"
+            + ("; a lower downscale shows more of it.\n" if downscale > 1 else ".\n") +
+            "Vertical exaggeration says how much more the heights are\n"
+            "stretched than the distances - below 1, the ground is drawn\n"
+            "flatter than it is.")
+        help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
+        help_label.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
+        ToolTip(help_label, help_hint)
 
         label_w = metrics.measure('-10000 m') + 2 * pad
         width = round(win.winfo_screenwidth() * self.PROFILE_WIDTH_FRACTION)
