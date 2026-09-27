@@ -187,12 +187,25 @@ def _forget_cache(cache_base: str):
 def _save_cache(cache_base: str, array: np.ndarray, meta: dict):
     try:
         _forget_cache(cache_base)
+    except Exception as e:
+        # The cache already there is left as it is, whole and still usable
+        print(f"Warning: could not write cache {cache_base}.npy: {e}")
+        return
+    try:
         np.save(cache_base + ".npy", array)
         with open(cache_base + ".json", "w", encoding="utf-8") as f:
             json.dump(meta, f)
         print(f"  Cached to {cache_base}.npy for faster next start")
     except Exception as e:
         print(f"Warning: could not write cache {cache_base}.npy: {e}")
+        # What was written is never used without its .json, and it can be a
+        # gigabyte - usually on a disk that has just run out of room - so it
+        # goes rather than staying behind to take up space for nothing
+        for leftover in (cache_base + ".npy", cache_base + ".json"):
+            try:
+                os.remove(leftover)
+            except OSError:
+                pass
 
 def _is_out_of_memory(e: BaseException) -> bool:
     """
