@@ -673,14 +673,15 @@ class DialogsMixin:
             listbox.delete(0, tk.END)
             matching_features.clear()
             
-            if not query:
-                return
-            
-            for feature in self.moon_features:
-                if query in feature.name.lower():
-                    matching_features.append(feature)
-                    diameter_km = feature.diameter_km
-                    listbox.insert(tk.END, f"{feature.name} ({diameter_km:.2f} km)")
+            if query:
+                for feature in self.moon_features:
+                    if query in feature.name.lower():
+                        matching_features.append(feature)
+                        diameter_km = feature.diameter_km
+                        listbox.insert(tk.END, f"{feature.name} ({diameter_km:.2f} km)")
+            # Once the list is rebuilt, never ahead of it: a trace of its own
+            # on the search text would run first, Tcl calling the newest first
+            update_web_page_button()
         
         def selected_feature():
             selection = listbox.curselection()
@@ -727,6 +728,31 @@ class DialogsMixin:
                     if not listbox.curselection():
                         listbox.selection_set(0)
         
+        def feature_in_view():
+            """
+            The feature the buttons would act on - the chosen row, or the first
+            when none is chosen, as selected_feature takes it - without choosing
+            a row the way selected_feature does.
+            """
+            selection = listbox.curselection()
+            index = selection[0] if selection else 0
+            return matching_features[index] if index < len(matching_features) else None
+
+        # This window stays open for both: the page opens in the browser, beside it
+        def on_web_page():
+            self.open_feature_www_page(feature_in_view())
+
+        def on_usgs_page():
+            self.open_feature_usgs_page(feature_in_view())
+
+        def update_web_page_button(*args):
+            """Each page button enabled only for a feature that has that page."""
+            feature = feature_in_view()
+            web_btn.config(state=tk.NORMAL if feature is not None and feature.www_address
+                           else tk.DISABLED)
+            usgs_btn.config(state=tk.NORMAL if feature is not None and feature.feature_id is not None
+                            else tk.DISABLED)
+
         search_var.trace_add('write', update_results)
         entry.bind('<Key>', on_key)
         listbox.bind('<Double-Button-1>', on_select)
@@ -734,8 +760,16 @@ class DialogsMixin:
 
         btn_frame = tk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(side=tk.RIGHT)
-        tk.Button(btn_frame, text="Graph", command=on_graph).pack(side=tk.RIGHT, padx=(0, 6))
+        web_btn = tk.Button(btn_frame, text="Web page", command=on_web_page, state=tk.DISABLED)
+        web_btn.pack(side=tk.LEFT)
+        usgs_btn = tk.Button(btn_frame, text="USGS page", command=on_usgs_page, state=tk.DISABLED)
+        usgs_btn.pack(side=tk.LEFT, padx=(6, 0))
+        tk.Button(btn_frame, text="Graph", command=on_graph).pack(side=tk.RIGHT)
+        tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(
+            side=tk.RIGHT, padx=(0, 6))
+        # Following which row is chosen; what the list holds is followed from
+        # update_results
+        listbox.bind('<<ListboxSelect>>', update_web_page_button)
 
         self._show_dialog(search_win)
 

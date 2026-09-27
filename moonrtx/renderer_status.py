@@ -342,7 +342,13 @@ class StatusMixin:
 
     def open_status_feature_usgs_page(self) -> bool:
         """Open the USGS page for the feature currently shown in the status bar."""
-        feature = self._status_feature
+        return self.open_feature_usgs_page(self._status_feature)
+
+    def open_feature_usgs_page(self, feature) -> bool:
+        """
+        Open a feature's page in the USGS Gazetteer of Planetary Nomenclature -
+        which only a feature with an official name has, and so a feature id.
+        """
         if feature is None or feature.feature_id is None:
             return False
         return self._open_feature_url(
@@ -352,7 +358,13 @@ class StatusMixin:
 
     def open_status_feature_www_page(self) -> bool:
         """Open the user-defined web page for the feature shown in the status bar."""
-        feature = self._status_feature
+        return self.open_feature_www_page(self._status_feature)
+
+    def open_feature_www_page(self, feature) -> bool:
+        """
+        Open a feature's own web page, the one the catalogue gives it - stored
+        without its scheme, the catalogue's fields being separated by colons.
+        """
         if feature is None or not feature.www_address:
             return False
         url = feature.www_address
