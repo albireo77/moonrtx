@@ -288,12 +288,14 @@ class ProfileMixin:
             m_per_px_x = length * 1000.0 / (plot_x1 - plot_x0)
             m_per_px_y = (y_max - y_min) / (plot_y1 - plot_y0)
             exaggeration = m_per_px_x / m_per_px_y
+            exaggeration_text = (f"{exaggeration:.1f}" if exaggeration < 9.95
+                                 else f"{exaggeration:.0f}")
             # Counted from the start of the line, as the axis is
             rise = float(height_m[-1]) - base
             summary_var.set(
                 f"{length:.1f} km, Δh {signed(rise)}, "
                 f"lowest {signed(low - base)}, highest {signed(high - base)}, "
-                f"vertical exaggeration ×{exaggeration:.0f}")
+                f"vertical exaggeration ×{exaggeration_text}")
 
         def readout(event):
             state.update(pointer=event.x)
