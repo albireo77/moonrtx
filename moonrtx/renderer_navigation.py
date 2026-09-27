@@ -18,6 +18,8 @@ class NavigationMixin:
     # that says which way it runs: which end the height difference is measured
     # to, and which way its profile reads. Sizes are for a 96-dpi screen.
     MEASURE_LINE_COLOR = 'yellow'
+    MEASURE_LINE_WIDTH = 2
+    MEASURE_LINE_DASH = 4           # the length of each dash and of each gap
     MEASURE_ARROW_AT = 0.25
     MEASURE_ARROW_LENGTH = 12
     MEASURE_ARROW_HALF_WIDTH = 5
@@ -702,8 +704,11 @@ class NavigationMixin:
             self._measure_serial += 1
             tag = f"measure{self._measure_serial}"
             canvas = self.rt._canvas
+            dash = max(1, round(self._overlay_px(self.MEASURE_LINE_DASH)))
             canvas.create_line(event.x, event.y, event.x, event.y, tags=tag,
-                               fill=self.MEASURE_LINE_COLOR, width=2, dash=(4, 4))
+                               fill=self.MEASURE_LINE_COLOR,
+                               width=max(1, round(self._overlay_px(self.MEASURE_LINE_WIDTH))),
+                               dash=(dash, dash))
             canvas.create_polygon(event.x, event.y, event.x, event.y, event.x, event.y,
                                   tags=tag, state='hidden', fill=self.MEASURE_LINE_COLOR,
                                   outline=self.MEASURE_LINE_COLOR)
