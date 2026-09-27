@@ -252,6 +252,18 @@ class VideoMixin:
             self._auto_advance_var.set(False)
             self._on_auto_advance_toggle()
 
+        def not_started(message: str) -> str:
+            """
+            Hand auto-advance back and report why the export did not start. It
+            is otherwise handed back only when an export finishes, which one that
+            never started does not do - the clock was left stopped behind the
+            error with nothing to say why.
+            """
+            if resume_auto_advance:
+                self._auto_advance_var.set(True)
+                self._on_auto_advance_toggle()
+            return message
+
         # Make sure converged accumulation is active: a pending interactive
         # preview would make the encoder capture single-pass noisy frames
         if self._preview_restore_id is not None:
@@ -266,7 +278,7 @@ class VideoMixin:
             try:
                 self.rt.encoder_create(fps=fps, bitrate=bitrate)
             except Exception as e:
-                return f"Video encoder not available: {e}"
+                return not_started(f"Video encoder not available: {e}")
 
         self._video_export = {
             "n": n_frames,
@@ -287,7 +299,7 @@ class VideoMixin:
             self.rt.encoder_start(filename, n_frames)
         except Exception as e:
             self._video_export = None
-            return f"Video encoder not started: {e}"
+            return not_started(f"Video encoder not started: {e}")
 
         # Definitive success check. PlotOptiX reports encoder failures only in
         # the log (default _raise_on_error=False), so without this check an
@@ -297,9 +309,9 @@ class VideoMixin:
         # missing-FFmpeg and NVENC-error cases).
         if not self.rt.encoder_is_open():
             self._video_export = None
-            return ("Video encoder failed to start - no frames were rendered.\n"
-                    "Check that FFmpeg (shared build) DLLs are in PATH; details "
-                    "are in the console output.")
+            return not_started("Video encoder failed to start - no frames were rendered.\n"
+                               "Check that FFmpeg (shared build) DLLs are in PATH; details "
+                               "are in the console output.")
         if first_create:
             self._video_encoder_cfg = (fps, bitrate)
 
