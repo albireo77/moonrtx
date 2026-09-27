@@ -315,7 +315,7 @@ class ProfileMixin:
                            math.floor((y_max - base) / h_step) + 1):
                 h = k * h_step
                 y = y_of(base + h)
-                canvas.create_line(plot_x0, y, plot_x1, y, fill=colours["grid"])
+                canvas.create_line(plot_x0, y, plot_x1, y, fill=colours["grid"], tags="grid")
                 canvas.create_text(plot_x0 - pad, y, text=signed(h),
                                    anchor='e', font=font)
             # The unit stands at the right-hand end, where the last number
@@ -327,7 +327,7 @@ class ProfileMixin:
             d = 0.0
             while d <= length + 1e-9:
                 x = x_of(d)
-                canvas.create_line(x, plot_y0, x, plot_y1, fill=colours["grid"])
+                canvas.create_line(x, plot_y0, x, plot_y1, fill=colours["grid"], tags="grid")
                 text = f"{d:.0f}" if d_step >= 1 else f"{d:.1f}"
                 if x + metrics.measure(text) / 2 <= unit_left:
                     canvas.create_text(x, plot_y1 + pad, text=text, anchor='n', font=font)
@@ -337,8 +337,11 @@ class ProfileMixin:
             xs = [x_of(float(k)) for k in distance_km]
             ys = [y_of(float(m)) for m in height_m]
             outline = [c for pair in zip(xs, ys) for c in pair]
-            canvas.create_polygon([plot_x0, plot_y1] + outline + [plot_x1, plot_y1],
-                                  fill=colours["fill"], outline="")
+            ground = canvas.create_polygon([plot_x0, plot_y1] + outline + [plot_x1, plot_y1],
+                                           fill=colours["fill"], outline="")
+            # The grid over the ground rather than under it, so the heights of
+            # the low places can be read across the fill as well
+            canvas.tag_raise("grid", ground)
             canvas.create_line(outline, fill=colours["ground"], width=line_w)
             canvas.create_rectangle(plot_x0, plot_y0, plot_x1, plot_y1, outline="#808080")
 
