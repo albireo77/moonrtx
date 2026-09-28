@@ -596,9 +596,9 @@ class LabelsMixin:
         """Toggle the spot labels visibility."""
         self.show_spot_labels(not self.spot_labels_visible)
 
-    def hide_catalogue_labels(self):
+    def hide_pinned_labels(self):
         """
-        Hide catalogue labels.
+        Hide pinned labels.
         """
         if self.rt is None:
             return
