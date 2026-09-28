@@ -47,7 +47,8 @@ class ProfileMixin:
     # Whether the pointer's readout gives the place as well as the distance and
     # height. Off to begin with, the readout being busy enough without it;
     # changing it stores it on the instance, so it holds for the rest of the
-    # session as the planner's own choices do
+    # session and into the next, as the planner's own choices do (see
+    # renderer_settings)
     _profile_show_place = False
 
     def _init_profile(self):

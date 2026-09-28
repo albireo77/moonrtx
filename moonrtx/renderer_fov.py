@@ -40,7 +40,8 @@ class FovMixin:
     def _init_fov_overlay(self):
         """Reset the overlay state; called from MoonRenderer.__init__."""
         self.fov_overlay_visible = False
-        # Last values used, so reopening the dialog resumes where it left off.
+        # Last values used, so reopening the dialog resumes where it left off -
+        # the next run too, since they are kept (see renderer_settings).
         # Defaults describe a common planetary setup: a 2000 mm telescope with a
         # 10 mm/68 degree eyepiece, and an APS-C sensor on the same scope.
         self.fov_setup = {

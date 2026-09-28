@@ -98,7 +98,9 @@ class PlanningMixin:
     CLAIR_OBSCUR_ALL_EVENTS = "All events"
     # Filters last chosen in the dialog. Declared on the class so the first
     # opening has defaults; changing one stores it on the instance, so both hold
-    # for the rest of the session and start over on the next run.
+    # for the rest of the session - and into the next run, these and the other
+    # choices below being written down when the window closes (see
+    # renderer_settings).
     _clair_obscur_filter = CLAIR_OBSCUR_ALL_EVENTS
     _clair_obscur_visible_only = True
     # The observation planner's dark-sky filter, kept the same way. The feature
@@ -1893,7 +1895,7 @@ class PlanningMixin:
             """
             Draw a span of days from start, stretching or squeezing the time
             axis to it and sampling finer the shorter it is. The span is kept
-            for the rest of the session.
+            for the rest of the session, and for the next (see renderer_settings).
             """
             self._graph_span = days
             state["days"] = days
@@ -1966,7 +1968,8 @@ class PlanningMixin:
             """
             The step in the box, in whole minutes from 1 to 1440 as the
             renderer's own step allows - put back to the last good value if what
-            is there is not a number - and kept for the rest of the session.
+            is there is not a number - and kept for the rest of the session,
+            and for the next (see renderer_settings).
             """
             try:
                 minutes = int(step_var.get())

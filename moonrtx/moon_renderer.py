@@ -36,12 +36,14 @@ from moonrtx.renderer_compass import CompassMixin
 from moonrtx.renderer_locator import LocatorMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
 from moonrtx.renderer_profile import ProfileMixin
+from moonrtx.renderer_settings import SettingsMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
-                   CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin):
+                   CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
+                   SettingsMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -362,6 +364,10 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         # The ground along a measurement (see renderer_profile.ProfileMixin)
         self._init_profile()
+
+        # The windows' choices the last run left, the field-of-view setup among
+        # them - so after that setup's defaults (see renderer_settings)
+        self._load_settings()
 
         # Auto-advance (real-time playback) settings
         self._auto_advance_var = None
@@ -1400,6 +1406,17 @@ def run_renderer(dt_local: datetime,
         original_apply_scene_edits(*args)
 
     moon_renderer.rt._gui_apply_scene_edits = custom_apply_scene_edits
+
+    # The windows' choices are written down as the window closes, for the next
+    # run (see renderer_settings). PlotOptiX binds its own close to the window
+    # when it starts, so it takes this one in its place
+    original_quit = moon_renderer.rt._gui_quit_callback
+
+    def custom_quit(*args):
+        moon_renderer.save_settings()
+        original_quit(*args)
+
+    moon_renderer.rt._gui_quit_callback = custom_quit
 
     moon_renderer.start()
     return moon_renderer.rt
