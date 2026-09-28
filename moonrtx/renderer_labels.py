@@ -603,7 +603,9 @@ class LabelsMixin:
         if self.rt is None:
             return
         self._catalogue_pinned.clear()
-        self.show_catalogue(False)
+        # Redrawn rather than switched off: show_catalogue(False) would take the
+        # catalogue's own names (P) off with the pinned ones
+        self._refresh_catalogue()
 
     # ---- orientation updates (after time change) ----
 
