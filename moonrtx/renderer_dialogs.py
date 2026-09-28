@@ -676,11 +676,14 @@ class DialogsMixin:
             matching_features.clear()
             
             if query:
-                for feature in self.moon_features:
-                    if query in feature.name.lower():
-                        matching_features.append(feature)
-                        diameter_km = feature.diameter_km
-                        listbox.insert(tk.END, f"{feature.name} ({diameter_km:.2f} km)")
+                # Biggest first, so a crater comes before its lettered satellites;
+                # sorted here, the table itself staying smallest first for the
+                # status bar's lookup
+                matching_features.extend(sorted(
+                    (f for f in self.moon_features if query in f.name.lower()),
+                    key=lambda f: f.diameter_km, reverse=True))
+                for feature in matching_features:
+                    listbox.insert(tk.END, f"{feature.name} ({feature.diameter_km:.2f} km)")
             # Once the list is rebuilt, never ahead of it: a trace of its own
             # on the search text would run first, Tcl calling the newest first
             update_web_page_button()
