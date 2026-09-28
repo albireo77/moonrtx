@@ -106,10 +106,13 @@ class PlanningMixin:
     # The observation planner's dark-sky filter, kept the same way. The feature
     # graph reads it too, so its window strips mark what the planner lists
     _planner_dark_only = False
+    # Whether the feature's name is put on the Moon, kept the same way - one
+    # setting behind the box of that name in the planner and in the graph, so
+    # each opens as the other was left (see _label_on_moon_box)
+    _label_on_moon = True
     # The feature graph's choices, kept the same way: what a click does to the
-    # view, whether the feature's name is shown, and the span of the time axis
+    # view, and the span of the time axis
     _graph_view = "keep"
-    _graph_show_name = True
     # Whether the Moon's altitude in the observer's sky is drawn as a curve.
     # Off to begin with - the graph is opened for the Sun and the libration,
     # and the ribbon already says when the Moon is up
@@ -887,7 +890,7 @@ class PlanningMixin:
         # Naming the column ties the filter to the figure it acts on
         # Themed, so the little box follows the display
         ttk.Checkbutton(filter_row, variable=visible_only_var,
-                       text=f"only when the Moon altitude (h☾) is at least "
+                       text=f"Only when the Moon altitude (h☾) is at least "
                             f"{self.PLANNER_MOON_ALT_MIN:.0f}° in my sky",
                        command=lambda: rescan()).pack(side=tk.LEFT)
 
@@ -997,6 +1000,35 @@ class PlanningMixin:
 
         self._show_dialog(win)
 
+    def _label_on_moon_box(self, parent, feature: MoonFeature) -> ttk.Checkbutton:
+        """
+        The "Label on Moon" box, for the planner and the graph alike, handed back
+        for the caller to place.
+
+        The feature's name is pinned into the catalogue while it is ticked, so
+        it is drawn the way the P key draws names and never twice; it stays
+        after the window closes, until Delete - see CatalogueMixin. The one
+        setting behind it, _label_on_moon, is changed only by a click, and a
+        window that opens with it on names the feature from the start. Ticked
+        from the start as well if the name is up already - left by the Find
+        window or an earlier graph - whatever the setting is, so the box says
+        what is on the Moon.
+        """
+        label_var = tk.BooleanVar(
+            value=self._label_on_moon or self.is_catalogue_pinned(feature))
+
+        def toggle():
+            self._label_on_moon = label_var.get()
+            if label_var.get():
+                self.pin_catalogue_feature(feature)
+            else:
+                self.unpin_catalogue_feature(feature)
+
+        if label_var.get():
+            self.pin_catalogue_feature(feature)
+        return ttk.Checkbutton(parent, text="Label on Moon", variable=label_var,
+                               command=toggle)
+
     def observation_planner_dialog(self, feature: MoonFeature):
         """
         Show upcoming windows when the given feature is worth observing and
@@ -1042,16 +1074,17 @@ class PlanningMixin:
         # times the size, and a dozen pixels between them reads as none at all
         gap = 2 * tkfont.Font(font='TkDefaultFont').measure('0')
         tk.Label(mode_row, text="Show:", anchor='w').pack(side=tk.LEFT)
-        for value, label in (("terminator", "near the terminator"),
-                             ("libration", "best presented (libration)")):
+        for value, label in (("terminator", "Near the terminator"),
+                             ("libration", "Best presented (libration)")):
             ttk.Radiobutton(mode_row, text=label, value=value, variable=mode_var,
                             command=lambda: rescan()).pack(side=tk.LEFT, padx=(0, gap))
         # Resumes where this session last left it, as the clair-obscur filter does
         dark_only_var = tk.BooleanVar(value=self._planner_dark_only)
         ttk.Checkbutton(mode_row, variable=dark_only_var,
-                        text=f"only when the sky is dark (Sun {-self.PLANNER_DARK_SUN_ALT:.0f}° "
-                             f"below my horizon)",
+                        text="Only when the sky is dark",
                         command=lambda: rescan()).pack(side=tk.LEFT)
+        # The feature's name on the Moon, the same box the graph has
+        self._label_on_moon_box(mode_row, feature).pack(side=tk.LEFT, padx=(gap, 0))
 
         def rescan():
             nonlocal windows
@@ -1274,27 +1307,9 @@ class PlanningMixin:
 
         ttk.Checkbutton(controls_row, text="Show Moon altitude", variable=moon_alt_var,
                         command=toggle_moon_alt).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
-        # The feature's name on the Moon, pinned into the catalogue while this
-        # is ticked, so it is drawn the way the P key draws names and never
-        # twice; it stays after the window closes, until Delete - see
-        # CatalogueMixin. Ticked from the start if the name is up already - left
-        # by the Find window or an earlier graph - whatever the box was last
-        # left at, so the box says what is on the Moon
-        label_var = tk.BooleanVar(
-            value=self._graph_show_name or self.is_catalogue_pinned(feature))
-
-        def toggle_name():
-            self._graph_show_name = label_var.get()
-            if label_var.get():
-                self.pin_catalogue_feature(feature)
-            else:
-                self.unpin_catalogue_feature(feature)
-
-        ttk.Checkbutton(controls_row, text="Show feature name", variable=label_var,
-                        command=toggle_name).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
-        # Left ticked last time, so named from the start this time
-        if label_var.get():
-            self.pin_catalogue_feature(feature)
+        # The feature's name on the Moon, the same box the observation planner has
+        self._label_on_moon_box(controls_row, feature).pack(
+            side=tk.RIGHT, padx=(0, 2 * cell_w))
 
         # The readout of the moment under the pointer, or of the red line while
         # the pointer is away, on a row between the choices and the plot; the
@@ -1880,7 +1895,7 @@ class PlanningMixin:
             "Q/W step is left as it is.\n"
             "Keep view / Standard view / View fixed on feature say what a\n"
             "click or a step does to the camera.\n"
-            "Show feature name puts the name on the Moon.\n"
+            "Label on Moon puts the feature's name on the Moon.\n"
             "Show Moon altitude draws the Moon's altitude in your sky, whose\n"
             "daily arcs read best at the shorter spans.")
         help_label = tk.Label(legend, text="Help", font=font, fg='#606060')

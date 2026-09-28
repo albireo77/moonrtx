@@ -46,7 +46,7 @@ class SettingsMixin:
             "_clair_obscur_visible_only": flag,
             "_planner_dark_only": flag,
             "_graph_view": lambda v: v in ("keep", "standard", "centre"),
-            "_graph_show_name": flag,
+            "_label_on_moon": flag,
             "_graph_show_moon_alt": flag,
             "_graph_span": lambda v: (isinstance(v, int) and not isinstance(v, bool)
                                       and v in self.GRAPH_ZOOM_SPANS),
