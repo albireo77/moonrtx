@@ -85,7 +85,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Home** - Reset camera and time to initial state  
 **End** - Reset camera to default state (useful after starting with `--init-view` parameter)  
 **Delete** - Turn off displayed Moon feature pinned labels  
-**Escape** - Leave full screen  
+**Escape** - Leave full screen; close a window (dialog)  
 **Arrows** - Move view  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
