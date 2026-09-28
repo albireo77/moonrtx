@@ -9,6 +9,9 @@ from moonrtx.shared_types import MoonFeature, MoonLabel
 LABEL_CHAR_SCALE = 0.12
 PIN_DIGIT_SCALE = 0.2
 GRID_DIGIT_SCALE = 0.125
+# Between a feature's rim and the tip of its spot label's arrow, as a share of
+# the lettering's height
+SPOT_LABEL_GAP = 0.2
 
 # A glyph is laid out in the tangent plane of the sphere, its own x axis running
 # east and its own z axis running north, so the lettering follows the graticule.
@@ -607,18 +610,23 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
             label_text = "< " + spot_label_feature.name
         label_lat = spot_label_feature.lat
 
-        # The label is set beyond the rim of the feature, and how far beyond goes
-        # with the lettering. Holding that step while the letters shrank left the
-        # arrow pointing at the crater from a distance - the same gap beside a
-        # quarter-size arrow reads as a miss, where beside a full-size one it reads
-        # as touching the rim. The step is measured across the ground rather than in
-        # longitude, which is the same thing on the equator and not at all the same
-        # at Plato; the guard on the cosine is the one the pin arms use. At the full
-        # size this is the two angular radii it has always been.
+        # The tip of the arrow is set just east of the feature's rim: the rim is
+        # the feature's angular radius from its centre, the arrow's tip half a
+        # glyph west of where the text starts (the glyph is centred there), and
+        # between them a gap that goes with the lettering - the same gap beside a
+        # quarter-size arrow would read as a miss. All three are lengths across
+        # the ground, turned into longitude at the label's latitude as the text
+        # itself is written (see create_text_on_sphere). Placed at two angular
+        # radii from the centre instead, the arrow stood a full radius out from a
+        # large crater on the equator and on top of a small feature or a crater
+        # far north or south.
+        char_scale = LABEL_CHAR_SCALE * scale
+        text_radius = moon_radius * (1 + offset + 0.005)    # as the text is written
         rim = spot_label_feature.angular_radius
-        cos_lat = max(math.cos(math.radians(label_lat)), 0.2)
-        beyond = 2 * rim * cos_lat - rim
-        label_lon = spot_label_feature.lon + (rim + beyond * scale) / cos_lat
+        half_glyph = math.degrees(0.3 * char_scale / text_radius)
+        gap = math.degrees(SPOT_LABEL_GAP * char_scale / text_radius)
+        cos_lat = max(math.cos(math.radians(label_lat)), 0.02)
+        label_lon = spot_label_feature.lon + (rim + gap + half_glyph) / cos_lat
 
         spot_label_segments = create_text_on_sphere(
             label_text,
