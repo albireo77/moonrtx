@@ -18,11 +18,14 @@ last of them a tenth of a kilometre across - are named whenever they are in view
 over and above the count: ranking by size would never reach them. There are only
 a couple of dozen in the table, so they cost little.
 
-A feature can also be pinned - the one a feature graph is plotting, for as long
-as that window is open. It is named on the same terms as every other, in view,
-in daylight and not already named by another overlay, over and above the count,
-and whether or not the catalogue itself is on: so the feature being studied is
-always named, and never twice.
+A feature can also be pinned - the one a feature graph plots, or one chosen in
+the Find window - and stays named until Delete takes the names off. It is named
+on the same terms as every other, in view, in daylight and not already named by
+another overlay, over and above the count, and whether or not the catalogue
+itself is on: so the feature being studied is always named, and never twice. It
+is named the way the table marks it: across the feature if it carries a standard
+label, and otherwise beside it with an arrow, as a spot label is, since a name
+written across a small crater hides the crater it names.
 
 Only the chosen names are built, and only when the choice changes - forty of them
 cost about seven milliseconds, against the eight hundred the whole table would.
@@ -35,7 +38,7 @@ import math
 
 import numpy as np
 
-from moonrtx.moon_grid import create_standard_labels
+from moonrtx.moon_grid import create_spot_labels, create_standard_labels
 
 
 class CatalogueMixin:
@@ -200,14 +203,21 @@ class CatalogueMixin:
             self._hide_catalogue()
             return
 
-        features = [self.moon_features[i] for i in chosen]
-        labels = create_standard_labels(
-            features,
-            moon_radius=self.MOON_RADIUS,
-            offset=0.0,
-            flips_at=self._glyph_flips,
-            scale=self.label_scale()
-        )
+        # A pinned feature is named as the table marks it (see the module note):
+        # beside it with an arrow unless it carries a standard label. Every other
+        # name is written across its feature, as the catalogue always has
+        across, beside = [], []
+        for i in chosen:
+            feature = self.moon_features[i]
+            if (i in self._catalogue_pinned and not feature.standard_label
+                    and (feature.spot_label or feature.status_bar)):
+                beside.append(feature)
+            else:
+                across.append(feature)
+        style = dict(moon_radius=self.MOON_RADIUS, offset=0.0,
+                     flips_at=self._glyph_flips, scale=self.label_scale())
+        labels = (create_standard_labels(across, **style)
+                  + create_spot_labels(beside, **style))
         pos, edges, counts = self._label_graph_arrays(labels)
         self._catalogue_pos = pos
 
