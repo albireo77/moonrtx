@@ -130,8 +130,9 @@ class PinsMixin:
         if self.rt is None:
             return
 
-        # Toggle visibility by setting zero radius (hide) or restoring (show)
-        pin_radius = self.PIN_LABEL_RADIUS if visible else 0.0
+        # Toggle visibility by setting zero radius (hide) or restoring (show) -
+        # restoring the width create_pin gave it, at the lettering size of the zoom
+        pin_radius = self.PIN_LABEL_RADIUS * self.label_scale() if visible else 0.0
 
         for digit in self.pins:
             self.rt.update_graph(f"pin_{digit}", r=pin_radius)
