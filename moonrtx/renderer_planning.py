@@ -1274,8 +1274,12 @@ class PlanningMixin:
                         command=toggle_moon_alt).pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
         # The feature's name on the Moon, pinned into the catalogue while this
         # is ticked, so it is drawn the way the P key draws names and never
-        # twice; unpinned again when the window closes - see CatalogueMixin
-        label_var = tk.BooleanVar(value=self._graph_show_name)
+        # twice; it stays after the window closes, until Delete - see
+        # CatalogueMixin. Ticked from the start if the name is up already - left
+        # by the Find window or an earlier graph - whatever the box was last
+        # left at, so the box says what is on the Moon
+        label_var = tk.BooleanVar(
+            value=self._graph_show_name or self.is_catalogue_pinned(feature))
 
         def toggle_name():
             self._graph_show_name = label_var.get()

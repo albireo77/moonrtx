@@ -259,6 +259,10 @@ class CatalogueMixin:
         self._catalogue_pinned |= {i for i, f in enumerate(self.moon_features) if f == feature}
         self._refresh_catalogue()
 
+    def is_catalogue_pinned(self, feature) -> bool:
+        """Whether a feature is being kept named (see pin_catalogue_feature)."""
+        return any(self.moon_features[i] == feature for i in self._catalogue_pinned)
+
     def unpin_catalogue_feature(self, feature):
         """Stop keeping a feature named that pin_catalogue_feature pinned."""
         self._catalogue_pinned -= {i for i, f in enumerate(self.moon_features) if f == feature}
