@@ -266,6 +266,10 @@ Naumann:35.38:-62.02:9.93:false:false:true:4165:en.wikipedia.org/wiki/Naumann_(c
 Wollaston:30.60:-46.98:9.64:false:false:true:6570:en.wikipedia.org/wiki/Wollaston_(crater)
 Angstrom:29.90:-41.67:9.55:false:false:true:272:en.wikipedia.org/wiki/Angstr%C3%B6m_(crater)
 Briggs:26.45:-69.19:36.75:false:false:true:881:en.wikipedia.org/wiki/Briggs_(crater)
+Galilaei:10.48:-62.83:15.99:false:false:true:2074:en.wikipedia.org/wiki/Galilaei_(lunar_crater)
+Cardanus:13.27:-72.50:49.57:false:false:true:1016:en.wikipedia.org/wiki/Cardanus_(crater)
+Krafft:16.56:-72.72:51.15:false:false:true:3111:en.wikipedia.org/wiki/Krafft_(crater)
+Schiaparelli:23.38:-58.82:24.20:false:false:true:5365:en.wikipedia.org/wiki/Schiaparelli_(lunar_crater)
 Seleucus:21.09:-66.66:45.01:false:false:true:5418:en.wikipedia.org/wiki/Seleucus_(crater)
 Eddington:21.50:-72.02:120.13:false:false:true:1719:en.wikipedia.org/wiki/Eddington_(crater)
 Struve:23.41:-76.65:164.34:false:false:true:5727:en.wikipedia.org/wiki/Struve_(crater)
@@ -1620,6 +1624,8 @@ Brenner P:-38.81:35.21:6.31:false:false:true:7940
 Brenner Q:-39.26:35.84:7.19:false:false:true:7941
 Brenner R:-40.79:38.27:10.80:false:false:true:7942
 Brenner S:-38.44:36.19:5.77:false:false:true:7943
+Briggs A:27.12:-73.78:25.13:false:false:true:7950
+Briggs B:28.15:-70.91:24.96:false:false:true:7951
 Brown A:-48.15:-17.44:15.75:false:false:true:7961
 Brown B:-44.73:-16.17:11.66:false:false:true:7962
 Brown C:-47.58:-17.00:12.33:false:false:true:7963
@@ -2190,6 +2196,9 @@ G  Bond B:29.95:34.67:32.38:false:false:true:9277
 G  Bond C:28.29:34.75:46.65:false:false:true:9278
 G  Bond G:32.74:37.25:27.32:false:false:true:9279
 G  Bond K:32.14:38.33:12.47:false:false:true:9280
+Galilaei A:11.69:-63.05:11.17:false:false:true:9287
+Galilaei B:11.43:-67.72:15.91:false:false:true:9288
+Galilaei E:13.91:-61.94:7.12:false:false:true:9290
 Galilaei L:13.25:-58.61:3.37:false:false:true:9296
 Galilaei M:13.28:-56.93:3.24:false:false:true:9297
 Galle A:53.99:22.27:5.77:false:false:true:9302
@@ -2693,6 +2702,9 @@ Klein A:-11.38:2.98:9.04:false:false:true:10369
 Klein B:-12.52:1.78:5.61:false:false:true:10370
 Klein C:-12.58:2.54:5.21:false:false:true:10371
 Konig A:-24.78:-24.09:3.32:false:false:true:10382
+Krafft C:16.37:-72.49:12.45:false:false:true:10416
+Krafft D:15.11:-73.38:12.23:false:false:true:10417
+Krafft E:15.91:-71.80:9.64:false:false:true:10418
 Krieger C:27.73:-44.70:4.15:false:false:true:10441
 Krieger D:28.91:-45.00:4.57:false:false:true:10442
 Krusenstern A:-26.98:5.80:4.89:false:false:true:10443
