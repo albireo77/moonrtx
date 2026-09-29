@@ -263,6 +263,12 @@ Krieger:29.02:-45.61:22.87:false:false:true:3120:en.wikipedia.org/wiki/Krieger_(
 Rocco:28.91:-45.00:4.35:false:false:true:5165
 Lichtenberg:31.85:-67.72:19.53:false:false:true:3393:en.wikipedia.org/wiki/Lichtenberg_(crater)
 Naumann:35.38:-62.02:9.93:false:false:true:4165:en.wikipedia.org/wiki/Naumann_(crater)
+Harding:43.54:-71.66:22.57:false:false:true:2362:en.wikipedia.org/wiki/Harding_(crater)
+Lavoisier:38.17:-81.25:71.01:false:false:true:3307:en.wikipedia.org/wiki/Lavoisier_(crater)
+Dechen:46.12:-68.18:12.04:false:false:true:1456:en.wikipedia.org/wiki/Dechen_(crater)
+Markov:53.43:-62.84:39.92:false:false:true:3720:en.wikipedia.org/wiki/Markov_(crater)
+von Braun:41.04:-78.08:61.83:false:false:true:6437:en.wikipedia.org/wiki/Von_Braun_(crater)
+Ulugh Beigh:32.67:-81.96:57.04:false:false:true:6207:en.wikipedia.org/wiki/Ulugh_Beigh_(crater)
 Wollaston:30.60:-46.98:9.64:false:false:true:6570:en.wikipedia.org/wiki/Wollaston_(crater)
 Angstrom:29.90:-41.67:9.55:false:false:true:272:en.wikipedia.org/wiki/Angstr%C3%B6m_(crater)
 Briggs:26.45:-69.19:36.75:false:false:true:881:en.wikipedia.org/wiki/Briggs_(crater)
@@ -2814,6 +2820,11 @@ Lassell K:-15.08:-8.95:3.94:false:false:true:10657
 Lassell M:-14.21:-8.80:2.82:false:false:true:10658
 Lassell S:-18.29:-8.57:3.34:false:false:true:10659
 Lassell T:-17.07:-8.83:2.16:false:false:true:10660
+Lavoisier A:36.97:-73.26:28.51:false:false:true:10669
+Lavoisier B:39.76:-79.75:24.55:false:false:true:10670
+Lavoisier C:35.78:-76.73:34.90:false:false:true:10671
+Lavoisier E:40.88:-80.39:50.56:false:false:true:10673
+Lavoisier H:38.17:-78.94:29.12:false:false:true:10676
 Le Monnier A:26.83:32.49:20.87:false:false:true:10690
 Le Monnier H:24.97:29.62:4.70:false:false:true:10691
 Le Monnier K:27.75:30.26:4.02:false:false:true:10692
@@ -3110,6 +3121,9 @@ Marius V:9.87:-48.31:1.63:false:false:true:11193
 Marius W:9.40:-49.73:2.82:false:false:true:11194
 Marius X:9.73:-54.99:4.82:false:false:true:11195
 Marius Y:9.78:-50.77:2.52:false:false:true:11196
+Markov E:50.66:-60.28:12.25:false:false:true:11197
+Markov F:50.10:-62.04:7.86:false:false:true:11198
+Markov U:51.90:-60.16:29.02:false:false:true:11200
 Marth K:-29.96:-28.77:3.02:false:false:true:11201
 Maskelyne A:0.03:34.09:29.42:false:false:true:11202
 Maskelyne B:1.97:28.96:8.34:false:false:true:11203
@@ -3269,6 +3283,7 @@ Muller F:-7.86:1.48:5.78:false:false:true:11502
 Muller O:-7.89:2.41:9.66:false:false:true:11503
 Murchison T:4.44:0.08:2.48:false:false:true:11504
 Nasireddin B:-39.47:-1.16:9.30:false:false:true:11537
+Naumann B:37.46:-60.70:10.73:false:false:true:11545
 Neander A:-30.95:39.58:10.70:false:false:true:11547
 Neander B:-28.26:40.09:9.33:false:false:true:11548
 Neander C:-28.67:35.95:19.64:false:false:true:11549
@@ -4298,6 +4313,8 @@ Ukert V:8.73:3.24:2.25:false:false:true:13581
 Ukert W:9.51:2.33:2.65:false:false:true:13582
 Ukert X:9.16:1.85:2.52:false:false:true:13583
 Ukert Y:10.11:0.21:3.19:false:false:true:13584
+Ulugh Beigh A:34.13:-79.34:41.18:false:false:true:13585
+Ulugh Beigh B:32.79:-79.30:7.59:false:false:true:13586
 Vendelinus S:-15.40:57.98:5.81:false:false:true:13643
 Vendelinus V:-15.55:55.92:5.77:false:false:true:13646
 Vendelinus W:-14.59:58.70:4.93:false:false:true:13647
