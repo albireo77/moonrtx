@@ -1897,7 +1897,8 @@ class PlanningMixin:
             "click or a step does to the camera.\n"
             "Label on Moon puts the feature's name on the Moon.\n"
             "Show Moon altitude draws the Moon's altitude in your sky, whose\n"
-            "daily arcs read best at the shorter spans.")
+            "daily arcs read best at the shorter spans.\n"
+            "Whether the feature is visible is judged at its centre.")
         help_label = tk.Label(legend, text="Help", font=font, fg='#606060')
         help_label.pack(side=tk.LEFT)
         ToolTip(help_label, help_hint)
