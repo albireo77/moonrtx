@@ -16,6 +16,7 @@ from moonrtx.skyfield_utils import (
     skyfield_timescale,
 )
 from moonrtx.shared_types import ClairObscurEvent, MoonEphemeris, Observer, VisibilityChart
+from moonrtx.data_loader import MOON_REFERENCE_RADIUS_M
 
 RENDERER_TO_SKYFIELD_BODY_MATRIX = np.array(
     [[0.0, -1.0, 0.0],
@@ -184,6 +185,33 @@ def _body_altitude_at_feature(sub_lat_deg: np.ndarray, sub_lon_deg: np.ndarray,
     return np.degrees(np.arcsin(np.clip(sin_alt, -1.0, 1.0)))
 
 
+def _observer_altitude_at_feature(sub_lat_deg: np.ndarray, sub_lon_deg: np.ndarray,
+                                  distance_km: np.ndarray,
+                                  lat_deg: float, lon_deg: float) -> np.ndarray:
+    """
+    Altitude of the observer above the local lunar horizon at a selenographic
+    location - as _body_altitude_at_feature with the sub-observer point, but
+    seen from the location itself rather than from the Moon's centre.
+
+    The Sun is far enough away for the two to agree; the observer is not. Seen
+    from a point on the surface, the observer stands lower than the angle to
+    the sub-observer point says - by up to R/d, about a quarter of a degree - so
+    a feature goes out of sight a little short of ninety degrees from that
+    point: at arccos(R/d), where the edge of the visible part is drawn
+    (SubPointsMixin._visible_limb_graph). 0 here is on that edge, and the
+    centre of the disk is still 90.
+    """
+    # cos of the angle from the sub-observer point, which is sin of the altitude
+    # as the Moon's centre has it
+    cos_angle = np.sin(np.radians(_body_altitude_at_feature(
+        sub_lat_deg, sub_lon_deg, lat_deg, lon_deg)))
+    ratio = MOON_REFERENCE_RADIUS_M / 1000.0 / np.asarray(distance_km)
+    # The observer seen from the surface point: the component of the line to it
+    # along the local vertical, over its length, both divided through by d
+    sin_alt = (cos_angle - ratio) / np.sqrt(1.0 + ratio ** 2 - 2.0 * ratio * cos_angle)
+    return np.degrees(np.arcsin(np.clip(sin_alt, -1.0, 1.0)))
+
+
 def _scan_times(start_local: datetime, days: float, step_minutes: int) -> tuple:
     """
     Sample times for a planner scan, as a list of UTC datetimes and the
@@ -245,9 +273,10 @@ def sample_feature_series(start_local: datetime, days: float,
         "times": UTC datetimes, one per sample.
         "sun_alt": Sun altitude over the feature (degrees) - sets shadow
         length, negative while the feature is in lunar night.
-        "earth_alt": Earth altitude over the feature (degrees) - the
+        "earth_alt": the observer's altitude over the feature (degrees) - the
         libration figure of merit, 90 at the centre of the disk, negative
-        once the feature is turned past the limb out of view.
+        once the feature is turned past the limb out of view (see
+        _observer_altitude_at_feature).
         "moon_alt", "observer_sun_alt": Moon and Sun altitude at the
         observer's own site (degrees), for judging local visibility and sky
         darkness.
@@ -265,9 +294,13 @@ def sample_feature_series(start_local: datetime, days: float,
     sun_alt_f = _body_altitude_at_feature(subsolar_lat, subsolar_lon, feature_lat, feature_lon)
 
     # Sub-Earth point = the libration of the moment, seen from the observer
-    # (topocentric, so the daily rocking of up to ~1 degree counts too)
+    # (topocentric, so the daily rocking of up to ~1 degree counts too), and
+    # the observer's altitude over the feature taken from the feature itself,
+    # so that 0 falls on the edge of the visible part as Y draws it
     libr_lat, libr_lon = _sub_point(_observer, t, moon_at)
-    earth_alt = _body_altitude_at_feature(libr_lat, libr_lon, feature_lat, feature_lon)
+    distance_km = (observer_at - moon_at).distance().km
+    earth_alt = _observer_altitude_at_feature(libr_lat, libr_lon, distance_km,
+                                              feature_lat, feature_lon)
 
     return {
         "times": dts,
@@ -569,7 +602,7 @@ def find_libration_windows(start_local: datetime, days: float,
 
     The figure of merit is the altitude of the Earth above the feature's own
     horizon: 90 degrees at the centre of the disk, 0 exactly on the limb (see
-    _body_altitude_at_feature). It doubles as the foreshortening angle, the
+    _observer_altitude_at_feature). It doubles as the foreshortening angle, the
     feature being squashed by its sine across the line of sight.
 
     A window additionally requires the feature to be sunlit and the Moon to be

@@ -62,7 +62,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
 **G** - Toggle selenographic grid  
-**Y** - Toggle markers for sub-solar and sub-Earth points  
+**Y** - Toggle markers for sub-solar and sub-Earth points, and the edge of the visible part  
 **B** - Toggle the field of view frame (set it up with Shift + B)  
 **C** - Toggle compass showing how far the view is turned (rotated) from default  
 **R** - Toggle locator showing where on the Moon the view is  
