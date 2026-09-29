@@ -1399,18 +1399,35 @@ def run_renderer(dt_local: datetime,
     original_released_left = moon_renderer.rt._gui_released_left
     original_motion_pressed = moon_renderer.rt._gui_motion_pressed
 
+    # Where a plain press of the left button began, so that letting it go in
+    # the same place can be told from the end of a drag (see name_feature_at).
+    # Only a press with no key held: Shift with the left button zooms, and a
+    # held key gives the drag another meaning in PlotOptiX
+    click_from = None
+
     def custom_pressed_left(event):
+        nonlocal click_from
+        click_from = None
         if event.state & 0x4:
             # Left Ctrl measures; right Ctrl measures and draws the profile
             moon_renderer.start_measurement(event, with_profile=moon_renderer._right_ctrl_down)
             return
+        if not (event.state & 0x1 or moon_renderer.rt._any_key):
+            click_from = (event.x, event.y)
         original_pressed_left(event)
 
     def custom_released_left(event):
+        nonlocal click_from
         if moon_renderer.measuring:
             moon_renderer.finish_measurement(event)
             return
         original_released_left(event)
+        pressed_at, click_from = click_from, None
+        if pressed_at is not None:
+            slop = moon_renderer._overlay_px(moon_renderer.CLICK_SLOP_PX)
+            if (abs(event.x - pressed_at[0]) <= slop
+                    and abs(event.y - pressed_at[1]) <= slop):
+                moon_renderer.name_feature_at(event)
 
     def custom_motion_pressed(event):
         if moon_renderer.measuring:

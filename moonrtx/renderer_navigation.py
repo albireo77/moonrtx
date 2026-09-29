@@ -122,19 +122,74 @@ class NavigationMixin:
         # Update camera
         self.rt.update_camera(self.CAMERA_NAME, eye=new_eye.tolist(), target=new_target.tolist())
 
+    # How far the pointer may move between pressing the left button and letting
+    # it go for that still to be a click, which names the feature under it
+    # (name_feature_at), rather than the start of a drag that turns the view
+    CLICK_SLOP_PX = 4
+
     def _init_feature_lookup(self):
         """
-        Build vectorized lookup arrays for find_feature_for_status_bar.
+        Build vectorized lookup arrays for find_feature_for_status_bar and
+        name_feature_at.
 
         Called once after moon_features is loaded and sorted; the per-feature
         Python loop was too slow for a per-mouse-motion lookup with thousands
         of features (~1.8 ms scan vs ~0.02 ms vectorized).
         """
-        self._sb_features = [f for f in self.moon_features if f.status_bar]
-        self._sb_lat = np.array([f.lat for f in self._sb_features])
-        self._sb_lon = np.array([f.lon for f in self._sb_features])
-        self._sb_cos_lat = np.cos(np.radians(self._sb_lat))
-        self._sb_radius2 = np.array([f.angular_radius for f in self._sb_features]) ** 2
+        self._sb_lookup = self._feature_lookup(
+            [f for f in self.moon_features if f.status_bar])
+        # What a click can name: what the status bar shows, and the features
+        # the table marks for a spot label besides
+        self._click_lookup = self._feature_lookup(
+            [f for f in self.moon_features if f.status_bar or f.spot_label])
+
+    @staticmethod
+    def _feature_lookup(features: list) -> tuple:
+        """The arrays _feature_in_lookup searches, for these features in this order."""
+        lat = np.array([f.lat for f in features])
+        return (features, lat, np.array([f.lon for f in features]),
+                np.cos(np.radians(lat)),
+                np.array([f.angular_radius for f in features]) ** 2)
+
+    @staticmethod
+    def _feature_in_lookup(lookup: tuple, lat: float, lon: float) -> Optional[MoonFeature]:
+        """
+        The first of a lookup's features whose disk takes in this position,
+        which is the smallest of them, moon_features being sorted smallest first.
+        """
+        features, f_lat, f_lon, cos_lat, radius2 = lookup
+        # Squared angular distance from every feature center; small-angle
+        # approximation with cos_lat correction for longitude.
+        dlon = (lon - f_lon + 180.0) % 360.0 - 180.0
+        dist2 = (lat - f_lat) ** 2 + (dlon * cos_lat) ** 2
+        hits = np.flatnonzero(dist2 <= radius2)
+        return features[hits[0]] if hits.size else None
+
+    def name_feature_at(self, event):
+        """
+        Put the name of the feature under a click on the Moon, as the Find
+        window does for the one chosen there: it stays until Delete (see
+        CatalogueMixin), or until the feature is clicked again, which takes
+        the name off - whether a click, Find or a graph put it there. A click
+        off the Moon, or on ground no feature the status bar or the spot labels
+        name covers, does nothing.
+        """
+        if self.rt is None:
+            return
+        x, y = self.rt._get_image_xy(event.x, event.y)
+        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
+        if hd <= 0:
+            return
+        lat, lon = self.hit_to_selenographic(hx, hy, hz)
+        if lat is None or lon is None:
+            return
+        feature = self._feature_in_lookup(self._click_lookup, lat, lon)
+        if feature is None:
+            return
+        if self.is_catalogue_pinned(feature):
+            self.unpin_catalogue_feature(feature)
+        else:
+            self.pin_catalogue_feature(feature)
 
     def find_feature_for_status_bar(self, lat: float, lon: float) -> Optional[MoonFeature]:
         """
@@ -158,13 +213,7 @@ class NavigationMixin:
         MoonFeature
             Moon feature if found, None otherwise
         """
-        # Squared angular distance from every feature center; small-angle
-        # approximation with cos_lat correction for longitude.
-        dlon = (lon - self._sb_lon + 180.0) % 360.0 - 180.0
-        dist2 = (lat - self._sb_lat) ** 2 + (dlon * self._sb_cos_lat) ** 2
-        hits = np.flatnonzero(dist2 <= self._sb_radius2)
-        # First hit is the smallest feature due to sorted order
-        return self._sb_features[hits[0]] if hits.size else None
+        return self._feature_in_lookup(self._sb_lookup, lat, lon)
 
     def _reset_view_orientation_if_needed(self):
         if self.view_orientation != self.initial_view_orientation:

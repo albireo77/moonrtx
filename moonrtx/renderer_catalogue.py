@@ -18,8 +18,9 @@ last of them a tenth of a kilometre across - are named whenever they are in view
 over and above the count: ranking by size would never reach them. There are only
 a couple of dozen in the table, so they cost little.
 
-A feature can also be pinned - the one a feature graph plots, or one chosen in
-the Find window - and stays named until Delete takes the names off. It is named
+A feature can also be pinned - the one a feature graph plots, one chosen in the
+Find window, or one clicked on the Moon - and stays named until Delete takes the
+names off. It is named
 on the same terms as every other, in view, in daylight and not already named by
 another overlay, over and above the count, and whether or not the catalogue
 itself is on: so the feature being studied is always named, and never twice. It

@@ -84,11 +84,12 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Space** - Center and fix view on point under cursor  
 **Home** - Reset camera and time to initial state  
 **End** - Reset camera to default state (useful after starting with `--init-view` parameter)  
-**Delete** - Remove labels left by Find and Observation Planner  
+**Delete** - Remove labels left by Find, Observation Planner and clicks  
 **Escape** - Leave full screen; close a window (dialog)  
 **Arrows** - Move view  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  
+**Click left mouse button** - Label the feature under cursor; click again to remove  
 **Hold and drag left mouse button** - Rotate the eye around Moon  
 **Hold and drag right mouse button** - Rotate Moon around the eye (move view)  
 **Hold left Ctrl + drag left mouse button** - Measure distance and elevation difference on Moon surface  
