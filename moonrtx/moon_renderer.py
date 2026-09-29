@@ -3,6 +3,7 @@ MoonRenderer: core renderer class (composing mixins) and run_renderer entry poin
 """
 
 import sys
+import threading
 import numpy as np
 from contextlib import contextmanager
 from typing import Optional
@@ -1052,6 +1053,44 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             self.rt.close()
             self.rt = None
 
+    def quit_window(self):
+        """
+        What closing the window does: write the settings down, stop the
+        render, and end the Tk loop - in an order that cannot hang.
+
+        PlotOptiX's own quit takes the render padlock on this, the Tk thread,
+        and waits there in stop_rt for the render thread to finish. But the
+        render thread hands every finished frame to Tk (TkOptiX posts
+        <<LaunchFinished>> with when="now"), and a call into Tk from another
+        thread waits for this one to take it. Closed while frames were still
+        being drawn - just after a label is put on the Moon, say - each thread
+        was left waiting on the other and the window stopped responding: a bare
+        PlotOptiX window closed mid-render hung 2 times in 16.
+
+        So the render thread is waited for from a thread of its own while this
+        one goes on taking Tk's calls, and the padlock is not held meanwhile,
+        the render thread taking it after every frame as well. Only once it has
+        stopped is the scene destroyed and the loop ended, as PlotOptiX would.
+        """
+        rt = self.rt
+        if rt is None or getattr(self, "_quitting", False) or rt._is_closed:
+            return
+        self._quitting = True
+        self.save_settings()
+
+        stopping = threading.Thread(target=rt._optix.stop_rt, daemon=True)
+        stopping.start()
+        while stopping.is_alive():
+            rt._root.update()           # take whatever the render thread is waiting in
+            stopping.join(0.01)
+
+        with rt._padlock:
+            rt._is_scene_created = False
+            rt._is_started = False
+            rt._optix.destroy_scene()
+            rt._is_closed = True
+        rt._root.quit()
+
 # ---------------------------------------------------------------------------
 # Public entry-point
 # ---------------------------------------------------------------------------
@@ -1407,16 +1446,11 @@ def run_renderer(dt_local: datetime,
 
     moon_renderer.rt._gui_apply_scene_edits = custom_apply_scene_edits
 
-    # The windows' choices are written down as the window closes, for the next
-    # run (see renderer_settings). PlotOptiX binds its own close to the window
-    # when it starts, so it takes this one in its place
-    original_quit = moon_renderer.rt._gui_quit_callback
-
-    def custom_quit(*args):
-        moon_renderer.save_settings()
-        original_quit(*args)
-
-    moon_renderer.rt._gui_quit_callback = custom_quit
+    # Closing the window writes the windows' choices down for the next run and
+    # stops the render without PlotOptiX's own quit, which could hang (see
+    # quit_window). PlotOptiX binds its quit to the window when it starts, so
+    # it takes this one in its place
+    moon_renderer.rt._gui_quit_callback = lambda *args: moon_renderer.quit_window()
 
     moon_renderer.start()
     return moon_renderer.rt
