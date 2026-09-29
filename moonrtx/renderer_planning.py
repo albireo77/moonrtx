@@ -1888,7 +1888,7 @@ class PlanningMixin:
             "to 1, keeping the moment under the pointer where it is.\n"
             "◀ ▶ page the graph a span back or on. Left puts the moment on\n"
             "show back at the left edge, where the graph opened with it, and\n"
-            "Centre puts it in the middle, keeping the span.\n"
+            "Middle puts it in the middle, keeping the span.\n"
             "Span (days) sets the axis to 60, 15 or 5 days about that moment;\n"
             "between those, the wheel's spans show no button chosen.\n"
             "Step (min) is this window's own time step - the renderer's own\n"
@@ -1950,8 +1950,8 @@ class PlanningMixin:
         legend_controls = tk.Frame(main_frame)
         tk.Button(legend_controls, text="Close", command=on_close, width=10).pack(side=tk.RIGHT)
         # Beside Left, the two of them taking the graph back to the moment on
-        # show - Left to the left edge, Centre to the middle
-        tk.Button(legend_controls, text="Centre", command=centre, width=10).pack(
+        # show - Left to the left edge, Middle to the middle
+        tk.Button(legend_controls, text="Middle", command=centre, width=10).pack(
             side=tk.RIGHT, padx=(0, pad + 2))
         tk.Button(legend_controls, text="Left", command=left, width=10).pack(
             side=tk.RIGHT, padx=(0, pad + 2))
