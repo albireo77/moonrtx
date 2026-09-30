@@ -1066,8 +1066,12 @@ class PlanningMixin:
                             f"{'Libr L':>9}{'Libr B':>9}{'Sun@feat':>10}{'Moon alt':>10}  {'Sky':<8}")
 
         def before_close():
-            # Where the window was left, for the next planner to open at
-            self._planner_position = self._window_corner(dialog.win) or self._planner_position
+            # Where the window was left, for the next planner to open at. The
+            # window alone is asked, not the dialog's parts: those hold the
+            # close this is called from, and the circle kept them - and their
+            # Tk variables - alive past the window, until the program ended
+            # and Python deleted them from a thread Tk no longer ran on
+            self._planner_position = self._window_corner(win) or self._planner_position
 
         dialog = self._results_frame(
             f"Observation Planner - {feature.name}",
