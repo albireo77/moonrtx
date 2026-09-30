@@ -129,6 +129,8 @@ class PlanningMixin:
     # The observation planner's, kept the same way: it is opened for one feature
     # after another as well
     _planner_position = None
+    # And the rise and set chart's (U)
+    _visibility_position = None
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -202,7 +204,13 @@ class PlanningMixin:
         if self.rt is None:
             return
 
-        win, main_frame, on_close = self._dialog_window("Moon rise and set")
+        def before_close():
+            # Where the window was left, for the next chart to open at. The
+            # window alone is asked, as the planner's does (see there)
+            self._visibility_position = self._window_corner(win) or self._visibility_position
+
+        win, main_frame, on_close = self._dialog_window("Moon rise and set",
+                                                        before_close=before_close)
 
         colours = self.VISIBILITY_COLOURS
         font = ('Consolas', 8)
@@ -535,7 +543,14 @@ class PlanningMixin:
 
         reset()   # the first draw sits on the night the app is showing
 
-        self._show_dialog(win)
+        # Not modal, as the planner and the graph are not, so the renderer's
+        # mouse stays in use while the chart is open; its keys stay held
+        # (search_dialog_open). Brought to the front here because _show_dialog
+        # does that only for a window taking the grab
+        self._show_dialog(win, position=self._visibility_position, grab=False)
+        win.wait_visibility()
+        bring_to_front(win)
+        allow_minimize(win, minimized_at=self._minimized_bar_spot)
 
     # ---- taking results out of the dialogs ----
 
