@@ -19,6 +19,7 @@ lays out what comes back.
 
 import io
 import csv
+import math
 import zlib
 import tkinter as tk
 from tkinter import ttk
@@ -126,6 +127,11 @@ class PlanningMixin:
     # dialog does. A graph is opened, read, closed and opened again for the next
     # feature, and it is a wide window to drag back into place each time
     _graph_position = None
+    # And how tall its plot was dragged to, in pixels; None until one has been
+    # closed, when the next opens at GRAPH_PLOT_LINES. Kept for the session
+    # only, as the position is: a height chosen on one screen may not suit
+    # another
+    _graph_plot_h = None
     # The observation planner's, kept the same way: it is opened for one feature
     # after another as well
     _planner_position = None
@@ -159,13 +165,36 @@ class PlanningMixin:
     # runs it again on every zoom, page and change of span - at 60 days that
     # saves about a third of a second a redraw (see astro.find_terminator_windows)
     GRAPH_REFINE_MIN_PX = 2.0
-    GRAPH_PLOT_LINES = 18       # plot height, in lines of the axis font
-    # Floor of the altitude axis. Below it the Sun curve only says the feature
-    # is in lunar night, however deep, and a near-side feature's libration never
-    # gets there - around -10° at most, for one on the limb - so the room goes to
-    # the 0-12° terminator band instead. A curve under the floor is left out
-    # rather than pinned to the edge, where it would read as standing at -30°.
+    # Plot height, in lines of the axis font: the height the window opens at,
+    # and the shortest it can be dragged to
+    GRAPH_PLOT_LINES = 18
+    # How long the dragging has to stop for before the plot is drawn again at
+    # the new height
+    GRAPH_RESIZE_MS = 200
+    # The lowest the altitude axis goes, for a feature whose libration goes
+    # lower still (see _graph_alt_range). Below it the Sun curve only says the
+    # feature is in lunar night, however deep, and a near-side feature's
+    # libration never gets there - around -10° at most, for one on the limb -
+    # so the room goes to the 0-12° terminator band instead. A curve under the
+    # bottom is left out rather than pinned to the edge, where it would read as
+    # standing at the bottom.
     GRAPH_ALT_MIN = -30
+    # How far the points the curves are measured from wander, in degrees (see
+    # _graph_alt_range): the subsolar point from the lunar equator, the Moon's
+    # equator being tilted 1.54 degrees to the ecliptic; and the sub-Earth
+    # point from the middle of the disk. Measured over 1900-2050, the
+    # geocentric sub-Earth point fills a rectangle, 6.87 either way in
+    # latitude and 8.14 in longitude, corners and all - the two librations
+    # having periods of their own, every pairing of them comes round. The
+    # observer's place on Earth moves it up to a degree further, any way:
+    # the Earth's radius seen from the Moon at perigee
+    GRAPH_SUBSOLAR_LAT_MAX = 1.6
+    GRAPH_SUBEARTH_LAT_MAX = 6.9
+    GRAPH_SUBEARTH_LON_MAX = 8.2
+    GRAPH_OBSERVER_PARALLAX = 1.03
+    # The longest the altitude axis can be and still be gridded every 10
+    # degrees; a longer one is gridded every 30
+    GRAPH_ALT_FINE_SPAN = 60
     GRAPH_COLOURS = {
         "sun_alt": "#e8a33d",     # Sun altitude over the feature
         "earth_alt": "#1c6fb0",   # libration figure of merit (Earth altitude)
@@ -1270,6 +1299,62 @@ class PlanningMixin:
         bring_to_front(win)
         allow_minimize(win, minimized_at=self._minimized_bar_spot)
 
+    def _graph_alt_range(self, feature: MoonFeature) -> tuple:
+        """
+        The bottom and the top of the Graph's altitude axis for a feature, both
+        worked out from where it lies rather than from the days on show, so the
+        axis stays put while the graph is paged.
+
+        The top is the highest its two curves - the Sun over it and the
+        libration - can ever reach, rounded up to a multiple of 10. The Sun is
+        highest over a feature when the subsolar point is nearest it, which is
+        90 less the feature's latitude - less by as much as the subsolar point
+        strays towards it from the equator. The Earth is highest when the
+        sub-Earth point is nearest, and that point wanders over the rectangle
+        libration carries it about in, and up to the observer's parallax
+        beyond it any way (see GRAPH_SUBEARTH_LAT_MAX).
+
+        The bottom is the lowest the libration can go, when the sub-Earth point
+        is farthest away, rounded down to a multiple of 10 - but no lower than
+        GRAPH_ALT_MIN, and no higher than 0: the horizon and the terminator
+        band just above it are what the Sun curve is read for, and a near-side
+        feature, whose libration never nears 0, would otherwise lose them. The
+        Sun's own night, however deep, is not followed down.
+
+        The Moon's own altitude in the observer's sky is not counted. It is the
+        observer's rather than the feature's, it would lift nearly every axis
+        to 70, and it would move the axis each time its box is ticked; while
+        drawn, it is cut at the edges like any curve.
+        """
+        sun = 90.0 - max(0.0, abs(feature.lat) - self.GRAPH_SUBSOLAR_LAT_MAX)
+
+        def angle_to(lat: float, lon: float) -> float:
+            b0, b = math.radians(lat), math.radians(feature.lat)
+            cos_angle = (math.sin(b0) * math.sin(b)
+                         + math.cos(b0) * math.cos(b) * math.cos(math.radians(feature.lon - lon)))
+            return math.degrees(math.acos(max(-1.0, min(1.0, cos_angle))))
+
+        # The nearest and the farthest the sub-Earth point comes: the nearest on
+        # the rectangle's edge, less the parallax - or no distance at all for a
+        # feature inside it - and the farthest on its edge, plus the parallax
+        lat_reach, lon_reach = self.GRAPH_SUBEARTH_LAT_MAX, self.GRAPH_SUBEARTH_LON_MAX
+        steps = 64
+        rim = ([(lat_reach * (2 * k / steps - 1), side * lon_reach)
+                for side in (-1, 1) for k in range(steps + 1)]
+               + [(side * lat_reach, lon_reach * (2 * k / steps - 1))
+                  for side in (-1, 1) for k in range(steps + 1)])
+        angles = [angle_to(lat, lon) for lat, lon in rim]
+        if abs(feature.lat) <= lat_reach and abs(feature.lon) <= lon_reach:
+            nearest = 0.0
+        else:
+            nearest = max(0.0, min(angles) - self.GRAPH_OBSERVER_PARALLAX)
+        farthest = max(angles) + self.GRAPH_OBSERVER_PARALLAX
+
+        highest = max(sun, 90.0 - nearest)
+        top = min(90, max(10, 10 * math.ceil(highest / 10)))
+        bottom = max(self.GRAPH_ALT_MIN, min(0, 10 * math.floor((90.0 - farthest) / 10)))
+        return bottom, top
+
     def feature_graph_dialog(self, feature: MoonFeature):
         """
         Plot Sun altitude and libration presentation for a feature over a span
@@ -1292,8 +1377,10 @@ class PlanningMixin:
             return
 
         def before_close():
-            # Where the window was left, for the next graph to open at
+            # Where the window was left, and how tall the plot was, for the
+            # next graph to open at
             self._graph_position = self._window_corner(win) or self._graph_position
+            self._graph_plot_h = plot_h
 
         win, main_frame, on_close = self._dialog_window(
             f"{feature.name} - graph", before_close=before_close)
@@ -1307,7 +1394,6 @@ class PlanningMixin:
         line_w = max(1, cell_w // 5)
         rule = max(1, cell_w // 3)
 
-        plot_h = self.GRAPH_PLOT_LINES * line_h
         ribbon_h = line_h
         label_w = max(metrics.measure('-90°'), metrics.measure('Moon')) + 2 * pad
 
@@ -1320,20 +1406,36 @@ class PlanningMixin:
         plot_w = max(self.GRAPH_DAYS, width - label_w - pad)
 
         plot_x0, plot_x1 = label_w, label_w + plot_w
-        # A line of room above the +90° line, for the time under the pointer
+        # A line of room above the plot's top line, for the time under the pointer
         plot_y0 = pad + line_h
-        plot_y1 = plot_y0 + plot_h
         # Two thin strips straight under the plot's bottom edge for the
         # planner's windows - marks on the time axis rather than rows of their
         # own, so they take no labels
         strip_h = max(3, line_h // 3)
-        term_y0, term_y1 = plot_y1, plot_y1 + strip_h
-        libr_y0, libr_y1 = term_y1, term_y1 + strip_h
-        sky_y0, sky_y1 = libr_y1 + pad, libr_y1 + pad + ribbon_h
-        moon_y0, moon_y1 = sky_y1, sky_y1 + ribbon_h
-        date_y = moon_y1 + pad
         width = plot_x1 + pad
-        height = date_y + line_h + pad
+
+        # The plot's height, and every place under it that follows from it -
+        # the strips, the Sky and Moon ribbons, the dates, the canvas itself.
+        # Set by lay_out, first for the height the last graph was left at and
+        # again whenever the window is dragged taller or shorter (see
+        # fit_height)
+        plot_h = plot_y1 = term_y0 = term_y1 = libr_y0 = libr_y1 = 0
+        sky_y0 = sky_y1 = moon_y0 = moon_y1 = date_y = height = 0
+        plot_h_min = self.GRAPH_PLOT_LINES * line_h
+
+        def lay_out(new_plot_h: int):
+            nonlocal plot_h, plot_y1, term_y0, term_y1, libr_y0, libr_y1
+            nonlocal sky_y0, sky_y1, moon_y0, moon_y1, date_y, height
+            plot_h = max(plot_h_min, int(new_plot_h))
+            plot_y1 = plot_y0 + plot_h
+            term_y0, term_y1 = plot_y1, plot_y1 + strip_h
+            libr_y0, libr_y1 = term_y1, term_y1 + strip_h
+            sky_y0, sky_y1 = libr_y1 + pad, libr_y1 + pad + ribbon_h
+            moon_y0, moon_y1 = sky_y1, sky_y1 + ribbon_h
+            date_y = moon_y1 + pad
+            height = date_y + line_h + pad
+
+        lay_out(self._graph_plot_h or self.GRAPH_PLOT_LINES * line_h)
 
         # The choices are gathered in a block of their own, which fit_rows puts
         # beside the readout or on a row above it once both have been measured
@@ -1373,7 +1475,7 @@ class PlanningMixin:
         # the pointer is away, on a row between the choices and the plot; the
         # graph's own title is in the window's title bar (set on each redraw, as
         # it says the span). Indented by the plot's left margin so it starts
-        # where the time over the +90° line starts at its leftmost, and with no
+        # where the time over the top line starts at its leftmost, and with no
         # padding or border of its own, which would put the lettering further in
         readout_row = tk.Frame(main_frame)
         readout_row.pack(fill=tk.X)
@@ -1404,10 +1506,14 @@ class PlanningMixin:
         def clip_x(x: float) -> float:
             return min(max(x, plot_x0), plot_x1)
 
-        alt_span = 90.0 - self.GRAPH_ALT_MIN
+        # The altitude axis runs from the lowest the libration can go, or 0, up
+        # to the highest the Sun and the libration can reach for this feature
+        # (see _graph_alt_range)
+        alt_bottom, alt_top = self._graph_alt_range(feature)
+        alt_span = alt_top - alt_bottom
 
         def y_of(deg: float) -> float:
-            return plot_y0 + (90.0 - deg) / alt_span * plot_h
+            return plot_y0 + (alt_top - deg) / alt_span * plot_h
 
         def band(y0: float, y1: float, spells: list, fill: str, min_w: float = 0.0):
             for start_utc, end_utc in spells:
@@ -1420,25 +1526,48 @@ class PlanningMixin:
                     canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline="")
 
         def curve(values, colour: str):
-            floor = self.GRAPH_ALT_MIN
-            runs, run, prev = [], [], None
-            for t_utc, deg in zip(state["dts"], values):
-                x, deg = x_of(t_utc), float(deg)
-                if prev is not None and (prev[1] < floor) != (deg < floor):
-                    # Cut at the floor itself, so a run meets the edge of the
-                    # plot rather than stopping a sample short of it
-                    px, pdeg = prev
-                    run += [px + (x - px) * (floor - pdeg) / (deg - pdeg), y_of(floor)]
-                    if deg < floor:
-                        runs.append(run)
-                        run = []
-                if deg >= floor:
-                    run += [x, y_of(deg)]
-                prev = (x, deg)
-            runs.append(run)
-            for run in runs:
+            """
+            Draw a curve, left out wherever it runs under the bottom or over the
+            top of the axis rather than pinned to the edge, where it would read
+            as standing at that altitude - the Sun through the lunar night, and
+            the Moon's altitude in the observer's sky, which the axis does not
+            allow for, go past them. Each piece is cut at the edge itself, so it
+            meets the edge rather than stopping a sample short of it.
+            """
+            lo, hi = float(alt_bottom), float(alt_top)
+            points = [(x_of(t_utc), float(deg)) for t_utc, deg in zip(state["dts"], values)]
+            runs, run = [], []
+
+            def end_run():
+                nonlocal run
                 if len(run) >= 4:
-                    canvas.create_line(*run, fill=colour, width=line_w)
+                    runs.append(run)
+                run = []
+
+            for (x0, d0), (x1, d1) in zip(points, points[1:]):
+                # The part of the step between two samples that stays within the
+                # axis, as shares of the step: 0 at the first sample, 1 at the next
+                if d1 == d0:
+                    if not lo <= d0 <= hi:
+                        end_run()
+                        continue
+                    enter, leave = 0.0, 1.0
+                else:
+                    at_lo, at_hi = (lo - d0) / (d1 - d0), (hi - d0) / (d1 - d0)
+                    enter = max(0.0, min(at_lo, at_hi))
+                    leave = min(1.0, max(at_lo, at_hi))
+                    if enter > leave:
+                        end_run()
+                        continue
+                if enter > 0.0 or not run:
+                    end_run()
+                    run = [x0 + (x1 - x0) * enter, y_of(d0 + (d1 - d0) * enter)]
+                run += [x0 + (x1 - x0) * leave, y_of(d0 + (d1 - d0) * leave)]
+                if leave < 1.0:
+                    end_run()
+            end_run()
+            for run in runs:
+                canvas.create_line(*run, fill=colour, width=line_w)
 
         def redraw():
             canvas.delete('all')
@@ -1478,16 +1607,28 @@ class PlanningMixin:
             state["dts"] = series["times"]
             canvas.config(height=height)
 
-            for deg in range(self.GRAPH_ALT_MIN, 91, 30):
+            # Every 10 degrees on a short axis and every 30 on a tall one, on
+            # multiples of the step so 0 is always among them, and the bottom
+            # and the top besides - multiples of 10 a grid of 30 can pass over
+            # - so the plot always says where it begins and ends
+            grid = 10 if alt_span <= self.GRAPH_ALT_FINE_SPAN else 30
+            levels = list(range(math.ceil(alt_bottom / grid) * grid, alt_top + 1, grid))
+            for edge in (alt_bottom, alt_top):
+                if edge not in levels:
+                    levels.append(edge)
+            for deg in levels:
                 y = y_of(deg)
                 canvas.create_line(plot_x0, y, plot_x1, y, fill=colours["grid"])
                 canvas.create_text(plot_x0 - pad, y, anchor='e', font=font,
                                    text=f"{deg:+d}°" if deg else "0°")
             canvas.create_line(plot_x0, y_of(0.0), plot_x1, y_of(0.0),
                                fill=colours["zero"], width=2)
-            y_thr = y_of(self.PLANNER_SUN_ALT_MAX)
-            canvas.create_line(plot_x0, y_thr, plot_x1, y_thr,
-                               fill=colours["threshold"], dash=(4, 2))
+            # The top of the terminator window, unless the Sun never climbs that
+            # high over the feature
+            if self.PLANNER_SUN_ALT_MAX <= alt_top:
+                y_thr = y_of(self.PLANNER_SUN_ALT_MAX)
+                canvas.create_line(plot_x0, y_thr, plot_x1, y_thr,
+                                   fill=colours["threshold"], dash=(4, 2))
 
             # A line and a date at local midnight - the first on or after the start
             # of the span, then every tick_days - so a date stands for the start of
@@ -1616,8 +1757,8 @@ class PlanningMixin:
 
         def place_time(x, moment_local):
             """
-            The time over the +90° line, centred on x but kept clear of the
-            "+90°" label on the left and of the canvas edge on the right.
+            The time over the plot's top line, centred on x but kept clear of
+            the top label on the left and of the canvas edge on the right.
 
             It stands over whichever line the readout is speaking for: the grey
             one under the pointer, or the red one when the pointer is away.
@@ -1639,7 +1780,7 @@ class PlanningMixin:
 
         def place_hover(x, y):
             """
-            Draw the grey line through the pointer and the time over the +90°
+            Draw the grey line through the pointer and the time over the top
             line, or take them away when the pointer is off the plot.
 
             On its own so a redraw can put them back where the pointer still is:
@@ -1658,7 +1799,7 @@ class PlanningMixin:
                     canvas.coords(state["hover_line"], x, plot_y0, x, moon_y1)
                 if state["now_line"] is not None:
                     canvas.tag_raise(state["now_line"])
-                # The time at the pointer, over the +90° line on top of the grey
+                # The time at the pointer, over the top line, on top of the grey
                 # line. Only the pointer's place is needed for it, so it moves
                 # with the line rather than waiting for the readout
                 place_time(x, self.in_observer_clock(
@@ -1944,6 +2085,7 @@ class PlanningMixin:
             "span when a step passes either end of it.\n"
             "The mouse wheel over the graph zooms the time axis, 60 days down\n"
             "to 1, keeping the moment under the pointer where it is.\n"
+            "Drag the window's bottom edge to make the graph taller.\n"
             "◀ ▶ page the graph a span back or on. Left puts the moment on\n"
             "show back at the left edge, where the graph opened with it, and\n"
             "Middle puts it in the middle, keeping the span.\n"
@@ -2146,6 +2288,47 @@ class PlanningMixin:
         left()    # the first draw starts at the moment the app is showing
         fit_rows()
 
+        # Dragging the window's edge makes the plot taller or shorter,
+        # everything under it moving with it.
+        #
+        # Taken from the whole window rather than from the canvas. Tk's packer
+        # hands out a window's height in the order its rows were packed, so a
+        # window dragged shorter than its rows ask for is taken from the last
+        # of them - the legend and its buttons, which would go out of sight -
+        # while the canvas above them keeps its height and never hears of the
+        # change. So the difference between what the window has and what its
+        # rows ask for is given to the plot, or taken from it, as soon as it is
+        # seen, and the rows under it keep their place. A redraw takes a tenth
+        # to a third of a second, so the curves are drawn again only once the
+        # dragging stops for a moment rather than at every pixel of it
+        resize = {"fitting": False, "redraw": None}
+
+        def resized(event):
+            if event.widget is main_frame and not resize["fitting"]:
+                resize["fitting"] = True
+                main_frame.after_idle(fit_height)
+
+        def fit_height():
+            resize["fitting"] = False
+            if not main_frame.winfo_exists() or not state["dts"]:
+                return
+            main_frame.update_idletasks()
+            spare = main_frame.winfo_height() - main_frame.winfo_reqheight()
+            if spare == 0:
+                return
+            lay_out(plot_h + spare)
+            canvas.config(height=height)
+            if resize["redraw"] is not None:
+                canvas.after_cancel(resize["redraw"])
+            resize["redraw"] = canvas.after(self.GRAPH_RESIZE_MS, settle)
+
+        def settle():
+            resize["redraw"] = None
+            if canvas.winfo_exists():
+                redraw()
+
+        main_frame.bind('<Configure>', resized)
+
         # Not modal, so the renderer's mouse stays in use while the graph is
         # open - the view dragged with the right button, turned with the left -
         # which a grab would stop, as it stops every button pressed outside the
@@ -2158,3 +2341,8 @@ class PlanningMixin:
         win.wait_visibility()
         bring_to_front(win)
         allow_minimize(win, minimized_at=self._minimized_bar_spot)
+        # Taller or shorter only: its width is the share of the screen the plot
+        # is made for. No shorter than it opens at the first time
+        win.update_idletasks()
+        win.resizable(False, True)
+        win.minsize(1, win.winfo_height() - (plot_h - plot_h_min))
