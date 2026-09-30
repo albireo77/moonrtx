@@ -41,6 +41,18 @@ class _Rect(ctypes.Structure):
                 ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
 
+class _Point(ctypes.Structure):
+    """A Windows POINT."""
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+class _WindowPlacement(ctypes.Structure):
+    """A Windows WINDOWPLACEMENT, for putting a minimized window where it is wanted."""
+    _fields_ = [("length", ctypes.c_uint), ("flags", ctypes.c_uint),
+                ("showCmd", ctypes.c_uint), ("ptMinPosition", _Point),
+                ("ptMaxPosition", _Point), ("rcNormalPosition", _Rect)]
+
+
 def make_dpi_aware():
     """
     Tell Windows this process works in real pixels. Call it before any window.
@@ -171,6 +183,81 @@ def bring_to_front(window) -> None:
     # this is what settles it. PlotOptiX binds its key handler with bind_all, so
     # anything in the window will do, the window itself included.
     window.focus_force()
+
+
+def allow_minimize(window, minimized_at=None) -> None:
+    """
+    Give a dialog kept above the main window a minimize button.
+
+    Windows leaves it off a window owned by another, which is what Tk's
+    transient makes a dialog, and Tk has no way to ask for it back; so the
+    button is added to the window's style directly. The window keeps its place
+    above the main one, but an owned window has no button on the taskbar, so
+    minimized it shrinks to a short bar - a click on it brings the window back
+    where it was.
+
+    Windows puts that bar in the bottom-left corner of the screen, over
+    whatever is there. minimized_at can put it somewhere else: it is asked as
+    the window goes down, with the bar's width and height, and answers with the
+    screen position of the bar's top-left corner - asked then rather than once,
+    so it can follow a main window that has since gone full screen or back.
+
+    Anywhere but Windows, and if any part of it fails, the window is simply
+    left without the button, or its bar where Windows puts it.
+
+    Parameters
+    ----------
+    window : tkinter.Toplevel
+        The dialog. It must be on the screen already: the handle Windows knows
+        it by does not exist before that.
+    minimized_at : callable, optional
+        (bar width, bar height) -> (x, y) in screen pixels
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        user32 = ctypes.windll.user32
+        handle = int(window.wm_frame(), 16)
+        GWL_STYLE = -16
+        WS_MINIMIZEBOX = 0x00020000
+        user32.SetWindowLongW(handle, GWL_STYLE,
+                              user32.GetWindowLongW(handle, GWL_STYLE) | WS_MINIMIZEBOX)
+        # The frame is drawn again only when told it has changed; the window
+        # itself stays where and as large as it is
+        SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_FRAMECHANGED = 0x1, 0x2, 0x4, 0x20
+        user32.SetWindowPos(handle, None, 0, 0, 0, 0,
+                            SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED)
+    except (AttributeError, OSError, ValueError, tk.TclError):
+        return
+
+    if minimized_at is None:
+        return
+
+    def place_bar(event):
+        # Unmap reaches the window for every widget inside it that is unmapped;
+        # only the window's own, as it is minimized, is wanted
+        if event.widget is not window or window.state() != "iconic":
+            return
+        try:
+            bar = _Rect()
+            user32.GetWindowRect(handle, ctypes.byref(bar))
+            x, y = minimized_at(bar.right - bar.left, bar.bottom - bar.top)
+            placement = _WindowPlacement()
+            placement.length = ctypes.sizeof(_WindowPlacement)
+            user32.GetWindowPlacement(handle, ctypes.byref(placement))
+            # A minimized position is given in work-area coordinates, which
+            # differ from the screen's by wherever the taskbar is
+            work = _Rect()
+            user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(work), 0)   # SPI_GETWORKAREA
+            WPF_SETMINPOSITION, SW_SHOWMINNOACTIVE = 0x1, 7
+            placement.flags = WPF_SETMINPOSITION
+            placement.showCmd = SW_SHOWMINNOACTIVE
+            placement.ptMinPosition = _Point(int(x) - work.left, int(y) - work.top)
+            user32.SetWindowPlacement(handle, ctypes.byref(placement))
+        except (AttributeError, OSError, ValueError, tk.TclError):
+            pass
+
+    window.bind("<Unmap>", place_bar, add="+")
 
 
 def screen_size() -> tuple:

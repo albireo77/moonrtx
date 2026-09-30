@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, NamedTuple, Optional
 
 from moonrtx import astro
-from moonrtx.display import ToolTip, bring_to_front
+from moonrtx.display import ToolTip, allow_minimize, bring_to_front
 from moonrtx.shared_types import MoonFeature
 
 
@@ -572,6 +572,21 @@ class PlanningMixin:
     # Enough room for the widest header, and two characters over so the last
     # column does not sit against the scrollbar
     RESULTS_WIDTH_MARGIN = 2
+
+    def _minimized_bar_spot(self, width: int, height: int) -> tuple:
+        """
+        Where the planner or the graph goes when minimized: its bar in the
+        top-right corner of the picture.
+
+        Windows puts such a bar in the bottom-left corner of the screen, which
+        in full screen is where the ephemeris panel is. Measured from the
+        picture rather than the screen, the top-right corner is just under the
+        main window's title bar when it has one - clear of its own minimize and
+        close buttons - and the corner of the screen in full screen.
+        """
+        canvas = self.rt._canvas
+        return (canvas.winfo_rootx() + canvas.winfo_width() - width,
+                canvas.winfo_rooty())
 
     def _results_frame(self, title: str, caption: str, header_width: int,
                        before_close=None):
@@ -1224,6 +1239,7 @@ class PlanningMixin:
         self._show_dialog(win, position=self._planner_position, grab=False)
         win.wait_visibility()
         bring_to_front(win)
+        allow_minimize(win, minimized_at=self._minimized_bar_spot)
 
     def feature_graph_dialog(self, feature: MoonFeature):
         """
@@ -2112,3 +2128,4 @@ class PlanningMixin:
         self._show_dialog(win, position=self._graph_position, grab=False)
         win.wait_visibility()
         bring_to_front(win)
+        allow_minimize(win, minimized_at=self._minimized_bar_spot)
