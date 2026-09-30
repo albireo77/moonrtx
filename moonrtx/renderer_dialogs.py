@@ -173,6 +173,24 @@ class DialogsMixin:
             # window is on screen by now, which bring_to_front requires.
             bring_to_front(win)
 
+    @staticmethod
+    def _window_corner(win) -> Optional[tuple]:
+        """
+        Where a window stands on the screen, as the (x, y) _show_dialog takes to
+        put one back there - or None for a window never mapped.
+
+        Taken from the geometry string rather than winfo_x and winfo_y, that
+        being what _show_dialog writes, so the corner it is put at is the corner
+        it was read from. "WxH+X+Y", and a negative coordinate keeps its sign
+        inside its own group ("+-8+-3").
+        """
+        try:
+            _, _, corner = win.geometry().partition("+")
+            x, _, y = corner.partition("+")
+            return int(x), int(y)
+        except ValueError:
+            return None
+
     def export_video_dialog(self):
         """
         Open the time-lapse video export dialog: renders N frames from the

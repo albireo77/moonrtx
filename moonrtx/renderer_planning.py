@@ -126,6 +126,9 @@ class PlanningMixin:
     # dialog does. A graph is opened, read, closed and opened again for the next
     # feature, and it is a wide window to drag back into place each time
     _graph_position = None
+    # The observation planner's, kept the same way: it is opened for one feature
+    # after another as well
+    _planner_position = None
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -570,7 +573,8 @@ class PlanningMixin:
     # column does not sit against the scrollbar
     RESULTS_WIDTH_MARGIN = 2
 
-    def _results_frame(self, title: str, caption: str, header_width: int):
+    def _results_frame(self, title: str, caption: str, header_width: int,
+                       before_close=None):
         """
         Build a results dialog with nothing in it yet, and hand back the parts
         its caller has to fill: the controls row, the description and header
@@ -579,8 +583,10 @@ class PlanningMixin:
         The description is wrapped to the width the list asks for rather than at
         newlines written into it, so it fills the dialog whatever is in it, and
         given a fixed height so the window does not resize as it changes.
+
+        before_close is handed on to _dialog_window.
         """
-        win, frame, close = self._dialog_window(title)
+        win, frame, close = self._dialog_window(title, before_close=before_close)
 
         tk.Label(frame, anchor='w', font=self.RESULTS_FONT,
                  text=caption).pack(fill=tk.X)
@@ -1059,11 +1065,16 @@ class PlanningMixin:
         libration_header = (f"{'Best time (local)':<22}{'Window (local)':<29}{'Presented':>10}"
                             f"{'Libr L':>9}{'Libr B':>9}{'Sun@feat':>10}{'Moon alt':>10}  {'Sky':<8}")
 
+        def before_close():
+            # Where the window was left, for the next planner to open at
+            self._planner_position = self._window_corner(dialog.win) or self._planner_position
+
         dialog = self._results_frame(
             f"Observation Planner - {feature.name}",
             f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)"
             f"  -  next {self.PLANNER_SCAN_DAYS} days",
-            max(len(terminator_header), len(libration_header)))
+            max(len(terminator_header), len(libration_header)),
+            before_close=before_close)
         win, on_close, listbox = dialog.win, dialog.close, dialog.listbox
         desc_var, header_var = dialog.description, dialog.header
 
@@ -1188,9 +1199,8 @@ class PlanningMixin:
             return columns, rows, events
 
         def open_graph():
-            # This window closes first: it is modal and holds the grab, and
-            # while it is open the graph - which takes none - could not be
-            # clicked at all
+            # The graph is opened in this window's place rather than over it:
+            # one window for the feature at a time
             on_close()
             self.feature_graph_dialog(feature)
 
@@ -1201,7 +1211,15 @@ class PlanningMixin:
 
         rescan()
 
-        self._show_dialog(win)
+        # Not modal, as the graph is not, so the renderer's mouse stays in use
+        # while the list is open - the view dragged and turned, a feature named
+        # with a click. The renderer's keys stay held all the same
+        # (search_dialog_open), so nothing typed there moves the clock the list
+        # was worked out from. Brought to the front here because _show_dialog
+        # does that only for a window taking the grab
+        self._show_dialog(win, position=self._planner_position, grab=False)
+        win.wait_visibility()
+        bring_to_front(win)
 
     def feature_graph_dialog(self, feature: MoonFeature):
         """
@@ -1225,17 +1243,8 @@ class PlanningMixin:
             return
 
         def before_close():
-            # Where the window was left, for the next graph to open at. Taken
-            # from the geometry string rather than winfo_x and winfo_y, that
-            # being what _show_dialog writes back, so the corner it is put at is
-            # the corner it was read from. "WxH+X+Y", and a negative coordinate
-            # keeps its sign inside its own group ("+-8+-3")
-            try:
-                _, _, corner = win.geometry().partition("+")
-                x, _, y = corner.partition("+")
-                self._graph_position = (int(x), int(y))
-            except ValueError:      # never mapped, so there is nothing to keep
-                pass
+            # Where the window was left, for the next graph to open at
+            self._graph_position = self._window_corner(win) or self._graph_position
 
         win, main_frame, on_close = self._dialog_window(
             f"{feature.name} - graph", before_close=before_close)
