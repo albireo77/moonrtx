@@ -2340,9 +2340,12 @@ class PlanningMixin:
         self._show_dialog(win, position=self._graph_position, grab=False)
         win.wait_visibility()
         bring_to_front(win)
-        allow_minimize(win, minimized_at=self._minimized_bar_spot)
         # Taller or shorter only: its width is the share of the screen the plot
         # is made for. No shorter than it opens at the first time
         win.update_idletasks()
         win.resizable(False, True)
         win.minsize(1, win.winfo_height() - (plot_h - plot_h_min))
+        # After the resizing is settled, not before: Tk writes the window's
+        # style afresh when it is told whether the window may be resized, and
+        # the minimize button, added to that style by hand, went with it
+        allow_minimize(win, minimized_at=self._minimized_bar_spot)
