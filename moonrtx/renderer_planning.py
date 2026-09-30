@@ -129,8 +129,9 @@ class PlanningMixin:
     # The observation planner's, kept the same way: it is opened for one feature
     # after another as well
     _planner_position = None
-    # And the rise and set chart's (U)
+    # And the rise and set chart's (U), and the clair-obscur finder's (X)
     _visibility_position = None
+    _clair_obscur_position = None
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -876,12 +877,19 @@ class PlanningMixin:
         "Go to selected" moves to the peak of the pattern rather than to the
         part of it visible from the observer's site: the renderer has no sky of
         its own, so it shows the event whether or not the Moon is up outside.
-        The visible column is there to plan the observation itself.
+        The visible column is there to plan the observation itself. The window
+        stays open, as the observation planner does, so one event after another
+        can be looked at.
         """
         if self.rt is None:
             return
 
         events = []                      # results currently listed
+
+        def before_close():
+            # Where the window was left, for the next one to open at. The
+            # window alone is asked, as the planner's does (see there)
+            self._clair_obscur_position = self._window_corner(win) or self._clair_obscur_position
 
         # The altitudes carry the status bar's notation: h(sun) over the event
         # itself, h(moon) in the observer's sky. Here the header is a single
@@ -903,8 +911,8 @@ class PlanningMixin:
             "Clair-obscur events",
             f"Shapes drawn by the terminator, over the next "
             f"{self.CLAIR_OBSCUR_SCAN_DAYS} days",
-            len(header))
-        win, on_close, listbox = dialog.win, dialog.close, dialog.listbox
+            len(header), before_close=before_close)
+        win, listbox = dialog.win, dialog.listbox
         desc_var = dialog.description
         dialog.header.set(header)
 
@@ -991,7 +999,6 @@ class PlanningMixin:
             if not events or not selection or selection[0] >= len(events):
                 return
             o = events[selection[0]]
-            on_close()
             self._go_to_moment(self.in_observer_clock(o["peak"]))
             self.center_on_lat_lon(o["lat"], o["lon"])
 
@@ -1034,7 +1041,14 @@ class PlanningMixin:
 
         rescan()
 
-        self._show_dialog(win)
+        # Not modal, as the planner is not, so the renderer's mouse stays in use
+        # while the list is open; its keys stay held (search_dialog_open).
+        # Brought to the front here because _show_dialog does that only for a
+        # window taking the grab
+        self._show_dialog(win, position=self._clair_obscur_position, grab=False)
+        win.wait_visibility()
+        bring_to_front(win)
+        allow_minimize(win, minimized_at=self._minimized_bar_spot)
 
     def _label_on_moon_box(self, parent, feature: MoonFeature) -> ttk.Checkbutton:
         """
