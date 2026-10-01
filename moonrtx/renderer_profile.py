@@ -22,7 +22,7 @@ from typing import Optional
 
 import numpy as np
 
-from moonrtx.display import ToolTip, allow_minimize
+from moonrtx.display import ToolTip
 
 
 class ProfileMixin:
@@ -38,6 +38,7 @@ class ProfileMixin:
     # a 4K display gets the room it has rather than a FullHD-sized window
     PROFILE_WIDTH_FRACTION = 0.5
     PROFILE_PLOT_LINES = 14                 # plot height, in lines of lettering
+    PROFILE_WINDOW = "profile"              # its name in DialogsMixin._window_memory
     # The map is sampled at twice its own spacing: enough that the bilinear
     # lookup's straight runs between texels draw as the map has them, more
     # adding nothing the map does not hold
@@ -54,12 +55,6 @@ class ProfileMixin:
     def _init_profile(self):
         """Reset the profile window state; called from MoonRenderer.__init__."""
         self._profile = None                # the open window and its redraw, or None
-        self._profile_position = None       # where it was left, for the next one
-        # And the size of its plot's canvas, (width, height) in pixels; None
-        # until one has been closed, when the next opens at its first size.
-        # Kept for the session only, as the position is: a size chosen on one
-        # screen may not suit another
-        self._profile_size = None
         self._profile_line = None           # the measurement's line, kept while shown
         self._profile_line_view = None      # the view it was drawn in
         self._profile_line_watch = None     # the poll that notices the view move
@@ -205,25 +200,20 @@ class ProfileMixin:
 
     def _open_profile_window(self):
         colours = self.PROFILE_COLOURS
+        # Where the window was left is kept by _dialog_window; how large its
+        # plot was dragged, here (see DialogsMixin._window_memory)
+        memory = self._window_memory(self.PROFILE_WINDOW)
 
         def before_close():
-            # Where it was left, read the way the graph reads its own (see
-            # feature_graph_dialog): the corner _show_dialog writes back - and
-            # how large it was dragged, for the next to open at
-            try:
-                _, _, corner = win.geometry().partition("+")
-                x, _, y = corner.partition("+")
-                self._profile_position = (int(x), int(y))
-            except ValueError:
-                pass
-            self._profile_size = (width, height)
+            memory["canvas"] = (width, height)
             self._profile = None
             self._drop_profile_line()
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up
         win, frame, _close = self._dialog_window("Elevation profile", takes_keys=False,
-                                                 before_close=before_close)
+                                                 before_close=before_close,
+                                                 remember=self.PROFILE_WINDOW)
 
         font = ('Consolas', 8)
         metrics = tkfont.Font(font=font)
@@ -301,7 +291,7 @@ class ProfileMixin:
             plot_x1 = width - pad - cell_w
             plot_y1 = height - below
 
-        lay_out(*(self._profile_size or (first_width, first_height)))
+        lay_out(*memory.get("canvas", (first_width, first_height)))
 
         canvas = tk.Canvas(frame, width=width, height=height,
                            highlightthickness=0, bg=win.cget('bg'))
@@ -427,47 +417,23 @@ class ProfileMixin:
 
         # Dragging the window's edges makes the plot wider, narrower, taller or
         # shorter, the profile drawn again to fill it - a long line's detail
-        # spread out, a small rise given height. Taken from the whole window
-        # rather than the canvas, as the graph's is (see feature_graph_dialog):
-        # Tk's packer hands out a window's room in the order its rows were
-        # packed, so the difference between what the window has and what its
-        # rows ask for is given to the canvas, or taken from it, as soon as it
-        # is seen. A profile draws quickly, so it follows the drag as it goes
-        resize = {"fitting": False}
-
-        def resized(event):
-            if event.widget is frame and not resize["fitting"]:
-                resize["fitting"] = True
-                frame.after_idle(fit_size)
-
-        def fit_size():
-            resize["fitting"] = False
-            if not frame.winfo_exists():
-                return
-            frame.update_idletasks()
-            spare_w = frame.winfo_width() - frame.winfo_reqwidth()
-            spare_h = frame.winfo_height() - frame.winfo_reqheight()
-            if spare_w == 0 and spare_h == 0:
-                return
+        # spread out, a small rise given height (see _follow_window_size). A
+        # profile draws quickly, so it follows the drag as it goes
+        def fit(spare_w: int, spare_h: int):
             lay_out(width + spare_w, height + spare_h)
-            canvas.config(width=width, height=height)
+            return width, height
+
+        def redraw_profile():
             if state["x"] is not None:
                 draw(state["x"], state["h"], state["start"], state["end"])
                 refresh_readout()
 
-        frame.bind("<Configure>", resized)
+        self._follow_window_size(frame, canvas, fit, redraw_profile)
 
         self._profile = {"win": win, "draw": draw}
-        self._show_dialog(win, position=self._profile_position, grab=False)
         # Larger or smaller by either edge, but never smaller than it first
-        # opens at, however large the last one was left
-        win.update_idletasks()
-        win.resizable(True, True)
-        win.minsize(win.winfo_width() - (width - first_width),
-                    win.winfo_height() - (height - first_height))
-        # A minimize button, as the planning windows have, its bar going where
-        # theirs go (see PlanningMixin._minimized_bar_spot). After the resizing
-        # is settled, not before: Tk writes the window's style afresh when it
-        # is told whether the window may be resized, and a button added to that
-        # style by hand would go with it
-        allow_minimize(win, minimized_at=self._minimized_bar_spot)
+        # opens at, however large the last one was left. Not forced to the
+        # front, as it never was: it holds none of the renderer's keys
+        self._show_tool_window(win, self.PROFILE_WINDOW, resizable=(True, True),
+                               shrink=(width - first_width, height - first_height),
+                               focus=False)

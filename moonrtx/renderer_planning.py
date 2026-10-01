@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, NamedTuple, Optional
 
 from moonrtx import astro
-from moonrtx.display import ToolTip, allow_minimize, bring_to_front
+from moonrtx.display import ToolTip
 from moonrtx.shared_types import MoonFeature
 
 
@@ -122,22 +122,12 @@ class PlanningMixin:
     # The arrow keys' step in the graph, in minutes; None until first set, when
     # it starts from the renderer's own Q/W step, which it then leaves alone
     _graph_step_minutes = None
-    # Where the graph was last left on the screen, as (x, y); None until one has
-    # been closed, when the next opens centred on the main window as any other
-    # dialog does. A graph is opened, read, closed and opened again for the next
-    # feature, and it is a wide window to drag back into place each time
-    _graph_position = None
-    # And how tall its plot was dragged to, in pixels; None until one has been
-    # closed, when the next opens at GRAPH_PLOT_LINES. Kept for the session
-    # only, as the position is: a height chosen on one screen may not suit
-    # another
-    _graph_plot_h = None
-    # The observation planner's, kept the same way: it is opened for one feature
-    # after another as well
-    _planner_position = None
-    # And the rise and set chart's (U), and the clair-obscur finder's (X)
-    _visibility_position = None
-    _clair_obscur_position = None
+    # Where the planning windows were left, and how tall the graph's plot was
+    # dragged to, are kept by DialogsMixin._window_memory under these names
+    VISIBILITY_WINDOW = "visibility"
+    CLAIR_OBSCUR_WINDOW = "clair_obscur"
+    PLANNER_WINDOW = "planner"
+    GRAPH_WINDOW = "graph"
 
     # Feature graph. Same span as the observation planner it is opened from,
     # so the two agree on what "the next while" means; a coarser step than the
@@ -234,13 +224,8 @@ class PlanningMixin:
         if self.rt is None:
             return
 
-        def before_close():
-            # Where the window was left, for the next chart to open at. The
-            # window alone is asked, as the planner's does (see there)
-            self._visibility_position = self._window_corner(win) or self._visibility_position
-
         win, main_frame, on_close = self._dialog_window("Moon rise and set",
-                                                        before_close=before_close)
+                                                        remember=self.VISIBILITY_WINDOW)
 
         colours = self.VISIBILITY_COLOURS
         font = ('Consolas', 8)
@@ -573,14 +558,9 @@ class PlanningMixin:
 
         reset()   # the first draw sits on the night the app is showing
 
-        # Not modal, as the planner and the graph are not, so the renderer's
-        # mouse stays in use while the chart is open; its keys stay held
-        # (search_dialog_open). Brought to the front here because _show_dialog
-        # does that only for a window taking the grab
-        self._show_dialog(win, position=self._visibility_position, grab=False)
-        win.wait_visibility()
-        bring_to_front(win)
-        allow_minimize(win, minimized_at=self._minimized_bar_spot)
+        # Not modal, so the renderer's mouse stays in use while the chart is
+        # open; its keys stay held (search_dialog_open)
+        self._show_tool_window(win, self.VISIBILITY_WINDOW)
 
     # ---- taking results out of the dialogs ----
 
@@ -618,23 +598,8 @@ class PlanningMixin:
     # column does not sit against the scrollbar
     RESULTS_WIDTH_MARGIN = 2
 
-    def _minimized_bar_spot(self, width: int, height: int) -> tuple:
-        """
-        Where the planner or the graph goes when minimized: its bar in the
-        top-right corner of the picture.
-
-        Windows puts such a bar in the bottom-left corner of the screen, which
-        in full screen is where the ephemeris panel is. Measured from the
-        picture rather than the screen, the top-right corner is just under the
-        main window's title bar when it has one - clear of its own minimize and
-        close buttons - and the corner of the screen in full screen.
-        """
-        canvas = self.rt._canvas
-        return (canvas.winfo_rootx() + canvas.winfo_width() - width,
-                canvas.winfo_rooty())
-
     def _results_frame(self, title: str, caption: str, header_width: int,
-                       before_close=None):
+                       remember: Optional[str] = None):
         """
         Build a results dialog with nothing in it yet, and hand back the parts
         its caller has to fill: the controls row, the description and header
@@ -644,9 +609,9 @@ class PlanningMixin:
         newlines written into it, so it fills the dialog whatever is in it, and
         given a fixed height so the window does not resize as it changes.
 
-        before_close is handed on to _dialog_window.
+        remember is handed on to _dialog_window.
         """
-        win, frame, close = self._dialog_window(title, before_close=before_close)
+        win, frame, close = self._dialog_window(title, remember=remember)
 
         tk.Label(frame, anchor='w', font=self.RESULTS_FONT,
                  text=caption).pack(fill=tk.X)
@@ -915,11 +880,6 @@ class PlanningMixin:
 
         events = []                      # results currently listed
 
-        def before_close():
-            # Where the window was left, for the next one to open at. The
-            # window alone is asked, as the planner's does (see there)
-            self._clair_obscur_position = self._window_corner(win) or self._clair_obscur_position
-
         # The altitudes carry the status bar's notation: h(sun) over the event
         # itself, h(moon) in the observer's sky. Here the header is a single
         # Label in a single font, so the signs cannot be lowered into subscripts
@@ -940,7 +900,7 @@ class PlanningMixin:
             "Clair-obscur events",
             f"Shapes drawn by the terminator, over the next "
             f"{self.CLAIR_OBSCUR_SCAN_DAYS} days",
-            len(header), before_close=before_close)
+            len(header), remember=self.CLAIR_OBSCUR_WINDOW)
         win, listbox = dialog.win, dialog.listbox
         desc_var = dialog.description
         dialog.header.set(header)
@@ -1070,14 +1030,9 @@ class PlanningMixin:
 
         rescan()
 
-        # Not modal, as the planner is not, so the renderer's mouse stays in use
-        # while the list is open; its keys stay held (search_dialog_open).
-        # Brought to the front here because _show_dialog does that only for a
-        # window taking the grab
-        self._show_dialog(win, position=self._clair_obscur_position, grab=False)
-        win.wait_visibility()
-        bring_to_front(win)
-        allow_minimize(win, minimized_at=self._minimized_bar_spot)
+        # Not modal, so the renderer's mouse stays in use while the list is
+        # open; its keys stay held (search_dialog_open)
+        self._show_tool_window(win, self.CLAIR_OBSCUR_WINDOW)
 
     def _label_on_moon_box(self, parent, feature: MoonFeature) -> ttk.Checkbutton:
         """
@@ -1138,20 +1093,12 @@ class PlanningMixin:
         libration_header = (f"{'Best time (local)':<22}{'Window (local)':<29}{'Presented':>10}"
                             f"{'Libr L':>9}{'Libr B':>9}{'Sun@feat':>10}{'Moon alt':>10}  {'Sky':<8}")
 
-        def before_close():
-            # Where the window was left, for the next planner to open at. The
-            # window alone is asked, not the dialog's parts: those hold the
-            # close this is called from, and the circle kept them - and their
-            # Tk variables - alive past the window, until the program ended
-            # and Python deleted them from a thread Tk no longer ran on
-            self._planner_position = self._window_corner(win) or self._planner_position
-
         dialog = self._results_frame(
             f"Observation Planner - {feature.name}",
             f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)"
             f"  -  next {self.PLANNER_SCAN_DAYS} days",
             max(len(terminator_header), len(libration_header)),
-            before_close=before_close)
+            remember=self.PLANNER_WINDOW)
         win, on_close, listbox = dialog.win, dialog.close, dialog.listbox
         desc_var, header_var = dialog.description, dialog.header
 
@@ -1288,16 +1235,11 @@ class PlanningMixin:
 
         rescan()
 
-        # Not modal, as the graph is not, so the renderer's mouse stays in use
-        # while the list is open - the view dragged and turned, a feature named
-        # with a click. The renderer's keys stay held all the same
-        # (search_dialog_open), so nothing typed there moves the clock the list
-        # was worked out from. Brought to the front here because _show_dialog
-        # does that only for a window taking the grab
-        self._show_dialog(win, position=self._planner_position, grab=False)
-        win.wait_visibility()
-        bring_to_front(win)
-        allow_minimize(win, minimized_at=self._minimized_bar_spot)
+        # Not modal, so the renderer's mouse stays in use while the list is
+        # open - the view dragged and turned, a feature named with a click. The
+        # renderer's keys stay held all the same (search_dialog_open), so
+        # nothing typed there moves the clock the list was worked out from
+        self._show_tool_window(win, self.PLANNER_WINDOW)
 
     def _graph_alt_range(self, feature: MoonFeature) -> tuple:
         """
@@ -1376,14 +1318,16 @@ class PlanningMixin:
         if self.rt is None or feature is None:
             return
 
+        memory = self._window_memory(self.GRAPH_WINDOW)
+
         def before_close():
-            # Where the window was left, and how tall the plot was, for the
-            # next graph to open at
-            self._graph_position = self._window_corner(win) or self._graph_position
-            self._graph_plot_h = plot_h
+            # How tall the plot was dragged to, for the next graph to open at;
+            # where the window stood is kept by _dialog_window
+            memory["plot_h"] = plot_h
 
         win, main_frame, on_close = self._dialog_window(
-            f"{feature.name} - graph", before_close=before_close)
+            f"{feature.name} - graph", before_close=before_close,
+            remember=self.GRAPH_WINDOW)
 
         colours = self.GRAPH_COLOURS
         font = ('Consolas', 8)
@@ -1435,7 +1379,7 @@ class PlanningMixin:
             date_y = moon_y1 + pad
             height = date_y + line_h + pad
 
-        lay_out(self._graph_plot_h or self.GRAPH_PLOT_LINES * line_h)
+        lay_out(memory.get("plot_h") or self.GRAPH_PLOT_LINES * line_h)
 
         # The choices are gathered in a block of their own, which fit_rows puts
         # beside the readout or on a row above it once both have been measured
@@ -2293,63 +2237,24 @@ class PlanningMixin:
         fit_rows()
 
         # Dragging the window's edge makes the plot taller or shorter,
-        # everything under it moving with it.
-        #
-        # Taken from the whole window rather than from the canvas. Tk's packer
-        # hands out a window's height in the order its rows were packed, so a
-        # window dragged shorter than its rows ask for is taken from the last
-        # of them - the legend and its buttons, which would go out of sight -
-        # while the canvas above them keeps its height and never hears of the
-        # change. So the difference between what the window has and what its
-        # rows ask for is given to the plot, or taken from it, as soon as it is
-        # seen, and the rows under it keep their place. A redraw takes a tenth
-        # to a third of a second, so the curves are drawn again only once the
-        # dragging stops for a moment rather than at every pixel of it
-        resize = {"fitting": False, "redraw": None}
+        # everything under it moving with it (see _follow_window_size). A
+        # redraw takes a tenth to a third of a second, so the curves are drawn
+        # again only once the dragging stops for a moment
+        def fit(_spare_w: int, spare_h: int):
+            if not state["dts"]:
+                return None
+            lay_out(plot_h + spare_h)
+            return width, height
 
-        def resized(event):
-            if event.widget is main_frame and not resize["fitting"]:
-                resize["fitting"] = True
-                main_frame.after_idle(fit_height)
-
-        def fit_height():
-            resize["fitting"] = False
-            if not main_frame.winfo_exists() or not state["dts"]:
-                return
-            main_frame.update_idletasks()
-            spare = main_frame.winfo_height() - main_frame.winfo_reqheight()
-            if spare == 0:
-                return
-            lay_out(plot_h + spare)
-            canvas.config(height=height)
-            if resize["redraw"] is not None:
-                canvas.after_cancel(resize["redraw"])
-            resize["redraw"] = canvas.after(self.GRAPH_RESIZE_MS, settle)
-
-        def settle():
-            resize["redraw"] = None
-            if canvas.winfo_exists():
-                redraw()
-
-        main_frame.bind('<Configure>', resized)
+        self._follow_window_size(main_frame, canvas, fit, redraw,
+                                 redraw_ms=self.GRAPH_RESIZE_MS, horizontal=False)
 
         # Not modal, so the renderer's mouse stays in use while the graph is
         # open - the view dragged with the right button, turned with the left -
         # which a grab would stop, as it stops every button pressed outside the
         # window. The renderer's keys stay held all the same (search_dialog_open),
         # so nothing typed there moves the clock or opens a dialog over this one.
-        # Brought to the front here because _show_dialog does that only for a
-        # window taking the grab, and a graph opened from the planner - which
-        # closes itself first - would otherwise not get the keys, Escape included
-        self._show_dialog(win, position=self._graph_position, grab=False)
-        win.wait_visibility()
-        bring_to_front(win)
         # Taller or shorter only: its width is the share of the screen the plot
         # is made for. No shorter than it opens at the first time
-        win.update_idletasks()
-        win.resizable(False, True)
-        win.minsize(1, win.winfo_height() - (plot_h - plot_h_min))
-        # After the resizing is settled, not before: Tk writes the window's
-        # style afresh when it is told whether the window may be resized, and
-        # the minimize button, added to that style by hand, went with it
-        allow_minimize(win, minimized_at=self._minimized_bar_spot)
+        self._show_tool_window(win, self.GRAPH_WINDOW, resizable=(False, True),
+                               shrink=(0, plot_h - plot_h_min))

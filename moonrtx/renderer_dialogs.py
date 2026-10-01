@@ -17,7 +17,7 @@ from tkinter import filedialog
 from datetime import datetime
 from typing import Optional
 
-from moonrtx.display import bring_to_front, screen_size
+from moonrtx.display import allow_minimize, bring_to_front, screen_size
 from moonrtx.shared_types import Camera, InitView
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
@@ -52,7 +52,7 @@ class DialogsMixin:
 
     def _dialog_window(self, title: str, padding=(12, 8), takes_keys: bool = True,
                        over_main: bool = True, size: Optional[tuple] = None,
-                       before_close=None):
+                       before_close=None, remember: Optional[str] = None):
         """
         Put up a dialog, and hand back the window, the frame its contents go
         in, and the way to shut it.
@@ -87,6 +87,9 @@ class DialogsMixin:
             Called before the window is destroyed, for a dialog with state of
             its own to put down. Returning False stops the close - which is how
             the video export turns a close during an export into a cancel.
+        remember : str, optional
+            A name to keep where the window was left under, for the next one
+            of that name to open at (see _window_memory, _show_tool_window)
 
         Returns
         -------
@@ -116,6 +119,14 @@ class DialogsMixin:
         def close():
             if before_close is not None and before_close() is False:
                 return
+            if remember is not None:
+                # The window alone is asked, never the dialog's own parts, which
+                # hold this close: the circle would keep them - and their Tk
+                # variables - alive until the program ended, and Python would
+                # then delete them from a thread Tk no longer runs on
+                corner = self._window_corner(win)
+                if corner is not None:
+                    self._window_memory(remember)["position"] = corner
             if takes_keys:
                 self.search_dialog_open -= 1
             win.destroy()
@@ -190,6 +201,145 @@ class DialogsMixin:
             return int(x), int(y)
         except ValueError:
             return None
+
+    # ---- the windows kept open beside the Moon ----
+
+    # The planner, the graph, the rise and set chart, the clair-obscur finder
+    # and the elevation profile are not dialogs to be answered and put away but
+    # windows worked beside the Moon: no grab, so the renderer's mouse stays in
+    # use while they are up; a minimize button; and each opens again where it
+    # was last left, and at the size, which they are dragged to and from as
+    # one feature after another is looked at. What they share is here.
+
+    def _window_memory(self, name: str) -> dict:
+        """
+        What is kept of the window of that name from one opening to the next:
+        "position", filled in as it closes (see _dialog_window's remember), and
+        whatever the window keeps of its own size. For the session only - a
+        place or a size chosen on one screen may not suit another.
+        """
+        memories = self.__dict__.setdefault("_window_memories", {})
+        return memories.setdefault(name, {})
+
+    def _show_tool_window(self, win, name: str, resizable: tuple = (False, False),
+                          shrink: tuple = (0, 0), focus: bool = True):
+        """
+        Show one of the windows kept open beside the Moon: where the last of
+        its name was left, without the grab, brought to the front - which
+        _show_dialog does only for a window taking the grab, and a window
+        opened from another that closes itself first would not get the keys
+        otherwise, Escape included - and with a minimize button.
+
+        Parameters
+        ----------
+        win : tk.Toplevel
+            The window, built by _dialog_window with remember=name
+        name : str
+            The name it is remembered under
+        resizable : tuple
+            Whether it may be dragged wider, and taller
+        shrink : tuple
+            How much narrower and shorter than it opens it may be dragged - the
+            amount a remembered size is over its first, so that it can always
+            be taken back down to that and no further
+        focus : bool
+            Force it to the front with the keyboard, past Windows' refusal to
+            hand the foreground over (see display.bring_to_front). False for
+            the elevation profile, which never did: it does not hold the
+            renderer's keys, so they drive the Moon wherever the focus is
+        """
+        self._show_dialog(win, position=self._window_memory(name).get("position"), grab=False)
+        win.wait_visibility()
+        if focus:
+            bring_to_front(win)
+        if any(resizable):
+            win.update_idletasks()
+            win.resizable(*resizable)
+            win.minsize(win.winfo_width() - shrink[0], win.winfo_height() - shrink[1])
+        # Last: Tk writes the window's style afresh when it is told whether the
+        # window may be resized, and the minimize button, added to that style
+        # by hand, would go with it
+        allow_minimize(win, minimized_at=self._minimized_bar_spot)
+
+    def _minimized_bar_spot(self, width: int, height: int) -> tuple:
+        """
+        Where a window kept open beside the Moon goes when minimized: its bar in
+        the top-right corner of the picture.
+
+        Windows puts such a bar in the bottom-left corner of the screen, which
+        in full screen is where the ephemeris panel is. Measured from the
+        picture rather than the screen, the top-right corner is just under the
+        main window's title bar when it has one - clear of its own minimize and
+        close buttons - and the corner of the screen in full screen.
+        """
+        canvas = self.rt._canvas
+        return (canvas.winfo_rootx() + canvas.winfo_width() - width,
+                canvas.winfo_rooty())
+
+    def _follow_window_size(self, frame, canvas, fit, redraw, redraw_ms: int = 0,
+                            horizontal: bool = True, vertical: bool = True):
+        """
+        Let a window's plot take whatever room the window is dragged to.
+
+        Taken from the whole window rather than from the canvas. Tk's packer
+        hands out a window's room in the order its rows were packed, so a
+        window dragged smaller than its rows ask for takes it from the last of
+        them - which went out of sight - while the canvas keeps its size and
+        never hears of the change. So the difference between what the frame
+        has and what its rows ask for is handed to fit as soon as it is seen,
+        and the rows around the canvas keep their place.
+
+        Parameters
+        ----------
+        frame : tk.Frame
+            The frame that fills the window
+        canvas : tk.Canvas
+            The plot
+        fit : callable
+            (spare width, spare height) -> the canvas's new (width, height), or
+            None when there is nothing to fit yet
+        redraw : callable
+            Draws the plot again at its new size
+        redraw_ms : int
+            How long the dragging has to stop for before the plot is drawn
+            again - for a plot slow to draw - or 0 to draw it as it goes
+        horizontal, vertical : bool
+            Which ways the window may be dragged
+        """
+        pending = {"fitting": False, "redraw": None}
+
+        def resized(event):
+            if event.widget is frame and not pending["fitting"]:
+                pending["fitting"] = True
+                frame.after_idle(fit_size)
+
+        def fit_size():
+            pending["fitting"] = False
+            if not frame.winfo_exists():
+                return
+            frame.update_idletasks()
+            spare_w = frame.winfo_width() - frame.winfo_reqwidth() if horizontal else 0
+            spare_h = frame.winfo_height() - frame.winfo_reqheight() if vertical else 0
+            if spare_w == 0 and spare_h == 0:
+                return
+            size = fit(spare_w, spare_h)
+            if size is None:
+                return
+            canvas.config(width=size[0], height=size[1])
+            if pending["redraw"] is not None:
+                canvas.after_cancel(pending["redraw"])
+                pending["redraw"] = None
+            if redraw_ms:
+                pending["redraw"] = canvas.after(redraw_ms, settle)
+            else:
+                redraw()
+
+        def settle():
+            pending["redraw"] = None
+            if canvas.winfo_exists():
+                redraw()
+
+        frame.bind("<Configure>", resized)
 
     def export_video_dialog(self):
         """
