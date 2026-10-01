@@ -250,21 +250,24 @@ class ProfileMixin:
         downscale = self.downscale
         if downscale > 1:
             averaged = (f" - Elevation downscale {downscale} averages the\n"
-                        f"{spacing_m / downscale:.0f} m map in blocks of {downscale} × {downscale}")
+                        f"   {spacing_m / downscale:.0f} m map in blocks of {downscale} × {downscale}")
         else:
             averaged = " - the full map, not downscaled"
+        # A bullet to each entry, a line carried over indented by the three
+        # spaces nearest the bullet's width in the tooltip's proportional font,
+        # as the graph's Help is
         help_hint = (
-            "The ground along a line measured with the right Ctrl, from the\n"
-            "elevation map the surface is drawn with. Heights are counted from\n"
-            "the start of the line, where the drag began.\n"
-            f"The map holds one height every {spacing_m:.0f} m{averaged}.\n"
-            "Between those heights the curve is blended from the nearest of\n"
-            "them, so a line only a few times that long shows less of the\n"
-            "ground than its shape suggests"
+            "• The ground along a line measured with the right Ctrl, from the\n"
+            "   elevation map the surface is drawn with.\n"
+            "• Heights are counted from the start of the line, where the drag began.\n"
+            f"• The map holds one height every {spacing_m:.0f} m{averaged}.\n"
+            "• Between those heights the curve is blended from the nearest of\n"
+            "   them, so a line only a few times that long shows less of the\n"
+            "   ground than its shape suggests"
             + ("; a lower downscale shows more of it.\n" if downscale > 1 else ".\n") +
-            "Vertical exaggeration says how much more the heights are\n"
-            "stretched than the distances - below 1, the ground is drawn\n"
-            "flatter than it is.")
+            "• Vertical exaggeration says how much more the heights are\n"
+            "   stretched than the distances - below 1, the ground is drawn\n"
+            "   flatter than it is.")
         help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
         help_label.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
         ToolTip(help_label, help_hint)

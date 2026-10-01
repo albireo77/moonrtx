@@ -2079,26 +2079,30 @@ class PlanningMixin:
         # row: the legend has no room for a line of instructions, and what is
         # worth saying about the wheel, the keys and the buttons is longer than
         # a line anyway
+        # A bullet to each entry. The tooltip's font is proportional, so a line
+        # carried over is indented by the three spaces that come nearest the
+        # width of the bullet and its space, keeping it under the entry's text
         help_hint = (
-            "Click the graph to go to that moment.\n"
-            "← → step the time by Step (min), and page the graph by a whole\n"
-            "span when a step passes either end of it.\n"
-            "The mouse wheel over the graph zooms the time axis, 60 days down\n"
-            "to 1, keeping the moment under the pointer where it is.\n"
-            "Drag the window's bottom edge to make the graph taller.\n"
-            "◀ ▶ page the graph a span back or on. Left puts the moment on\n"
-            "show back at the left edge, where the graph opened with it, and\n"
-            "Middle puts it in the middle, keeping the span.\n"
-            "Span (days) sets the axis to 60, 15 or 5 days about that moment;\n"
-            "between those, the wheel's spans show no button chosen.\n"
-            "Step (min) is this window's own time step - the renderer's own\n"
-            "Q/W step is left as it is.\n"
-            "Keep view / Standard view / View fixed on feature say what a\n"
-            "click or a step does to the camera.\n"
-            "Label on Moon puts the feature's name on the Moon.\n"
-            "Show Moon altitude draws the Moon's altitude in your sky, whose\n"
-            "daily arcs read best at the shorter spans.\n"
-            "Whether the feature is visible is judged at its centre.")
+            "• Click the graph to go to that moment.\n"
+            "• ← → step the time by Step (min), and page the graph by a whole\n"
+            "   span when a step passes either end of it.\n"
+            "• The mouse wheel over the graph zooms the time axis, 60 days down\n"
+            "   to 1, keeping the moment under the pointer where it is.\n"
+            "• Drag the window's bottom edge to make the graph taller.\n"
+            "• ◀ ▶ page the graph a span back or on.\n"
+            "• Left puts the moment on show back at the left edge, where the\n"
+            "   graph opened with it, and Middle puts it in the middle, keeping\n"
+            "   the span.\n"
+            "• Span (days) sets the axis to 60, 15 or 5 days about that moment;\n"
+            "   between those, the wheel's spans show no button chosen.\n"
+            "• Step (min) is this window's own time step - the renderer's own\n"
+            "   Q/W step is left as it is.\n"
+            "• Keep view / Standard view / View fixed on feature say what a\n"
+            "   click or a step does to the camera.\n"
+            "• Label on Moon puts the feature's name on the Moon.\n"
+            "• Show Moon altitude draws the Moon's altitude in your sky, whose\n"
+            "   daily arcs read best at the shorter spans.\n"
+            "• Whether the feature is visible is judged at its centre.")
         help_label = tk.Label(legend, text="Help", font=font, fg='#606060')
         help_label.pack(side=tk.LEFT)
         ToolTip(help_label, help_hint)
