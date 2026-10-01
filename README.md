@@ -125,7 +125,7 @@ This export uses PlotOptiX's hardware-accelerated NVENC encoder producing high q
 ![Aristillus](images/aristillus.jpg)
 **Rise and set window**
 ![Rise and set window](images/rise_and_set.jpg)
-**Observation Planner (graph) window**
+**Observation Planner Graph window (blue line is near side boundary enabled by Y key)**
 ![Observation Planner](images/graph.jpg)
 **Field of view frame**
 ![Theophilus](images/fov.jpg)
