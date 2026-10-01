@@ -75,8 +75,9 @@ class DialogsMixin:
             Padding of the frame the contents go in, as (padx, pady)
         takes_keys : bool
             Hold the main window's key handling for as long as this dialog is
-            open. PlotOptiX binds that handler with bind_all, so without this a
-            dialog being typed into also drives the Moon.
+            open, and not minimized. PlotOptiX binds that handler with
+            bind_all, so without this a dialog being typed into also drives the
+            Moon.
         over_main : bool
             Keep the window above the main one and hide it along with it
         size : tuple, optional
@@ -96,8 +97,19 @@ class DialogsMixin:
         tuple
             (window, frame, close)
         """
+        # Whether this dialog holds the main window's keys at the moment: from
+        # the start if it takes them, given back while it is minimized - a
+        # window put out of the way to step the clock should not stop the keys
+        # stepping it - and for good when it closes
+        holding = {"keys": False}
+
+        def hold_keys(hold: bool):
+            if hold != holding["keys"]:
+                holding["keys"] = hold
+                self.search_dialog_open += 1 if hold else -1
+
         if takes_keys:
-            self.search_dialog_open += 1
+            hold_keys(True)
 
         win = tk.Toplevel(self.rt._root)
         # Built withdrawn and shown by _show_dialog once positioned
@@ -127,9 +139,27 @@ class DialogsMixin:
                 corner = self._window_corner(win)
                 if corner is not None:
                     self._window_memory(remember)["position"] = corner
-            if takes_keys:
-                self.search_dialog_open -= 1
+            hold_keys(False)
             win.destroy()
+
+        if takes_keys:
+            # Unmap and Map reach the window for every widget inside it as
+            # well; only the window's own, as it is minimized and brought back,
+            # are wanted. One withdrawn, or going as it closes, is not minimized
+            def minimized(event):
+                if event.widget is win:
+                    try:
+                        if win.state() == "iconic":
+                            hold_keys(False)
+                    except tk.TclError:
+                        pass
+
+            def restored(event):
+                if event.widget is win:
+                    hold_keys(True)
+
+            win.bind("<Unmap>", minimized, add="+")
+            win.bind("<Map>", restored, add="+")
 
         win.protocol("WM_DELETE_WINDOW", close)
         # "break" so the key handler bound with bind_all does not also see the
