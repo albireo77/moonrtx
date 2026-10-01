@@ -194,16 +194,20 @@ Vieta:-29.31:-56.53:87.16:false:false:true:6384:en.wikipedia.org/wiki/Vieta_(cra
 Fourier:-30.31:-53.10:51.57:false:false:true:2003:en.wikipedia.org/wiki/Fourier_(crater)
 Cavendish:-24.63:-53.78:52.64:false:false:true:1086:en.wikipedia.org/wiki/Cavendish_(crater)
 Henry:-23.97:-57.01:39.06:false:false:true:2451:en.wikipedia.org/wiki/Henry_(lunar_crater)
+Henry Freres:-23.52:-59.02:41.73:false:false:true:2453:en.wikipedia.org/wiki/Henry_Fr%C3%A8res_(crater)
 De Gasparis:-25.83:-50.83:30.90:false:false:true:1438:en.wikipedia.org/wiki/De_Gasparis_(crater)
 Mersenius:-21.49:-49.34:84.46:false:false:true:3862:en.wikipedia.org/wiki/Mersenius_(crater)
 Liebig:-24.35:-48.30:38.96:false:false:true:3397:en.wikipedia.org/wiki/Liebig_(crater)
 Byrgius:-24.73:-65.38:84.46:false:false:true:943:en.wikipedia.org/wiki/Byrgius_(crater)
+De Vico:-19.71:-60.32:22.13:false:false:true:1448:en.wikipedia.org/wiki/De_Vico_(crater)
 Cruger:-16.68:-66.96:45.94:false:false:true:1343:en.wikipedia.org/wiki/Cr%C3%BCger_(crater)
 Darwin:-19.93:-69.21:122.18:false:false:true:1417:en.wikipedia.org/wiki/Darwin_(lunar_crater)
 Lamarck:-23.12:-70.06:114.65:false:false:true:3249:en.wikipedia.org/wiki/Lamarck_(crater)
 Rocca:-12.89:-72.89:84.06:false:false:true:5164:en.wikipedia.org/wiki/Rocca_(crater)
 Grimaldi:-5.38:-68.36:235.00:false:false:true:2252:en.wikipedia.org/wiki/Grimaldi_(crater)
 Lohrmann:-0.44:-67.38:31.25:false:false:true:3452:en.wikipedia.org/wiki/Lohrmann_(crater)
+Damoiseau:-4.85:-61.25:36.66:false:false:true:1396:en.wikipedia.org/wiki/Damoiseau_(crater)
+Sirsalis:-12.49:-60.51:44.17:false:false:true:5577:en.wikipedia.org/wiki/Sirsalis_(crater)
 Riccioli:-2.90:-74.42:155.66:false:false:true:5022:en.wikipedia.org/wiki/Riccioli_(crater)
 Olbers:7.30:-76.14:73.02:false:false:true:4432:en.wikipedia.org/wiki/Olbers_(crater)
 Glushko:8.11:-77.67:40.10:false:false:true:2195:en.wikipedia.org/wiki/Glushko_(crater)
@@ -1675,6 +1679,8 @@ Busching G:-39.57:21.54:7.30:false:false:true:8020
 Busching H:-37.46:21.06:4.71:false:false:true:8021
 Busching J:-39.55:22.21:6.71:false:false:true:8022
 Busching K:-38.02:18.66:5.07:false:false:true:8023
+Byrgius A:-24.55:-63.81:18.45:false:false:true:8030
+Byrgius D:-24.08:-67.28:27.06:false:false:true:8032
 C  Herschel C:37.23:-32.62:7.04:false:false:true:8045
 C  Herschel E:34.21:-34.69:5.03:false:false:true:8046
 C  Herschel U:36.20:-31.44:3.30:false:false:true:8047
@@ -1885,6 +1891,8 @@ Crozier G:-12.02:49.99:4.07:false:false:true:8467
 Crozier H:-14.01:49.38:10.52:false:false:true:8468
 Crozier L:-10.00:51.50:8.36:false:false:true:8469
 Crozier M:-8.84:51.36:5.92:false:false:true:8470
+Cruger A:-16.01:-62.85:24.89:false:false:true:8471
+Cruger E:-17.53:-65.34:14.85:false:false:true:8475
 Cuvier A:-52.48:11.91:17.86:false:false:true:8506
 Cuvier B:-51.71:13.80:15.76:false:false:true:8507
 Cuvier C:-50.00:11.74:8.52:false:false:true:8508
@@ -1917,6 +1925,7 @@ Daguerre U:-15.14:35.68:3.16:false:false:true:8562
 Daguerre X:-14.07:34.46:3.43:false:false:true:8563
 Daguerre Y:-13.92:35.36:3.08:false:false:true:8564
 Daguerre Z:-14.97:34.67:3.67:false:false:true:8565
+Damoiseau A:-6.36:-62.59:47.29:false:false:true:8566
 Damoiseau BA:-8.28:-59.12:8.67:false:false:true:8568
 Damoiseau E:-5.22:-58.42:13.63:false:false:true:8571
 Damoiseau G:-2.51:-55.76:3.76:false:false:true:8573
@@ -2142,6 +2151,7 @@ Fontana B:-15.55:-56.46:8.46:false:false:true:9131
 Fontana C:-12.86:-57.19:13.45:false:false:true:9132
 Fontana D:-17.00:-57.49:11.24:false:false:true:9133
 Fontana E:-17.61:-57.98:13.11:false:false:true:9134
+Fontana G:-15.96:-59.29:16.11:false:false:true:9136
 Fontana H:-13.99:-58.07:8.84:false:false:true:9137
 Fontana K:-13.26:-57.45:7.12:false:false:true:9138
 Fontana M:-17.21:-57.71:6.36:false:false:true:9139
@@ -2353,6 +2363,7 @@ Gould X:-20.91:-16.92:2.31:false:false:true:9544
 Gould Y:-20.59:-15.88:2.46:false:false:true:9545
 Gould Z:-19.56:-15.16:1.97:false:false:true:9546
 Grimaldi B:-2.94:-69.32:22.16:false:false:true:9557
+Grimaldi C:-2.65:-61.59:9.31:false:false:true:9558
 Grove Y:37.47:31.72:2.93:false:false:true:9577
 Gruithuisen E:37.39:-44.39:7.50:false:false:true:9585
 Gruithuisen F:36.27:-37.98:4.19:false:false:true:9586
@@ -4040,6 +4051,7 @@ Sinas G:9.57:34.27:3.64:false:false:true:13113
 Sinas H:10.01:33.56:4.13:false:false:true:13114
 Sinas J:10.31:33.70:4.31:false:false:true:13115
 Sinas K:6.81:33.08:3.41:false:false:true:13116
+Sirsalis A:-12.67:-61.40:48.46:false:false:true:13117
 Sirsalis D:-9.98:-58.70:34.86:false:false:true:13120
 Sirsalis E:-8.16:-56.70:70.29:false:false:true:13121
 Sirsalis K:-10.39:-57.47:7.04:false:false:true:13126
