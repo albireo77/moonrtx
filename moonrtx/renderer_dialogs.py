@@ -11,6 +11,7 @@ writing of results to the clipboard, a spreadsheet or a calendar.
 import os
 import glob
 import calendar
+import unicodedata
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -38,6 +39,20 @@ def _ffmpeg_dlls_findable() -> bool:
         except OSError:
             continue
     return False
+
+def _search_key(text: str) -> str:
+    """
+    A name as the Find window compares it: in lower case, without accents, and
+    with full stops, apostrophes and hyphens taken as spaces - so "mosting"
+    finds Mösting, "gay lussac" Gay-Lussac and "c herschel" C. Herschel, the
+    catalogue holding each name once, written as the IAU writes it.
+    """
+    plain = "".join(c for c in unicodedata.normalize("NFKD", text)
+                    if not unicodedata.combining(c))
+    for mark in ".'-":
+        plain = plain.replace(mark, " ")
+    return " ".join(plain.lower().split())
+
 
 class DialogsMixin:
     """Mixin providing dialog window methods for MoonRenderer."""
@@ -870,16 +885,16 @@ class DialogsMixin:
         matching_features = []
         
         def update_results(*args):
-            query = search_var.get().lower().strip()
+            query = _search_key(search_var.get())
             listbox.delete(0, tk.END)
             matching_features.clear()
-            
+
             if query:
                 # Biggest first, so a crater comes before its lettered satellites;
                 # sorted here, the table itself staying smallest first for the
                 # status bar's lookup
                 matching_features.extend(sorted(
-                    (f for f in self.moon_features if query in f.name.lower()),
+                    (f for f in self.moon_features if query in _search_key(f.name)),
                     key=lambda f: f.diameter_km, reverse=True))
                 for feature in matching_features:
                     listbox.insert(tk.END, f"{feature.name} ({feature.diameter_km:.2f} km)")

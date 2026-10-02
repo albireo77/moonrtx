@@ -1,4 +1,5 @@
 import math
+import unicodedata
 
 import numpy as np
 from typing import Callable, NamedTuple
@@ -138,6 +139,15 @@ def create_digit_segments(digit: str, scale: float = 0.1) -> list:
         '9': 'abcdfg',
         '-': 'g',
     }
+
+    # A letter with an accent - the Ö of Zöllner, the É of Gyldén - has no
+    # strokes of its own here, and was drawn as a gap; it is drawn as the letter
+    # under the accent instead, the name otherwise reading "Z LLNER"
+    if digit not in _LETTER_SEGMENTS_NORMALIZED and digit not in digit_segments and digit != 'N':
+        plain = "".join(c for c in unicodedata.normalize("NFKD", digit)
+                        if not unicodedata.combining(c))
+        if len(plain) == 1:
+            digit = plain
 
     # Handle letter N specially (diagonal stroke)
     if digit == 'N':

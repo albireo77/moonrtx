@@ -396,7 +396,6 @@ Williams:42.02:37.31:36.36:false:false:true:6551:en.wikipedia.org/wiki/Williams_
 Mason:42.70:30.51:33.33:false:false:true:3742:en.wikipedia.org/wiki/Mason_(crater)
 Plana:42.25:28.22:42.97:false:false:true:4748:en.wikipedia.org/wiki/Plana_(crater)
 Plana C:42.80:27.14:13.69:false:false:true:12095
-Burg:45.07:28.21:41.04:false:false:true:948:en.wikipedia.org/wiki/B%C3%BCrg_(crater)
 Franklin:38.73:47.64:55.92:false:false:true:2014:en.wikipedia.org/wiki/Franklin_(crater)
 Cepheus:40.68:45.78:39.43:false:false:true:1102:en.wikipedia.org/wiki/Cepheus_(crater)
 Oersted:43.09:47.25:42.28:false:false:true:4410:en.wikipedia.org/wiki/Oersted_(crater)
@@ -433,7 +432,7 @@ Condon:1.87:60.36:34.85:false:false:true:1285:en.wikipedia.org/wiki/Condon_(crat
 Respighi:2.86:71.90:17.88:false:false:true:5004:en.wikipedia.org/wiki/Respighi_(crater)
 Auzout:10.21:64.01:32.92:false:false:true:497:en.wikipedia.org/wiki/Auzout_(crater)
 Carmichael:19.53:40.36:19.73:false:false:true:1022:en.wikipedia.org/wiki/Carmichael_(crater)
-Hill:20.91:40.81:15.86:false:false:true:1022:en.wikipedia.org/wiki/Hill_(crater)
+Hill:20.91:40.81:15.86:false:false:true:2506:en.wikipedia.org/wiki/Hill_(crater)
 Proclus:16.09:46.89:26.91:false:false:true:4827:en.wikipedia.org/wiki/Proclus_(crater)
 Proclus A:13.32:42.23:14.09:false:false:true:12304
 Proclus D:17.43:41.02:11.74:false:false:true:12306
@@ -833,7 +832,6 @@ Brown:-46.53:-17.99:34.03:false:false:true:894
 Bruce:1.16:0.37:6.14:false:false:true:897
 Buch:-38.90:17.68:51.31:false:false:true:906
 Busching:-38.04:19.96:53.49:false:false:true:949
-C  Herschel:34.48:-31.29:13.70:false:false:true:950
 Camelot:20.19:30.73:0.61:false:false:true:984
 Capuanus:-34.09:-26.73:59.69:false:false:true:1014
 Carlos:24.91:2.28:4.67:false:false:true:1019
@@ -852,12 +850,9 @@ Courtney:25.14:-30.81:1.24:false:false:true:1325
 Crescent:-3.00:-23.43:1.98:false:false:true:1330
 Crile:14.21:45.98:9.30:false:false:true:1333
 Curtis:14.57:56.79:2.88:false:false:true:1352
-D Arrest:2.26:14.60:29.67:false:false:true:1695
-da Vinci:9.10:44.95:37.46:false:false:true:1376
 Dag:18.71:5.26:0.36:false:false:true:1385
 Daly:5.74:59.50:14.96:false:false:true:1393
 Daubree:15.73:14.75:14.67:false:false:true:1424
-de Gasparis:-25.83:-50.83:30.90:false:false:true:1438
 Debes:29.47:51.62:31.92:false:false:true:1452
 Delaunay:-22.26:2.62:44.63:false:false:true:1468
 Delia:-10.91:-6.13:1.57:false:false:true:1470
@@ -892,12 +887,10 @@ Flank:-3.64:-17.44:0.04:false:false:true:1975
 Fontana:-16.04:-56.79:31.47:false:false:true:1990
 Fredholm:18.37:46.55:13.39:false:false:true:2018
 Freud:25.79:-52.40:2.85:false:false:true:2022
-G  Bond:32.39:36.32:19.05:false:false:true:2046
 Galen:21.95:4.96:9.18:false:false:true:2072
 Gaston:30.88:-33.96:2.02:false:false:true:2112
 Gator:-8.95:15.55:0.85:false:false:true:2115
 Gauricus:-33.91:-12.74:79.64:false:false:true:2119
-Gay Lussac:13.88:-20.79:25.40:false:false:true:2124
 Gemma Frisius:-34.33:13.37:88.54:false:false:true:2138
 Gena:38.27:-35.01:0.20:false:false:true:15005
 Glaisher:13.19:49.34:15.92:false:false:true:2182
@@ -905,7 +898,6 @@ Goodacre:-32.67:14.08:44.09:false:false:true:2221
 Gould:-19.26:-17.25:32.99:false:false:true:2227
 Grace:14.21:35.89:1.49:false:false:true:2230
 Guang Han Gong:44.12:-19.51:0.08:false:false:true:15415
-Gylden:-5.37:0.23:48.15:false:false:true:2300
 Hadley:25.46:2.80:5.86:false:false:true:6837
 Haidinger:-39.18:-25.14:21.33:false:false:true:2315
 Halfway:-8.97:15.46:0.11:false:false:true:2324
@@ -982,7 +974,6 @@ Mitchell:49.77:20.17:32.15:false:false:true:3932
 Monira:-12.54:-1.73:1.07:false:false:true:3968
 Mont Blanc:45.41:0.44:21.57:false:false:true:4000
 Montanari:-45.83:-20.76:77.05:false:false:true:4001
-Mosting:-0.70:-5.88:24.38:false:false:true:4094
 Mount Marilyn:1.13:40.00:30.00:false:false:true:15617
 Muller:-7.64:2.04:23.40:false:false:true:4095
 Murchison:5.07:-0.21:57.83:false:false:true:4072
@@ -1030,7 +1021,6 @@ Rhysling:26.07:3.62:0.12:false:false:true:5020
 Riccius:-37.02:26.43:71.79:false:false:true:5023
 Ritchey:-11.13:8.48:24.07:false:false:true:5155
 Robert:19.03:27.45:0.56:false:false:true:5160
-Romer:25.43:36.41:43.70:false:false:true:5254
 Rosa:20.31:-32.30:0.82:false:false:true:5186
 Rothmann:-30.81:27.70:41.67:false:false:true:5200
 Ruth:28.71:-45.06:3.08:false:false:true:5237
@@ -1042,7 +1032,6 @@ Saunder:-4.26:8.72:44.38:false:false:true:5342
 Saussure:-43.38:-3.88:54.56:false:false:true:5343
 Scarp:20.29:30.59:14.76:false:false:true:5359
 Scheele:-9.45:-37.85:4.69:false:false:true:5363
-Schroter:2.74:-6.98:36.67:false:false:true:5382
 Sculptured Hills:20.24:31.06:12.41:false:false:true:5396
 Seeliger:-2.22:3.00:8.28:false:false:true:5405
 Shakespeare:20.24:30.82:0.54:false:false:true:5455
@@ -1075,7 +1064,7 @@ Suess:4.36:-47.72:8.39:false:false:true:5746
 Sung Mei:24.58:11.28:4.97:false:false:true:5763
 Surveyor:-3.02:-23.42:0.20:false:false:true:5773
 Susan:-11.00:-6.30:0.95:false:false:true:5776
-T  Mayer:15.54:-29.17:33.15:false:false:true:5808
+T. Mayer:15.54:-29.17:33.15:false:false:true:5808
 Tacquet:16.64:19.20:6.43:false:false:true:5816
 Tai Wei:44.15:-19.49:0.48:false:false:true:15414
 Taizo:24.70:2.20:8.19:false:false:true:5828
@@ -1124,7 +1113,6 @@ Yoshi:24.56:10.99:0.50:false:false:true:6673
 Zagut:-31.94:21.89:78.92:false:false:true:6691
 Zahringer:5.51:40.21:11.19:false:false:true:6772
 Zi Wei:44.12:-19.52:0.42:false:false:true:15412
-Zollner:-7.97:18.90:47.69:false:false:true:6773
 Zupus:-17.18:-52.37:35.29:false:false:true:6766
 
 # === SATELLITE CRATERS (USGS Gazetteer, all sizes, within 60 deg of disk center) ===
@@ -1660,8 +1648,7 @@ Bullialdus K:-21.78:-25.69:12.01:false:false:true:7991
 Bullialdus L:-20.23:-24.46:3.59:false:false:true:7992
 Bullialdus R:-20.23:-19.84:16.82:false:false:true:7993
 Bullialdus Y:-18.58:-19.18:3.23:false:false:true:7994
-Burg A:46.87:33.06:11.41:false:false:true:8005
-Burg B:42.70:23.46:5.65:false:false:true:8006
+Bürg B:42.70:23.46:5.65:false:false:true:8006
 Burnham A:-14.80:7.03:6.11:false:false:true:8007
 Burnham B:-15.36:7.22:3.40:false:false:true:8008
 Burnham F:-14.35:6.88:8.42:false:false:true:8009
@@ -1681,10 +1668,9 @@ Busching J:-39.55:22.21:6.71:false:false:true:8022
 Busching K:-38.02:18.66:5.07:false:false:true:8023
 Byrgius A:-24.55:-63.81:18.45:false:false:true:8030
 Byrgius D:-24.08:-67.28:27.06:false:false:true:8032
-C  Herschel C:37.23:-32.62:7.04:false:false:true:8045
-C  Herschel E:34.21:-34.69:5.03:false:false:true:8046
-C  Herschel U:36.20:-31.44:3.30:false:false:true:8047
-C  Herschel V:36.46:-33.49:3.46:false:false:true:8048
+C. Herschel E:34.21:-34.69:5.03:false:false:true:8046
+C. Herschel U:36.20:-31.44:3.30:false:false:true:8047
+C. Herschel V:36.46:-33.49:3.46:false:false:true:8048
 Calippus A:37.06:7.87:15.72:false:false:true:8060
 Calippus B:36.08:10.07:7.21:false:false:true:8061
 Calippus C:39.43:9.16:37.69:false:false:true:8062
@@ -1915,11 +1901,11 @@ Cyrillus C:-12.36:21.50:11.75:false:false:true:8529
 Cyrillus E:-15.90:25.31:10.46:false:false:true:8530
 Cyrillus F:-15.32:25.49:43.90:false:false:true:8531
 Cyrillus G:-15.66:26.63:7.76:false:false:true:8532
-D Arrest A:1.94:13.64:3.75:false:false:true:8546
-D Arrest B:0.96:13.61:4.99:false:false:true:8547
-D Arrest M:1.95:13.50:25.27:false:false:true:8548
-D Arrest R:0.47:15.63:17.37:false:false:true:8549
-da Vinci A:9.66:44.20:15.93:false:false:true:8551
+D'Arrest A:1.94:13.64:3.75:false:false:true:8546
+D'Arrest B:0.96:13.61:4.99:false:false:true:8547
+D'Arrest M:1.95:13.50:25.27:false:false:true:8548
+D'Arrest R:0.47:15.63:17.37:false:false:true:8549
+Da Vinci A:9.66:44.20:15.93:false:false:true:8551
 Daguerre K:-12.25:35.78:5.44:false:false:true:8561
 Daguerre U:-15.14:35.68:3.16:false:false:true:8562
 Daguerre X:-14.07:34.46:3.43:false:false:true:8563
@@ -1945,13 +1931,13 @@ Davy G:-10.37:-5.10:15.36:false:false:true:8609
 Davy K:-10.19:-9.48:3.05:false:false:true:8610
 Davy U:-12.96:-7.17:2.76:false:false:true:8611
 Davy Y:-11.05:-7.25:69.56:false:false:true:8612
-de Gasparis A:-26.74:-51.37:38.41:false:false:true:8617
-de Gasparis B:-27.05:-52.65:11.87:false:false:true:8618
-de Gasparis C:-26.24:-51.82:6.19:false:false:true:8619
-de Gasparis D:-25.64:-50.21:4.43:false:false:true:8620
-de Gasparis E:-26.43:-49.54:6.89:false:false:true:8621
-de Gasparis F:-26.25:-49.44:7.82:false:false:true:8622
-de Gasparis G:-26.98:-49.39:5.79:false:false:true:8623
+De Gasparis A:-26.74:-51.37:38.41:false:false:true:8617
+De Gasparis B:-27.05:-52.65:11.87:false:false:true:8618
+De Gasparis C:-26.24:-51.82:6.19:false:false:true:8619
+De Gasparis D:-25.64:-50.21:4.43:false:false:true:8620
+De Gasparis E:-26.43:-49.54:6.89:false:false:true:8621
+De Gasparis F:-26.25:-49.44:7.82:false:false:true:8622
+De Gasparis G:-26.98:-49.39:5.79:false:false:true:8623
 Debes A:28.71:51.47:34.27:false:false:true:8669
 Debes B:28.92:50.53:19.57:false:false:true:8670
 Delambre B:-1.64:19.64:9.67:false:false:true:8678
@@ -2211,11 +2197,11 @@ Franklin F:37.39:47.69:39.61:false:false:true:9221
 Franklin G:40.09:48.12:6.66:false:false:true:9222
 Franklin H:37.12:43.74:5.15:false:false:true:9223
 Franklin W:37.81:43.69:4.91:false:false:true:9225
-G  Bond A:31.58:36.87:9.19:false:false:true:9276
-G  Bond B:29.95:34.67:32.38:false:false:true:9277
-G  Bond C:28.29:34.75:46.65:false:false:true:9278
-G  Bond G:32.74:37.25:27.32:false:false:true:9279
-G  Bond K:32.14:38.33:12.47:false:false:true:9280
+G. Bond A:31.58:36.87:9.19:false:false:true:9276
+G. Bond B:29.95:34.67:32.38:false:false:true:9277
+G. Bond C:28.29:34.75:46.65:false:false:true:9278
+G. Bond G:32.74:37.25:27.32:false:false:true:9279
+G. Bond K:32.14:38.33:12.47:false:false:true:9280
 Galilaei A:11.69:-63.05:11.17:false:false:true:9287
 Galilaei B:11.43:-67.72:15.91:false:false:true:9288
 Galilaei E:13.91:-61.94:7.12:false:false:true:9290
@@ -2273,15 +2259,15 @@ Gauricus N:-32.44:-12.74:6.99:false:false:true:9387
 Gauricus P:-35.09:-12.50:5.15:false:false:true:9388
 Gauricus R:-34.87:-13.32:5.87:false:false:true:9389
 Gauricus S:-33.91:-10.17:14.59:false:false:true:9390
-Gay Lussac A:13.18:-20.38:15.25:false:false:true:9403
-Gay Lussac B:16.21:-21.18:3.42:false:false:true:9404
-Gay Lussac C:15.42:-22.55:4.71:false:false:true:9405
-Gay Lussac D:14.58:-21.06:5.33:false:false:true:9406
-Gay Lussac F:14.01:-19.65:4.61:false:false:true:9407
-Gay Lussac G:13.86:-18.89:4.73:false:false:true:9408
-Gay Lussac H:13.41:-23.33:5.01:false:false:true:9409
-Gay Lussac J:11.36:-21.85:2.28:false:false:true:9410
-Gay Lussac N:12.62:-20.92:2.36:false:false:true:9411
+Gay-Lussac A:13.18:-20.38:15.25:false:false:true:9403
+Gay-Lussac B:16.21:-21.18:3.42:false:false:true:9404
+Gay-Lussac C:15.42:-22.55:4.71:false:false:true:9405
+Gay-Lussac D:14.58:-21.06:5.33:false:false:true:9406
+Gay-Lussac F:14.01:-19.65:4.61:false:false:true:9407
+Gay-Lussac G:13.86:-18.89:4.73:false:false:true:9408
+Gay-Lussac H:13.41:-23.33:5.01:false:false:true:9409
+Gay-Lussac J:11.36:-21.85:2.28:false:false:true:9410
+Gay-Lussac N:12.62:-20.92:2.36:false:false:true:9411
 Geber A:-21.84:14.70:12.60:false:false:true:9412
 Geber B:-19.03:12.91:17.96:false:false:true:9413
 Geber C:-22.18:14.88:10.02:false:false:true:9414
@@ -2395,8 +2381,8 @@ Gutenberg F:-10.23:42.61:7.17:false:false:true:9618
 Gutenberg G:-6.05:40.04:30.64:false:false:true:9619
 Gutenberg H:-6.75:39.06:4.77:false:false:true:9620
 Gutenberg K:-7.30:40.82:5.64:false:false:true:9621
-Gylden C:-5.90:0.99:5.88:false:false:true:9625
-Gylden K:-5.46:0.60:4.25:false:false:true:9626
+Gyldén C:-5.90:0.99:5.88:false:false:true:9625
+Gyldén K:-5.46:0.60:4.25:false:false:true:9626
 Hadley C:25.48:2.80:5.80:false:false:true:9628
 Haidinger A:-38.69:-24.67:8.55:false:false:true:9659
 Haidinger B:-39.25:-24.48:10.08:false:false:true:9660
@@ -3288,15 +3274,15 @@ Moltke A:-1.05:23.17:4.47:false:false:true:11463
 Moltke B:-1.05:25.19:4.25:false:false:true:11464
 Montanari D:-45.95:-22.21:26.51:false:false:true:11465
 Montanari W:-44.82:-18.10:6.35:false:false:true:11466
-Mosting A:-3.21:-5.19:12.19:false:false:true:11484
-Mosting B:-2.73:-7.39:6.79:false:false:true:11485
-Mosting C:-1.81:-8.11:3.81:false:false:true:11486
-Mosting D:-0.37:-5.12:6.70:false:false:true:11487
-Mosting E:0.18:-4.59:36.32:false:false:true:11488
-Mosting K:-0.77:-7.37:3.12:false:false:true:11489
-Mosting L:-0.69:-3.43:3.02:false:false:true:11490
-Mosting M:-1.37:-4.36:31.59:false:false:true:11491
-Mosting U:-3.15:-6.58:18.22:false:false:true:11492
+Mösting A:-3.21:-5.19:12.19:false:false:true:11484
+Mösting B:-2.73:-7.39:6.79:false:false:true:11485
+Mösting C:-1.81:-8.11:3.81:false:false:true:11486
+Mösting D:-0.37:-5.12:6.70:false:false:true:11487
+Mösting E:0.18:-4.59:36.32:false:false:true:11488
+Mösting K:-0.77:-7.37:3.12:false:false:true:11489
+Mösting L:-0.69:-3.43:3.02:false:false:true:11490
+Mösting M:-1.37:-4.36:31.59:false:false:true:11491
+Mösting U:-3.15:-6.58:18.22:false:false:true:11492
 Muller A:-8.14:2.13:8.68:false:false:true:11501
 Muller F:-7.86:1.48:5.78:false:false:true:11502
 Muller O:-7.89:2.41:9.66:false:false:true:11503
@@ -3885,27 +3871,27 @@ Ritchey N:-11.16:10.00:16.86:false:false:true:12617
 Ritter B:3.25:18.93:14.20:false:false:true:12618
 Ritter C:2.75:18.86:12.68:false:false:true:12619
 Ritter D:3.65:18.74:6.58:false:false:true:12620
-Romer A:28.10:37.13:34.82:false:false:true:12652
-Romer B:28.50:38.11:22.51:false:false:true:12653
-Romer C:27.66:37.06:7.24:false:false:true:12654
-Romer D:24.51:35.81:12.08:false:false:true:12655
-Romer E:28.48:39.18:30.76:false:false:true:12656
-Romer F:27.19:37.25:23.16:false:false:true:12657
-Romer G:26.82:36.24:14.67:false:false:true:12658
-Romer H:25.95:35.72:6.49:false:false:true:12659
-Romer J:22.38:37.95:8.54:false:false:true:12660
-Romer M:25.29:34.61:9.14:false:false:true:12661
-Romer N:25.31:37.97:25.54:false:false:true:12662
-Romer P:26.54:39.81:59.37:false:false:true:12663
-Romer R:24.15:34.45:52.57:false:false:true:12664
-Romer S:24.91:36.79:43.03:false:false:true:12665
-Romer T:23.82:36.17:44.65:false:false:true:12666
-Romer U:24.28:39.15:27.23:false:false:true:12667
-Romer V:24.43:38.64:26.71:false:false:true:12668
-Romer W:26.44:40.41:6.07:false:false:true:12669
-Romer X:24.29:40.12:23.92:false:false:true:12670
-Romer Y:25.76:36.31:6.17:false:false:true:12671
-Romer Z:24.13:37.05:11.60:false:false:true:12672
+Römer A:28.10:37.13:34.82:false:false:true:12652
+Römer B:28.50:38.11:22.51:false:false:true:12653
+Römer C:27.66:37.06:7.24:false:false:true:12654
+Römer D:24.51:35.81:12.08:false:false:true:12655
+Römer E:28.48:39.18:30.76:false:false:true:12656
+Römer F:27.19:37.25:23.16:false:false:true:12657
+Römer G:26.82:36.24:14.67:false:false:true:12658
+Römer H:25.95:35.72:6.49:false:false:true:12659
+Römer J:22.38:37.95:8.54:false:false:true:12660
+Römer M:25.29:34.61:9.14:false:false:true:12661
+Römer N:25.31:37.97:25.54:false:false:true:12662
+Römer P:26.54:39.81:59.37:false:false:true:12663
+Römer R:24.15:34.45:52.57:false:false:true:12664
+Römer S:24.91:36.79:43.03:false:false:true:12665
+Römer T:23.82:36.17:44.65:false:false:true:12666
+Römer U:24.28:39.15:27.23:false:false:true:12667
+Römer V:24.43:38.64:26.71:false:false:true:12668
+Römer W:26.44:40.41:6.07:false:false:true:12669
+Römer X:24.29:40.12:23.92:false:false:true:12670
+Römer Y:25.76:36.31:6.17:false:false:true:12671
+Römer Z:24.13:37.05:11.60:false:false:true:12672
 Ross B:11.38:20.17:5.62:false:false:true:12690
 Ross C:11.62:18.93:4.75:false:false:true:12691
 Ross D:12.57:23.32:8.41:false:false:true:12692
@@ -4007,21 +3993,21 @@ Schiller J:-49.64:-36.69:9.16:false:false:true:12907
 Schiller K:-46.70:-38.77:10.25:false:false:true:12908
 Schiller L:-47.12:-40.23:10.25:false:false:true:12909
 Schiller M:-48.22:-41.26:8.76:false:false:true:12910
-Schroter A:4.81:-7.80:3.68:false:false:true:12960
-Schroter C:8.26:-9.79:8.38:false:false:true:12961
-Schroter D:4.49:-9.53:4.92:false:false:true:12962
-Schroter E:2.36:-6.83:2.85:false:false:true:12963
-Schroter F:7.41:-5.89:29.20:false:false:true:12964
-Schroter G:3.17:-9.44:5.20:false:false:true:12965
-Schroter H:3.16:-8.63:4.38:false:false:true:12966
-Schroter J:8.51:-6.12:6.46:false:false:true:12967
-Schroter K:3.09:-7.93:5.22:false:false:true:12968
-Schroter L:1.77:-7.43:3.34:false:false:true:12969
-Schroter M:6.94:-11.68:5.30:false:false:true:12970
-Schroter S:7.07:-9.20:2.51:false:false:true:12971
-Schroter T:7.03:-8.01:3.96:false:false:true:12972
-Schroter U:4.08:-6.68:3.81:false:false:true:12973
-Schroter W:4.83:-7.74:9.50:false:false:true:12974
+Schröter A:4.81:-7.80:3.68:false:false:true:12960
+Schröter C:8.26:-9.79:8.38:false:false:true:12961
+Schröter D:4.49:-9.53:4.92:false:false:true:12962
+Schröter E:2.36:-6.83:2.85:false:false:true:12963
+Schröter F:7.41:-5.89:29.20:false:false:true:12964
+Schröter G:3.17:-9.44:5.20:false:false:true:12965
+Schröter H:3.16:-8.63:4.38:false:false:true:12966
+Schröter J:8.51:-6.12:6.46:false:false:true:12967
+Schröter K:3.09:-7.93:5.22:false:false:true:12968
+Schröter L:1.77:-7.43:3.34:false:false:true:12969
+Schröter M:6.94:-11.68:5.30:false:false:true:12970
+Schröter S:7.07:-9.20:2.51:false:false:true:12971
+Schröter T:7.03:-8.01:3.96:false:false:true:12972
+Schröter U:4.08:-6.68:3.81:false:false:true:12973
+Schröter W:4.83:-7.74:9.50:false:false:true:12974
 Secchi A:3.26:41.47:4.85:false:false:true:13019
 Secchi B:3.66:41.52:5.16:false:false:true:13020
 Secchi G:3.94:44.57:6.69:false:false:true:13021
@@ -4165,23 +4151,23 @@ Sulpicius Gallus B:17.98:12.97:6.43:false:false:true:13341
 Sulpicius Gallus G:19.80:6.31:5.40:false:false:true:13342
 Sulpicius Gallus H:20.55:5.74:3.42:false:false:true:13343
 Sulpicius Gallus M:20.40:8.72:4.34:false:false:true:13344
-T  Mayer A:15.24:-28.30:16.16:false:false:true:13353
-T  Mayer B:15.35:-30.91:12.14:false:false:true:13354
-T  Mayer C:12.21:-26.00:14.85:false:false:true:13355
-T  Mayer D:12.23:-26.80:7.64:false:false:true:13356
-T  Mayer E:16.04:-26.19:8.42:false:false:true:13357
-T  Mayer F:12.87:-28.94:5.09:false:false:true:13358
-T  Mayer G:17.35:-27.17:6.97:false:false:true:13359
-T  Mayer H:11.68:-25.44:4.65:false:false:true:13360
-T  Mayer K:18.12:-27.66:4.82:false:false:true:13361
-T  Mayer L:13.20:-24.72:4.03:false:false:true:13362
-T  Mayer M:14.91:-25.81:5.11:false:false:true:13363
-T  Mayer N:13.56:-25.61:4.26:false:false:true:13364
-T  Mayer P:14.02:-29.58:37.03:false:false:true:13365
-T  Mayer R:11.63:-26.39:4.23:false:false:true:13366
-T  Mayer S:11.66:-28.34:2.85:false:false:true:13367
-T  Mayer W:17.57:-34.96:33.47:false:false:true:13368
-T  Mayer Z:14.18:-26.15:4.34:false:false:true:13369
+T. Mayer A:15.24:-28.30:16.16:false:false:true:13353
+T. Mayer B:15.35:-30.91:12.14:false:false:true:13354
+T. Mayer C:12.21:-26.00:14.85:false:false:true:13355
+T. Mayer D:12.23:-26.80:7.64:false:false:true:13356
+T. Mayer E:16.04:-26.19:8.42:false:false:true:13357
+T. Mayer F:12.87:-28.94:5.09:false:false:true:13358
+T. Mayer G:17.35:-27.17:6.97:false:false:true:13359
+T. Mayer H:11.68:-25.44:4.65:false:false:true:13360
+T. Mayer K:18.12:-27.66:4.82:false:false:true:13361
+T. Mayer L:13.20:-24.72:4.03:false:false:true:13362
+T. Mayer M:14.91:-25.81:5.11:false:false:true:13363
+T. Mayer N:13.56:-25.61:4.26:false:false:true:13364
+T. Mayer P:14.02:-29.58:37.03:false:false:true:13365
+T. Mayer R:11.63:-26.39:4.23:false:false:true:13366
+T. Mayer S:11.66:-28.34:2.85:false:false:true:13367
+T. Mayer W:17.57:-34.96:33.47:false:false:true:13368
+T. Mayer Z:14.18:-26.15:4.34:false:false:true:13369
 Tacitus A:-17.47:20.46:10.21:false:false:true:13370
 Tacitus B:-14.05:20.45:12.17:false:false:true:13371
 Tacitus C:-13.70:19.79:9.01:false:false:true:13372
@@ -4538,14 +4524,14 @@ Zagut O:-33.08:16.65:11.41:false:false:true:14043
 Zagut P:-32.47:17.40:13.70:false:false:true:14044
 Zagut R:-30.65:20.82:4.37:false:false:true:14045
 Zagut S:-33.38:22.63:5.73:false:false:true:14046
-Zollner A:-7.08:21.48:6.15:false:false:true:14081
-Zollner D:-8.39:17.66:24.36:false:false:true:14082
-Zollner E:-8.82:18.28:4.70:false:false:true:14083
-Zollner F:-7.58:21.99:27.00:false:false:true:14084
-Zollner G:-7.32:20.87:9.51:false:false:true:14085
-Zollner H:-7.09:19.13:6.59:false:false:true:14086
-Zollner J:-6.20:20.70:10.36:false:false:true:14087
-Zollner K:-6.53:20.82:7.20:false:false:true:14088
+Zöllner A:-7.08:21.48:6.15:false:false:true:14081
+Zöllner D:-8.39:17.66:24.36:false:false:true:14082
+Zöllner E:-8.82:18.28:4.70:false:false:true:14083
+Zöllner F:-7.58:21.99:27.00:false:false:true:14084
+Zöllner G:-7.32:20.87:9.51:false:false:true:14085
+Zöllner H:-7.09:19.13:6.59:false:false:true:14086
+Zöllner J:-6.20:20.70:10.36:false:false:true:14087
+Zöllner K:-6.53:20.82:7.20:false:false:true:14088
 Zupus A:-17.22:-53.57:6.20:false:false:true:14101
 Zupus B:-17.61:-54.52:6.36:false:false:true:14102
 Zupus C:-17.33:-55.18:20.62:false:false:true:14103
