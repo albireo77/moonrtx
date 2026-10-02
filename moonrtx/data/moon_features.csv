@@ -213,7 +213,6 @@ Olbers:7.30:-76.14:73.02:false:false:true:4432:en.wikipedia.org/wiki/Olbers_(cra
 Glushko:8.11:-77.67:40.10:false:false:true:2195:en.wikipedia.org/wiki/Glushko_(crater)
 Hevelius:2.20:-67.46:113.87:false:false:true:2493:en.wikipedia.org/wiki/Hevelius_(crater)
 Cavalerius:5.10:-66.93:59.35:false:false:true:1083:en.wikipedia.org/wiki/Cavalerius_(crater)
-Galilei:10.5:-62.7:0.5:false:false:true::en.wikipedia.org/wiki/Galilaei_(lunar_crater)
 Reiner:6.92:-54.98:29.85:false:false:true:4986:en.wikipedia.org/wiki/Reiner_(crater)
 Marius:11.90:-50.84:40.09:false:false:true:3715:en.wikipedia.org/wiki/Marius_(crater)
 Marius Hills Pit:14.0917:-56.7701:0.09:false:true:false::lroc.im-ldi.com/atlases/pits/1
@@ -222,7 +221,6 @@ Encke:4.57:-36.68:28.27:false:false:true:1796:en.wikipedia.org/wiki/Encke_(crate
 Kunowsky:3.22:-32.53:18.27:false:false:true:3161:en.wikipedia.org/wiki/Kunowsky_(lunar_crater)
 Hortensius:6.47:-28.00:14.16:false:false:true:2559:en.wikipedia.org/wiki/Hortensius_(crater)
 Milichius:10.01:-30.23:12.19:false:false:true:3897:en.wikipedia.org/wiki/Milichius_(crater)
-Tobias Mayer:15.6:-29.1:1.1:false:false:true
 Euler:23.26:-29.18:26.03:false:false:true:1866:en.wikipedia.org/wiki/Euler_(crater)
 Euler E:24.70:-34.07:6.10:false:false:true:9015
 Lambert:25.77:-20.99:30.12:false:false:true:3253:en.wikipedia.org/wiki/Lambert_(lunar_crater)
@@ -471,28 +469,22 @@ Aristillus:33.88:1.21:54.37:false:false:true:381:en.wikipedia.org/wiki/Aristillu
 Bancroft:28.07:-6.43:12.50:false:false:true:594:en.wikipedia.org/wiki/Bancroft_(crater)
 Kirch:39.27:-5.62:11.71:false:false:true:3046:en.wikipedia.org/wiki/Kirch_(crater)
 Piazzi Smyth:41.91:-3.24:12.96:false:false:true:4718:en.wikipedia.org/wiki/Piazzi_Smyth_(crater)
-Spitzbergen:35.0:-5.0:2.0:false:false:true
 Spitzbergen A:32.71:-7.10:6.13:false:false:true:13182
 Spitzbergen C:32.88:-8.81:6.27:false:false:true:13183
-Pico:45.7:-8.9:0.8:false:false:true
-Piton:40.6:-1.0:0.8:false:false:true
 Piton A:39.83:-0.95:5.35:false:false:true:12091
 Piton B:39.35:-0.16:4.67:false:false:true:12092
 Mons La Hire:27.66:-25.51:21.71:false:false:true:3988:en.wikipedia.org/wiki/Mons_La_Hire
 Euler A:22.2:-31.3:0.2:false:false:true
-Lahire:27.8:-25.8:0.8:false:false:true
-Gruithuisen Gamma:36.6:-40.5:0.7:false:false:true::en.wikipedia.org/wiki/Mons_Gruithuisen_Gamma
-Gruithuisen Delta:36.1:-39.5:0.5:false:false:true::en.wikipedia.org/wiki/Mons_Gruithuisen_Delta
+Mons Gruithuisen Delta:36.07:-39.59:27.24:false:false:true:3981:en.wikipedia.org/wiki/Mons_Gruithuisen_Delta
 Brayley:20.90:-36.94:14.17:false:false:true:866:en.wikipedia.org/wiki/Brayley_(crater)
 Bessarion:14.85:-37.31:9.84:false:false:true:719:en.wikipedia.org/wiki/Bessarion_(crater)
 Lichtenberg A:28.97:-60.11:6.87:false:false:true:10804
-Wolff:22.0:-7.0:1.1:false:false:true
 Mons Wolff:16.88:-6.80:32.87:false:false:true:3998
 Joy:25.01:6.56:5.12:false:false:true:2851:en.wikipedia.org/wiki/Joy_(crater)
 Mons Hadley:26.69:4.12:26.40:false:false:true:3983
 Mons Hadley Delta:25.72:3.71:17.24:false:false:true:3984:en.wikipedia.org/wiki/Mons_Hadley_Delta
-Bradley:22.0:1.0:0.4:false:false:true
-Ampere:26.1:4.0:1.0:false:false:true
+Mons Bradley:21.73:0.38:76.49:false:false:true:3975:en.wikipedia.org/wiki/Mons_Bradley
+Mons Ampère:19.32:-3.71:29.96:false:false:true:3971
 Huxley:20.20:-4.54:3.48:false:false:true:2594:en.wikipedia.org/wiki/Huxley_(lunar_crater)
 Wallace:20.26:-8.75:25.71:false:false:true:6477:en.wikipedia.org/wiki/Wallace_(lunar_crater)
 Eratosthenes A:18.34:-8.33:5.67:false:false:true:8979
@@ -675,7 +667,7 @@ Rima Calippus:37.03:12.66:40.00:false:false:true:5046
 Rimae Theaetetus:33.04:5.87:53.00:false:false:true:5145
 Rimae Fresnel:28.11:3.73:75.00:false:false:true:5106
 Rimae Plinius:17.05:23.14:100.00:false:false:true:5132
-Rimae Cauchy:10.5:38.0:4.3:false:false:true
+Rima Cauchy:10.42:38.07:167.00:false:false:true:5049
 Rimae Gutenberg:-4.42:36.42:223.00:false:false:true:5111
 Rimae Posidonius:32.03:29.61:78.00:false:false:true:5133
 Rimae Chacornac:29.01:31.24:100.00:false:false:true:5100
@@ -697,7 +689,7 @@ Rimae Sirsalis:-15.01:-61.36:405.00:false:false:true:5141:en.wikipedia.org/wiki/
 Rimae Grimaldi:-6.18:-63.90:162.00:false:false:true:5110
 Rimae Riccioli:-1.52:-73.07:250.00:false:false:true:5137
 Rimae Gerard:45.54:-84.36:110.00:false:false:true:5108
-Rimae Marius:14.0:-51.0:8.3:false:false:true
+Rima Marius:16.37:-49.54:283.54:false:false:true:5072
 Rimae Aristarchus:27.52:-47.25:175.00:false:false:true:5094:en.wikipedia.org/wiki/Rimae_Aristarchus
 Rimae Prinz:27.05:-43.51:10.95:false:false:true:5134
 Vallis Rheita:-42.51:51.65:509.07:true:false:false:6298:en.wikipedia.org/wiki/Vallis_Rheita
@@ -707,7 +699,7 @@ Vallis Bouvard:-38.45:-82.32:287.92:false:false:true:6293:en.wikipedia.org/wiki/
 
 # === LANDING SITES ===
 Apollo 11 Landing:-0.67:23.47:0.1:false:true:true::en.wikipedia.org/wiki/Apollo_11
-Apollo 12 Landing:-3.01:-23.42:0.1:false:true:true::en.wikipedia.org/wiki/Apollo_12
+Apollo 12 Landing:-3.01239:-23.42157:0.1:false:true:true::en.wikipedia.org/wiki/Apollo_12
 Apollo 14 Landing:-3.64:-17.47:0.1:false:true:true::en.wikipedia.org/wiki/Apollo_14
 Apollo 15 Landing:26.13:3.63:0.1:false:true:true::en.wikipedia.org/wiki/Apollo_15
 Apollo 16 Landing:-8.97:15.50:0.1:false:true:true::en.wikipedia.org/wiki/Apollo_16
@@ -720,7 +712,7 @@ Luna 20 Landing:3.53:56.55:0.1:false:true:true::en.wikipedia.org/wiki/Luna_20
 Luna 21 Landing:25.85:30.45:0.1:false:true:true::en.wikipedia.org/wiki/Luna_21
 Luna 24 Landing:12.75:62.20:0.1:false:true:true::en.wikipedia.org/wiki/Luna_24
 Surveyor 1 Landing:-2.47:-43.34:0.1:false:true:true::en.wikipedia.org/wiki/Surveyor_1
-Surveyor 3 Landing:-3.01:-23.42:0.1:false:false:true::en.wikipedia.org/wiki/Surveyor_3
+Surveyor 3 Landing:-3.01612:-23.41791:0.1:false:false:true::en.wikipedia.org/wiki/Surveyor_3
 Surveyor 5 Landing:1.41:23.18:0.1:false:true:true::en.wikipedia.org/wiki/Surveyor_5
 Surveyor 6 Landing:0.49:-1.40:0.1:false:true:true::en.wikipedia.org/wiki/Surveyor_6
 Surveyor 7 Landing:-41.01:-11.47:0.1:false:true:true::en.wikipedia.org/wiki/Surveyor_7
