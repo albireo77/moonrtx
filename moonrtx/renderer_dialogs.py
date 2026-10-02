@@ -14,7 +14,7 @@ import calendar
 import unicodedata
 import tkinter as tk
 from tkinter import ttk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from datetime import datetime
 from typing import Optional
 
@@ -39,6 +39,18 @@ def _ffmpeg_dlls_findable() -> bool:
         except OSError:
             continue
     return False
+
+def _file_stamp(path: str) -> Optional[tuple]:
+    """
+    A file's size and the time it was last written, to the nanosecond - or
+    None where there is no file. A save that wrote the file changes it.
+    """
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    return stat.st_size, stat.st_mtime_ns
+
 
 def _search_key(text: str) -> str:
     """
@@ -821,6 +833,10 @@ class DialogsMixin:
         if filename:
             fname, fext = os.path.splitext(filename)
             bps = "Bps16" if fext.lower() == ".tiff" else "Bps8"
+            # What was at that name before, to tell a file written now from one
+            # left over: the ray tracer's own save says nothing when it fails -
+            # it only logs to the console, which a launcher user never sees
+            before = _file_stamp(filename)
             # The compass, the locator and the field-of-view frame are drawn on
             # the canvas over the render and are not in the buffer the ray
             # tracer saves, so whichever of them is on screen is composited into
@@ -828,6 +844,16 @@ class DialogsMixin:
             # ray tracer writes the file itself, exactly as it always has.
             if not self.save_render_with_overlays(filename, bps):
                 self.rt.save_image(filename, bps=bps)
+            after = _file_stamp(filename)
+            if after is None or after == before:
+                print(f"Not saved: {filename}")
+                messagebox.showerror(
+                    "Image not saved",
+                    f"The image could not be saved to\n{filename}\n\n"
+                    "The folder may not allow writing, or another program may "
+                    "have the file open.",
+                    parent=self.rt._root)
+                return
             print(f"Saved: {filename}")
 
     def get_default_filename(self) -> str:
