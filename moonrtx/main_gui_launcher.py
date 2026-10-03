@@ -247,7 +247,7 @@ class MainWindow(tk.Tk):
 
         self.brightness = tk.Entry(frm, width=5)
         self.brightness.grid(row=10, column=1, sticky=tk.EW, pady=2)
-        self.brightness.insert(0, 80)
+        self.brightness.insert(0, 100)
 
         self.gamma_entry = tk.Entry(frm, width=5)
         self.gamma_entry.grid(row=11, column=1, sticky=tk.EW, pady=2)
@@ -713,7 +713,7 @@ class MainWindow(tk.Tk):
                                      if saved_color_downscale in self.color_downscale["values"] else "1")
 
             self.brightness.delete(0, tk.END)
-            self.brightness.insert(0, settings.get("brightness", "80"))
+            self.brightness.insert(0, settings.get("brightness", "100"))
 
             self.gamma_entry.delete(0, tk.END)
             self.gamma_entry.insert(0, settings.get("gamma", "2.2"))

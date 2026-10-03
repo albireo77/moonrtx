@@ -78,7 +78,7 @@ def parse_args():
                         help="Color map downscale factor. The map is decoded straight at this fraction of its "
                              "size, so RAM needed to load it falls with the square of the factor. Raise it if a "
                              "large color map fails to load. 1 is no downscaling.")
-    parser.add_argument("--brightness", type=int, default=80,
+    parser.add_argument("--brightness", type=int, default=100,
                         help="Brightness")
     parser.add_argument("--gamma", type=float, default=2.2,
                         help="Gamma correction value (0.5 - 5.0, default 2.2)")

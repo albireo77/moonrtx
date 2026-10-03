@@ -727,10 +727,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # Rendering parameters
         self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=self.ACCUMULATION_FRAMES)
 
-        # Single diffuse body with one light: long multi-bounce paths add mostly
-        # noise, so cap path length for faster, cleaner frames. Trade-off is
-        # slightly darker shadowed crater floors (less bounced light).
-        self.rt.set_uint("path_seg_range", 2, 4)
+        # Direct sunlight only, no light bounced from one part of the surface to another.
+        self.rt.set_uint("path_seg_range", 1, 1)
 
         # Exact terminator shadows at interactive speed (see SCENE_EPSILON comment)
         self.rt.set_float("scene_epsilon", self.SCENE_EPSILON)
@@ -738,8 +736,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self.rt.set_float("marching_step_eps", self.MARCHING_STEP_EPS)
 
         # No ambient light: in space the Moon's night side and shadow interiors
-        # receive no atmospheric skylight, only sunlight bounced from nearby
-        # sunlit terrain (path_seg_range above). PlotOptiX's default ambient
+        # receive no atmospheric skylight. PlotOptiX's default ambient
         # (~0.45 gray) would otherwise wash the whole disk to a flat gray,
         # washing out the night side of a crescent and lifting shadow floors.
         self.rt.set_ambient(0)
