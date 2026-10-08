@@ -602,7 +602,9 @@ class PlanningMixin:
     # built here, empty, and each of them fills it with what is its own.
     RESULTS_FONT = ('Consolas', 9)
     RESULTS_HEADER_FONT = ('Consolas', 9, 'bold')
-    RESULTS_ROWS = 16
+    # Rows the list shows: both dialogs usually list a handful, and the rest
+    # are a scroll away
+    RESULTS_ROWS = 6
     # Enough room for the widest header, and two characters over so the last
     # column does not sit against the scrollbar
     RESULTS_WIDTH_MARGIN = 2
@@ -618,9 +620,20 @@ class PlanningMixin:
         newlines written into it, so it fills the dialog whatever is in it, and
         given a fixed height so the window does not resize as it changes.
 
-        remember is handed on to _dialog_window.
+        remember is handed on to _dialog_window, and the height the window is
+        left at is kept under it too, for _show_results_window to open the next
+        one at.
         """
-        win, frame, close = self._dialog_window(title, remember=remember)
+        shown = {}
+
+        def before_close():
+            # The window alone is asked, as _dialog_window asks it for the corner
+            if remember is not None:
+                self._window_memory(remember)["height"] = shown["win"].winfo_height()
+
+        win, frame, close = self._dialog_window(title, before_close=before_close,
+                                                remember=remember)
+        shown["win"] = win
 
         caption_var = tk.StringVar(value=caption)
         tk.Label(frame, anchor='w', font=self.RESULTS_FONT,
@@ -651,9 +664,30 @@ class PlanningMixin:
 
         win.update_idletasks()
         desc_label.config(wraplength=listbox.winfo_reqwidth())
+        # As tall as the list's rows, not as the scrollbar beside it: a
+        # scrollbar asks for 153 pixels whatever the screen, which at 100% is
+        # ten rows rather than six. Given by hand, so the scrollbar stretches to
+        # the list rather than the list to the scrollbar
+        list_frame.config(width=listbox.winfo_reqwidth() + scrollbar.winfo_reqwidth(),
+                          height=listbox.winfo_reqheight())
+        list_frame.pack_propagate(False)
 
         return ResultsFrame(win, frame, controls, description, header, listbox,
                             close, caption_var)
+
+    def _show_results_window(self, win, name: str):
+        """
+        Show a results dialog where the last of its name was left, and as tall:
+        it can be dragged taller, the list taking the room, and back down to
+        the height it first opens at, but not wider - its width is what its
+        widest row needs.
+        """
+        win.update_idletasks()
+        natural = win.winfo_reqheight()
+        taller = max(0, self._window_memory(name).get("height", natural) - natural)
+        if taller:
+            win.geometry(f"{win.winfo_reqwidth()}x{natural + taller}")
+        self._show_tool_window(win, name, resizable=(False, True), shrink=(0, taller))
 
     def _results_actions(self, results, go_to, table, name, extra=None):
         """
@@ -1042,7 +1076,7 @@ class PlanningMixin:
 
         # Not modal, so the renderer's mouse stays in use while the list is
         # open; its keys stay held (search_dialog_open)
-        self._show_tool_window(win, self.CLAIR_OBSCUR_WINDOW)
+        self._show_results_window(win, self.CLAIR_OBSCUR_WINDOW)
 
     def _label_on_moon_box(self, parent, feature: MoonFeature) -> ttk.Checkbutton:
         """
@@ -1316,7 +1350,7 @@ class PlanningMixin:
         # open - the view dragged and turned, a feature named with a click. The
         # renderer's keys stay held all the same (search_dialog_open), so
         # nothing typed there moves the clock the list was worked out from
-        self._show_tool_window(win, self.PLANNER_WINDOW)
+        self._show_results_window(win, self.PLANNER_WINDOW)
 
     def _graph_alt_range(self, feature: MoonFeature) -> tuple:
         """
