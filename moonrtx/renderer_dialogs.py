@@ -1196,6 +1196,14 @@ class DialogsMixin:
                 # of the chosen date decide the offset (see from_observer_clock)
                 new_dt_local = self.from_observer_clock(new_dt_naive)
 
+                # Refused here in a few words, rather than in astro's own long
+                # sentence, which the window has no room for
+                if not (SKYFIELD_MOON_FRAME_START_UTC <= new_dt_local
+                        <= SKYFIELD_MOON_FRAME_END_UTC):
+                    error_var.set(f"Only years {SKYFIELD_MOON_FRAME_START_UTC.year}"
+                                  f"-{SKYFIELD_MOON_FRAME_END_UTC.year - 1}")
+                    return
+
                 # Update the view
                 self.update_view(new_dt_local)
                 
@@ -1209,8 +1217,11 @@ class DialogsMixin:
                 error_var.set("")
                 
             except Exception as e:
-                error_var.set(f"Error: {str(e)}")
-        
+                # Python's own wording ("invalid literal for int() with base
+                # 10") is as much too long for the window, and no clearer
+                print(f"Date/time not set: {e}")
+                error_var.set("Invalid date or time")
+
         def set_now():
             """Set to the current time on the observer's clock."""
             # In the session's timezone, not this machine's: the fields are read

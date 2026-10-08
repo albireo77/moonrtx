@@ -19,6 +19,7 @@ from moonrtx.view_orientation import (VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE,
                                       VIEW_ORIENTATION_SNWE)
 from moonrtx.main import (
     get_date_time_local,
+    date_problem,
     resolve_timezone,
     check_elevation_file,
     elevation_problem,
@@ -892,6 +893,11 @@ class MainWindow(tk.Tk):
                 lat = -lat
             if self.lon_dir_var.get() == "W":
                 lon = -lon
+
+        problem = date_problem(dt_local)
+        if problem is not None:
+            messagebox.showerror("Error", problem)
+            return
 
         try:
             elevation = int(self.elevation_entry.get().strip() or 0)

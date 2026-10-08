@@ -688,8 +688,16 @@ def lighting_at(when_local: datetime, feature_lat: float, feature_lon: float) ->
     # Two samples a minute apart: the first is the moment itself, and the
     # second says which way the Sun is going
     s = sample_feature_series(when_local, 1.0 / 1440, feature_lat, feature_lon, 1)
+    if len(s["times"]) > 1:
+        rising = s["sun_alt"][1] > s["sun_alt"][0]
+    else:
+        # The last minute the kernels cover has no minute after it, so the
+        # minute before says which way the Sun is going instead
+        before = sample_feature_series(when_local - timedelta(minutes=1), 1.0 / 1440,
+                                       feature_lat, feature_lon, 1)
+        rising = before["sun_alt"][1] > before["sun_alt"][0]
     return {"sun_alt": float(s["sun_alt"][0]),
-            "rising": bool(s["sun_alt"][1] > s["sun_alt"][0]),
+            "rising": bool(rising),
             "libr_lat": float(s["libr_lat"][0]),
             "libr_lon": _wrap_signed_degrees(float(s["libr_lon"][0]))}
 

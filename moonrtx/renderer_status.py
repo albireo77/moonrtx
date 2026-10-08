@@ -52,11 +52,21 @@ class StatusMixin:
     """Mixin providing status bar and info panel methods for MoonRenderer."""
 
     @staticmethod
-    def _dms(value: float) -> tuple[int, int, float]:
-        d = int(value)
-        m = int((value - d) * 60)
-        s = (value - d - m / 60) * 3600
-        return d, m, s
+    def _dms(value: float, wrap: int = 0) -> tuple[int, int, float]:
+        """
+        A value of zero or more as whole units, minutes and seconds.
+
+        Rounded to the tenth of a second it is shown to before it is split, so
+        59.95 seconds carries into the next minute rather than reading 60.0.
+        A carry can take the whole units to wrap - 360 degrees of azimuth, 24
+        hours of right ascension - which is then shown as 0.
+        """
+        tenths = round(value * 36000)
+        d, rest = divmod(tenths, 36000)
+        m, s = divmod(rest, 600)
+        if wrap:
+            d %= wrap
+        return d, m, s / 10
 
     # The panels are given their widths in characters, and a character grows
     # with the display. At 300% scaling the nine of them together ask for 4504
@@ -198,7 +208,7 @@ class StatusMixin:
             return
         e = self.moon_ephem
 
-        az_d, az_m, az_s = self._dms(e.az)
+        az_d, az_m, az_s = self._dms(e.az, wrap=360)
         self._info_az_var.set(f"Az:  {az_d:3d}°{az_m:02d}'{az_s:04.1f}\"")
 
         alt_sign = '+' if e.alt >= 0 else '-'
@@ -207,7 +217,7 @@ class StatusMixin:
         if self._info_alt_label is not None:
             self._info_alt_label.configure(fg=self._info_alt_negative_fg if e.alt < 0 else self._info_fg)
 
-        ra_h, ra_m, ra_s = self._dms(e.ra / 15.0 % 24)
+        ra_h, ra_m, ra_s = self._dms(e.ra / 15.0 % 24, wrap=24)
         self._info_ra_var.set(f"RA:   {ra_h:02d}h{ra_m:02d}m{ra_s:04.1f}s")
 
         dec_sign = '+' if e.dec >= 0 else '-'

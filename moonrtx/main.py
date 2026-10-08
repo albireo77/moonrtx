@@ -3,7 +3,7 @@ import os
 import re
 import sys
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tzlocal import get_localzone
@@ -20,6 +20,7 @@ from moonrtx.display import make_dpi_aware, starmap_target_width
 from moonrtx.moon_renderer import run_renderer
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE, VIEW_ORIENTATION_SNEW, VIEW_ORIENTATIONS
 from moonrtx.shared_types import InitView, MapTooLargeError, Observer
+from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
 APP_NAME = "MoonRTX"
 
@@ -350,6 +351,22 @@ def get_date_time_local(time_iso: str, zone) -> tuple[Optional[datetime], Option
         return dt.replace(tzinfo=zone), None
     return dt.astimezone(zone), None
 
+
+def date_problem(dt_local: datetime) -> Optional[str]:
+    """
+    Why the renderer cannot start at this moment, or None when it can.
+
+    Asked before the renderer starts: past the years the bundled Moon data
+    covers, the first position worked out fails, and that is only after the
+    maps have been loaded - a wait that ends in a traceback.
+    """
+    dt_utc = dt_local.astimezone(timezone.utc)
+    if SKYFIELD_MOON_FRAME_START_UTC <= dt_utc <= SKYFIELD_MOON_FRAME_END_UTC:
+        return None
+    return (f"The date must be from {SKYFIELD_MOON_FRAME_START_UTC.year} to "
+            f"{SKYFIELD_MOON_FRAME_END_UTC.year - 1}: the Moon data {APP_NAME} comes "
+            f"with covers only those years.")
+
 def main():
 
     make_dpi_aware()
@@ -393,6 +410,11 @@ def main():
         if lon is None:
             print("Error: --lon parameter is mandatory.")
             sys.exit(1)
+
+    problem = date_problem(dt_local)
+    if problem is not None:
+        print(problem)
+        sys.exit(1)
 
     if not (-180.0 <= lon <= 180.0):
         print("Invalid longitude. Must be between -180 and 180 degrees.")
