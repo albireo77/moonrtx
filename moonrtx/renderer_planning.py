@@ -39,9 +39,9 @@ class ResultsFrame(NamedTuple):
 
     Built by DialogsMixin._results_frame, which puts up the window and
     everything the two results dialogs have in common and leaves these for
-    whichever of them asked: the row the filters go in, the two pieces of
-    text that change with what is listed, the list itself, and the way to
-    shut the window - which the buttons and the Escape key share.
+    whichever of them asked: the row the filters go in, the pieces of text
+    that change with what is listed, the list itself, and the way to shut the
+    window - which the buttons and the Escape key share.
     """
     win: tk.Toplevel
     frame: tk.Frame
@@ -50,6 +50,7 @@ class ResultsFrame(NamedTuple):
     header: tk.StringVar
     listbox: tk.Listbox
     close: Callable[[], None]
+    caption: tk.StringVar           # the line at the top, given at first by the caller
 
 
 class PlanningMixin:
@@ -69,6 +70,14 @@ class PlanningMixin:
     # How far the Sun has to be under the observer's horizon for the sky to
     # count as dark: nautical twilight, where the Sky column turns to night
     PLANNER_DARK_SUN_ALT = -12.0
+    # The planner's "same lighting as now": how far ahead it looks - the match
+    # comes round once a lunation, and is up in the observer's sky in only some
+    # of them - how near the Sun's altitude has to come to the one it has now,
+    # and how far under a feature's horizon the Sun can be before there is no
+    # lighting to match, only night (see astro.find_same_lighting_windows)
+    PLANNER_SAME_LIGHT_DAYS = 365
+    PLANNER_SAME_LIGHT_TOLERANCE = 1.0
+    PLANNER_SAME_LIGHT_NIGHT = -5.0
 
     # Clair-obscur finder. The events last hours, so the scan reaches over
     # several lunations to find ones that are actually up at the observer's
@@ -613,8 +622,9 @@ class PlanningMixin:
         """
         win, frame, close = self._dialog_window(title, remember=remember)
 
+        caption_var = tk.StringVar(value=caption)
         tk.Label(frame, anchor='w', font=self.RESULTS_FONT,
-                 text=caption).pack(fill=tk.X)
+                 textvariable=caption_var).pack(fill=tk.X)
 
         controls = tk.Frame(frame)
         controls.pack(fill=tk.X, pady=(4, 0))
@@ -643,7 +653,7 @@ class PlanningMixin:
         desc_label.config(wraplength=listbox.winfo_reqwidth())
 
         return ResultsFrame(win, frame, controls, description, header, listbox,
-                            close)
+                            close, caption_var)
 
     def _results_actions(self, results, go_to, table, name, extra=None):
         """
@@ -1066,13 +1076,17 @@ class PlanningMixin:
     def observation_planner_dialog(self, feature: MoonFeature):
         """
         Show upcoming windows when the given feature is worth observing and
-        let the user jump the app time to one of them. Two criteria:
+        let the user jump the app time to one of them. Three criteria:
 
         - terminator: the Sun low over the feature, so it stands in relief
           with long shadows (astro.find_terminator_windows)
         - libration: the feature turned toward Earth as far as it gets, which
           is what decides whether a limb formation shows anything at all
           (astro.find_libration_windows)
+        - same lighting: the Sun standing over the feature as it does at the
+          moment on show, for the shadows to be seen again as they are - to
+          repeat an observation, or to match a photograph or a drawing
+          (astro.find_same_lighting_windows)
 
         Parameters
         ----------
@@ -1092,17 +1106,34 @@ class PlanningMixin:
                              f"{'Sun@feat':>7}{'Moon alt':>10}  {'Sky':<8}")
         libration_header = (f"{'Best time (local)':<22}{'Window (local)':<29}{'Presented':>10}"
                             f"{'Libr L':>9}{'Libr B':>9}{'Sun@feat':>10}{'Moon alt':>10}  {'Sky':<8}")
+        same_header = (f"{'Best time (local)':<22}{'Event':<9}{'Window (local)':<29}"
+                       f"{'Sun@feat':>7}{'Libr Δ':>9}{'Moon alt':>10}  {'Sky':<8}")
+        place = f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)  -  next "
 
         dialog = self._results_frame(
             f"Observation Planner - {feature.name}",
-            f"{feature.name}  (lat {feature.lat:.2f}°, lon {feature.lon:.2f}°)"
-            f"  -  next {self.PLANNER_SCAN_DAYS} days",
-            max(len(terminator_header), len(libration_header)),
+            f"{place}{self.PLANNER_SCAN_DAYS} days",
+            max(len(terminator_header), len(libration_header), len(same_header)),
             remember=self.PLANNER_WINDOW)
         win, on_close, listbox = dialog.win, dialog.close, dialog.listbox
         desc_var, header_var = dialog.description, dialog.header
 
         mode_var = tk.StringVar(value="terminator")
+        # The lighting "same lighting" looks for: the Sun over the feature at
+        # the moment on show when that choice was made, kept while it stays
+        # chosen - going to one of its results moves the clock, and the list
+        # should not then follow the clock to lighting that is a little off
+        reference = {"when": None, "lighting": None}
+
+        def choose_mode():
+            if mode_var.get() == "same":
+                reference["when"] = self.dt_local
+                try:
+                    reference["lighting"] = astro.lighting_at(self.dt_local, feature.lat, feature.lon)
+                except ValueError:
+                    reference["lighting"] = None
+            rescan()
+
         mode_row = dialog.controls
         # Room between the choices, measured in the lettering rather than in a
         # fixed number of pixels: at 300% on a 4K screen the words are three
@@ -1110,9 +1141,10 @@ class PlanningMixin:
         gap = 2 * tkfont.Font(font='TkDefaultFont').measure('0')
         tk.Label(mode_row, text="Show:", anchor='w').pack(side=tk.LEFT)
         for value, label in (("terminator", "Near the terminator"),
-                             ("libration", "Best presented (libration)")):
+                             ("libration", "Best presented (libration)"),
+                             ("same", "Same lighting as now")):
             ttk.Radiobutton(mode_row, text=label, value=value, variable=mode_var,
-                            command=lambda: rescan()).pack(side=tk.LEFT, padx=(0, gap))
+                            command=choose_mode).pack(side=tk.LEFT, padx=(0, gap))
         # Resumes where this session last left it, as the clair-obscur filter does
         dark_only_var = tk.BooleanVar(value=self._planner_dark_only)
         ttk.Checkbutton(mode_row, variable=dark_only_var,
@@ -1124,12 +1156,30 @@ class PlanningMixin:
         def rescan():
             nonlocal windows
             listbox.delete(0, tk.END)
-            libration = mode_var.get() == "libration"
+            mode = mode_var.get()
+            libration = mode == "libration"
             self._planner_dark_only = dark_only_var.get()
             dark = ", while the sky is dark" if self._planner_dark_only else ""
+            days = self.PLANNER_SAME_LIGHT_DAYS if mode == "same" else self.PLANNER_SCAN_DAYS
+            dialog.caption.set(f"{place}{days} days")
+            lighting = reference["lighting"]
+            if mode == "same" and (lighting is None
+                                   or lighting["sun_alt"] < self.PLANNER_SAME_LIGHT_NIGHT):
+                windows = []
+                desc_var.set(f"The Sun is down over {feature.name} at the moment on show, so there "
+                             f"is no lighting to match. Set a time when it is lit, then choose "
+                             f"this again.")
+                header_var.set(same_header)
+                return
             try:
-                windows = self._planner_windows(libration, self.dt_local,
-                                                self.PLANNER_SCAN_DAYS, feature)
+                if mode == "same":
+                    windows = astro.find_same_lighting_windows(
+                        reference["when"], days, feature.lat, feature.lon, lighting,
+                        tolerance=self.PLANNER_SAME_LIGHT_TOLERANCE,
+                        moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+                        observer_sun_alt_max=self._planner_observer_sun_alt_max())
+                else:
+                    windows = self._planner_windows(libration, self.dt_local, days, feature)
             except ValueError as e:
                 # Scan start outside the bundled ephemeris kernel range
                 windows = []
@@ -1137,7 +1187,17 @@ class PlanningMixin:
                 header_var.set("")
                 return
 
-            if libration:
+            if mode == "same":
+                when = self.in_observer_clock(reference["when"])
+                desc_var.set(
+                    f"Times the Sun stands over the feature as it did at {when:%Y-%m-%d %H:%M}: "
+                    f"{lighting['sun_alt']:.1f}° and {'rising' if lighting['rising'] else 'setting'}, "
+                    f"within {self.PLANNER_SAME_LIGHT_TOLERANCE:.0f}°, so the shadows are the same. "
+                    f"Libr Δ is how far the view's angle differs from then: the smaller, the more "
+                    f"alike. Listed while the Moon is at least {self.PLANNER_MOON_ALT_MIN:.0f}° up "
+                    f"in your sky{dark}.")
+                header_var.set(same_header)
+            elif libration:
                 desc_var.set(
                     "How far inside the limb libration turns the feature, best first: 90° is the "
                     "centre of the disk, 0° exactly on the limb, and the feature is squashed by the "
@@ -1163,7 +1223,12 @@ class PlanningMixin:
                 start = self.in_observer_clock(w["start"])
                 end = self.in_observer_clock(w["end"])
                 span = f"{start:%m-%d %H:%M} .. {end:%m-%d %H:%M}   "
-                if libration:
+                if mode == "same":
+                    listbox.insert(tk.END,
+                                   f"{best:%Y-%m-%d %a %H:%M}  {w['event']:<9}{span}"
+                                   f"{w['sun_alt']:>6.1f}°{w['libr_delta']:>8.1f}°"
+                                   f"{w['moon_alt']:>9.0f}°  {self._sky_of(w)}")
+                elif libration:
                     listbox.insert(tk.END,
                                    f"{best:%Y-%m-%d %a %H:%M}  {span}"
                                    f"{w['earth_alt']:>9.2f}°{w['libr_long']:>+8.2f}°"
@@ -1193,11 +1258,15 @@ class PlanningMixin:
             Times are written on the observer's clock, as the list shows them,
             except in the calendar, where _ics_text puts them in UTC.
             """
-            libration = mode_var.get() == "libration"
+            mode = mode_var.get()
+            libration = mode == "libration"
             columns = ["Best time", "Window start", "Window end"]
             columns += (["Presented (deg)", "Libration long", "Libration lat"] if libration
                         else ["Event"])
-            columns += ["Sun over feature (deg)", "Moon altitude (deg)", "Sky"]
+            columns += ["Sun over feature (deg)"]
+            if mode == "same":
+                columns += ["Libration difference (deg)"]
+            columns += ["Moon altitude (deg)", "Sky"]
             rows, events = [], []
             for w in windows:
                 best = self.in_observer_clock(w["best"])
@@ -1207,10 +1276,17 @@ class PlanningMixin:
                 if libration:
                     row += [f"{w['earth_alt']:.2f}", f"{w['libr_long']:+.2f}", f"{w['libr_lat']:+.2f}"]
                     headline = f"{feature.name} best presented ({w['earth_alt']:.0f} deg from the limb)"
+                elif mode == "same":
+                    row += [w["event"]]
+                    when = self.in_observer_clock(reference["when"])
+                    headline = f"{feature.name} lit as on {when:%Y-%m-%d %H:%M}"
                 else:
                     row += [w["event"]]
                     headline = f"{feature.name} at the terminator ({w['event']})"
-                row += [f"{w['sun_alt']:.1f}", f"{w['moon_alt']:.0f}", self._sky_of(w)]
+                row += [f"{w['sun_alt']:.1f}"]
+                if mode == "same":
+                    row += [f"{w['libr_delta']:.1f}"]
+                row += [f"{w['moon_alt']:.0f}", self._sky_of(w)]
                 rows.append(row)
                 events.append({
                     "summary": f"MoonRTX: {headline}",
@@ -1230,7 +1306,8 @@ class PlanningMixin:
 
         self._results_actions(
             dialog, go_to, results_for_export,
-            lambda: f"{feature.name.replace(' ', '_')}_{mode_var.get()}",
+            lambda: (f"{feature.name.replace(' ', '_')}_"
+                     f"{'same_lighting' if mode_var.get() == 'same' else mode_var.get()}"),
             extra=("Graph", open_graph))
 
         rescan()

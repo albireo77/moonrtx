@@ -430,8 +430,10 @@ def _find_windows(start_local: datetime, days: float, feature_lat: float, featur
         Given a series (see sample_feature_series), which of its samples
         qualify. Asked of the coarse scan and of the finer looks at the edges
         alike, so the two cannot come to test different things
-    merit : str
-        The series key whose highest value within a window marks its best moment
+    merit : str or callable
+        The series key whose highest value within a window marks its best
+        moment - or, for a figure the series does not carry, a callable
+        working it out of the series
     max_results : int, optional
         Take the windows best-first by merit, and only until this many are
         found. Which windows are best is decided at their best moment, which no
@@ -455,7 +457,7 @@ def _find_windows(start_local: datetime, days: float, feature_lat: float, featur
     series = sample_feature_series(grid_utc, days + (start_utc - grid_utc) / timedelta(days=1),
                                    feature_lat, feature_lon, step_minutes)
     dts = series["times"]
-    figure = series[merit]
+    figure = merit(series) if callable(merit) else series[merit]
 
     def probe(from_utc, to_utc):
         fine = sample_feature_series(from_utc, (to_utc - from_utc) / timedelta(days=1),
@@ -668,6 +670,117 @@ def find_libration_windows(start_local: datetime, days: float,
         "moon_alt": float(series["moon_alt"][best]),
         "observer_sun_alt": float(series["observer_sun_alt"][best]),
     } for start, end, best, best_at in found]
+
+
+def lighting_at(when_local: datetime, feature_lat: float, feature_lon: float) -> dict:
+    """
+    How the Sun stands over a feature at a moment, and how the feature is
+    turned toward the observer then - what find_same_lighting_windows looks
+    for again.
+
+    Returns
+    -------
+    dict
+        "sun_alt" (degrees over the feature), "rising" (True while the Sun
+        climbs there, towards local noon), "libr_lat" and "libr_lon" (the
+        sub-observer point, the topocentric libration, in degrees)
+    """
+    # Two samples a minute apart: the first is the moment itself, and the
+    # second says which way the Sun is going
+    s = sample_feature_series(when_local, 1.0 / 1440, feature_lat, feature_lon, 1)
+    return {"sun_alt": float(s["sun_alt"][0]),
+            "rising": bool(s["sun_alt"][1] > s["sun_alt"][0]),
+            "libr_lat": float(s["libr_lat"][0]),
+            "libr_lon": _wrap_signed_degrees(float(s["libr_lon"][0]))}
+
+
+def _angle_between(lat1, lon1, lat2: float, lon2: float):
+    """Degrees between two selenographic positions, the first possibly arrays."""
+    b1, b2 = np.radians(lat1), math.radians(lat2)
+    cos_angle = (np.sin(b1) * math.sin(b2)
+                 + np.cos(b1) * math.cos(b2) * np.cos(np.radians(lon1) - math.radians(lon2)))
+    return np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0)))
+
+
+# A quarter of a lunation: the Sun comes back to an altitude over a feature on
+# the same side of its noon only once a lunation, so anything sooner is the
+# pass the search started in
+SAME_LIGHTING_MIN_GAP = timedelta(days=7)
+
+
+def find_same_lighting_windows(start_local: datetime, days: float,
+                               feature_lat: float, feature_lon: float,
+                               lighting: dict,
+                               tolerance: float = 1.0,
+                               step_minutes: int = 60,
+                               moon_alt_min: float = 5.0,
+                               observer_sun_alt_max: float = 90.0,
+                               refine_edges: bool = True) -> list[dict]:
+    """
+    Find the coming times a feature is lit as it is in `lighting` (see
+    lighting_at): the Sun standing at the same altitude over it, within
+    `tolerance` degrees, and going the same way - so its shadows have the
+    same length and fall the same way, to repeat an observation or to match
+    an old photograph or drawing. The Sun's altitude over a feature comes
+    back to the same value once a lunation on each side of local noon; only
+    the side `lighting` is on is looked for.
+
+    A window also needs the feature turned toward Earth and the Moon up at
+    the observer's site, as the terminator windows do. How alike the view is
+    beyond the lighting - the libration - is reported rather than required:
+    "libr_delta" is how far the sub-observer point stands from where it stood
+    in `lighting`, and the smaller it is, the more nearly the feature is seen
+    from the same angle.
+
+    Returns
+    -------
+    list[dict]
+        One dict per window, in time order, with "start", "end" and "best"
+        (UTC datetimes; "best" is where the Sun's altitude comes nearest the
+        one looked for), "event" ("sunrise" or "sunset"), "sun_alt",
+        "sun_delta" (its difference from the one looked for), "libr_delta",
+        "moon_alt" and "observer_sun_alt" (degrees at "best"). Windows within
+        SAME_LIGHTING_MIN_GAP of the scan's start are left out: they are the
+        lighting of the moment itself, or the rest of the same pass after the
+        Moon dipped under moon_alt_min - the same evening, not another date.
+    """
+    target, rising = lighting["sun_alt"], lighting["rising"]
+
+    def condition(s):
+        climbing = np.gradient(s["sun_alt"]) > 0
+        return ((np.abs(s["sun_alt"] - target) <= tolerance) & (climbing == rising)
+                & (s["earth_alt"] > 0.0) & (s["moon_alt"] >= moon_alt_min)
+                & (s["observer_sun_alt"] <= observer_sun_alt_max))
+
+    start_utc = _validate_supported_datetime(start_local)
+    series, found = _find_windows(start_local, days, feature_lat, feature_lon, step_minutes,
+                                  condition, lambda s: -np.abs(s["sun_alt"] - target),
+                                  refine_edges)
+    rate = np.gradient(series["sun_alt"])          # degrees per step, at each sample
+    windows = []
+    for start, end, best, best_at in found:
+        if start - start_utc < SAME_LIGHTING_MIN_GAP:
+            continue
+        # The sample nearest the altitude looked for can be up to half a step
+        # off it; the Sun climbs or sinks steadily over a step, so the moment
+        # it reaches it is found from the rate there, and kept in the window
+        if rate[best] != 0:
+            shift = timedelta(minutes=step_minutes * float(target - series["sun_alt"][best]) / float(rate[best]))
+            best_at = min(max(best_at + shift, start), end)
+        there = sample_feature_series(best_at, 1.0 / 1440, feature_lat, feature_lon, 1)
+        windows.append({
+            "start": start,
+            "end": end,
+            "best": best_at,
+            "event": "sunrise" if rising else "sunset",
+            "sun_alt": float(there["sun_alt"][0]),
+            "sun_delta": float(there["sun_alt"][0] - target),
+            "libr_delta": float(_angle_between(there["libr_lat"][0], there["libr_lon"][0],
+                                               lighting["libr_lat"], lighting["libr_lon"])),
+            "moon_alt": float(there["moon_alt"][0]),
+            "observer_sun_alt": float(there["observer_sun_alt"][0]),
+        })
+    return windows
 
 
 # Clair-obscur ("light-dark") events: the shapes that appear for a few hours
