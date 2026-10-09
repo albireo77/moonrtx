@@ -312,6 +312,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self.measure_start_coords = None
         self.leading_line_id = None
         self.measured_distance = None
+        self.measured_angle = None          # what the line spans on the sky, radians
         self.measured_height_diff = None
         # Whether the measurement under way was begun with the right Ctrl, which
         # draws its profile as well (see ProfileMixin), and whether that key is

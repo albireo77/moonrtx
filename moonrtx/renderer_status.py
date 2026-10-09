@@ -51,6 +51,25 @@ def timezone_name(dt_local) -> str:
 class StatusMixin:
     """Mixin providing status bar and info panel methods for MoonRenderer."""
 
+    # Characters the measurement takes before its height difference: "d:", the
+    # distance, and its angle on the sky in brackets at the widest they come -
+    # a line across the whole disk at perigee is "d: 3474.00 km (33.5′)" - so
+    # the height difference stays where it is however the two change
+    STATUS_MEASURED_DISTANCE_CHARS = 21
+
+    @staticmethod
+    def _sky_angle(radians: float) -> str:
+        """
+        An angle on the sky as an observer writes it: in arcseconds, to a tenth
+        below ten of them, and in arcminutes from one up.
+        """
+        seconds = math.degrees(radians) * 3600
+        if seconds < 9.95:
+            return f"{seconds:.1f}″"
+        if seconds < 59.5:
+            return f"{seconds:.0f}″"
+        return f"{seconds / 60:.1f}′"
+
     @staticmethod
     def _dms(value: float, wrap: int = 0) -> tuple[int, int, float]:
         """
@@ -247,7 +266,15 @@ class StatusMixin:
 
     def _update_status_measured(self):
         if self._status_measured_var:
-            measured_text = "             " if self.measured_distance is None else f"d: {self.measured_distance:7.2f} km"
+            # The angle the line spans in the observer's sky, beside how long
+            # it is on the ground (see NavigationMixin.apparent_separation)
+            if self.measured_distance is None:
+                measured_text = ""
+            else:
+                angle = ("" if self.measured_angle is None
+                         else f" ({self._sky_angle(self.measured_angle)})")
+                measured_text = f"d: {self.measured_distance:7.2f} km{angle}"
+            measured_text = measured_text.ljust(self.STATUS_MEASURED_DISTANCE_CHARS)
             measured_text += "" if self.measured_height_diff is None else f"  Δh: {self.measured_height_diff:6.0f} m"
             self._status_measured_var.set(measured_text)
             if self._status_panel_distance_var is not None:
@@ -332,7 +359,7 @@ class StatusMixin:
         """Update feature name in the status bar and remember the active feature."""
         self._status_feature = feature
         if self._status_feature_var:
-            feature_text = "" if feature is None else f"{feature.name} (⌀ = {feature.diameter_km:.2f} km)"
+            feature_text = "" if feature is None else f"{feature.name} ⌀ = {feature.diameter_km:.2f} km"
             self._status_feature_var.set(feature_text)
             if self._status_panel_feature_var is not None:
                 # The name alone: the diameter is in the status bar and in the
@@ -501,19 +528,18 @@ class StatusMixin:
                     # comes to exactly 41 cells, so 40 would clip it.
                     #
                     # Those six cells went to the feature panel (32 -> 38),
-                    # which now holds the whole database: of the 4442 names the
-                    # bar can show, with the size beside them, 17 used to be too
-                    # long and none is. It is a close thing, mind - the longest
-                    # of them, "Promontorium Heraclides", comes to 265 px in a
-                    # panel of 266 - so a name longer than that one would want
-                    # this widened again rather than quietly clipped.
+                    # which held the whole database with the size beside each
+                    # name. Then the measurement took eight of them back
+                    # (27 -> 35) for the angle the line spans on the sky, so
+                    # the bar keeps its width; a long name, with its size, is
+                    # clipped at the end of the panel's 30.
                     panels = [
                         (self._status_pins_var,        8),
                         (self._status_brightness_var, 15),
                         (self._status_gamma_var,      10),
-                        (self._status_feature_var,    38),
+                        (self._status_feature_var,    30),
                         ("coords",                    39),  # composite, see below
-                        (self._status_measured_var,   27),
+                        (self._status_measured_var,   35),
                         (None,                        41),  # placeholder for time panel
                         (self._status_view_var,       10),
                         (self._status_parallactic_var, 21)

@@ -670,6 +670,25 @@ class NavigationMixin:
         distance_km = c * self.MOON_RADIUS_KM
         return distance_km
 
+    def apparent_separation(self, lat1: float, lon1: float,
+                            lat2: float, lon2: float) -> Optional[float]:
+        """
+        The angle between two places on the Moon as the observer sees them, in
+        radians - or None before there is an ephemeris.
+
+        The chord between them, less its part along the line of sight, over
+        the Moon's distance: foreshortening included, so a line running
+        towards the limb spans the small angle it looks to.
+        """
+        if self.moon_ephem is None:
+            return None
+        towards = self._sub_point_direction(self.moon_ephem.libr_lat_topo,
+                                            self.moon_ephem.libr_long_topo)
+        chord = (self._sub_point_direction(lat2, lon2)
+                 - self._sub_point_direction(lat1, lon1)) * self.MOON_RADIUS_KM
+        across = chord - (chord @ towards) * towards
+        return float(np.linalg.norm(across)) / self.moon_ephem.distance
+
     def get_elevation_m(self, lat: float, lon: float) -> float:
         """
         Look up the elevation at a selenographic coordinate relative to the mean Moon radius.
@@ -816,6 +835,7 @@ class NavigationMixin:
                 lat1, lon1 = self.measure_start_coords
                 distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
                 self.measured_distance = distance_km
+                self.measured_angle = self.apparent_separation(lat1, lon1, lat2, lon2)
                 self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
                 self._update_status_measured()
 
@@ -867,6 +887,7 @@ class NavigationMixin:
         distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
         
         self.measured_distance = distance_km
+        self.measured_angle = self.apparent_separation(lat1, lon1, lat2, lon2)
         self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
         self._update_status_measured()
 
@@ -890,5 +911,6 @@ class NavigationMixin:
         if self.measured_distance is None and self.measured_height_diff is None:
             return
         self.measured_distance = None
+        self.measured_angle = None
         self.measured_height_diff = None
         self._update_status_measured()
