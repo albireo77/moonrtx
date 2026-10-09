@@ -608,11 +608,26 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             distance_km = self.moon_ephem.distance
         return float(np.arcsin(self.MOON_RADIUS_KM / distance_km))
 
+    @property
+    def reference_radius(self) -> float:
+        """
+        The scene radius of the 1737.4 km reference surface - the Moon's mean
+        limb as it is drawn.
+
+        Not MOON_RADIUS: the surface is scaled so its highest peak reaches that
+        (see data_loader.load_elevation_data), which puts the reference radius
+        elevation_radius_scale - some 0.6% - inside it. Anything that sets the
+        drawn Moon against a true angle or a true distance has to measure it
+        here, or it comes out that much off.
+        """
+        return self.MOON_RADIUS / getattr(self, "elevation_radius_scale", 1.0)
+
     def moon_radius_in_pixels(self, eye_distance: float = None,
                               fov_deg: float = None) -> Optional[float]:
         """
-        Radius of the rendered Moon in pixels, for the camera now or for one
-        given as a distance and a vertical field.
+        Radius of the rendered Moon in pixels - its mean limb, the reference
+        surface - for the camera now or for one given as a distance and a
+        vertical field.
 
         The disk subtends arcsin(radius / distance) at the eye, and the window
         covers half the field either side of its middle, so the two tangents
@@ -628,7 +643,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         if fov_deg <= 0.0 or eye_distance <= self.MOON_RADIUS or self.rt._height <= 0:
             return None
 
-        return (self.rt._height / 2) * np.tan(np.arcsin(self.MOON_RADIUS / eye_distance)) \
+        return (self.rt._height / 2) * np.tan(np.arcsin(self.reference_radius / eye_distance)) \
             / np.tan(np.radians(fov_deg) / 2)
 
     def surface_magnification(self) -> float:
@@ -912,7 +927,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         camera_distance = self.moon_camera_distance()
 
         # Magnification of the rendered Moon relative to its real apparent size
-        magnification = np.arcsin(self.MOON_RADIUS / camera_distance) / \
+        magnification = np.arcsin(self.reference_radius / camera_distance) / \
             self.moon_apparent_radius()
 
         sun_angular_radius = magnification * np.arcsin(self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)

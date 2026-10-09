@@ -72,10 +72,9 @@ class ScaleBarMixin:
         measured at the plane through its centre, which is where the limb it
         passes is.
 
-        The reference sphere is not the scene's MOON_RADIUS: the surface is
-        scaled so its highest peak reaches that (see data_loader), which puts
-        the 1737.4 km reference radius elevation_radius_scale - some 0.6% -
-        inside it, and a scene unit that much more ground.
+        The reference sphere is not the scene's MOON_RADIUS but some 0.6%
+        inside it, and a scene unit that much more ground (see
+        MoonRenderer.reference_radius).
         """
         if self.rt is None or height <= 0:
             return None
@@ -92,8 +91,7 @@ class ScaleBarMixin:
         if ahead <= 0.0:
             return None
         miss2 = float(eye @ eye) - ahead ** 2       # how far the view passes from it, squared
-        radius_scale = getattr(self, "elevation_radius_scale", 1.0)
-        radius = self.MOON_RADIUS / radius_scale            # the reference sphere
+        radius = self.reference_radius
         distance = ahead - math.sqrt(radius ** 2 - miss2) if miss2 < radius ** 2 else ahead
 
         # The field is the height of the picture (see pan_tilt_view)
