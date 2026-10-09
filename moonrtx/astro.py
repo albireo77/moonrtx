@@ -1178,4 +1178,5 @@ def calculate_moon_ephemeris(dt_local: datetime, parallactic_mode: bool) -> Moon
         subsolar_lat=sun_lat_moon,
         subsolar_lon=_wrap_signed_degrees(sun_lon_moon),
         rotation_matrix=rotation_matrix,
+        earth_distance=float(earth_from_moon.distance().km),
     )

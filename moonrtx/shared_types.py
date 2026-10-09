@@ -57,6 +57,9 @@ class MoonEphemeris(NamedTuple):
     subsolar_lat: float
     subsolar_lon: float
     rotation_matrix: NDArray
+    # From the Moon's centre to the Earth's, km - what places the Earth whose
+    # shadow is the lunar eclipse (see MoonRenderer.calculate_earth)
+    earth_distance: float = 384_400.0
 
 class MoonFeature(NamedTuple):
     name: str
