@@ -21,6 +21,7 @@ from typing import Optional
 from moonrtx.display import allow_minimize, bring_to_front, screen_size
 from moonrtx.shared_types import Camera, InitView
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
+from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE
 
 
 def _ffmpeg_dlls_findable() -> bool:
@@ -645,6 +646,17 @@ class DialogsMixin:
                            "The export will most likely fail to start.\n"
                            "Install latest FFmpeg shared libraries for your OS.")
 
+        # The encoder records the picture as rendered, which is the NSWE one:
+        # the other orientations are only mirrored or turned on the way to the
+        # window, so a video made in one would show the Moon the other way
+        # round from the screen, with its labels written backwards. The keys
+        # are held while this window is open, so the view cannot change under it
+        if self.view_orientation != VIEW_ORIENTATION_NSWE:
+            export_btn.config(state='disabled')
+            status_label.config(fg='red')
+            status_var.set("Videos can be made only in the NSWE view.\n"
+                           "Close this window, press F5, and open it again.")
+
         self._show_dialog(win)
 
     def show_help_dialog(self):
@@ -720,7 +732,7 @@ class DialogsMixin:
             ("I", "Open USGS web page for Moon feature in status bar"),
             ("O", "Open user defined web page (Wikipedia by default) for Moon feature in status bar"),
             ("T", "Open date/time window"),
-            ("V", "Export time-lapse video (MP4)"),
+            ("V", "Export time-lapse video (MP4, NSWE view only)"),
             ("A/Z", "Increase/Decrease brightness"),
             ("E/D", "Increase/Decrease gamma correction (0.5 - 5.0)"),
             ("H/J", "Roll view around current view direction"),
@@ -839,9 +851,11 @@ class DialogsMixin:
             before = _file_stamp(filename)
             # The compass, the locator and the field-of-view frame are drawn on
             # the canvas over the render and are not in the buffer the ray
-            # tracer saves, so whichever of them is on screen is composited into
-            # the file instead. With none showing - or if that goes wrong - the
-            # ray tracer writes the file itself, exactly as it always has.
+            # tracer saves, and that buffer is never mirrored or turned as the
+            # view orientation has the window show it - so the file is made
+            # from the window's picture instead (see save_render_with_overlays).
+            # With none of that to do - or if it goes wrong - the ray tracer
+            # writes the file itself, exactly as it always has.
             if not self.save_render_with_overlays(filename, bps):
                 self.rt.save_image(filename, bps=bps)
             after = _file_stamp(filename)

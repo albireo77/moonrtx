@@ -31,6 +31,8 @@ import cv2
 import numpy as np
 
 from .overlay_raster import FontBook, OverlaySurface, composite
+from .view_orientation import (FLIP_HORIZONTAL_VIEW_ORIENTATIONS,
+                               FLIP_VERTICAL_VIEW_ORIENTATIONS, VIEW_ORIENTATION_NSWE)
 
 
 class CanvasOverlayMixin:
@@ -281,27 +283,45 @@ class CanvasOverlayMixin:
     # in thin coloured lines, so the colour is kept at full resolution here
     OVERLAY_SAVE_JPEG_QUALITY = 95
 
+    def _as_on_screen(self, image: np.ndarray) -> np.ndarray:
+        """
+        The rendered picture turned the way the window shows it.
+
+        The view orientations are not rendered: PlotOptiX mirrors or turns the
+        finished picture only as it puts it on the canvas (see tkoptix), so the
+        buffer it renders into - and saves - is always the NSWE one.
+        """
+        if self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS:
+            image = image[:, ::-1]
+        if self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS:
+            image = image[::-1]
+        return image
+
     def save_render_with_overlays(self, filename: str, bps: str) -> bool:
         """
-        Write the render to a file with the canvas overlays laid over it, and
-        say whether it was written.
+        Write the render to a file as the window shows it, and say whether it
+        was written.
 
-        The ray tracer's own save writes the buffer it rendered, which is the
-        picture without them - they are canvas items over the top of it, and
-        nothing of the canvas reaches the file. So the image is taken out
-        instead, the overlays are drawn into one of their own at the same size,
-        and the two are composited here.
+        The ray tracer's own save writes the buffer it rendered, which is not
+        quite what is on screen. The canvas overlays are not in it - they are
+        canvas items over the top of it, and nothing of the canvas reaches the
+        file - and in a mirrored or turned view orientation it is the picture
+        the other way round, the labels on the Moon written backwards with it.
+        So the image is taken out instead, turned as the window turns it, the
+        overlays are drawn into one of their own at the same size, and the two
+        are composited here.
 
         False means nothing was written and the plain save should do it: no
-        overlay is showing, or the file is of a kind not handled here, or
-        something went wrong - in which case the picture still gets saved,
-        without the overlays, which is what it would have been anyway.
+        overlay is showing and the view is the plain NSWE one, or the file is
+        of a kind not handled here, or something went wrong - in which case
+        the picture still gets saved, as the ray tracer has it.
         """
         if self.rt is None:
             return False
         try:
             overlay = self.overlay_image(self.rt._width, self.rt._height)
-            if overlay is None:                     # nothing switched on
+            turned = self.view_orientation != VIEW_ORIENTATION_NSWE
+            if overlay is None and not turned:      # the buffer is the picture
                 return False
 
             extension = os.path.splitext(filename)[1].lower()
@@ -312,7 +332,8 @@ class CanvasOverlayMixin:
             if base is None:
                 return False
 
-            merged = composite(base, overlay)
+            base = self._as_on_screen(base)
+            merged = base if overlay is None else composite(base, overlay)
             # OpenCV writes blue first, and encoding to memory rather than
             # letting it open the file keeps paths it cannot spell working
             params = ([int(cv2.IMWRITE_JPEG_QUALITY), self.OVERLAY_SAVE_JPEG_QUALITY,

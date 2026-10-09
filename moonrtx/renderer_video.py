@@ -9,6 +9,8 @@ import numpy as np
 from typing import Optional
 from datetime import datetime
 
+from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE
+
 
 class VideoMixin:
     """Mixin providing time-lapse video export methods for MoonRenderer."""
@@ -244,6 +246,10 @@ class VideoMixin:
             return "Renderer not running"
         if self._video_export is not None:
             return "An export is already running"
+        # The encoder records the picture as rendered, which only the NSWE view
+        # shows unchanged (see export_video_dialog)
+        if self.view_orientation != VIEW_ORIENTATION_NSWE:
+            return "Videos can be made only in the NSWE view (F5)"
 
         # Auto-advance ticks would inject extra time jumps mid-export, so it is
         # switched off for the duration and handed back afterwards
