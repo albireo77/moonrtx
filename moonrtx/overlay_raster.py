@@ -260,6 +260,14 @@ class OverlaySurface:
     def delete(self, item):
         """Nothing here outlives one drawing, so there is nothing to remove."""
 
+    def measure(self, text: str, font) -> float:
+        """
+        How wide text is in that font, in the picture's own pixels - what
+        tkinter.font.Font.measure answers for the window.
+        """
+        face, _ascent, _linespace = self._fonts.face(font, self._scale)
+        return face.getlength(text) / self._scale
+
     # ---- and the marks they make ----
 
     def _item(self) -> int:

@@ -38,13 +38,14 @@ from moonrtx.renderer_locator import LocatorMixin
 from moonrtx.renderer_catalogue import CatalogueMixin
 from moonrtx.renderer_profile import ProfileMixin
 from moonrtx.renderer_settings import SettingsMixin
+from moonrtx.renderer_scalebar import ScaleBarMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
-                   SettingsMixin):
+                   SettingsMixin, ScaleBarMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -352,6 +353,9 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # View-orientation globe state (see renderer_compass.CompassMixin)
         self._init_compass_overlay()
         self._init_locator()
+
+        # How far a stretch of the picture is on the ground (see renderer_scalebar)
+        self._init_scale_bar()
 
         # Drawing all three into a picture, for F12 and for video frames
         # (see renderer_overlay.CanvasOverlayMixin.overlay_image)
@@ -1285,6 +1289,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.hide_pinned_labels()
         elif event.keysym == 'End':
             moon_renderer.reset_to_default_view()
+        elif event.keysym == 'Insert':
+            moon_renderer.toggle_scale_bar()
         elif event.keysym.lower() == 'v':
             moon_renderer.export_video_dialog()
         elif event.keysym.lower() == 'g':

@@ -75,6 +75,21 @@ class VideoMixin:
         text = ''.join(c for c in text if not unicodedata.combining(c))
         return ''.join(c if 32 <= ord(c) < 127 else '?' for c in text)
 
+    def _video_label_size(self, h: int, text: str) -> tuple:
+        """
+        How a label is drawn in a frame h pixels tall: the font, its scale,
+        the stroke and the baseline, the margin from the frame's edge, the
+        padding inside the box, and the box's width and height.
+        """
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        px = max(10, int(round(h * self.VIDEO_TIME_TEXT_FRACTION)))
+        thickness = max(1, px // 9)
+        scale = cv2.getFontScaleFromHeight(font, px, thickness)
+        (tw, th), baseline = cv2.getTextSize(text, font, scale, thickness)
+        margin = max(6, int(round(h * self.VIDEO_TIME_MARGIN_FRACTION)))
+        pad = max(4, px // 3)
+        return font, scale, thickness, baseline, margin, pad, tw + 2 * pad, th + baseline + 2 * pad
+
     def _draw_video_label(self, buf, text: str, corner: str):
         """
         Draw one line of white text on a translucent dark box in one corner of
@@ -87,15 +102,7 @@ class VideoMixin:
         running off the edge.
         """
         h, w = buf.shape[:2]
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        px = max(10, int(round(h * self.VIDEO_TIME_TEXT_FRACTION)))
-        thickness = max(1, px // 9)
-        scale = cv2.getFontScaleFromHeight(font, px, thickness)
-        (tw, th), baseline = cv2.getTextSize(text, font, scale, thickness)
-        margin = max(6, int(round(h * self.VIDEO_TIME_MARGIN_FRACTION)))
-        pad = max(4, px // 3)
-        box_w = tw + 2 * pad
-        box_h = th + baseline + 2 * pad
+        font, scale, thickness, baseline, margin, pad, box_w, box_h =             self._video_label_size(h, text)
         top = corner.startswith("top")
         right = corner.endswith("right")
         y0 = margin if top else max(0, h - margin - box_h)
@@ -144,13 +151,21 @@ class VideoMixin:
         else:
             buf.fill(0)
 
+        time_text = self._video_time_text(dt_local) if dt_local is not None else ""
         if canvas_overlays:
-            drawn = self.overlay_image(w, h)
+            # The scale bar keeps to the bottom-right corner, and stands above a
+            # label of the video's own there rather than under it
+            floor = 0.0
+            for text, corner in ((time_text, time_corner), (caption, caption_corner)):
+                if text and corner == "bottom-right":
+                    _f, _s, _t, _b, margin, _p, _w, box_h = self._video_label_size(h, text)
+                    floor = max(floor, margin + box_h)
+            drawn = self.overlay_image(w, h, floor=floor)
             if drawn is not None:
                 buf[:] = drawn
 
-        if dt_local is not None:
-            self._draw_video_label(buf, self._video_time_text(dt_local), time_corner)
+        if time_text:
+            self._draw_video_label(buf, time_text, time_corner)
         if caption:
             self._draw_video_label(buf, caption, caption_corner)
 

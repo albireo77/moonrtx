@@ -741,6 +741,12 @@ class StatusMixin:
                 if self.initial_fullscreen:
                     self._hide_status_row()
 
+                # The scale bar, if the last run left it on (see
+                # renderer_settings): the setting is read before there is a
+                # window, and the bar can only be drawn now there is one
+                if self.scale_bar_visible:
+                    self.show_scale_bar(True)
+
                 # And the keyboard. PlotOptiX builds this window on its own
                 # thread while whatever started the renderer still holds the
                 # focus, so it opens without it - and it binds its key handler

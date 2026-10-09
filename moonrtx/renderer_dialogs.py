@@ -534,11 +534,11 @@ class DialogsMixin:
         # screen when the export starts is what goes into the frames, each
         # redrawn for the time its own frame shows.
         showing = (self.compass_visible or self.locator_visible
-                   or self.fov_overlay_visible)
+                   or self.fov_overlay_visible or self.scale_bar_visible)
         burn_overlays_var = tk.BooleanVar(value=showing)
         burn_overlays_cb = ttk.Checkbutton(
             main_frame, variable=burn_overlays_var,
-            text="Show overlays (compass, locator, field of view)")
+            text="Show overlays (compass, locator, field of view, scale bar)")
         burn_overlays_cb.pack(fill=tk.X, pady=(4, 0))
         if not showing:
             burn_overlays_cb.config(state='disabled')
@@ -744,12 +744,13 @@ class DialogsMixin:
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
             ("Shift + B", "Set up the eyepiece / camera field of view frame"),
+            ("Arrows", "Move view"),
             ("Space", "Center and fix view on point under cursor"),
+            ("Escape", "Leave full screen; close a window (dialog)"),
             ("Home", "Reset camera and time to initial state"),
             ("End", "Reset camera to default state (useful after starting with `--init-view` parameter)"),
+            ("Insert", "Toggle scale bar (less accurate toward the Moon's edge)"),
             ("Delete", "Remove labels left by Find, Observation Planner and clicks"),
-            ("Escape", "Leave full screen; close a window (dialog)"),
-            ("Arrows", "Move view"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Click left mouse button", "Label Moon feature under cursor; click again to remove"),

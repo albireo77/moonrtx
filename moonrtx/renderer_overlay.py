@@ -59,7 +59,8 @@ class CanvasOverlayMixin:
     # What each overlay calls the list of canvas items it is holding. Set aside
     # while one is being drawn into a picture instead of onto the window, so
     # that the window's own items are neither redrawn nor lost.
-    OVERLAY_ITEM_LISTS = ("_compass_items", "_locator_items", "_fov_items")
+    OVERLAY_ITEM_LISTS = ("_compass_items", "_locator_items", "_fov_items",
+                          "_scale_bar_items")
 
     # A pixel is not a fixed size, and these overlays are drawn in pixels. Their
     # lettering escapes that by being asked for in points, which Tk grows with
@@ -247,10 +248,13 @@ class CanvasOverlayMixin:
             setattr(stand_in, name, [])
         return stand_in
 
-    def overlay_image(self, width: int, height: int):
+    def overlay_image(self, width: int, height: int, floor: float = 0.0):
         """
         Everything the canvas overlays currently show, drawn at that size as an
         RGBA array - or None when none of them is switched on.
+
+        floor is how much of the bottom-right corner is taken already - by a
+        video's own label there - for the scale bar to stand above it.
 
         This is what puts them into an image saved with F12 and into the frames
         of an exported video, neither of which carries the canvas. They are
@@ -261,11 +265,13 @@ class CanvasOverlayMixin:
         showing = [(getattr(self, "compass_visible", False), "_draw_compass"),
                    (getattr(self, "locator_visible", False), "_draw_locator"),
                    (getattr(self, "fov_overlay_visible", False),
-                    "_draw_fov_overlay")]
+                    "_draw_fov_overlay"),
+                   (getattr(self, "scale_bar_visible", False), "_draw_scale_bar")]
         if not any(visible for visible, _draw in showing):
             return None
 
         stand_in = self._overlay_offscreen(width, height)
+        stand_in._scale_bar_floor = floor
         for visible, draw in showing:
             if visible:
                 getattr(stand_in, draw)()

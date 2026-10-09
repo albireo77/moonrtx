@@ -3,7 +3,8 @@ SettingsMixin: the choices made in the windows, kept from one run to the next.
 
 The field-of-view setup is the one that costs most to lose - a telescope, an
 eyepiece or a camera typed in again every run - and the ticks and spans left in
-the planner, the graph and the profile go with it. They are read when the
+the planner, the graph and the profile go with it, and whether the scale bar
+(Insert) is on. They are read when the
 renderer starts and written when its window is closed, into a file of their own
 beside the caches in the data folder.
 
@@ -53,6 +54,7 @@ class SettingsMixin:
             "_graph_step_minutes": lambda v: v is None or (
                 isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 1440),
             "_profile_show_place": flag,
+            "scale_bar_visible": flag,
         }
 
     def _fov_setup_from(self, stored) -> dict:
