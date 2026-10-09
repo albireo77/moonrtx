@@ -66,7 +66,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **B** - Toggle the field of view frame (set it up with Shift + B)  
 **C** - Toggle compass showing how far the view is turned (rotated) from default  
 **R** - Toggle locator showing where on the Moon the view is  
-**F** - Search for Moon features (craters, mounts etc.)  
+**F** - Search for Moon features (craters, mounts etc.) or go to lat lon  
 **X** - Find clair-obscur events (Lunar X, Lunar V, Jewelled Handle, Eyes of Clavius, Rupes Recta)  
 **U** - Chart when the Moon is up over the coming month  
 **K** - Open observation planner (terminator / libration) for Moon feature in status bar  

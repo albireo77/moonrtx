@@ -305,6 +305,10 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # Pins settings
         self.pins_visible = True  # Pins visible by default
         self.pins = {}  # dict mapping digit (1-9) to (lat, lon, body-frame graph vertices)
+        # The place the Find window went to, and its mark's body-frame vertices
+        # (see PinsMixin.mark_place)
+        self._place_mark = None
+        self._place_mark_pos = None
 
         # Distance measurement settings
         self.measuring = False
@@ -966,6 +970,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             self.update_spot_labels_orientation()
         if self.pins_visible:
             self.update_pins_orientation()
+        if self._place_mark is not None:
+            self.update_place_mark_orientation()
         if self.sub_points_visible:
             self.update_sub_points()
         if self._catalogue_active():

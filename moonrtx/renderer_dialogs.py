@@ -9,6 +9,7 @@ writing of results to the clipboard, a spreadsheet or a calendar.
 """
 
 import os
+import re
 import glob
 import calendar
 import unicodedata
@@ -18,8 +19,8 @@ from tkinter import filedialog, messagebox
 from datetime import datetime
 from typing import Optional
 
-from moonrtx.display import allow_minimize, bring_to_front, screen_size
-from moonrtx.shared_types import Camera, InitView
+from moonrtx.display import ToolTip, allow_minimize, bring_to_front, screen_size
+from moonrtx.shared_types import Camera, InitView, MoonFeature
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE
 
@@ -65,6 +66,45 @@ def _search_key(text: str) -> str:
     for mark in ".'-":
         plain = plain.replace(mark, " ")
     return " ".join(plain.lower().split())
+
+
+# One coordinate as it is typed: a number, signed or not, a degree sign if one
+# is wanted, and the letter of its hemisphere if the sign is not
+_COORDINATE = r"([+-]?\d+(?:\.\d*)?|[+-]?\.\d+)\s*°?\s*([nsew])?"
+# Something has to stand between the two - a space, a comma, or the first one's
+# degree sign or letter - or "43" would be read as 4 and 3
+_COORDINATES = re.compile(
+    r"\s*" + _COORDINATE + r"(?:\s*[,;]\s*|\s+|(?<=[°nsew])\s*)" + _COORDINATE + r"\s*",
+    re.IGNORECASE)
+
+
+def _parse_coordinates(text: str) -> Optional[tuple]:
+    """
+    A place typed into the Find window, as (latitude, longitude) in degrees,
+    or None when the text is not one.
+
+    Latitude first, as the status bar writes them, the two apart by a space or
+    a comma: "-43.3 -11.4", "43.3S 11.4W" and "43.3°S, 11.4°W" are the same
+    place. A letter decides the hemisphere where it is given; a longitude
+    counted eastwards all the way round, 0 to 360, is taken as well.
+    """
+    match = _COORDINATES.fullmatch(text)
+    if match is None:
+        return None
+    lat_text, lat_side, lon_text, lon_side = match.groups()
+    lat_side, lon_side = (lat_side or "").lower(), (lon_side or "").lower()
+    if lat_side in ("e", "w") or lon_side in ("n", "s"):
+        return None
+    lat, lon = float(lat_text), float(lon_text)
+    if lat_side:
+        lat = abs(lat) if lat_side == "n" else -abs(lat)
+    if lon_side:
+        lon = abs(lon) if lon_side == "e" else -abs(lon)
+    elif 180.0 < lon <= 360.0:
+        lon -= 360.0
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return None
+    return lat, lon
 
 
 class DialogsMixin:
@@ -725,7 +765,7 @@ class DialogsMixin:
             ("B", "Toggle the field of view frame (set it up with Shift + B)"),
             ("C", "Toggle compass showing how far the view is turned (rotated) from default"),
             ("R", "Toggle locator showing where on the Moon the view is"),
-            ("F", "Search for Moon features (craters, mounts etc.)"),
+            ("F", "Search for Moon features (craters, mounts etc.) or go to lat lon"),
             ("X", "Find clair-obscur events (Lunar X, Jewelled Handle, Rupes Recta ...)"),
             ("U", "Chart when the Moon is up over the coming month"),
             ("K", "Open observation planner (terminator / libration) for Moon feature in status bar"),
@@ -922,23 +962,41 @@ class DialogsMixin:
         listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=listbox.yview)
         
-        # Store matching features
-        matching_features = []
-        
+        # What each row of the list stands for: a feature, or - first, when the
+        # text typed is a latitude and a longitude - the place itself, as a
+        # (lat, lon) pair. Told apart by asking for a feature: a MoonFeature is
+        # a tuple as well
+        rows = []
+
+        def feature_at(index: int):
+            """The feature on that row, or None for the place, or for no row."""
+            if 0 <= index < len(rows) and isinstance(rows[index], MoonFeature):
+                return rows[index]
+            return None
+
         def update_results(*args):
             query = _search_key(search_var.get())
             listbox.delete(0, tk.END)
-            matching_features.clear()
+            rows.clear()
 
+            # Read from the text as typed: the search key takes the minus
+            # signs and the decimal points out
+            place = _parse_coordinates(search_var.get())
+            if place is not None:
+                lat, lon = place
+                rows.append(place)
+                listbox.insert(tk.END, f"Go to Lat: {abs(lat):.2f}°{'N' if lat >= 0 else 'S'} "
+                                       f"Lon: {abs(lon):.2f}°{'E' if lon >= 0 else 'W'}")
             if query:
                 # Biggest first, so a crater comes before its lettered satellites;
                 # sorted here, the table itself staying smallest first for the
                 # status bar's lookup
-                matching_features.extend(sorted(
+                rows.extend(sorted(
                     (f for f in self.moon_features if query in _search_key(f.name)),
                     key=lambda f: f.diameter_km, reverse=True))
-                for feature in matching_features:
-                    listbox.insert(tk.END, f"{feature.name} ({feature.diameter_km:.2f} km)")
+                for feature in rows:
+                    if isinstance(feature, MoonFeature):
+                        listbox.insert(tk.END, f"{feature.name} ({feature.diameter_km:.2f} km)")
             # Once the list is rebuilt, never ahead of it: a trace of its own
             # on the search text would run first, Tcl calling the newest first
             update_web_page_button()
@@ -948,20 +1006,26 @@ class DialogsMixin:
             if not selection and listbox.size() > 0:
                 listbox.selection_set(0)
                 selection = (0,)
-            if selection and matching_features:
-                return matching_features[selection[0]]
-            return None
+            return feature_at(selection[0]) if selection else None
 
         def on_select(event=None):
             selection = listbox.curselection()
-            if selection and matching_features:
-                feature = matching_features[selection[0]]
-                self.center_on_feature(feature)
-                # Named where the view has just been taken, and left named once
-                # this window has gone, as a feature graph leaves its own - until
-                # Delete takes the names off (see LabelsMixin.hide_all_labels)
-                self.pin_catalogue_feature(feature)
+            if not selection or selection[0] >= len(rows):
+                return
+            if not isinstance(rows[selection[0]], MoonFeature):
+                # A place rather than a feature: the view is taken there, and
+                # with no name to put on it, it is marked instead
+                self.center_on_lat_lon(*rows[selection[0]])
+                self.mark_place(*rows[selection[0]])
                 on_close()
+                return
+            feature = rows[selection[0]]
+            self.center_on_feature(feature)
+            # Named where the view has just been taken, and left named once
+            # this window has gone, as a feature graph leaves its own - until
+            # Delete takes the names off (see LabelsMixin.hide_all_labels)
+            self.pin_catalogue_feature(feature)
+            on_close()
 
         def on_planner():
             feature = selected_feature()
@@ -999,8 +1063,7 @@ class DialogsMixin:
             a row the way selected_feature does.
             """
             selection = listbox.curselection()
-            index = selection[0] if selection else 0
-            return matching_features[index] if index < len(matching_features) else None
+            return feature_at(selection[0] if selection else 0)
 
         # This window stays open for both: the page opens in the browser, beside it
         def on_web_page():
@@ -1028,6 +1091,21 @@ class DialogsMixin:
         web_btn.pack(side=tk.LEFT)
         usgs_btn = tk.Button(btn_frame, text="USGS page", command=on_usgs_page, state=tk.DISABLED)
         usgs_btn.pack(side=tk.LEFT, padx=(6, 0))
+        # What the window does, under one word, as the graph and the profile
+        # keep theirs: a bullet to each entry, a line carried over indented by
+        # the three spaces nearest the bullet's width in the tooltip's font
+        help_hint = (
+            "• Type part of a name to find a feature. Accents, dots and hyphens\n"
+            "   do not matter: \"mosting\" finds Mösting.\n"
+            "• Or type a latitude and longitude, latitude first. Examples:\n"
+            "   -43.3 -11.4   or   43.3S 11.4W   or   43.3°S, 11.4°W\n"
+            "• Enter or a double-click goes to the chosen row. A feature gets\n"
+            "   its name on the Moon, a place a red cross. Delete key removes them.\n"
+            "• Web page and USGS page open the feature's pages in the browser.\n"
+            "• Observation Planner and Graph open those windows for the feature.")
+        help_label = tk.Label(btn_frame, text="Help", fg='#606060')
+        help_label.pack(side=tk.LEFT, padx=(12, 0))
+        ToolTip(help_label, help_hint)
         tk.Button(btn_frame, text="Graph", command=on_graph).pack(side=tk.RIGHT)
         tk.Button(btn_frame, text="Observation Planner", command=on_planner).pack(
             side=tk.RIGHT, padx=(0, 6))

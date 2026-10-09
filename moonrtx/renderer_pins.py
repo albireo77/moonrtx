@@ -5,6 +5,8 @@ Each pin digit is a single graph geometry (all strokes merged), so rotating
 pins after a time change is one update_graph call per pin.
 """
 
+import numpy as np
+
 from moonrtx.moon_grid import (PIN_DIGIT_SCALE, create_single_digit_on_sphere,
                               merge_segments_to_graph)
 
@@ -165,6 +167,67 @@ class PinsMixin:
 
         for digit, (_, _, pos) in self.pins.items():
             self.rt.update_graph(f"pin_{digit}", pos=self._rotate_to_scene(pos))
+
+    # ---- the place the Find window went to ----
+
+    # A cross with its middle left open, so the point itself stays in sight:
+    # each arm runs this many degrees out from the place at the full lettering
+    # size, and shrinks with the lettering as the view is magnified, so the
+    # cross keeps about the same size on screen
+    PLACE_MARK_GEOM = "place_mark"
+    PLACE_MARK_ARM_DEG = (0.5, 2.0)
+    PLACE_MARK_ARM_POINTS = 6           # along each arm, so it lies on the sphere
+
+    def mark_place(self, lat: float, lon: float):
+        """
+        Mark a place on the surface - where the Find window was told to go,
+        which has no name to label it with. One place at a time; it stays until
+        Delete takes it off with the labels Find leaves (see hide_pinned_labels).
+        """
+        self._place_mark = (lat, lon)
+        self._draw_place_mark()
+
+    def clear_place_mark(self):
+        """Take the place's mark off, if there is one."""
+        self._place_mark = None
+        self._place_mark_pos = None
+        if self.rt is not None and self.PLACE_MARK_GEOM in self.rt.geometry_data:
+            self.rt.delete_geometry(self.PLACE_MARK_GEOM)
+
+    def _draw_place_mark(self):
+        """
+        Build the mark for the place, at the lettering size of the moment.
+
+        Each arm is a stretch of great circle from the place towards north,
+        south, east or west, so the cross lies on the globe and is square to
+        the meridian there wherever the place is, poles included.
+        """
+        if self.rt is None or self._place_mark is None:
+            return
+        lat, lon = self._place_mark
+        la, lo = np.radians(lat), np.radians(lon)
+        # The place and the two directions along the surface from it, in the
+        # frame the pins and labels are placed in (see _sub_point_direction)
+        place = self._sub_point_direction(lat, lon)
+        north = np.array([-np.sin(la) * np.sin(lo), np.sin(la) * np.cos(lo), np.cos(la)])
+        east = np.array([np.cos(lo), np.sin(lo), 0.0])
+        inner, outer = (np.radians(a) * self.label_scale() for a in self.PLACE_MARK_ARM_DEG)
+        angles = np.linspace(inner, outer, self.PLACE_MARK_ARM_POINTS)
+        arms = [(np.outer(np.cos(angles), place) + np.outer(np.sin(angles), way)) * self.MOON_RADIUS
+                for way in (north, -north, east, -east)]
+
+        pos, edges = merge_segments_to_graph(arms)
+        self._place_mark_pos = pos
+        self.rt.update_material("pin_material", self._no_shadow_flat_material())
+        self.rt.set_graph(self.PLACE_MARK_GEOM, pos=self._rotate_to_scene(pos), edges=edges,
+                          r=self.PIN_LABEL_RADIUS * self.label_scale(), c=self.PIN_COLOR,
+                          mat="pin_material")
+
+    def update_place_mark_orientation(self):
+        """Turn the mark with the Moon after a step in time, as the pins are."""
+        if self.rt is None or self._place_mark_pos is None:
+            return
+        self.rt.update_graph(self.PLACE_MARK_GEOM, pos=self._rotate_to_scene(self._place_mark_pos))
 
     def update_pins_for_view_orientation(self):
         """

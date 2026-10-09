@@ -100,6 +100,7 @@ class LabelsMixin:
         if self.spot_labels is not None and self.spot_labels_visible:
             self.update_spot_labels_for_view_orientation()
         self.update_pins_for_view_orientation()
+        self._draw_place_mark()
 
     def _label_scale_tick(self):
         """Follow the magnification, and rewrite the lettering when it moves a step."""
@@ -606,6 +607,9 @@ class LabelsMixin:
         # Redrawn rather than switched off: show_catalogue(False) would take the
         # catalogue's own names (P) off with the pinned ones
         self._refresh_catalogue()
+        # And the mark of a place the Find window went to, which stands in for
+        # a name there was none of
+        self.clear_place_mark()
 
     # ---- orientation updates (after time change) ----
 
