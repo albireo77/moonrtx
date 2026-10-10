@@ -110,8 +110,8 @@ This export uses PlotOptiX's hardware-accelerated NVENC encoder producing high q
 **Libration and apparent size**  
 [![Libration](https://img.youtube.com/vi/pmU6eoUkY5o/maxresdefault.jpg)](https://www.youtube.com/watch?v=pmU6eoUkY5o)  
 
-**Lunar eclipse**  
-[![Libration](https://img.youtube.com/vi/LboPJLZiSPU/maxresdefault.jpg)](https://www.youtube.com/watch?v=LboPJLZiSPU)  
+**Partial lunar eclipse**  
+[![Partial Lunar Eclipse](https://img.youtube.com/vi/esQMdWpA5ho/maxresdefault.jpg)](https://www.youtube.com/watch?v=esQMdWpA5ho)  
 
 ## Screens
 **Selenographic grid and labels**
