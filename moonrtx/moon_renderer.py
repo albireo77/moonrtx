@@ -472,6 +472,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             return
         self.brightness = new_brightness
         self.rt.update_light(self.LIGHT_NAME, color=self._sun_light_colour())
+        self._update_status_brightness()
 
     def _sun_light_colour(self) -> float:
         """
@@ -480,7 +481,6 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         (see SUN_POINT_RADIUS), so the surface is lit the same either way.
         """
         return self.brightness * self.SUN_BRIGHTNESS_SCALE * getattr(self, "_sun_light_boost", 1.0)
-        self._update_status_brightness()
 
     def change_gamma(self, delta: float):
         """
