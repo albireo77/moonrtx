@@ -9,33 +9,9 @@ import webbrowser
 from typing import Optional
 
 from moonrtx import astro
-from moonrtx.display import bring_to_front
+from moonrtx.display import ToolTip, bring_to_front
 from moonrtx.view_orientation import VIEW_ORIENTATIONS
 from moonrtx.shared_types import MoonFeature
-
-
-class _ToolTip:
-    """Simple tooltip for tkinter widgets."""
-    def __init__(self, widget, text):
-        self._widget = widget
-        self._text = text
-        self._tw = None
-        widget.bind('<Enter>', self._show)
-        widget.bind('<Leave>', self._hide)
-
-    def _show(self, event=None):
-        x = self._widget.winfo_rootx() + self._widget.winfo_width() // 2
-        y = self._widget.winfo_rooty() - 24
-        self._tw = tw = tk.Toplevel(self._widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f'+{x}+{y}')
-        tk.Label(tw, text=self._text, background='#ffffe0', relief='solid',
-                 borderwidth=1, font=('Segoe UI', 9)).pack()
-
-    def _hide(self, event=None):
-        if self._tw:
-            self._tw.destroy()
-            self._tw = None
 
 
 def timezone_name(dt_local) -> str:
@@ -566,7 +542,9 @@ class StatusMixin:
                                 command=self._on_auto_advance_toggle,
                             )
                             cb.pack(side='right', padx=(2, 0))
-                            _ToolTip(cb, 'Auto-advance time (every step minutes)')
+                            # The hint goes above the box, the status bar being at the foot
+                            # of the screen (see display.ToolTip)
+                            ToolTip(cb, 'Auto-advance time (every step minutes)')
                             time_panel.pack(side='right', padx=16)
                         elif var == "coords":
                             # Composite coords panel. A Label carries a single

@@ -338,11 +338,34 @@ class ToolTip:
         self.tip.overrideredirect(True)      # no title bar, no taskbar entry
         tk.Label(self.tip, text=self.text, justify=tk.LEFT, background=self.BACKGROUND,
                  relief=tk.SOLID, borderwidth=1, padx=4, pady=2).pack()
-        # Below the widget, and pulled back left if that would run off screen
+        # Below the widget, and pulled back left if that would run off screen.
+        # Above it where there is no room below - down to the taskbar, which
+        # covers what reaches under it. A long hint at 300% scaling is a third
+        # of the screen tall, and the graph's Help, at the foot of its window,
+        # ran some hundreds of pixels off the bottom; a widget on the status
+        # bar has no room below it at all
+        #
+        # Never over the widget itself, though: the pointer is on it, and a hint
+        # put there takes the pointer away from it, which hides the hint, which
+        # gives the pointer back - a flicker. One too tall to fit above or below
+        # goes beside the widget instead, held within the screen
         self.tip.update_idletasks()
-        x = self.widget.winfo_rootx()
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
-        x = min(x, self.widget.winfo_screenwidth() - self.tip.winfo_width() - 8)
+        gap = 4
+        width, height = self.tip.winfo_reqwidth(), self.tip.winfo_reqheight()
+        screen_w = self.widget.winfo_screenwidth()
+        bottom = _work_area(screen_w, self.widget.winfo_screenheight())[1]
+        left, top = self.widget.winfo_rootx(), self.widget.winfo_rooty()
+        right, below = left + self.widget.winfo_width(), top + self.widget.winfo_height()
+        if below + gap + height <= bottom:
+            x, y = left, below + gap
+        elif top - gap - height >= 0:
+            x, y = left, top - gap - height
+        else:
+            x = right + gap if right + gap + width <= screen_w else left - gap - width
+            y = min(max(0, top - height // 2), max(0, bottom - height))
+            self.tip.geometry(f"+{max(x, 0)}+{y}")
+            return
+        x = min(x, screen_w - width - 8)
         self.tip.geometry(f"+{max(x, 0)}+{y}")
 
     def hide(self, _event=None):
