@@ -974,6 +974,28 @@ def _eclipse_geometry(t):
     return separation, moon, pi_1 + pi_s - s_s, pi_1 + pi_s + s_s
 
 
+def eclipse_at(when_local: datetime) -> dict:
+    """
+    The lunar eclipse in progress at a moment, or None when there is none:
+    "kind" (one of LUNAR_ECLIPSE_KINDS) and "magnitude" - the share of the
+    Moon's diameter in the umbra for a partial or total eclipse, in the
+    penumbra for a penumbral one, as eclipse tables give it. Seen from the
+    Earth's centre, as they are.
+    """
+    t = _timescale.from_datetime(_validate_supported_datetime(when_local))
+    separation, moon, umbra, penumbra = (float(x) for x in _eclipse_geometry(t))
+    if separation >= penumbra + moon:
+        return None
+    if separation <= umbra - moon:
+        kind = "Total"
+    elif separation < umbra + moon:
+        kind = "Partial"
+    else:
+        kind = "Penumbral"
+    edge = penumbra if kind == "Penumbral" else umbra
+    return {"kind": kind, "magnitude": (edge + moon - separation) / (2 * moon)}
+
+
 def _crossings(dts: list, values: np.ndarray) -> list:
     """The moments a sampled quantity changes sign, placed between the samples."""
     found = []

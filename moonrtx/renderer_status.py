@@ -234,6 +234,40 @@ class StatusMixin:
         self._info_topo_libr_l_var.set(f"⌖ Libr L: {e.libr_long_topo:+6.3f}°")
         self._info_topo_libr_b_var.set(f"⌖ Libr B: {e.libr_lat_topo:+6.3f}°")
         self._info_colong_var.set(f"Colongit: {e.colongitude:6.2f}°")
+        self._update_info_eclipse()
+
+    # The Moon is in the Earth's shadow only near full, where the Sun stands
+    # some 178 to 180 degrees from it; below this nothing is worked out
+    ECLIPSE_READOUT_ELONGATION = 170.0
+
+    def _update_info_eclipse(self):
+        """
+        Two more rows at the top of the ephemeris panel while the Moon is in
+        the Earth's shadow - the kind of eclipse, and its magnitude as the
+        tables give it - and none otherwise, so the panel is its usual size
+        on every other night. At the top because the panel stands on the
+        foot of the picture and grows upwards: added there, they leave every
+        other row where it was as they come and go.
+        """
+        labels = getattr(self, "_info_eclipse_labels", None)
+        if labels is None or self.moon_ephem is None:
+            return
+        eclipse = None
+        if self.moon_ephem.elongation > self.ECLIPSE_READOUT_ELONGATION:
+            try:
+                eclipse = astro.eclipse_at(self.dt_local)
+            except ValueError:
+                eclipse = None
+        if eclipse is None:
+            for label in labels:
+                label.pack_forget()
+            return
+        self._info_eclipse_kind_var.set(f"{eclipse['kind'] + ' eclipse':>17}")
+        self._info_eclipse_magnitude_var.set(f"Magnitude: {eclipse['magnitude']:6.3f}")
+        if not labels[0].winfo_ismapped():
+            first = self._info_frame.pack_slaves()[0]
+            for label in labels:
+                label.pack(anchor='w', before=first)
 
     def _status_panel_row(self, label: str, value: str) -> str:
         """One row of the status panel: the label flush left, the value flush
@@ -664,6 +698,14 @@ class StatusMixin:
                         label.pack(anchor='w')
                         if var is self._info_alt_var:
                             self._info_alt_label = label
+                    # The eclipse's two rows, made now and put in the panel only
+                    # while the Moon is in the Earth's shadow (_update_info_eclipse)
+                    self._info_eclipse_kind_var = tk.StringVar()
+                    self._info_eclipse_magnitude_var = tk.StringVar()
+                    self._info_eclipse_labels = tuple(
+                        tk.Label(info_frame, textvariable=var, font=info_font, fg=info_fg,
+                                 bg=info_bg, anchor='w', width=info_width)
+                        for var in (self._info_eclipse_kind_var, self._info_eclipse_magnitude_var))
                     info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
 
                     # The status panel: the same lettering and ground as the
