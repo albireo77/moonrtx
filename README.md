@@ -110,8 +110,8 @@ This export uses PlotOptiX's hardware-accelerated NVENC encoder producing high q
 **Libration and apparent size**  
 [![Libration](https://img.youtube.com/vi/pmU6eoUkY5o/maxresdefault.jpg)](https://www.youtube.com/watch?v=pmU6eoUkY5o)  
 
-**Partial lunar eclipse**  
-[![Partial Lunar Eclipse](https://img.youtube.com/vi/_kvBg9ipCqg/maxresdefault.jpg)](https://www.youtube.com/watch?v=_kvBg9ipCqg)  
+**Partial lunar eclipse on 2026-08-28 [NASA link](https://svs.gsfc.nasa.gov/5672)**  
+[![Partial Lunar Eclipse](https://img.youtube.com/vi/qPlL5eJ-Zec/maxresdefault.jpg)](https://www.youtube.com/watch?v=qPlL5eJ-Zec)  
 
 ## Screens
 **Selenographic grid and labels**
