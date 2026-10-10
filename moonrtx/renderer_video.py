@@ -292,8 +292,7 @@ class VideoMixin:
             self._preview_restore_id = None
         if self._preview_active:
             self._preview_active = False
-            self._settling_frames = self.converged_frames()
-            self.rt.set_param(max_accumulation_frames=self._settling_frames)
+            self.rt.set_param(max_accumulation_frames=self.ACCUMULATION_FRAMES)
 
         first_create = self._video_encoder_cfg is None
         if first_create:

@@ -144,38 +144,49 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
     # keeps path-tracing grain low in the shadow/terminator regions (which
     # zero ambient no longer masks) at diminishing returns beyond it.
     ACCUMULATION_FRAMES = 64
-    # While the Moon is in the Earth's shadow, more. Near the umbra only a
-    # sliver of the Sun is left in sight, so a shadow ray finds it lit only now
-    # and then, and at 64 frames that wide band settled grainy - 5.3 levels
-    # between neighbouring pixels, against 2.9 at 256, in some 10 s rather
-    # than 3. Away from an eclipse nothing is in that shadow, and the quicker
-    # setting stands (see _moon_in_earth_shadow)
-    ECLIPSE_ACCUMULATION_FRAMES = 256
     PREVIEW_ACCUMULATION_FRAMES = 1
     PREVIEW_RESTORE_DELAY_MS = 500
 
-    # The Earth, in the scene for its shadow alone: a lunar eclipse is the
-    # Earth standing between the Moon and the Sun, and with an Earth there the
-    # ray tracer finds the umbra and the penumbra on its own, the shadow rays
-    # it already sends towards the Sun meeting it. It lies behind the camera,
-    # so it is never seen, and away from an eclipse it lies off the line to the
-    # Sun and does nothing. Where it stands and how large it is are worked out
-    # for the shadow to be true (see calculate_earth).
+    # The Earth's shadow, which is a lunar eclipse. It is not left to the ray
+    # tracer to find by sending shadow rays at random points of the Sun past
+    # an Earth: near the umbra only a sliver of the Sun is in sight, a ray finds
+    # it lit only now and then, and the penumbra came out as heavy grain -
+    # worst of all in the one-frame preview of a held Q or W. It is worked out
+    # instead, ring by ring - how much of the Sun the Earth hides from each
+    # point of the Moon - and laid on a flat square standing across the line
+    # to the Sun as its see-through texture. While any of the Moon is in the
+    # shadow the Sun is made a point (see SUN_POINT_RADIUS), so every shadow
+    # ray goes through the square at the one place that answers for it, and
+    # the shadow is exact in a single frame. The square lies behind the camera,
+    # never seen, and away from an eclipse no shadow ray comes near it.
     #
     # Seen from the Moon the umbra is some 2% wider than the solid Earth makes
     # it, the atmosphere adding to the body; the 1% of Danjon's rule is the
     # one the eclipse tables use.
-    EARTH_NAME = "earth"
+    EARTH_SHADOW_NAME = "earth_shadow"
     EARTH_RADIUS_KM = 6378.137
     EARTH_SHADOW_ENLARGEMENT = 1.01
+    # Texels across the square, and how far past the penumbra's edge it
+    # reaches, so the texture is fully clear at its rim
+    EARTH_SHADOW_TEXELS = 512
+    EARTH_SHADOW_REACH = 1.02
+    # The square's side away from an eclipse: put out of the way rather than
+    # kept where the shadow is, so a step of the clock costs nothing for it.
+    # Not merely left where an eclipse ended - at the next full Moon the light
+    # comes round behind much the same place, and would cast that shadow again
+    EARTH_SHADOW_PARKED = 1.0e-6
     # The light reaching the umbra, as a share of full sunlight in red, green
     # and blue: what the atmosphere bends round the Earth, reddened by it.
     # Chosen to be seen rather than measured - the totally eclipsed Moon is
     # thousands of times fainter than the full one, far past what A can make
-    # up for - and coppery, as a middling eclipse is. The shadow rays cross
-    # the sphere twice, going in and coming out, and each crossing passes its
-    # colour, so the material carries the square root of it.
+    # up for - and coppery, as a middling eclipse is
     EARTH_UMBRA_LIGHT = (0.06, 0.02, 0.008)
+    # The light's radius while the Moon is in the Earth's shadow: a point, as
+    # far as a shadow is concerned - a second of arc seen from the Moon - its
+    # radiance raised by the square of the shrinking, so it lights the surface
+    # exactly as brightly. The terrain's own shadows harden with it, which at
+    # the full Moon an eclipse needs is out of sight.
+    SUN_POINT_RADIUS = 0.1
 
     CAMERA_NAME = "cam1"
     LIGHT_NAME = "sun"
@@ -460,7 +471,15 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         if new_brightness == self.brightness:
             return
         self.brightness = new_brightness
-        self.rt.update_light(self.LIGHT_NAME, color=self.brightness * self.SUN_BRIGHTNESS_SCALE)
+        self.rt.update_light(self.LIGHT_NAME, color=self._sun_light_colour())
+
+    def _sun_light_colour(self) -> float:
+        """
+        The light's radiance: the brightness setting, raised by the square of
+        however much the light has been shrunk towards a point for an eclipse
+        (see SUN_POINT_RADIUS), so the surface is lit the same either way.
+        """
+        return self.brightness * self.SUN_BRIGHTNESS_SCALE * getattr(self, "_sun_light_boost", 1.0)
         self._update_status_brightness()
 
     def change_gamma(self, delta: float):
@@ -600,8 +619,10 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         if self.rt is None or not self._preview_active:
             return
         self._preview_active = False
-        self._settling_frames = self.converged_frames()
-        self.rt.set_param(max_accumulation_frames=self._settling_frames)
+        self.rt.set_param(max_accumulation_frames=self.ACCUMULATION_FRAMES)
+        # The eclipse shadow the held key left as it was (see _place_earth_shadow)
+        with self.rt._padlock:
+            self._redraw_earth_shadow()
         self.rt.refresh_scene()
 
     # ---- renderer setup ----
@@ -782,7 +803,6 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         # Rendering parameters
         self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=self.ACCUMULATION_FRAMES)
-        self._settling_frames = self.ACCUMULATION_FRAMES
 
         # Direct sunlight only, no light bounced from one part of the surface to another.
         self.rt.set_uint("path_seg_range", 1, 1)
@@ -865,17 +885,23 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                          pos=[[0.0, self.SUN_DISK_DISTANCE, 0.0]],
                          r=self.SUN_DISK_PARKED_RADIUS, c=self.SUN_DISK_COLOR)
 
-        # The Earth, whose shadow is a lunar eclipse (see EARTH_NAME). A shadow
-        # ray crossing it is passed on in the colour of the light that reaches
-        # the umbra; it is placed and sized by update_view
-        passed = [c ** 0.5 for c in self.EARTH_UMBRA_LIGHT]
-        earth_material = m_flat.copy()
-        earth_material["OcclusionProgram"] = (
+        # The square the Earth's shadow is laid on (see EARTH_SHADOW_NAME). A
+        # shadow ray crossing it is passed on in the colour of its texture
+        # there, which is clear until update_view first draws the shadow, and
+        # it is placed and sized by update_view as well
+        self._earth_shadow_shape = None
+        self._earth_shadow_parked = True
+        self._earth_shadow = None
+        self.rt.set_texture_2d(self.EARTH_SHADOW_NAME, np.ones((2, 2, 4), dtype=np.float32) * [1, 1, 1, 0])
+        shadow_material = m_flat.copy()
+        shadow_material["OcclusionProgram"] = (
             "chit7_occlusion_transp.ptx::__closesthit__occlusion_transparency")
-        earth_material["VarFloat4"] = {"base_color": passed + [0.0]}
-        self.rt.setup_material("earth", earth_material)
-        self.rt.set_data(self.EARTH_NAME, geom="ParticleSet", mat="earth",
-                         pos=[[0.0, -10.0 * self.CAMERA_DISTANCE, 0.0]], r=1.0, c=passed)
+        shadow_material["ColorTextures"] = [self.EARTH_SHADOW_NAME]
+        self.rt.setup_material(self.EARTH_SHADOW_NAME, shadow_material)
+        self.rt.set_data(self.EARTH_SHADOW_NAME, geom="Parallelograms", mat=self.EARTH_SHADOW_NAME,
+                         pos=[[0.0, -10.0 * self.CAMERA_DISTANCE, 0.0]],
+                         u=[self.EARTH_SHADOW_PARKED, 0.0, 0.0], v=[0.0, 0.0, self.EARTH_SHADOW_PARKED],
+                         c=[1.0, 1.0, 1.0])
 
 
     def calculate_light_pos(self) -> list:
@@ -1006,74 +1032,159 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         return center.tolist(), float(radius)
 
 
-    def calculate_earth(self) -> tuple[list, float]:
+    def calculate_earth_shadow(self) -> dict:
         """
-        Where the Earth stands in the scene and how large it is, for its shadow.
+        Where the Earth's shadow falls in the scene, as much of it as the
+        renderer needs: its axis, its two radii where it crosses the Moon's
+        centre, and whether the Moon is in it.
 
-        Not simply at its true distance and size. The light has the Sun's true
-        apparent size, but stands only some ten Earth-Moon distances off (see
-        SUN_LIGHT_DISTANCE), and the cones of the shadow - the lines touching
-        the light and the Earth - would open out from such an Earth some 11%
-        wider than the real ones, umbra and penumbra alike. So the shadow is
-        worked out as it really falls on the Moon, its two radii there, and the
-        Earth is put where it casts exactly those in this scene: a little
-        nearer and a little smaller than the true one, along the true
-        direction to the Earth's centre, which is the geocentric libration.
-        The same placing puts the shadow's centre where the real one falls.
+        The radii are the real ones, the umbra and penumbra cones from the
+        Sun's limb past the Earth's, scaled to the scene. The axis runs from
+        the light's centre past a point placed for the light as it stands in
+        the scene: the light has the Sun's true apparent size but stands only
+        some ten Earth-Moon distances off, so that point is not the Earth's
+        true place but the one an Earth would need to cast those two radii
+        here - a little nearer and a little smaller than the true one, along
+        the true direction to the Earth's centre, which is the geocentric
+        libration. The same placing puts the shadow's centre where the real
+        one falls (the eclipse magnitudes come out within 0.005 of the tables).
+
+        Returns
+        -------
+        dict
+            "centre" (that point), "axis" (unit vector from the light along
+            the shadow), "umbra" and "penumbra" (radii at the Moon's centre,
+            scene units), "along" (from the centre to the Moon's along the
+            axis), "span" (from the light to the centre), and "inside": the
+            Moon is in the penumbra, or near enough that a shadow ray aimed
+            at any part of the Sun could cross the shadow
         """
         km = self.reference_radius / self.MOON_RADIUS_KM            # scene units to a km
         e = self.moon_ephem
 
-        # The real shadow where it crosses the Moon's centre, km: the umbra and
-        # the penumbra cones from the Sun's limb past the Earth's
         earth_km = self.EARTH_RADIUS_KM * self.EARTH_SHADOW_ENLARGEMENT
         umbra_km = earth_km - e.earth_distance * math.tan(
             math.asin((self.SUN_RADIUS_KM - earth_km) / e.sun_distance))
         penumbra_km = earth_km + e.earth_distance * math.tan(
             math.asin((self.SUN_RADIUS_KM + earth_km) / e.sun_distance))
 
-        # The Earth casting the same two here, against a light of this size and
-        # distance. With k the Earth's distance over its distance from the light,
-        # the two radii are the Earth's (1 + k) less and more k light radii
-        light_distance = self.SUN_LIGHT_DISTANCE
-        light_radius = light_distance * self.SUN_RADIUS_KM / e.sun_distance
+        # The Earth that would cast those two against a light of this size and
+        # distance. With k its distance over its distance from the light, the
+        # two radii are its own (1 + k) less and more k light radii
+        light_radius = self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / e.sun_distance
         umbra, penumbra = umbra_km * km, penumbra_km * km
         k = (penumbra - umbra) / (2 * light_radius)
-        radius = (penumbra + umbra) / (2 * (1 + k))
-        distance = k * light_distance / (1 + k)
+        distance = k * self.SUN_LIGHT_DISTANCE / (1 + k)
 
         lat, lon = np.radians(e.libr_lat_geo), np.radians(e.libr_long_geo)
         towards = self.moon_rotation @ np.array([np.cos(lat) * np.sin(lon),
                                                  -np.cos(lat) * np.cos(lon),
                                                  np.sin(lat)])
-        return (towards * distance).tolist(), float(radius)
+        centre = towards * distance
+        light = np.asarray(self.light_pos, dtype=float)
+        span = float(np.linalg.norm(centre - light))
+        axis = (centre - light) / span
+        along = float(-centre @ axis)
+        miss = float(np.linalg.norm(-centre - along * axis))
+        # A ray from the Moon to the Sun's limb, not its centre, crosses the
+        # square up to this much further in: the light's radius brought down
+        # to the Moon past the square
+        slack = light_radius * along / span
+        inside = along > 0.0 and miss < penumbra + self.reference_radius + 1.1 * slack
+        return {"centre": centre, "axis": axis, "umbra": umbra, "penumbra": penumbra,
+                "along": along, "span": span, "inside": inside}
 
-    def _moon_in_earth_shadow(self, earth_pos: list, earth_radius: float) -> bool:
+    @classmethod
+    def earth_shadow_texture(cls, umbra: float, penumbra: float) -> np.ndarray:
         """
-        Whether any of the Moon's disk is in the Earth's shadow - inside the
-        outer edge of the penumbra - in the scene as it now stands: the cone
-        touching the light and the Earth on opposite sides, measured where it
-        crosses the Moon's centre, against how far that centre is off its axis.
-        """
-        if self.light_pos is None:
-            return False
-        light, earth = np.array(self.light_pos, dtype=float), np.array(earth_pos, dtype=float)
-        span = np.linalg.norm(earth - light)
-        if span == 0.0:
-            return False
-        axis = (earth - light) / span
-        along = float(-earth @ axis)                    # from the Earth to the Moon's centre
-        if along <= 0.0:                                # the Moon on the Sun's side of the Earth
-            return False
-        miss = float(np.linalg.norm(-earth - along * axis))
-        light_radius = self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / self.moon_ephem.sun_distance
-        penumbra = earth_radius + along * math.tan(math.asin((light_radius + earth_radius) / span))
-        return miss < penumbra + self.reference_radius
+        The shadow drawn as the light let through, ring by ring: the share of
+        the Sun's disk each point of the Moon still sees past the Earth's, and
+        in the share the Earth hides, the light the atmosphere bends into the
+        umbra (EARTH_UMBRA_LIGHT). The square reaches EARTH_SHADOW_REACH times
+        the penumbra's radius from the axis, measured where the shadow crosses
+        the Moon, and is clear at its rim.
 
-    def converged_frames(self) -> int:
-        """The accumulation a still picture settles over: longer in an eclipse."""
-        return (self.ECLIPSE_ACCUMULATION_FRAMES if getattr(self, "_in_earth_shadow", False)
-                else self.ACCUMULATION_FRAMES)
+        Seen from a point of the Moon in the shadow's plane, at a distance d
+        from the axis, the Earth's disk and the Sun's are two circles there of
+        radii (penumbra plus and minus umbra) / 2, d apart; the Sun hidden is
+        the part of its circle the Earth's covers.
+        """
+        n = cls.EARTH_SHADOW_TEXELS
+        across = ((np.arange(n) + 0.5) / n * 2.0 - 1.0) * cls.EARTH_SHADOW_REACH * penumbra
+        d = np.hypot(across[None, :], across[:, None])
+        earth, sun = (penumbra + umbra) / 2, (penumbra - umbra) / 2
+
+        hidden = np.where(d <= earth - sun, 1.0, 0.0)
+        partly = (d > earth - sun) & (d < earth + sun)
+        dp = d[partly]
+        lens = (sun ** 2 * np.arccos(np.clip((dp ** 2 + sun ** 2 - earth ** 2) / (2 * dp * sun), -1, 1))
+                + earth ** 2 * np.arccos(np.clip((dp ** 2 + earth ** 2 - sun ** 2) / (2 * dp * earth), -1, 1))
+                - 0.5 * np.sqrt(np.clip((-dp + sun + earth) * (dp + sun - earth)
+                                        * (dp - sun + earth) * (dp + sun + earth), 0, None)))
+        hidden[partly] = lens / (np.pi * sun ** 2)
+
+        texture = np.zeros((n, n, 4), dtype=np.float32)
+        texture[..., :3] = (1.0 - hidden)[..., None] + hidden[..., None] * np.array(cls.EARTH_UMBRA_LIGHT)
+        return texture                  # alpha 0: a crossing passes the colour as it is
+
+    def _place_earth_shadow(self, shadow: dict):
+        """
+        Stand the square across the shadow's axis while the Moon is in the
+        shadow, sized so that a ray from the Moon to the light crosses it where
+        the texture answers for that point - and away from an eclipse, shrink
+        it to nothing once and leave it be (see EARTH_SHADOW_PARKED).
+
+        A point at a distance from the axis where the shadow crosses the
+        Moon's centre is seen past the square span / (span + along) of that
+        distance from its centre, the light being a point by then.
+        """
+        self._earth_shadow = shadow
+        if not shadow["inside"]:
+            if not self._earth_shadow_parked:
+                self._earth_shadow_parked = True
+                self.rt.update_data(self.EARTH_SHADOW_NAME,
+                                    u=[self.EARTH_SHADOW_PARKED, 0.0, 0.0],
+                                    v=[0.0, 0.0, self.EARTH_SHADOW_PARKED])
+            return
+        self._earth_shadow_parked = False
+
+        # Drawn the first time the Moon comes into the shadow, and again as
+        # the shadow's shape drifts - but not while a key is held, a redraw
+        # costing a step's worth of time: the drift over a whole eclipse comes
+        # to a couple of pixels, and the preview's end catches it up
+        if self._earth_shadow_shape is None or not self._preview_active:
+            self._redraw_earth_shadow()
+
+        penumbra = shadow["penumbra"]
+        axis = shadow["axis"]
+        helper = np.array([0.0, 0.0, 1.0]) if abs(axis[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+        across = np.cross(axis, helper)
+        across /= np.linalg.norm(across)
+        up = np.cross(axis, across)
+        half = (self.EARTH_SHADOW_REACH * penumbra * shadow["span"]
+                / (shadow["span"] + shadow["along"]))
+        corner = shadow["centre"] - half * (across + up)
+        self.rt.update_data(self.EARTH_SHADOW_NAME, pos=[corner.tolist()],
+                            u=(2 * half * across).tolist(), v=(2 * half * up).tolist())
+
+    def _redraw_earth_shadow(self) -> bool:
+        """
+        Draw the shadow into the square's texture if its shape has moved on
+        since it was last drawn, and say whether it was. The texture depends on
+        the shape alone - its size is the square's - which an eclipse moves by
+        a hair.
+        """
+        shadow = self._earth_shadow
+        if shadow is None or not shadow["inside"]:
+            return False
+        shape = round(shadow["umbra"] / shadow["penumbra"], 4)
+        if shape == self._earth_shadow_shape:
+            return False
+        self._earth_shadow_shape = shape
+        self.rt.set_texture_2d(self.EARTH_SHADOW_NAME,
+                               self.earth_shadow_texture(shadow["umbra"], shadow["penumbra"]),
+                               refresh=False)
+        return True
 
     def update_overlays(self):
         if self.moon_grid_visible:
@@ -1148,8 +1259,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         v_new = -self.moon_rotation[:, 1]       # Invert Y axis to match our convention of v pointing down in the texture
 
         sun_disk_pos, sun_disk_radius = self.calculate_sun_disk()
-        earth_pos, earth_radius = self.calculate_earth()
-        self._in_earth_shadow = self._moon_in_earth_shadow(earth_pos, earth_radius)
+        shadow = self.calculate_earth_shadow()
 
         # Hold the render padlock across all scene updates: the render thread
         # cannot launch frames on a half-updated scene, and accumulation
@@ -1158,19 +1268,17 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             self._move_camera_to_apparent_size()
             self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
             self.rt.update_data(self.SUN_DISK_NAME, pos=[sun_disk_pos], r=sun_disk_radius)
-            self.rt.update_data(self.EARTH_NAME, pos=[earth_pos], r=earth_radius)
-            # The settling the shadow asks for, when it comes or goes - unless a
-            # held key has the one-frame preview on, which hands the picture
-            # back to converged_frames when it ends
-            frames = self.converged_frames()
-            if not self._preview_active and frames != getattr(self, "_settling_frames", None):
-                self.rt.set_param(max_accumulation_frames=frames)
-                self._settling_frames = frames
+            self._place_earth_shadow(shadow)
             # Light radius follows the true solar angular size seen from the Moon.
             # Light color is radiance, so illumination scales with angular size
             # squared, reproducing the real annual 1/d^2 brightness variation.
+            # In the Earth's shadow the light is a point instead, its radiance
+            # raised to light the surface as brightly (see SUN_POINT_RADIUS)
             sun_light_radius = float(self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / self.moon_ephem.sun_distance)
-            self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=sun_light_radius)
+            radius = self.SUN_POINT_RADIUS if shadow["inside"] else sun_light_radius
+            self._sun_light_boost = (sun_light_radius / radius) ** 2
+            self.rt.update_light(self.LIGHT_NAME, pos=self.light_pos, radius=radius,
+                                 color=self._sun_light_colour())
             self.update_overlays()
             # A video export burning the canvas overlays into its frames draws
             # them here, where the new time is in force and the cycle that
