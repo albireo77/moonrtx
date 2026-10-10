@@ -45,6 +45,8 @@ class SettingsMixin:
             "fov_setup": None,                      # checked field by field
             "_clair_obscur_filter": lambda v: isinstance(v, str),
             "_clair_obscur_visible_only": flag,
+            "_eclipse_visible_only": flag,
+            "_eclipse_penumbral": flag,
             "_planner_dark_only": flag,
             "_graph_view": lambda v: v in ("keep", "standard", "centre"),
             "_label_on_moon": flag,

@@ -941,6 +941,113 @@ def find_clair_obscur_events(start_local: datetime, days: int,
     return occurrences
 
 
+# Lunar eclipses. Skyfield finds them and their magnitudes (eclipselib, after
+# the Explanatory Supplement, with Danjon's 1% enlargement of the shadow - the
+# one EARTH_SHADOW_ENLARGEMENT in the renderer follows), but not the moments
+# the Moon's limb crosses the edges of the shadow. Those are found here from
+# the same geometry, on a minute's grid either side of the greatest eclipse,
+# and placed between the two minutes that straddle each.
+LUNAR_ECLIPSE_KINDS = ("Penumbral", "Partial", "Total")
+_ECLIPSE_HALF_SPAN = timedelta(hours=4, minutes=30)   # longer than half of any eclipse
+_ECLIPSE_SOLAR_RADIUS_KM = 696340.0                   # eclipselib's
+_ECLIPSE_MOON_RADIUS_KM = 1737.1
+_EARTH_EQUATORIAL_RADIUS_KM = 6378.1366
+
+
+def _eclipse_geometry(t):
+    """
+    The separation of the Moon's centre from the shadow's axis, and the
+    Moon's, the umbra's and the penumbra's angular radii, as eclipselib has
+    them, vectorized over a time array: radians, seen from the Earth's centre.
+    """
+    earth_at = _earth.at(t)
+    earth_to_sun = earth_at.observe(_sun).apparent().position.km
+    moon_to_earth = -(_moon.at(t) - earth_at).position.km
+    sun_km = np.linalg.norm(earth_to_sun, axis=0)
+    moon_km = np.linalg.norm(moon_to_earth, axis=0)
+    cos = np.sum(earth_to_sun * moon_to_earth, axis=0) / (sun_km * moon_km)
+    separation = np.arccos(np.clip(cos, -1.0, 1.0))
+    pi_1 = 1.01 * _EARTH_EQUATORIAL_RADIUS_KM / moon_km
+    pi_s = _EARTH_EQUATORIAL_RADIUS_KM / sun_km
+    s_s = _ECLIPSE_SOLAR_RADIUS_KM / sun_km
+    moon = np.arcsin(_ECLIPSE_MOON_RADIUS_KM / moon_km)
+    return separation, moon, pi_1 + pi_s - s_s, pi_1 + pi_s + s_s
+
+
+def _crossings(dts: list, values: np.ndarray) -> list:
+    """The moments a sampled quantity changes sign, placed between the samples."""
+    found = []
+    for i in np.flatnonzero(np.sign(values[:-1]) != np.sign(values[1:])):
+        share = values[i] / (values[i] - values[i + 1])
+        found.append(dts[i] + (dts[i + 1] - dts[i]) * float(share))
+    return found
+
+
+def find_lunar_eclipses(start_local: datetime, days: float) -> list[dict]:
+    """
+    The lunar eclipses over a span, as the observer would watch them.
+
+    Parameters
+    ----------
+    start_local : datetime
+        Timezone-aware start of the span
+    days : float
+        Its length (clamped to the bundled kernel range)
+
+    Returns
+    -------
+    list[dict]
+        One per eclipse, in time order: "greatest" (UTC), "kind" (one of
+        LUNAR_ECLIPSE_KINDS), "umbral_magnitude" and "penumbral_magnitude"
+        (the share of the Moon's diameter in each at greatest eclipse),
+        "contacts" - "P1", "U1", "U2", "U3", "U4", "P4", UTC, the moments
+        the Moon's limb crosses the edges of the penumbra and the umbra,
+        None for those a lesser eclipse does not reach - "moon_alt" and
+        "observer_sun_alt" (degrees at the observer's site at greatest),
+        and "visible_start" and "visible_end": the part of the eclipse,
+        from P1 to P4, with the Moon above the observer's horizon, both None
+        when it is below it throughout.
+    """
+    from skyfield import eclipselib
+    start_utc = _validate_supported_datetime(start_local)
+    end_utc = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
+    times, kinds, details = eclipselib.lunar_eclipses(
+        _timescale.from_datetime(start_utc), _timescale.from_datetime(end_utc), _ephemeris)
+
+    eclipses = []
+    for i, greatest in enumerate(times.utc_datetime()):
+        steps = int(2 * _ECLIPSE_HALF_SPAN / timedelta(minutes=1)) + 1
+        dts = [greatest - _ECLIPSE_HALF_SPAN + timedelta(minutes=k) for k in range(steps)]
+        t = _timescale.from_datetimes(dts)
+        separation, moon, umbra, penumbra = _eclipse_geometry(t)
+
+        def pair(values):
+            found = _crossings(dts, values)
+            return (found[0], found[-1]) if len(found) >= 2 else (None, None)
+
+        p1, p4 = pair(separation - (penumbra + moon))
+        u1, u4 = pair(separation - (umbra + moon))
+        u2, u3 = pair(separation - (umbra - moon))
+
+        observer_at = _observer.at(t)
+        moon_alt = observer_at.observe(_moon).apparent().altaz()[0].degrees
+        up = [dt for dt, alt in zip(dts, moon_alt)
+              if alt > 0.0 and p1 is not None and p1 <= dt <= p4]
+        at_greatest = _observer.at(_timescale.from_datetime(greatest))
+        eclipses.append({
+            "greatest": greatest,
+            "kind": LUNAR_ECLIPSE_KINDS[int(kinds[i])],
+            "umbral_magnitude": float(details["umbral_magnitude"][i]),
+            "penumbral_magnitude": float(details["penumbral_magnitude"][i]),
+            "contacts": {"P1": p1, "U1": u1, "U2": u2, "U3": u3, "U4": u4, "P4": p4},
+            "moon_alt": float(at_greatest.observe(_moon).apparent().altaz(temperature_C="standard")[0].degrees),
+            "observer_sun_alt": float(at_greatest.observe(_sun).apparent().altaz(temperature_C="standard")[0].degrees),
+            "visible_start": up[0] if up else None,
+            "visible_end": up[-1] if up else None,
+        })
+    return eclipses
+
+
 def _horizon_crossings(found: tuple) -> list[datetime]:
     """
     UTC times of the genuine horizon crossings in a find_risings/find_settings

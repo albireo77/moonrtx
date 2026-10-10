@@ -1590,6 +1590,9 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_brightness(10)
         elif event.keysym.lower() == 'z':
             moon_renderer.change_brightness(-10)
+        elif event.keysym == 'E' and event.state & 0x1:
+            # Shift: the lunar eclipse finder; E alone raises the gamma
+            moon_renderer.eclipse_dialog()
         elif event.keysym.lower() == 'e':
             moon_renderer.change_gamma(0.1)
         elif event.keysym.lower() == 'd':

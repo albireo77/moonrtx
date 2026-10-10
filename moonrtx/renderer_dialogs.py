@@ -839,6 +839,7 @@ class DialogsMixin:
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
             ("Shift + B", "Set up the eyepiece / camera field of view frame"),
+            ("Shift + E", "Find lunar eclipses"),
             ("Arrows", "Move view"),
             ("Space", "Center and fix view on point under cursor"),
             ("Escape", "Leave full screen; close a window (dialog)"),

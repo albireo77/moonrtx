@@ -104,6 +104,10 @@ class PlanningMixin:
     }
 
     CLAIR_OBSCUR_SCAN_DAYS = 120
+    # Lunar eclipse finder: how far ahead it looks. Two to five eclipses come a
+    # year, and only some are up in a given sky, so a decade gives a list
+    # worth having. See astro.find_lunar_eclipses.
+    ECLIPSE_SCAN_YEARS = 10
     CLAIR_OBSCUR_STEP_MINUTES = 30
     CLAIR_OBSCUR_ALL_EVENTS = "All events"
     # Filters last chosen in the dialog. Declared on the class so the first
@@ -113,6 +117,10 @@ class PlanningMixin:
     # renderer_settings).
     _clair_obscur_filter = CLAIR_OBSCUR_ALL_EVENTS
     _clair_obscur_visible_only = True
+    # The lunar eclipse finder's, kept the same way: only the eclipses the
+    # Moon is up for, and the penumbral ones among them, which are hard to see
+    _eclipse_visible_only = True
+    _eclipse_penumbral = True
     # The observation planner's dark-sky filter, kept the same way. The feature
     # graph reads it too, so its window strips mark what the planner lists
     _planner_dark_only = False
@@ -135,6 +143,7 @@ class PlanningMixin:
     # dragged to, are kept by DialogsMixin._window_memory under these names
     VISIBILITY_WINDOW = "visibility"
     CLAIR_OBSCUR_WINDOW = "clair_obscur"
+    ECLIPSE_WINDOW = "eclipses"
     PLANNER_WINDOW = "planner"
     GRAPH_WINDOW = "graph"
 
@@ -1077,6 +1086,163 @@ class PlanningMixin:
         # Not modal, so the renderer's mouse stays in use while the list is
         # open; its keys stay held (search_dialog_open)
         self._show_results_window(win, self.CLAIR_OBSCUR_WINDOW)
+
+    def eclipse_dialog(self):
+        """
+        List the coming lunar eclipses - their kind, how deep they go, and how
+        much of each the observer's own sky has the Moon up for - and let the
+        user take the app to one. "Go to selected" goes to the greatest
+        eclipse and leaves the view as it is; the window stays open, as the
+        other finders do, so one eclipse after another can be looked at.
+        """
+        if self.rt is None:
+            return
+
+        eclipses = []                    # results currently listed
+
+        # Laid out as the clair-obscur finder's columns are, h☾ the Moon's
+        # altitude in the observer's sky at greatest eclipse, its field one
+        # narrower in the header to take the sign's extra width
+        header = (f"{'Greatest (local)':<22}{'Type':<11}{'Umbral':>6}{'Penumbral':>11}  "
+                  f"{'Visible here':<14}{'h☾':<7}  {'Sky':<8}")
+
+        dialog = self._results_frame(
+            "Lunar eclipses",
+            f"Eclipses of the Moon over the next {self.ECLIPSE_SCAN_YEARS} years",
+            len(header), remember=self.ECLIPSE_WINDOW)
+        win, listbox, desc_var = dialog.win, dialog.listbox, dialog.description
+        dialog.header.set(header)
+
+        filter_row = dialog.controls
+        visible_only_var = tk.BooleanVar(value=self._eclipse_visible_only)
+        penumbral_var = tk.BooleanVar(value=self._eclipse_penumbral)
+        ttk.Checkbutton(filter_row, variable=visible_only_var,
+                        text="Only when the Moon is up in my sky",
+                        command=lambda: rescan()).pack(side=tk.LEFT)
+        # Room between the two, measured in the lettering (see the planner)
+        gap = 2 * tkfont.Font(font='TkDefaultFont').measure('0')
+        ttk.Checkbutton(filter_row, variable=penumbral_var,
+                        text="Penumbral too",
+                        command=lambda: rescan()).pack(side=tk.LEFT, padx=(gap, 0))
+
+        def clock(moment) -> str:
+            return "-" if moment is None else f"{self.in_observer_clock(moment):%H:%M}"
+
+        def visible_span(e) -> str:
+            if e["visible_start"] is None:
+                return "-"
+            return f"{clock(e['visible_start'])}-{clock(e['visible_end'])}"
+
+        def show_description(event=None):
+            selection = listbox.curselection()
+            if not (eclipses and selection and selection[0] < len(eclipses)):
+                return
+            e = eclipses[selection[0]]
+            c = e["contacts"]
+            greatest = self.in_observer_clock(e["greatest"])
+            text = (f"{e['kind']} eclipse, greatest {greatest:%Y-%m-%d %H:%M}. "
+                    f"In the penumbra {clock(c['P1'])}-{clock(c['P4'])}")
+            if c["U1"] is not None:
+                text += f", partial {clock(c['U1'])}-{clock(c['U4'])}"
+            if c["U2"] is not None:
+                text += f", total {clock(c['U2'])}-{clock(c['U3'])}"
+            if e["visible_start"] is None:
+                text += ". The Moon is below your horizon throughout."
+            else:
+                text += f". The Moon is up in your sky {visible_span(e)}."
+            desc_var.set(text)
+
+        # Searched for once, as the window opens - a decade of them takes a
+        # second or so - and only sifted again when a box is ticked
+        try:
+            found = astro.find_lunar_eclipses(self.dt_local, 365.25 * self.ECLIPSE_SCAN_YEARS)
+            failed = None
+        except ValueError as e:
+            # Scan start outside the bundled ephemeris kernel range
+            found, failed = [], str(e)
+
+        def rescan():
+            nonlocal eclipses
+            listbox.delete(0, tk.END)
+            self._eclipse_visible_only = visible_only_var.get()
+            self._eclipse_penumbral = penumbral_var.get()
+            if failed is not None:
+                eclipses = []
+                desc_var.set(failed)
+                return
+            eclipses = [e for e in found
+                        if (self._eclipse_penumbral or e["kind"] != "Penumbral")
+                        and (not self._eclipse_visible_only or e["visible_start"] is not None)]
+
+            if not eclipses:
+                desc_var.set("")
+                message = "  No eclipses found in the scanned period."
+                if self._eclipse_visible_only:
+                    message += "  Untick the first box to include the ones below your horizon."
+                listbox.insert(tk.END, message)
+                return
+
+            for e in eclipses:
+                greatest = self.in_observer_clock(e["greatest"])
+                umbral = f"{e['umbral_magnitude']:.2f}" if e["umbral_magnitude"] > 0 else "-"
+                moon_alt = f"{e['moon_alt']:+.0f}°"
+                listbox.insert(tk.END,
+                               f"{greatest:%Y-%m-%d %a %H:%M}  {e['kind']:<11}{umbral:>6}"
+                               f"{e['penumbral_magnitude']:>11.2f}  {visible_span(e):<14}"
+                               f"{moon_alt:<8}  {self._sky_of(e)}")
+            listbox.selection_set(0)
+            show_description()
+
+        def go_to(event=None):
+            selection = listbox.curselection()
+            if not eclipses or not selection or selection[0] >= len(eclipses):
+                return
+            self._go_to_moment(self.in_observer_clock(eclipses[selection[0]]["greatest"]))
+
+        listbox.bind('<<ListboxSelect>>', show_description)
+        listbox.bind('<Double-Button-1>', go_to)
+        listbox.bind('<Return>', go_to)
+
+        def results_for_export():
+            """The listed eclipses as a table and as calendar entries."""
+            names = (("P1", "Penumbra begins"), ("U1", "Partial begins"), ("U2", "Total begins"),
+                     ("U3", "Total ends"), ("U4", "Partial ends"), ("P4", "Penumbra ends"))
+            columns = (["Greatest", "Type", "Umbral magnitude", "Penumbral magnitude"]
+                       + [f"{title} ({key})" for key, title in names]
+                       + ["Moon up here", "Moon altitude at greatest (deg)", "Sky"])
+            rows, entries = [], []
+            for e in eclipses:
+                greatest = self.in_observer_clock(e["greatest"])
+                contacts = [self.in_observer_clock(e["contacts"][key]).strftime("%Y-%m-%d %H:%M")
+                            if e["contacts"][key] is not None else "" for key, _ in names]
+                # No umbral magnitude for a Moon that never reaches the umbra:
+                # the figure is then negative, and means nothing to a reader
+                umbral = e["umbral_magnitude"] > 0
+                rows.append([f"{greatest:%Y-%m-%d %H:%M}", e["kind"],
+                             f"{e['umbral_magnitude']:.3f}" if umbral else "",
+                             f"{e['penumbral_magnitude']:.3f}"] + contacts
+                            + [visible_span(e), f"{e['moon_alt']:+.0f}", self._sky_of(e)])
+                times = ", ".join(f"{title.lower()} {clock(e['contacts'][key])}"
+                                  for key, title in names if e["contacts"][key] is not None)
+                entries.append({
+                    "summary": f"MoonRTX: {e['kind'].lower()} lunar eclipse",
+                    # The whole eclipse, penumbra to penumbra; the description
+                    # says when the Moon is up here
+                    "start": e["contacts"]["P1"], "end": e["contacts"]["P4"],
+                    "description": (f"Greatest at {greatest:%Y-%m-%d %H:%M}, "
+                                    + (f"umbral magnitude {e['umbral_magnitude']:.2f}, " if umbral else "")
+                                    + f"penumbral magnitude {e['penumbral_magnitude']:.2f}. "
+                                    f"Times: {times}. Moon up here: {visible_span(e)}."),
+                })
+            return columns, rows, entries
+
+        self._results_actions(dialog, go_to, results_for_export, lambda: "lunar_eclipses")
+
+        rescan()
+
+        # Not modal, so the renderer's mouse stays in use while the list is
+        # open; its keys stay held (search_dialog_open)
+        self._show_results_window(win, self.ECLIPSE_WINDOW)
 
     def _label_on_moon_box(self, parent, feature: MoonFeature) -> ttk.Checkbutton:
         """
