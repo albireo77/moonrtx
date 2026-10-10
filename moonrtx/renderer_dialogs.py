@@ -281,6 +281,61 @@ class DialogsMixin:
             # for here because it is the grab that makes the difference, and the
             # window is on screen by now, which bring_to_front requires.
             bring_to_front(win)
+            self._keep_grab_through_minimize()
+
+    def _keep_grab_through_minimize(self):
+        """
+        Let go of a dialog's grab while the main window is minimized, and take
+        it back when the window is restored.
+
+        Tk turns away a restore asked of a window a grab shuts out, and the
+        main window is that, the dialog holding the grab being another. So a
+        main window minimized under a modal dialog - by Win+D, Show desktop or
+        Win+M, which Tk does not get to refuse - could not be brought back from
+        the taskbar at all: its button stood there and every click on it was
+        ignored. That was found with the video export, the one modal dialog
+        open for minutes at a time, but any of them could do it. Without the
+        grab the restore goes through, the dialog comes back over the window
+        with it, and the grab is taken up again.
+
+        Bound on the main window once, for every modal dialog after.
+        """
+        if getattr(self, "_grab_on_hold", None) is not None:
+            return
+        root = self.rt._root
+        held = {"window": None}
+        self._grab_on_hold = held
+
+        def minimized(event):
+            # Unmap reaches the main window for every widget in it as well;
+            # only its own, as it is minimized, is wanted
+            if event.widget is not root:
+                return
+            try:
+                if root.state() != "iconic":
+                    return
+                window = root.grab_current()
+            except tk.TclError:
+                return
+            if window is not None:
+                window.grab_release()
+                held["window"] = window
+
+        def take_back(window):
+            try:
+                if window.winfo_exists():
+                    window.grab_set()
+            except tk.TclError:         # not on screen yet; the next idle moment
+                window.after(100, lambda: take_back(window) if window.winfo_exists() else None)
+
+        def restored(event):
+            if event.widget is not root or held["window"] is None:
+                return
+            window, held["window"] = held["window"], None
+            take_back(window)
+
+        root.bind("<Unmap>", minimized, add="+")
+        root.bind("<Map>", restored, add="+")
 
     @staticmethod
     def _window_corner(win) -> Optional[tuple]:

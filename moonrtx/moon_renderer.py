@@ -144,6 +144,13 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
     # keeps path-tracing grain low in the shadow/terminator regions (which
     # zero ambient no longer masks) at diminishing returns beyond it.
     ACCUMULATION_FRAMES = 64
+    # While the Moon is in the Earth's shadow, more. Near the umbra only a
+    # sliver of the Sun is left in sight, so a shadow ray finds it lit only now
+    # and then, and at 64 frames that wide band settled grainy - 5.3 levels
+    # between neighbouring pixels, against 2.9 at 256, in some 10 s rather
+    # than 3. Away from an eclipse nothing is in that shadow, and the quicker
+    # setting stands (see _moon_in_earth_shadow)
+    ECLIPSE_ACCUMULATION_FRAMES = 256
     PREVIEW_ACCUMULATION_FRAMES = 1
     PREVIEW_RESTORE_DELAY_MS = 500
 
@@ -593,7 +600,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         if self.rt is None or not self._preview_active:
             return
         self._preview_active = False
-        self.rt.set_param(max_accumulation_frames=self.ACCUMULATION_FRAMES)
+        self._settling_frames = self.converged_frames()
+        self.rt.set_param(max_accumulation_frames=self._settling_frames)
         self.rt.refresh_scene()
 
     # ---- renderer setup ----
@@ -774,6 +782,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         # Rendering parameters
         self.rt.set_param(min_accumulation_step=1, max_accumulation_frames=self.ACCUMULATION_FRAMES)
+        self._settling_frames = self.ACCUMULATION_FRAMES
 
         # Direct sunlight only, no light bounced from one part of the surface to another.
         self.rt.set_uint("path_seg_range", 1, 1)
@@ -1039,6 +1048,33 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                                                  np.sin(lat)])
         return (towards * distance).tolist(), float(radius)
 
+    def _moon_in_earth_shadow(self, earth_pos: list, earth_radius: float) -> bool:
+        """
+        Whether any of the Moon's disk is in the Earth's shadow - inside the
+        outer edge of the penumbra - in the scene as it now stands: the cone
+        touching the light and the Earth on opposite sides, measured where it
+        crosses the Moon's centre, against how far that centre is off its axis.
+        """
+        if self.light_pos is None:
+            return False
+        light, earth = np.array(self.light_pos, dtype=float), np.array(earth_pos, dtype=float)
+        span = np.linalg.norm(earth - light)
+        if span == 0.0:
+            return False
+        axis = (earth - light) / span
+        along = float(-earth @ axis)                    # from the Earth to the Moon's centre
+        if along <= 0.0:                                # the Moon on the Sun's side of the Earth
+            return False
+        miss = float(np.linalg.norm(-earth - along * axis))
+        light_radius = self.SUN_LIGHT_DISTANCE * self.SUN_RADIUS_KM / self.moon_ephem.sun_distance
+        penumbra = earth_radius + along * math.tan(math.asin((light_radius + earth_radius) / span))
+        return miss < penumbra + self.reference_radius
+
+    def converged_frames(self) -> int:
+        """The accumulation a still picture settles over: longer in an eclipse."""
+        return (self.ECLIPSE_ACCUMULATION_FRAMES if getattr(self, "_in_earth_shadow", False)
+                else self.ACCUMULATION_FRAMES)
+
     def update_overlays(self):
         if self.moon_grid_visible:
             self.update_moon_grid_orientation()
@@ -1113,6 +1149,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         sun_disk_pos, sun_disk_radius = self.calculate_sun_disk()
         earth_pos, earth_radius = self.calculate_earth()
+        self._in_earth_shadow = self._moon_in_earth_shadow(earth_pos, earth_radius)
 
         # Hold the render padlock across all scene updates: the render thread
         # cannot launch frames on a half-updated scene, and accumulation
@@ -1122,6 +1159,13 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             self.rt.update_data(self.MOON_OBJECT_NAME, u=u_new, v=v_new)
             self.rt.update_data(self.SUN_DISK_NAME, pos=[sun_disk_pos], r=sun_disk_radius)
             self.rt.update_data(self.EARTH_NAME, pos=[earth_pos], r=earth_radius)
+            # The settling the shadow asks for, when it comes or goes - unless a
+            # held key has the one-frame preview on, which hands the picture
+            # back to converged_frames when it ends
+            frames = self.converged_frames()
+            if not self._preview_active and frames != getattr(self, "_settling_frames", None):
+                self.rt.set_param(max_accumulation_frames=frames)
+                self._settling_frames = frames
             # Light radius follows the true solar angular size seen from the Moon.
             # Light color is radiance, so illumination scales with angular size
             # squared, reproducing the real annual 1/d^2 brightness variation.
