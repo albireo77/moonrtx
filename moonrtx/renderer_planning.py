@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable, NamedTuple, Optional
 
 from moonrtx import astro
-from moonrtx.display import ToolTip
+from moonrtx.display import ToolTip, _work_area
 from moonrtx.shared_types import MoonFeature
 
 
@@ -684,16 +684,48 @@ class PlanningMixin:
         return ResultsFrame(win, frame, controls, description, header, listbox,
                             close, caption_var)
 
-    def _show_results_window(self, win, name: str):
+    def _show_results_window(self, win, name: str, listbox=None, rows: Optional[int] = None):
         """
         Show a results dialog where the last of its name was left, and as tall:
         it can be dragged taller, the list taking the room, and back down to
         the height it first opens at, but not wider - its width is what its
         widest row needs.
+
+        Given a listbox and a number of rows, the first opening of the session
+        is made tall enough to show that many - all there is to list, for a
+        dialog whose list is short enough to take in whole - though never
+        taller than the screen has room for. It can still be dragged down to
+        the usual RESULTS_ROWS, and later openings keep the height it was left at.
         """
         win.update_idletasks()
         natural = win.winfo_reqheight()
-        taller = max(0, self._window_memory(name).get("height", natural) - natural)
+        memory = self._window_memory(name)
+        if "height" in memory:
+            taller = max(0, memory["height"] - natural)
+        elif listbox is not None and rows is not None and rows > int(listbox.cget("height")):
+            # The difference the extra rows make, asked of the list itself
+            shown = int(listbox.cget("height"))
+            before = listbox.winfo_reqheight()
+            listbox.config(height=rows)
+            win.update_idletasks()
+            taller = listbox.winfo_reqheight() - before
+            listbox.config(height=shown)
+            # The screen less the main window's title bar, which the dialog's
+            # own is as tall as
+            root = self.rt._root
+            caption = max(0, root.winfo_rooty() - root.winfo_y())
+            room = _work_area(root.winfo_screenwidth(), root.winfo_screenheight())[1] - caption
+            taller = max(0, min(taller, room - natural))
+            # Placed for the height it opens at - centred on the main window as
+            # any dialog is, but held within the screen - since the placing done
+            # when it is shown still sees the shorter height it was built at
+            if taller and "position" not in memory:
+                height = natural + taller
+                x = root.winfo_x() + (root.winfo_width() - win.winfo_reqwidth()) // 2
+                y = root.winfo_y() + (root.winfo_height() - height) // 2
+                memory["position"] = (max(0, x), max(0, min(y, room - height)))
+        else:
+            taller = 0
         if taller:
             win.geometry(f"{win.winfo_reqwidth()}x{natural + taller}")
         self._show_tool_window(win, name, resizable=(False, True), shrink=(0, taller))
@@ -1085,7 +1117,8 @@ class PlanningMixin:
 
         # Not modal, so the renderer's mouse stays in use while the list is
         # open; its keys stay held (search_dialog_open)
-        self._show_results_window(win, self.CLAIR_OBSCUR_WINDOW)
+        # Tall enough at first for the whole list, as the eclipse finder is
+        self._show_results_window(win, self.CLAIR_OBSCUR_WINDOW, listbox=listbox, rows=listbox.size())
 
     def eclipse_dialog(self):
         """
@@ -1242,7 +1275,8 @@ class PlanningMixin:
 
         # Not modal, so the renderer's mouse stays in use while the list is
         # open; its keys stay held (search_dialog_open)
-        self._show_results_window(win, self.ECLIPSE_WINDOW)
+        # Tall enough at first for the whole list
+        self._show_results_window(win, self.ECLIPSE_WINDOW, listbox=listbox, rows=listbox.size())
 
     def _label_on_moon_box(self, parent, feature: MoonFeature) -> ttk.Checkbutton:
         """
@@ -1516,7 +1550,8 @@ class PlanningMixin:
         # open - the view dragged and turned, a feature named with a click. The
         # renderer's keys stay held all the same (search_dialog_open), so
         # nothing typed there moves the clock the list was worked out from
-        self._show_results_window(win, self.PLANNER_WINDOW)
+        # Tall enough at first for the whole list, as the eclipse finder is
+        self._show_results_window(win, self.PLANNER_WINDOW, listbox=listbox, rows=listbox.size())
 
     def _graph_alt_range(self, feature: MoonFeature) -> tuple:
         """
