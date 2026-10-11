@@ -629,11 +629,11 @@ class DialogsMixin:
         # screen when the export starts is what goes into the frames, each
         # redrawn for the time its own frame shows.
         showing = (self.compass_visible or self.locator_visible
-                   or self.fov_overlay_visible or self.scale_bar_visible)
+                   or self.fov_overlay_visible or self.scale_bar_visible or self.angle_bar_visible)
         burn_overlays_var = tk.BooleanVar(value=showing)
         burn_overlays_cb = ttk.Checkbutton(
             main_frame, variable=burn_overlays_var,
-            text="Show overlays (compass, locator, field of view, scale bar)")
+            text="Show overlays (compass, locator, field of view, scale bar, angle bar)")
         burn_overlays_cb.pack(fill=tk.X, pady=(4, 0))
         if not showing:
             burn_overlays_cb.config(state='disabled')
@@ -841,6 +841,7 @@ class DialogsMixin:
         other_lines = [
             ("Shift + M/N", "Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)"),
             ("Shift + B", "Set up the eyepiece / camera field of view frame"),
+            ("Shift + D", "Toggle angle scale bar"),
             ("Arrows", "Move view"),
             ("Space", "Center and fix view on point under cursor"),
             ("Escape", "Leave full screen; close a window (dialog)"),

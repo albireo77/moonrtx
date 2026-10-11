@@ -793,6 +793,9 @@ class StatusMixin:
                 if self.scale_bar_visible:
                     self.show_scale_bar(True)
 
+                if self.angle_bar_visible:
+                    self.show_angle_bar(True)
+
                 # And the keyboard. PlotOptiX builds this window on its own
                 # thread while whatever started the renderer still holds the
                 # focus, so it opens without it - and it binds its key handler

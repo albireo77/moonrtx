@@ -40,13 +40,14 @@ from moonrtx.renderer_catalogue import CatalogueMixin
 from moonrtx.renderer_profile import ProfileMixin
 from moonrtx.renderer_settings import SettingsMixin
 from moonrtx.renderer_scalebar import ScaleBarMixin
+from moonrtx.renderer_scalebar_angle import AngleScaleBarMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
-                   SettingsMixin, ScaleBarMixin):
+                   SettingsMixin, ScaleBarMixin, AngleScaleBarMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -401,8 +402,9 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._init_compass_overlay()
         self._init_locator()
 
-        # How far a stretch of the picture is on the ground (see renderer_scalebar)
+        # How far a stretch of the picture is on the ground (see renderer_scalebar and renderer_scalebar_angle)
         self._init_scale_bar()
+        self._init_angle_bar()
 
         # Drawing all three into a picture, for F12 and for video frames
         # (see renderer_overlay.CanvasOverlayMixin.overlay_image)
@@ -1544,7 +1546,10 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'End':
             moon_renderer.reset_to_default_view()
         elif event.keysym.lower() == 'd':
-            moon_renderer.toggle_scale_bar()
+            if event.state & 0x1:
+                moon_renderer.toggle_angle_bar()
+            else:
+                moon_renderer.toggle_scale_bar()
         elif event.keysym.lower() == 'v':
             moon_renderer.export_video_dialog()
         elif event.keysym.lower() == 'g':

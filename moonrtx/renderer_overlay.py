@@ -266,7 +266,8 @@ class CanvasOverlayMixin:
                    (getattr(self, "locator_visible", False), "_draw_locator"),
                    (getattr(self, "fov_overlay_visible", False),
                     "_draw_fov_overlay"),
-                   (getattr(self, "scale_bar_visible", False), "_draw_scale_bar")]
+                   (getattr(self, "scale_bar_visible", False), "_draw_scale_bar"),
+                   (getattr(self, "angle_bar_visible", False), "_draw_angle_bar")]
         if not any(visible for visible, _draw in showing):
             return None
 

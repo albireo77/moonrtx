@@ -57,6 +57,7 @@ class SettingsMixin:
                 isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 1440),
             "_profile_show_place": flag,
             "scale_bar_visible": flag,
+            "angle_bar_visible": flag,
         }
 
     def _fov_setup_from(self, stored) -> dict:
