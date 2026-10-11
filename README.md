@@ -67,27 +67,27 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **C** - Toggle compass showing how far the view is turned (rotated) from default  
 **R** - Toggle locator showing where on the Moon the view is  
 **F** - Search for Moon features (craters, mounts etc.) or go to lat lon  
-**X** - Find clair-obscur events (Lunar X, Lunar V, Jewelled Handle, Eyes of Clavius, Rupes Recta)  
+**A** - Find clair-obscur events (Lunar X, Lunar V, Jewelled Handle, Eyes of Clavius, Rupes Recta)  
+**E** - Find lunar eclipses  
 **U** - Chart when the Moon is up over the coming month  
 **K** - Open observation planner (terminator / libration) for Moon feature in status bar  
 **I** - Open USGS web page for Moon feature in status bar  
 **O** - Open user defined web page (Wikipedia by default) for Moon feature in status bar  
 **T** - Open date/time window  
 **V** - Export time-lapse video (MP4)  
-**A/Z** - Increase/Decrease brightness  
-**E/D** - Increase/Decrease gamma correction  
+**D** - Toggle scale bar (less accurate toward the Moon's edge)  
+**-/+** - Decrease/Increase brightness  
+**[/]** - Decrease/Increase gamma correction  
 **H/J** - Roll view around current view direction  
 **Q/W** - Go back/forward in time by step minutes (hold the key to get an animation effect)  
 **M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
 **Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
 **Shift + B** - Set up the eyepiece / camera field of view frame  
-**Shift + E** - Find lunar eclipses  
 **Arrows** - Move view  
 **Space** - Center and fix view on point under cursor  
 **Escape** - Leave full screen; close a window (dialog)  
 **Home** - Reset camera and time to initial state  
 **End** - Reset camera to default state (useful after starting with `--init-view` parameter)  
-**Insert** - Toggle scale bar (less accurate toward the Moon's edge)  
 **Delete** - Remove labels left by Find, Observation Planner and clicks  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
 **Ctrl + Up/Down** - Rotate view around Moon's equatorial axis  

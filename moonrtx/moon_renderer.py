@@ -1473,8 +1473,8 @@ def run_renderer(dt_local: datetime,
     # out: a single scene update finishes its accumulation cycle undisturbed and
     # renders straight to the converged image, like the date/time dialog, with
     # no noisy intermediate frame.
-    preview_keysyms = {'Left', 'Right', 'Up', 'Down'}
-    preview_letters = set('qwazedhj')
+    preview_keysyms = {'Left', 'Right', 'Up', 'Down', 'plus', 'equal', 'minus', 'bracketleft', 'bracketright'}
+    preview_letters = set('qwhj')
 
     # Keys that reach update_view: time stepping (Q/W), the resets that restore
     # the initial time (Home), the dialogs that jump to a time (T, the planners K
@@ -1484,7 +1484,7 @@ def run_renderer(dt_local: datetime,
     # thread, so these are ignored while it lasts - see the export guard in
     # custom_key_handler.
     update_view_keysyms = {'F4', 'F9', 'F10', 'Home'}
-    update_view_letters = set('qwtkxu')
+    update_view_letters = set('qwtkau')
 
     def custom_key_handler(event):
         # Ahead of every early return below: a dialog holding the keys must not
@@ -1543,7 +1543,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.hide_pinned_labels()
         elif event.keysym == 'End':
             moon_renderer.reset_to_default_view()
-        elif event.keysym == 'Insert':
+        elif event.keysym.lower() == 'd':
             moon_renderer.toggle_scale_bar()
         elif event.keysym.lower() == 'v':
             moon_renderer.export_video_dialog()
@@ -1567,7 +1567,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.search_feature_dialog()
         elif event.keysym.lower() == 'k':
             moon_renderer.observation_planner_dialog(moon_renderer._status_feature)
-        elif event.keysym.lower() == 'x':
+        elif event.keysym.lower() == 'a':
             moon_renderer.clair_obscur_dialog()
         elif event.keysym.lower() == 'u':
             moon_renderer.visibility_chart_dialog()
@@ -1581,21 +1581,20 @@ def run_renderer(dt_local: datetime,
             moon_renderer.rotate_around_view_direction('ccw')
         elif event.keysym.lower() == 'j':
             moon_renderer.rotate_around_view_direction('cw')
+        elif event.keysym.lower() == 'e':
+            moon_renderer.eclipse_dialog()
         elif event.keysym in ('Left', 'Right', 'Up', 'Down'):
             if event.state & 0x4:  # Ctrl key pressed
                 moon_renderer.rotate_around_moon_axis(event.keysym)
             else:
                 moon_renderer.navigate_view(event.keysym)
-        elif event.keysym.lower() == 'a':
+        elif event.keysym in ('plus', 'equal'):
             moon_renderer.change_brightness(10)
-        elif event.keysym.lower() == 'z':
+        elif event.keysym == 'minus':
             moon_renderer.change_brightness(-10)
-        elif event.keysym == 'E' and event.state & 0x1:
-            # Shift: the lunar eclipse finder; E alone raises the gamma
-            moon_renderer.eclipse_dialog()
-        elif event.keysym.lower() == 'e':
+        elif event.keysym == 'bracketright':
             moon_renderer.change_gamma(0.1)
-        elif event.keysym.lower() == 'd':
+        elif event.keysym == 'bracketleft':
             moon_renderer.change_gamma(-0.1)
         elif event.keysym.lower() == 'm':
             step = 60 if event.state & 0x1 else 1
