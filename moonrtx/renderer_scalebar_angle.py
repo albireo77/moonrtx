@@ -90,7 +90,7 @@ class AngleScaleBarMixin:
 
         scene_per_px = 2 * distance * math.tan(math.radians(fov) / 2) / height
         km_per_px = scene_per_px * self.MOON_RADIUS_KM / radius
-        return math.degrees(km_per_px / self.moon_ephem.earth_distance)
+        return math.degrees(km_per_px / self.moon_ephem.distance)
 
     @classmethod
     def _angle_bar_length(cls, deg_per_px: float, max_px: float) -> tuple:
