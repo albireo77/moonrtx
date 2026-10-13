@@ -66,6 +66,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **B** - Toggle the field of view frame (set it up with Shift + B)  
 **C** - Toggle compass showing how far the view is turned (rotated) from default  
 **R** - Toggle locator showing where on the Moon the view is  
+**D** - Toggle scale bar (less accurate toward the Moon's edge)  
 **F** - Search for Moon features (craters, mounts etc.) or go to lat lon  
 **A** - Find clair-obscur events (Lunar X, Lunar V, Jewelled Handle, Eyes of Clavius, Rupes Recta)  
 **E** - Find lunar eclipses  
@@ -75,7 +76,6 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **O** - Open user defined web page (Wikipedia by default) for Moon feature in status bar  
 **T** - Open date/time window  
 **V** - Export time-lapse video (MP4)  
-**D** - Toggle scale bar (less accurate toward the Moon's edge)  
 **-/+** - Decrease/Increase brightness  
 **[/]** - Decrease/Increase gamma correction  
 **H/J** - Roll view around current view direction  
