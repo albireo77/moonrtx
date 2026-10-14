@@ -79,9 +79,9 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **-/+** - Decrease/Increase brightness  
 **[/]** - Decrease/Increase gamma correction  
 **H/J** - Roll view around current view direction  
-**Q/W** - Go back/forward in time by step minutes (hold the key to get an animation effect)  
-**M/N** - Increase/Decrease time step by 1 minute (max is 1440 - 1 day)  
-**Shift + M/N** - Increase/Decrease time step by 60 minutes (max is 1440 - 1 day)  
+**Q/W** - Step back/forward in time by the current time step (hold the key to animate)  
+**N/M** - Decrease/Increase the time step by 1 minute (maximum 1440 = 1 day)  
+**Shift + N/M** - Decrease/Increase the time step by 60 minutes (maximum 1440 = 1 day)  
 **Shift + B** - Set up the eyepiece / camera field of view frame  
 **Shift + D** - Toggle angle scale bar  
 **Arrows** - Move view  
