@@ -87,7 +87,7 @@ class MoonFeature(NamedTuple):
     status_bar: bool
     feature_id: Optional[str]
     www_address: Optional[str]
-    geometry_type: Optional[GeometryType]
+    geometry_type: GeometryType
 
 
 class Camera(NamedTuple):
