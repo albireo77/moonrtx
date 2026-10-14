@@ -1,6 +1,7 @@
 import base64
 import re
 import struct
+from enum import Enum
 from datetime import datetime
 from typing import NamedTuple, Optional
 
@@ -61,6 +62,20 @@ class MoonEphemeris(NamedTuple):
     # shadow is the lunar eclipse (see MoonRenderer.calculate_earth)
     earth_distance: float = 384_400.0
 
+class GeometryType(Enum):
+    CIRCULAR  = ('⌀')
+    LINEAR    = ('L')
+    IRREGULAR = ('~')
+    
+    def __init__(self, symbol):
+        self.symbol = symbol
+
+    @classmethod
+    def from_string(cls, name) -> "GeometryType":
+        if not isinstance(name, str):
+            return cls.CIRCULAR
+        return cls.__members__.get(name.strip().upper(), cls.CIRCULAR)
+    
 class MoonFeature(NamedTuple):
     name: str
     lat: float
@@ -72,6 +87,8 @@ class MoonFeature(NamedTuple):
     status_bar: bool
     feature_id: Optional[str]
     www_address: Optional[str]
+    geometry_type: Optional[GeometryType]
+
 
 class Camera(NamedTuple):
     eye: list

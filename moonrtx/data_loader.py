@@ -9,7 +9,7 @@ from typing import Optional
 import numpy as np
 from PIL import Image
 
-from moonrtx.shared_types import MapTooLargeError, MoonFeature
+from moonrtx.shared_types import GeometryType, MapTooLargeError, MoonFeature
 
 from plotoptix.utils import read_image
 
@@ -295,6 +295,7 @@ def load_moon_features(filepath: str) -> list:
                     status_bar = parts[6].strip().lower() == 'true'
                     feature_id_str = parts[7].strip() if len(parts) >= 8 else ''
                     www_address_str = parts[8].strip() if len(parts) >= 9 else ''
+                    geometry_type = GeometryType.from_string(parts[9]) if len(parts) >= 10 else GeometryType.CIRCULAR
                     try:
                         diameter_km = float(diameter_km_str)
                         moon_feature = MoonFeature(
@@ -308,6 +309,7 @@ def load_moon_features(filepath: str) -> list:
                             status_bar=status_bar,
                             feature_id=feature_id_str or None,
                             www_address=www_address_str or None,
+                            geometry_type=geometry_type,
                         )
                         moon_features.append(moon_feature)
                     except ValueError as e:

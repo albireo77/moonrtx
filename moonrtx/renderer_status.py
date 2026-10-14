@@ -369,7 +369,7 @@ class StatusMixin:
         """Update feature name in the status bar and remember the active feature."""
         self._status_feature = feature
         if self._status_feature_var:
-            feature_text = "" if feature is None else f"{feature.name} ⌀ = {feature.diameter_km:.2f} km"
+            feature_text = "" if feature is None else f"{feature.name} {feature.geometry_type.symbol} = {feature.diameter_km:.2f} km"
             self._status_feature_var.set(feature_text)
             if self._status_panel_feature_var is not None:
                 # The name alone: the diameter is in the status bar and in the

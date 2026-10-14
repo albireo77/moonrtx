@@ -4,7 +4,7 @@ import unicodedata
 import numpy as np
 from typing import Callable, NamedTuple
 
-from moonrtx.shared_types import MoonFeature, MoonLabel
+from moonrtx.shared_types import GeometryType, MoonFeature, MoonLabel
 
 
 LABEL_CHAR_SCALE = 0.12
@@ -620,23 +620,29 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
             label_text = "< " + spot_label_feature.name
         label_lat = spot_label_feature.lat
 
-        # The tip of the arrow is set just east of the feature's rim: the rim is
-        # the feature's angular radius from its centre, the arrow's tip half a
-        # glyph west of where the text starts (the glyph is centred there), and
-        # between them a gap that goes with the lettering - the same gap beside a
-        # quarter-size arrow would read as a miss. All three are lengths across
-        # the ground, turned into longitude at the label's latitude as the text
-        # itself is written (see create_text_on_sphere). Placed at two angular
-        # radii from the centre instead, the arrow stood a full radius out from a
-        # large crater on the equator and on top of a small feature or a crater
-        # far north or south.
         char_scale = LABEL_CHAR_SCALE * scale
         text_radius = moon_radius * (1 + offset + 0.005)    # as the text is written
-        rim = spot_label_feature.angular_radius
         half_glyph = math.degrees(0.3 * char_scale / text_radius)
         gap = math.degrees(SPOT_LABEL_GAP * char_scale / text_radius)
         cos_lat = max(math.cos(math.radians(label_lat)), 0.02)
-        label_lon = spot_label_feature.lon + (rim + gap + half_glyph) / cos_lat
+
+        if spot_label_feature.geometry_type is GeometryType.CIRCULAR:
+            # The tip of the arrow is set just east of the feature's rim: the rim is
+            # the feature's angular radius from its centre, the arrow's tip half a
+            # glyph west of where the text starts (the glyph is centred there), and
+            # between them a gap that goes with the lettering - the same gap beside a
+            # quarter-size arrow would read as a miss. All three are lengths across
+            # the ground, turned into longitude at the label's latitude as the text
+            # itself is written (see create_text_on_sphere). Placed at two angular
+            # radii from the centre instead, the arrow stood a full radius out from a
+            # large crater on the equator and on top of a small feature or a crater
+            # far north or south.
+            rim = spot_label_feature.angular_radius
+            label_lon = spot_label_feature.lon + (rim + gap + half_glyph) / cos_lat
+        else:
+            # No rim to clear: the same gap and half glyph, measured from the
+            # feature's centre instead of from its rim.
+            label_lon = spot_label_feature.lon + (gap + half_glyph) / cos_lat
 
         spot_label_segments = create_text_on_sphere(
             label_text,
