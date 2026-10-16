@@ -541,7 +541,7 @@ class MainWindow(tk.Tk):
              "With the default 46080 x 92160 map that is 15.8 GB of GPU memory at 1,\n"
              "4.0 GB at 2, 1.8 GB at 3, 1.0 GB at 4 and 0.25 GB at 8.\n"
              "Take into account that in addition to the elevation map, the GPU memory\n"
-             "must also accommodate the color map."),
+             "must also accommodate the color map and optionally stars background."),
             (self.color_downscale,
              "Color map downscale factor. The map is decoded straight at this fraction\n"
              "of its size, so the memory needed to load it falls with the square of the\n"
