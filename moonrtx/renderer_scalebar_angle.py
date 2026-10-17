@@ -3,10 +3,13 @@ AngleScaleBarMixin: a bar along the bottom of the picture saying how wide a
 stretch of it is as an angle, for MoonRenderer. A companion of ScaleBarMixin,
 which says the same in kilometres.
 
-The angle is the one the stretch of ground subtends as seen from the Earth,
-the way an observer with a telescope would measure it. The whole disk of the
-Moon is about 31' across, however close the virtual camera is, and close to the
-ground the bar reads in arcseconds.
+The angle is that of a scale laid across the picture at the middle of the
+view: the angle the stretch would span seen from the Earth if it faced the
+Earth, the way an observer with a telescope would measure it. It is a measure
+of the picture, not of the ground along a path over it, so it takes no account
+of slopes or of the curve of the surface. The whole disk of the Moon is about
+31' across, however close the virtual camera is, and close to the ground the
+bar reads in arcseconds.
 
 The bar is drawn like the kilometre one: marked at its quarters, numbered as a
 ruler (0 at the left end, a round angle at the middle mark, twice that at the
@@ -60,11 +63,24 @@ class AngleScaleBarMixin:
 
     # ---- the numbers ----
 
+    def _angle_bar_distance(self, eye, forward) -> Optional[float]:
+        """
+        Distance from the camera to the ground at the middle of the view, or None
+        when the view looks past the Moon. The ground is the one the kilometre bar
+        measures to (see ScaleBarMixin._scale_bar_ground_radius).
+        """
+        radius = self._scale_bar_ground_radius()
+        ahead = -float(eye @ forward)
+        if ahead <= 0.0:
+            return None
+        miss2 = float(eye @ eye) - ahead ** 2
+        return ahead - math.sqrt(radius ** 2 - miss2) if miss2 < radius ** 2 else ahead
+
     def _angle_bar_deg_per_px(self, height: int) -> Optional[float]:
         """
         Degrees of angle to a pixel at the middle of the view, across the line
-        of sight, as the ground there would be seen from the Earth - or None
-        when the view looks away from the Moon.
+        of sight, as a surface square to the line of sight there would be seen
+        from the Earth - or None when the view looks away from the Moon.
         """
         if self.rt is None or height <= 0:
             return None
@@ -80,16 +96,12 @@ class AngleScaleBarMixin:
             return None
         forward /= norm
 
-        # Distance to the ground at the middle of the view, as ScaleBarMixin
-        ahead = -float(eye @ forward)
-        if ahead <= 0.0:
+        distance = self._angle_bar_distance(eye, forward)
+        if distance is None:
             return None
-        miss2 = float(eye @ eye) - ahead ** 2
-        radius = self.reference_radius
-        distance = ahead - math.sqrt(radius ** 2 - miss2) if miss2 < radius ** 2 else ahead
 
         scene_per_px = 2 * distance * math.tan(math.radians(fov) / 2) / height
-        km_per_px = scene_per_px * self.MOON_RADIUS_KM / radius
+        km_per_px = scene_per_px * self.MOON_RADIUS_KM / self.reference_radius
         return math.degrees(km_per_px / self.moon_ephem.distance)
 
     @classmethod

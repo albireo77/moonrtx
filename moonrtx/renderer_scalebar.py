@@ -45,6 +45,7 @@ class ScaleBarMixin:
     SCALE_BAR_MARGIN_PX = 16        # from the edge of a picture, as the compass's
     SCALE_BAR_PANEL_GAP_PX = 16     # from the status panel on the window
     SCALE_BAR_LABEL_GAP_PX = 2      # between the ticks and the distance over them
+    SCALE_BAR_HIT_TOLERANCE = 0.02  # share of reference_radius a terrain hit may stray from it
 
     def _init_scale_bar(self):
         """Reset the overlay state; called from MoonRenderer.__init__."""
@@ -62,15 +63,35 @@ class ScaleBarMixin:
 
     # ---- the numbers ----
 
+    def _scale_bar_ground_radius(self) -> float:
+        """
+        The radius of the ground at the middle of the view: the reference radius,
+        or the radius of the relief the render shows there when it can tell it
+        (see rt._get_hit_at). Both scale bars measure their distance to it, so
+        they always agree.
+        """
+        radius = self.reference_radius
+
+        # Not while a video export runs: it draws from the render thread, before
+        # the frame exists, so the hit buffer would be the previous frame's
+        if self._video_export is None:
+            rt = self.rt
+            hx, hy, hz, hd = rt._get_hit_at(rt._width // 2, rt._height // 2)
+            if hd > 0:
+                ground = float(np.linalg.norm([hx, hy, hz]))
+                if abs(ground - radius) <= self.SCALE_BAR_HIT_TOLERANCE * radius:
+                    return ground
+        return radius
+
     def _scale_bar_km_per_px(self, height: int) -> Optional[float]:
         """
         Kilometres of ground to a pixel at the middle of the view, across the
         line of sight - or None when the view looks away from the Moon.
 
-        Measured where the line of sight meets the reference sphere, which is
-        the ground to within the relief; one passing beside the Moon is
-        measured at the plane through its centre, which is where the limb it
-        passes is.
+        Measured where the line of sight meets the ground: the reference sphere, raised
+        or lowered to the relief under the middle of the view when the render shows it;
+        one passing beside the Moon is measured at the plane through its centre, which
+        is where the limb it passes is.
 
         The reference sphere is not the scene's MOON_RADIUS but some 0.6%
         inside it, and a scene unit that much more ground (see
@@ -91,8 +112,9 @@ class ScaleBarMixin:
         if ahead <= 0.0:
             return None
         miss2 = float(eye @ eye) - ahead ** 2       # how far the view passes from it, squared
-        radius = self.reference_radius
-        distance = ahead - math.sqrt(radius ** 2 - miss2) if miss2 < radius ** 2 else ahead
+        radius = self.reference_radius              # for the conversion to km below
+        ground = self._scale_bar_ground_radius()
+        distance = ahead - math.sqrt(ground ** 2 - miss2) if miss2 < ground ** 2 else ahead
 
         # The field is the height of the picture (see pan_tilt_view)
         scene_per_px = 2 * distance * math.tan(math.radians(fov) / 2) / height

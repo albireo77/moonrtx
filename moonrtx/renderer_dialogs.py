@@ -820,7 +820,7 @@ class DialogsMixin:
             ("B", "Toggle the field of view frame (set it up with Shift + B)"),
             ("C", "Toggle compass showing how far the view is turned (rotated) from default"),
             ("R", "Toggle locator showing where on the Moon the view is"),
-            ("D", "Toggle scale bar (less accurate toward the Moon's edge)"),
+            ("D", "Toggle scale bar (kilometres, at the centre of the view)"),
             ("F", "Search for Moon features (craters, mounts etc.) or go to lat lon"),
             ("A", "Find clair-obscur events (Lunar X, Jewelled Handle, Rupes Recta ...)"),
             ("E", "Find lunar eclipses"),
@@ -841,7 +841,7 @@ class DialogsMixin:
         other_lines = [
             ("Shift + N/M", "Decrease/Increase the time step by 60 minutes (maximum 1440 = 1 day)"),
             ("Shift + B", "Set up the eyepiece / camera field of view frame"),
-            ("Shift + D", "Toggle angle scale bar"),
+            ("Shift + D", "Toggle angular scale bar (angle as seen from Earth, at the centre of the view)"),
             ("Arrows", "Move view"),
             ("Space", "Center and fix view on point under cursor"),
             ("Escape", "Leave full screen; close a window (dialog)"),
