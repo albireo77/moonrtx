@@ -66,7 +66,7 @@ class AngleScaleBarMixin:
     def _angle_bar_distance(self, eye, forward) -> Optional[float]:
         """
         Distance from the camera to the ground at the middle of the view, or None
-        when the view looks past the Moon. The ground is the one the kilometre bar
+        when the Moon is behind it. The ground is the one the kilometre bar
         measures to (see ScaleBarMixin._scale_bar_ground_radius).
         """
         radius = self._scale_bar_ground_radius()
@@ -80,7 +80,12 @@ class AngleScaleBarMixin:
         """
         Degrees of angle to a pixel at the middle of the view, across the line
         of sight, as a surface square to the line of sight there would be seen
-        from the Earth - or None when the view looks away from the Moon.
+        from the Earth - or None when the Moon is behind the camera, or the view
+        gives no scale (no camera field, no direction).
+
+        The distance is the one the kilometre bar measures to, so the two bars
+        always agree: the angle is that bar's kilometres to a pixel over the
+        Moon's distance from the observer.
         """
         if self.rt is None or height <= 0:
             return None
