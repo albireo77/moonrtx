@@ -419,6 +419,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # The ground along a measurement (see renderer_profile.ProfileMixin)
         self._init_profile()
 
+        self._init_measure_line()
+
         # The windows' choices the last run left, the field-of-view setup among
         # them - so after that setup's defaults (see renderer_settings)
         self._load_settings()
@@ -1545,6 +1547,9 @@ def run_renderer(dt_local: datetime,
             moon_renderer.hide_pinned_labels()
         elif event.keysym == 'End':
             moon_renderer.reset_to_default_view()
+        elif event.keysym == 'BackSpace':
+            moon_renderer.drop_measure_line()
+            moon_renderer.clear_measurement()
         elif event.keysym.lower() == 'd':
             if event.state & 0x1:
                 moon_renderer.toggle_angle_bar()
@@ -1653,8 +1658,6 @@ def run_renderer(dt_local: datetime,
             moon_renderer.rt._status_action_text.set('')
             moon_renderer._update_info_coords(lat, lon)
             moon_renderer._update_status_feature(feature)
-            if lat is None:
-                moon_renderer.clear_measurement()
 
     moon_renderer.rt._gui_motion = custom_motion_handler
 

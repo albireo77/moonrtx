@@ -8,10 +8,6 @@ crosses a rim and drops into a crater on the way. The profile draws the ground
 along the whole line, from the same elevation map the renderer displaces the
 surface with, so it shows the terrain the picture is made of.
 
-Drawn for a measurement made with the right Ctrl; the left one measures as it
-always has. One window, kept open across measurements: each one made with the
-right Ctrl redraws it rather than opening another. It does not take the
-renderer's keys, so the clock and the view stay in reach while it is up.
 """
 
 import math
@@ -55,9 +51,6 @@ class ProfileMixin:
     def _init_profile(self):
         """Reset the profile window state; called from MoonRenderer.__init__."""
         self._profile = None                # the open window and its redraw, or None
-        self._profile_line = None           # the measurement's line, kept while shown
-        self._profile_line_view = None      # the view it was drawn in
-        self._profile_line_watch = None     # the poll that notices the view move
 
     # ---- the numbers ----
 
@@ -146,58 +139,6 @@ class ProfileMixin:
         self._profile["draw"](*profile, start, end)
         return True
 
-    def _keep_profile_line(self, line_id, end_x: float, end_y: float):
-        """
-        Leave a measurement's line on the picture while its profile is shown,
-        so the window says what it is the ground of. The line of the profile
-        it replaces goes; this one goes with the window.
-
-        It is drawn in the window's pixels, as it was during the drag, so it
-        marks the ground only while the view stays as it was measured - and it
-        is taken away the moment the view moves: panned, zoomed, turned, the
-        clock stepped or the window resized. Left standing, it would go on
-        pointing at whatever ground had come under it instead.
-        """
-        self._drop_profile_line()
-        # The line is the first of the measurement's items: where it starts is
-        # read off it, and it is laid again to where the button came up
-        x0, y0 = self.rt._canvas.coords(line_id)[:2]
-        self._place_measure_line(line_id, x0, y0, end_x, end_y)
-        self._profile_line = line_id
-        self._profile_line_view = self._profile_line_view_now()
-        self._profile_line_watch = self._schedule_overlay(self._watch_profile_line)
-
-    def _profile_line_view_now(self):
-        """
-        The view as the kept line depends on it: what every canvas overlay
-        depends on (see _overlay_view_state), and the zoom, which the wheel
-        changes without moving the camera.
-        """
-        if self.rt is None:
-            return None
-        return self._overlay_view_state(extra=(self.rt._optix.get_camera_fov(0),))
-
-    def _watch_profile_line(self):
-        """One beat of the poll: take the kept line away once the view has moved."""
-        self._profile_line_watch = None
-        if self._profile_line is None:
-            return
-        if self._profile_line_view_now() != self._profile_line_view:
-            self._drop_profile_line()
-            return
-        self._profile_line_watch = self._schedule_overlay(self._watch_profile_line)
-
-    def _drop_profile_line(self):
-        """Take the kept measurement line off the picture, if there is one."""
-        self._profile_line_watch = self._cancel_overlay(self._profile_line_watch)
-        self._profile_line_view = None
-        if self._profile_line is not None and self.rt is not None:
-            try:
-                self.rt._canvas.delete(self._profile_line)
-            except tk.TclError:         # the main window went first
-                pass
-        self._profile_line = None
-
     def _open_profile_window(self):
         colours = self.PROFILE_COLOURS
         # Where the window was left is kept by _dialog_window; how large its
@@ -207,7 +148,6 @@ class ProfileMixin:
         def before_close():
             memory["canvas"] = (width, height)
             self._profile = None
-            self._drop_profile_line()
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up

@@ -5,6 +5,7 @@ distance measurement, and feature lookup for MoonRenderer.
 
 import math
 
+import tkinter as tk
 import numpy as np
 from typing import Optional
 
@@ -174,16 +175,10 @@ class NavigationMixin:
         off the Moon, or on ground no feature the status bar or the spot labels
         name covers, does nothing.
         """
-        if self.rt is None:
+        place = self._selenographic_at(event)
+        if place is None:
             return
-        x, y = self.rt._get_image_xy(event.x, event.y)
-        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
-        if hd <= 0:
-            return
-        lat, lon = self.hit_to_selenographic(hx, hy, hz)
-        if lat is None or lon is None:
-            return
-        feature = self._feature_in_lookup(self._click_lookup, lat, lon)
+        feature = self._feature_in_lookup(self._click_lookup, *place)
         if feature is None:
             return
         if self.is_catalogue_pinned(feature):
@@ -637,6 +632,27 @@ class NavigationMixin:
 
     # ==================== Distance Measurement Methods ====================
 
+    def _selenographic_at(self, event) -> Optional[tuple]:
+        """(lat, lon) of the Moon under a pointer event, or None off the Moon."""
+        if self.rt is None:
+            return None
+        x, y = self.rt._get_image_xy(event.x, event.y)
+        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
+        if hd <= 0:
+            return None
+        lat, lon = self.hit_to_selenographic(hx, hy, hz)
+        if lat is None or lon is None:
+            return None
+        return lat, lon
+
+    def _measure_between(self, start: tuple, end: tuple):
+        """Set the measured distance, angle and height difference, and show them."""
+        (lat1, lon1), (lat2, lon2) = start, end
+        self.measured_distance = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
+        self.measured_angle = self.apparent_separation(lat1, lon1, lat2, lon2)
+        self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
+        self._update_status_measured()
+
     def calculate_great_circle_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """
         Calculate the great circle distance between two points on the Moon surface.
@@ -735,7 +751,7 @@ class NavigationMixin:
     def start_measurement(self, event, with_profile: bool = False):
         """
         Start distance measurement on Ctrl+B1 press.
-        
+
         Parameters
         ----------
         event : tk.Event
@@ -746,25 +762,18 @@ class NavigationMixin:
         """
         if self.rt is None:
             return
-        
+
         self.measure_with_profile = with_profile
-        x, y = self.rt._get_image_xy(event.x, event.y)
-        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
-        
-        if hd <= 0:
+        start = self._selenographic_at(event)
+        if start is None:
             self.measuring = False
             return
-        
-        lat, lon = self.hit_to_selenographic(hx, hy, hz)
-        
-        if lat is None or lon is None:
-            self.measuring = False
-            return
-        
+
+        self.drop_measure_line()
         self.measuring = True
         self.measure_start_canvas = (event.x, event.y)
-        self.measure_start_coords = (lat, lon)
-        
+        self.measure_start_coords = start
+
         if hasattr(self.rt, '_canvas'):
             # The line and its arrow share a tag of their own, which is what
             # the rest of the measurement holds on to, so the two are moved,
@@ -808,10 +817,64 @@ class NavigationMixin:
                       base_x + uy * half_width, base_y - ux * half_width)
         canvas.itemconfigure(arrow, state='normal')
 
+    def _init_measure_line(self):
+        """Reset the kept-line state; called from MoonRenderer.__init__."""
+        self._measure_line = None           # the kept measurement line (its tag), or None
+        self._measure_line_view = None      # the view it was drawn in
+        self._measure_line_watch = None     # the poll that notices the view move
+
+    def _keep_measure_line(self, line_id):
+        """
+        Leave a measurement's line on the picture after the button is released,
+        so the numbers (and the profile window, if one was drawn) say what the
+        line is of.
+
+        It is drawn in the window's pixels, as it was during the drag, so it
+        marks the ground only while the view stays as it was measured - and it
+        is taken away the moment the view moves: panned, zoomed, turned, the
+        clock stepped or the window resized. Left standing, it would go on
+        pointing at whatever ground had come under it instead.
+        """
+        self._measure_line = line_id
+        self._measure_line_view = self._measure_line_view_now()
+        self._measure_line_watch = self._schedule_overlay(self._watch_measure_line)
+
+    def _measure_line_view_now(self):
+        """
+        The view as the kept line depends on it: what every canvas overlay
+        depends on (see _overlay_view_state), and the zoom, which the wheel
+        changes without moving the camera.
+        """
+        if self.rt is None:
+            return None
+        return self._overlay_view_state(extra=(self.rt._optix.get_camera_fov(0),))
+
+    def _watch_measure_line(self):
+        """One beat of the poll: take the kept line away once the view has moved."""
+        self._measure_line_watch = None
+        if self._measure_line is None:
+            return
+        if self._measure_line_view_now() != self._measure_line_view:
+            self.drop_measure_line()
+            self.clear_measurement()
+            return
+        self._measure_line_watch = self._schedule_overlay(self._watch_measure_line)
+
+    def drop_measure_line(self):
+        """Take the kept measurement line off the picture, if there is one."""
+        self._measure_line_watch = self._cancel_overlay(self._measure_line_watch)
+        self._measure_line_view = None
+        if self._measure_line is not None and self.rt is not None:
+            try:
+                self.rt._canvas.delete(self._measure_line)
+            except tk.TclError:         # the main window went first
+                pass
+        self._measure_line = None
+
     def update_leading_line(self, event):
         """
         Update the leading line during drag and show live distance.
-        
+
         Parameters
         ----------
         event : tk.Event
@@ -819,30 +882,24 @@ class NavigationMixin:
         """
         if not self.measuring or self.leading_line_id is None:
             return
-        
-        if not hasattr(self.rt, '_canvas'):
-            return
-        
+
         start_x, start_y = self.measure_start_canvas
         self._place_measure_line(self.leading_line_id, start_x, start_y, event.x, event.y)
 
         # Live distance update during drag
-        x, y = self.rt._get_image_xy(event.x, event.y)
-        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
-        if hd > 0:
-            lat2, lon2 = self.hit_to_selenographic(hx, hy, hz)
-            if lat2 is not None and lon2 is not None:
-                lat1, lon1 = self.measure_start_coords
-                distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
-                self.measured_distance = distance_km
-                self.measured_angle = self.apparent_separation(lat1, lon1, lat2, lon2)
-                self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
-                self._update_status_measured()
+        end = self._selenographic_at(event)
+        if end is not None:
+            self._measure_between(self.measure_start_coords, end)
 
     def finish_measurement(self, event):
         """
         Finish distance measurement on B1 release.
-        
+
+        The line drawn during the drag stays on the picture until the view
+        moves or a new measurement starts (see _keep_measure_line). A click
+        that did not drag, or a release off the Moon, measures nothing and
+        leaves nothing.
+
         Parameters
         ----------
         event : tk.Event
@@ -852,47 +909,24 @@ class NavigationMixin:
             return
         self.measuring = False
 
-        # The line drawn during the drag comes off the picture when the
-        # measurement is done - unless it drew a profile, which keeps it for as
-        # long as its window is open (see ProfileMixin._keep_profile_line)
         line_id, self.leading_line_id = self.leading_line_id, None
-        profile_drawn = self._measure_to(event)
-        if line_id is not None and hasattr(self.rt, '_canvas'):
-            if profile_drawn:
-                self._keep_profile_line(line_id, event.x, event.y)
-            else:
+        start_x, start_y = self.measure_start_canvas
+        end = self._selenographic_at(event)
+        moved = math.hypot(event.x - start_x, event.y - start_y) > self.CLICK_SLOP_PX
+
+        if end is None or not moved:
+            if line_id is not None:
                 self.rt._canvas.delete(line_id)
+            self.clear_measurement()
+            return
 
-    def _measure_to(self, event) -> bool:
-        """
-        Complete the measurement at the point the button came up over, and say
-        whether it drew a profile.
-        """
-        if self.rt is None or self.measure_start_coords is None:
-            return False
-        
-        x, y = self.rt._get_image_xy(event.x, event.y)
-        hx, hy, hz, hd = self.rt._get_hit_at(x, y)
-        
-        if hd <= 0:
-            return False
-        
-        lat2, lon2 = self.hit_to_selenographic(hx, hy, hz)
-        
-        if lat2 is None or lon2 is None:
-            return False
-        
-        lat1, lon1 = self.measure_start_coords
-        
-        distance_km = self.calculate_great_circle_distance(lat1, lon1, lat2, lon2)
-        
-        self.measured_distance = distance_km
-        self.measured_angle = self.apparent_separation(lat1, lon1, lat2, lon2)
-        self.measured_height_diff = self.get_elevation_m(lat2, lon2) - self.get_elevation_m(lat1, lon1)
-        self._update_status_measured()
-
+        self._measure_between(self.measure_start_coords, end)
         # The ground in between, which the two numbers say nothing about
-        return self.measure_with_profile and self.show_profile((lat1, lon1), (lat2, lon2))
+        if self.measure_with_profile:
+            self.show_profile(self.measure_start_coords, end)
+        if line_id is not None:
+            self._place_measure_line(line_id, start_x, start_y, event.x, event.y)
+            self._keep_measure_line(line_id)
 
     def clear_measurement(self):
         """
