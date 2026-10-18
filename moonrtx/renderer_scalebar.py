@@ -86,7 +86,8 @@ class ScaleBarMixin:
     def _scale_bar_km_per_px(self, height: int) -> Optional[float]:
         """
         Kilometres of ground to a pixel at the middle of the view, across the
-        line of sight - or None when the view looks away from the Moon.
+        line of sight - or None when the Moon is behind the camera, or the view
+        gives no scale (no camera field, no direction).
 
         Measured where the line of sight meets the ground: the reference sphere, raised
         or lowered to the relief under the middle of the view when the render shows it;
