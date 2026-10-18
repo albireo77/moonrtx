@@ -87,8 +87,8 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **Arrows** - Move view  
 **Space** - Center and fix view on point under cursor  
 **Escape** - Leave full screen; close a window (dialog)  
-**Home** - Reset camera and time to initial state  
-**End** - Reset camera to default state (useful after starting with `--init-view` parameter)  
+**Home** - Reset camera position and time to their initial values  
+**End** - Reset camera to default position (useful after starting with `--init-view` parameter)  
 **Delete** - Remove labels left by Find, Observation Planner and clicks  
 **Backspace** - Remove measurement lines  
 **Ctrl + Left/Right** - Rotate view around Moon's polar axis  
