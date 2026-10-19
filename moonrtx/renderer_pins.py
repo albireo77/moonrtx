@@ -7,7 +7,7 @@ pins after a time change is one update_graph call per pin.
 
 import numpy as np
 
-from moonrtx.moon_grid import (PIN_DIGIT_SCALE, create_single_digit_on_sphere,
+from moonrtx.moon_grid import (PIN_DIGIT_SCALE, LABEL_LIFT, create_single_digit_on_sphere,
                               merge_segments_to_graph)
 
 class PinsMixin:
@@ -213,7 +213,8 @@ class PinsMixin:
         east = np.array([np.cos(lo), np.sin(lo), 0.0])
         inner, outer = (np.radians(a) * self.label_scale() for a in self.PLACE_MARK_ARM_DEG)
         angles = np.linspace(inner, outer, self.PLACE_MARK_ARM_POINTS)
-        arms = [(np.outer(np.cos(angles), place) + np.outer(np.sin(angles), way)) * self.MOON_RADIUS
+        arms = [(np.outer(np.cos(angles), place) + np.outer(np.sin(angles), way))
+                * self.MOON_RADIUS * (1 + LABEL_LIFT)
                 for way in (north, -north, east, -east)]
 
         pos, edges = merge_segments_to_graph(arms)

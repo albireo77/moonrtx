@@ -14,6 +14,13 @@ GRID_DIGIT_SCALE = 0.125
 # the lettering's height
 SPOT_LABEL_GAP = 0.2
 
+# How far lettering floats above the ground, as a share of the Moon's radius.
+# The strokes are tubes up to 0.012 thick (GRID_LABEL_RADIUS), so the centre line
+# is lifted by about that much and the tube rests on the surface instead of
+# sinking into it. Any higher and the lettering parallaxes against the ground
+# when the view is tilted or Ctrl+arrow turns the globe.
+LABEL_LIFT = 0.0015
+
 # A glyph is laid out in the tangent plane of the sphere, its own x axis running
 # east and its own z axis running north, so the lettering follows the graticule.
 # Which way round it is written is decided by two mirrors, and the mirrors depend
@@ -217,7 +224,7 @@ def create_single_digit_on_sphere(digit: int,
     list
         List of numpy arrays, each containing points for one line segment
     """
-    r = moon_radius * (1 + offset + 0.005)
+    r = moon_radius * (1 + offset + LABEL_LIFT)  # Slightly above grid lines
 
     # Calculate offsets to position the left-bottom corner at the given lat/lon
     # In create_digit_segments: w = 0.3 * scale (half width), h = 0.5 * scale (half height)
@@ -302,7 +309,7 @@ def create_number_on_sphere(number: int,
     list
         List of numpy arrays, each containing points for one line segment
     """
-    r = moon_radius * (1 + offset + 0.005)  # Slightly above grid lines
+    r = moon_radius * (1 + offset + LABEL_LIFT)  # Slightly above grid lines
 
     num_str = str(number)
     num_digits = len(num_str)
@@ -385,7 +392,7 @@ def create_text_on_sphere(text: str,
     flip_vertical : bool
         If True, mirror text vertically (for SNEW, SNWE orientations)
     """
-    r = moon_radius * (1 + offset + 0.005)
+    r = moon_radius * (1 + offset + LABEL_LIFT)
     all_segments = []
 
     char_width = char_scale * (1 + spacing)
@@ -478,7 +485,7 @@ def create_centered_text_on_sphere(text: str,
     list
         List of numpy arrays, each containing points for one line segment
     """
-    r = moon_radius * (1 + offset + 0.005)  # Slightly above grid lines
+    r = moon_radius * (1 + offset + LABEL_LIFT)  # Slightly above grid lines
 
     all_segments = []
 
@@ -639,7 +646,7 @@ def create_spot_labels(spot_label_features: list[MoonFeature], moon_radius: floa
         label_lat = spot_label_feature.lat
 
         char_scale = LABEL_CHAR_SCALE * scale
-        text_radius = moon_radius * (1 + offset + 0.005)    # as the text is written
+        text_radius = moon_radius * (1 + offset + LABEL_LIFT)    # as the text is written
         half_glyph = math.degrees(0.3 * char_scale / text_radius)
         gap = math.degrees(SPOT_LABEL_GAP * char_scale / text_radius)
         cos_lat = max(math.cos(math.radians(label_lat)), 0.02)
