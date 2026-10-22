@@ -58,6 +58,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **F12** - Save image  
 **1-9** - Create/Remove pin (when pins are ON)  
 **0** - Toggle pins ON/OFF  
+**T** - Toggle time toolbox  
 **P** - Toggle labels for all Moon features  
 **L** - Toggle standard labels  
 **S** - Toggle spot labels  
@@ -74,7 +75,6 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **K** - Open observation planner (terminator / libration) for Moon feature in status bar  
 **I** - Open USGS web page for Moon feature in status bar  
 **O** - Open user defined web page (Wikipedia by default) for Moon feature in status bar  
-**T** - Open date/time window  
 **V** - Export time-lapse video (MP4)  
 **-/+** - Decrease/Increase brightness  
 **[/]** - Decrease/Increase gamma correction  

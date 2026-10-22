@@ -1,6 +1,6 @@
 """
 DialogsMixin: the dialogs that act on the view - the video export, the help, the
-image save, the feature search and the clock - for MoonRenderer.
+image save and the feature search - for MoonRenderer.
 
 The ones that answer a question about the sky rather than acting on the view -
 the rise-and-set chart, the clair-obscur finder and the observation planner -
@@ -11,17 +11,14 @@ writing of results to the clipboard, a spreadsheet or a calendar.
 import os
 import re
 import glob
-import calendar
 import unicodedata
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog, messagebox
-from datetime import datetime
 from typing import Optional
 
 from moonrtx.display import ToolTip, allow_minimize, bring_to_front, screen_size
 from moonrtx.shared_types import Camera, InitView, MoonFeature
-from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSWE
 
 
@@ -812,6 +809,7 @@ class DialogsMixin:
             ("F12", "Save image"),
             ("1-9", "Create/Remove pin (when pins are ON)"),
             ("0", "Toggle pins ON/OFF"),
+            ("T", "Toggle time toolbox"),
             ("P", "Toggle labels for all Moon features"),
             ("L", "Toggle standard labels"),
             ("S", "Toggle spot labels"),
@@ -828,7 +826,6 @@ class DialogsMixin:
             ("K", "Open observation planner (terminator / libration) for Moon feature in status bar"),
             ("I", "Open USGS web page for Moon feature in status bar"),
             ("O", "Open user defined web page (Wikipedia by default) for Moon feature in status bar"),
-            ("T", "Open date/time window"),
             ("V", "Export time-lapse video (MP4, NSWE view only)"),
             ("-/+", "Decrease/Increase brightness"),
             ("[/]", "Decrease/Increase gamma correction (0.5 - 5.0)"),
@@ -1177,236 +1174,3 @@ class DialogsMixin:
         # is still withdrawn cannot take focus, and the request is simply lost,
         # leaving the first thing typed to go nowhere
         entry.focus_set()
-
-    def sync_datetime_dialog(self):
-        """
-        Put the moment now being shown into the date/time window, if it is open.
-
-        Its fields would otherwise stand at whatever they were last set to while
-        the Moon moved on without them - and pressing Set would then take the
-        view back to a time the user had left behind.
-        """
-        if getattr(self, "_datetime_dialog_show", None) is not None:
-            self._datetime_dialog_show(self.dt_local)
-
-    def open_datetime_dialog(self):
-        """
-        Open a dialog to set date, time, and timezone.
-        The dialog stays open and syncs with Q/W key time changes.
-        """
-        if self.rt is None:
-            return
-        
-        # If already open, just bring it to front
-        if self.datetime_dialog is not None and self.datetime_dialog.winfo_exists():
-            self.datetime_dialog.lift()
-            self.datetime_dialog.focus_set()
-            return
-        
-        def forget_it():
-            self.datetime_dialog = None
-            self._datetime_dialog_show = None
-            self.datetime_dialog_focused = False
-
-        def on_focus_in(event):
-            self.datetime_dialog_focused = True
-
-        def on_focus_out(event):
-            self.datetime_dialog_focused = False
-
-        # Non-modal and stays open; it keeps the main window's keys, taking
-        # only the ones its spinboxes are made of (see datetime_dialog_takes_key)
-        dt_win, main_frame, on_close = self._dialog_window(
-            "Date/Time", padding=(15, 5), takes_keys=False, before_close=forget_it)
-        self.datetime_dialog = dt_win
-
-        dt_win.bind("<FocusIn>", on_focus_in)
-        dt_win.bind("<FocusOut>", on_focus_out)
-        
-        # Get current local time for later use
-        current_dt_local = self.dt_local
-        
-        # Date and Time rows using grid for proper alignment
-        grid_frame = tk.Frame(main_frame)
-        grid_frame.pack(fill=tk.X, pady=3)
-        
-        def digits_only(proposed: str, digits: str) -> bool:
-            """
-            Let a spinbox hold nothing but digits, and no more than it has room
-            for. Everything else typed at one is meant for the main window and
-            is left alone here to reach it (see custom_key_handler).
-            """
-            return proposed == "" or (proposed.isdigit() and len(proposed) <= int(digits))
-
-        accepts_digits = dt_win.register(digits_only)
-
-        def spin_row(row: int, label: str, separator: str, parts: list) -> list:
-            """
-            Build one row of spinboxes separated by a repeated character.
-
-            Parameters
-            ----------
-            row : int
-                Row in grid_frame
-            label : str
-                Row caption
-            separator : str
-                Character drawn between the spinboxes
-            parts : list
-                One (value, low, high, digits, wrap) tuple per spinbox
-
-            Returns
-            -------
-            list
-                One (variable, spinbox) pair per part, in the order given
-            """
-            tk.Label(grid_frame, text=label, anchor='w').grid(row=row, column=0, sticky='e', pady=2)
-            spins = []
-            for i, (value, low, high, digits, wrap) in enumerate(parts):
-                # Both rows share one grid, a column per part and a column per
-                # separator, so the boxes of one line up with those of the other
-                # without their widths having to be matched by hand
-                column = 1 + 2 * i
-                if i:
-                    tk.Label(grid_frame, text=separator).grid(row=row, column=column - 1, pady=2)
-                var = tk.StringVar(value=f"%0{digits}d" % value)
-                spin = tk.Spinbox(grid_frame, textvariable=var, from_=low, to=high, width=digits + 1,
-                                  format=f"%0{digits}.0f", wrap=wrap,
-                                  validate='key', validatecommand=(accepts_digits, '%P', digits))
-                # Stretched to the column, which the widest box in it has set
-                spin.grid(row=row, column=column, pady=2, sticky='ew', padx=(5 if i == 0 else 0, 0))
-                spins.append((var, spin))
-            return spins
-
-        # Date row. The year stops where the bundled Skyfield kernels do, and
-        # the day is trimmed to the length of the month chosen (see below)
-        (year_var, _), (month_var, _), (day_var, day_spin) = spin_row(
-            0, "Date:", "-",
-            [(current_dt_local.year, SKYFIELD_MOON_FRAME_START_UTC.year,
-              SKYFIELD_MOON_FRAME_END_UTC.year - 1, 4, False),
-             (current_dt_local.month, 1, 12, 2, True),
-             (current_dt_local.day, 1, 31, 2, True)])
-
-        # Spelled out because the order of the parts is the one thing the boxes
-        # cannot show: a reader used to month first would otherwise have to guess
-        tk.Label(grid_frame, text="(YYYY-MM-DD)", fg='gray').grid(row=0, column=6, sticky='w',
-                                                                  padx=(5, 0), pady=2)
-
-        # Time row. The offset is deliberately not shown: the date set above
-        # may fall the other side of a daylight saving change from the one in
-        # force now, and a label read at the wrong moment would name the wrong
-        # offset. The time is on the session's clock whatever the date.
-        (hour_var, hour_spin), (minute_var, _), (second_var, _) = spin_row(
-            1, "Local Time:", ":",
-            [(current_dt_local.hour, 0, 23, 2, True),
-             (current_dt_local.minute, 0, 59, 2, True),
-             (current_dt_local.second, 0, 59, 2, True)])
-
-        def clamp_day_to_month(*_):
-            """Keep the day within the chosen month, so 31 Jan then Feb gives 28 or 29."""
-            try:
-                last = calendar.monthrange(int(year_var.get()), int(month_var.get()))[1]
-            except ValueError:
-                return  # half-typed year or month; the next keystroke settles it
-            day_spin.config(to=last)
-            if int(day_var.get() or 0) > last:
-                day_var.set(f"{last:02d}")
-
-        year_var.trace_add('write', clamp_day_to_month)
-        month_var.trace_add('write', clamp_day_to_month)
-        clamp_day_to_month()
-
-
-        # Error label
-        error_var = tk.StringVar()
-        error_label = tk.Label(main_frame, textvariable=error_var, fg='red')
-        error_label.pack(fill=tk.X, pady=2)
-        
-        # Button frame
-        btn_frame = tk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=5)
-        
-        def show_datetime(dt):
-            """Put a moment into the six spinboxes."""
-            for var, value in ((year_var, dt.year), (month_var, dt.month), (day_var, dt.day),
-                               (hour_var, dt.hour), (minute_var, dt.minute), (second_var, dt.second)):
-                var.set(f"{value:04d}" if var is year_var else f"{value:02d}")
-
-        # Reached by sync_datetime_dialog whenever the clock moves elsewhere
-        self._datetime_dialog_show = show_datetime
-
-        def go_to_time():
-            """Apply the selected date/time in local timezone."""
-            try:
-                # A spinbox can still be typed into, so the parts are validated
-                # rather than trusted; datetime rejects anything out of range
-                new_dt_naive = datetime(int(year_var.get()), int(month_var.get()), int(day_var.get()),
-                                        int(hour_var.get()), int(minute_var.get()), int(second_var.get()))
-
-                # Read on the observer's clock, so the daylight saving rules
-                # of the chosen date decide the offset (see from_observer_clock)
-                new_dt_local = self.from_observer_clock(new_dt_naive)
-
-                # Refused here in a few words, rather than in astro's own long
-                # sentence, which the window has no room for
-                if not (SKYFIELD_MOON_FRAME_START_UTC <= new_dt_local
-                        <= SKYFIELD_MOON_FRAME_END_UTC):
-                    error_var.set(f"Only years {SKYFIELD_MOON_FRAME_START_UTC.year}"
-                                  f"-{SKYFIELD_MOON_FRAME_END_UTC.year - 1}")
-                    return
-
-                # Update the view
-                self.update_view(new_dt_local)
-                
-                # Reset auto-advance counter when time is manually set
-                if self._auto_advance_var and self._auto_advance_var.get():
-                    self._auto_advance_elapsed = 0
-                
-                # Update status bar
-                self._update_all_status_panels()
-                
-                error_var.set("")
-                
-            except Exception as e:
-                # Python's own wording ("invalid literal for int() with base
-                # 10") is as much too long for the window, and no clearer
-                print(f"Date/time not set: {e}")
-                error_var.set("Invalid date or time")
-
-        def set_now():
-            """Set to the current time on the observer's clock."""
-            # In the session's timezone, not this machine's: the fields are read
-            # back as wall clock in that zone (see from_observer_clock), so the
-            # system reading would land on the wrong instant for a session
-            # planned elsewhere
-            show_datetime(datetime.now(self.dt_local.tzinfo))
-
-        def sync_from_renderer():
-            """Sync dialog fields with current renderer time."""
-            show_datetime(self.dt_local)
-        
-        tk.Button(btn_frame, text="Now", command=set_now, width=8).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Sync with Moon", command=sync_from_renderer, width=16).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Set", command=go_to_time, width=10).pack(side=tk.RIGHT, padx=5)
-
-        # Enter applies the reading wherever it is typed: bound on the window
-        # rather than on each spinbox, so it answers from all six and from the
-        # buttons too. Both Enters, the keypad having a key of its own.
-        for enter in ('<Return>', '<KP_Enter>'):
-            dt_win.bind(enter, lambda event: go_to_time())
-        
-        # Sized to what it holds rather than to a fixed guess, so the row of
-        # buttons ends where the window does. The size is still pinned: without
-        # it the window would grow the moment an error message appears.
-        dt_win.update_idletasks()
-        dt_win.geometry(f"{dt_win.winfo_reqwidth()}x{dt_win.winfo_reqheight()}")
-
-        # Near the top-right of the main window rather than centred, so it
-        # does not cover the Moon while the time is being set
-        self._show_dialog(dt_win, (self.rt._root.winfo_x() + self.rt._root.winfo_width()
-                                   - dt_win.winfo_reqwidth() - 50,
-                                   self.rt._root.winfo_y() + 100), grab=False)
-        
-        # Focus on the hour for quick editing, but leave what is in it alone:
-        # selected, the first digit typed would replace the whole reading
-        hour_spin.focus_set()

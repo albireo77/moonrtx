@@ -41,13 +41,14 @@ from moonrtx.renderer_profile import ProfileMixin
 from moonrtx.renderer_settings import SettingsMixin
 from moonrtx.renderer_scalebar import ScaleBarMixin
 from moonrtx.renderer_scalebar_angle import AngleScaleBarMixin
+from moonrtx.renderer_toolbox import ToolboxMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
-                   SettingsMixin, ScaleBarMixin, AngleScaleBarMixin):
+                   SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, ToolboxMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -340,10 +341,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # other is still up.
         self.search_dialog_open = 0
 
-        # Datetime dialog tracking
-        self.datetime_dialog = None
-        self._datetime_dialog_show = None  # set while the date/time window is open
-        self.datetime_dialog_focused = False
+        self._init_toolbox()
 
         # Pins settings
         self.pins_visible = True  # Pins visible by default
@@ -441,8 +439,6 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # Off to begin with - see StatusMixin.toggle_status_panel
         self.show_status_panel = False
         self._status_panel_frame = None
-        self._status_panel_datetime_var = None
-        self._status_panel_step_var = None
         self._status_panel_distance_var = None
         self._status_panel_height_var = None
         self._status_panel_lat_var = None
@@ -526,6 +522,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
         self._update_status_time()
+        self.sync_toolbox_step()
 
     def _on_auto_advance_toggle(self):
         """Called when the auto-advance checkbox is toggled."""
@@ -1235,7 +1232,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         """
         A wall-clock reading (a naive datetime) as an instant on the observer's
         clock: the counterpart of in_observer_clock, so the hour typed into the
-        date/time dialog is the hour shown afterwards on any date.
+        toolbox is the hour shown afterwards on any date.
         """
         return wall_clock.replace(tzinfo=self.dt_local.tzinfo)
 
@@ -1289,9 +1286,9 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             # carries the frame has not yet started (see renderer_video)
             self._refresh_export_overlay()
 
-        # Keys reach the main window while the date/time window has focus, so
-        # the clock can move under it; its fields follow rather than going stale
-        self.sync_datetime_dialog()
+        # Keys reach the main window while the toolbox has focus, so the clock
+        # can move under it; its fields follow rather than going stale
+        self.sync_toolbox()
 
         # Since 0.19.1 updates applied while the accumulation cycle is idle do
         # not restart rendering on their own; force a new cycle so the change
@@ -1355,23 +1352,23 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 # ---------------------------------------------------------------------------
 
 # PlotOptiX binds the key handler with bind_all, so it hears keys typed into the
-# dialogs too. The date/time window only wants what its spinboxes are made of -
-# digits, and the keys that move about or edit what is already in them.
-DATETIME_DIALOG_KEYSYMS = frozenset({
+# toolbox too. The toolbox only wants what its spinboxes are made of - digits,
+# and the keys that move about or edit what is already in them.
+TOOLBOX_KEYSYMS = frozenset({
     'BackSpace', 'Delete', 'Left', 'Right', 'Up', 'Down',
     'Home', 'End', 'Tab', 'ISO_Left_Tab', 'Return', 'KP_Enter',
 })
 
 
-def datetime_dialog_takes_key(event) -> bool:
+def toolbox_takes_key(event) -> bool:
     """
-    Whether a key typed while the date/time window has focus belongs to it.
+    Whether a key typed while a field of the toolbox has focus belongs to it.
 
     Anything it does not take is meant for the main window and falls through to
-    the usual handler, so the Moon can be driven with the window still open and
+    the usual handler, so the Moon can be driven with a field still focused and
     the spinboxes, which refuse anything but digits anyway, stay out of the way.
     """
-    return event.char.isdigit() or event.keysym in DATETIME_DIALOG_KEYSYMS
+    return event.char.isdigit() or event.keysym in TOOLBOX_KEYSYMS
 
 
 def run_renderer(dt_local: datetime,
@@ -1475,20 +1472,20 @@ def run_renderer(dt_local: datetime,
     # rapid autorepeat stays responsive (see ACCUMULATION_FRAMES). One-shot keys
     # (orientation, toggles, resets, pins, set-time-now) are deliberately left
     # out: a single scene update finishes its accumulation cycle undisturbed and
-    # renders straight to the converged image, like the date/time dialog, with
+    # renders straight to the converged image, like a time set in the toolbox, with
     # no noisy intermediate frame.
     preview_keysyms = {'Left', 'Right', 'Up', 'Down', 'plus', 'equal', 'minus', 'bracketleft', 'bracketright'}
     preview_letters = set('qwhj')
 
     # Keys that reach update_view: time stepping (Q/W), the resets that restore
-    # the initial time (Home), the dialogs that jump to a time (T, the planners K
+    # the initial time (Home), the dialogs that jump to a time (the planners K
     # and X, and the rise and set chart U, which goes to whatever moment in it
     # is clicked), the parallactic toggle (F4) and the set-time-now keys
     # (F9/F10). A running video export drives update_view from the raytracing
     # thread, so these are ignored while it lasts - see the export guard in
-    # custom_key_handler.
+    # custom_key_handler. The toolbox's clock keeps a guard of its own.
     update_view_keysyms = {'F4', 'F9', 'F10', 'Home'}
-    update_view_letters = set('qwtkau')
+    update_view_letters = set('qwkau')
 
     def custom_key_handler(event):
         # Ahead of every early return below: a dialog holding the keys must not
@@ -1496,10 +1493,10 @@ def run_renderer(dt_local: datetime,
         if event.keysym == 'Control_R':
             moon_renderer._right_ctrl_down = True
         # The search dialog wants every key, being a place to type a name; the
-        # date/time window takes only its own (see datetime_dialog_takes_key)
+        # toolbox takes only its own (see toolbox_takes_key)
         if moon_renderer.search_dialog_open:
             return
-        if moon_renderer.datetime_dialog_focused and datetime_dialog_takes_key(event):
+        if moon_renderer.toolbox_focused and toolbox_takes_key(event):
             return
         # The video export owns the clock until it finishes: letting a key
         # change the time here would run update_view on the Tk main thread while
@@ -1621,7 +1618,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'w':
             moon_renderer.change_time(moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 't':
-            moon_renderer.open_datetime_dialog()
+            moon_renderer.toggle_toolbox()
         elif event.keysym == '0':
             moon_renderer.toggle_pins()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):

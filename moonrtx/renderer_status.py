@@ -77,18 +77,19 @@ class StatusMixin:
     # where it fits at its full size and nothing is changed at all.
     STATUS_MIN_FONT_SIZE = 6
 
-    # Character width of the full-screen panel, taken from the one row that is
-    # always the same length: the date and time. Everything else of a fixed
-    # shape is shorter - the coordinates 13, the measurements 14 - and a feature
-    # name is trimmed to fit rather than allowed to widen the panel, which costs
-    # little: 11 of the bundled catalogue's 4488 names are longer than this.
+    # Character width of the full-screen panel, kept at what the date and time
+    # took when the panel still carried them (the toolbox shows them now).
+    # Everything else of a fixed shape is shorter - the coordinates 13, the
+    # measurements 14 - and a feature name is trimmed to fit rather than
+    # allowed to widen the panel, which costs little: 11 of the bundled
+    # catalogue's 4488 names are longer than this.
     # Fixed on purpose. The panel is anchored by its right edge, so a width that
     # followed its contents would step sideways every time the cursor crossed a
     # differently named crater.
     STATUS_PANEL_WIDTH = 19
 
-    # The column the rows below the time step end in, which is where the time
-    # step itself ends at its longest: a whole day of minutes. Those rows carry
+    # The column the rows end in: where the time step ended at its longest, a
+    # whole day of minutes, when the panel still carried it. The rows carry
     # units of different lengths - kilometres against metres, a degree sign
     # alone against a degree sign and a compass point - so lining them up by
     # what they end with is the only way to line them up at all.
@@ -186,16 +187,6 @@ class StatusMixin:
             offset_fmt = f"{offset[:3]}:{offset[3:]}" if offset else ""
             self._status_time_var.set(
                 f"{self.dt_local.strftime('%Y-%m-%d %H:%M:%S')}{offset_fmt} (step {self.time_step_minutes} min)")
-        if self._status_panel_datetime_var is not None and self.dt_local:
-            # No zone: the panel says when the picture is of, and the observer's
-            # clock is the only one it ever shows. The step gets a row of its
-            # own rather than the parenthesis the status bar puts it in, and its
-            # number is given the width of the largest it can be - a day - so
-            # that the "min" holds still as it changes.
-            self._status_panel_datetime_var.set(
-                self.dt_local.strftime('%Y-%m-%d %H:%M:%S'))
-            self._status_panel_step_var.set(
-                f"Step: {self.time_step_minutes:4d} min")
 
     def _update_info_moon(self):
         """Update the info panel with current Moon ephemeris data."""
@@ -454,8 +445,9 @@ class StatusMixin:
 
     def toggle_status_panel(self):
         """
-        Show or hide the status panel: the same four readings the status
-        bar carries, in the opposite corner of the picture.
+        Show or hide the status panel: the status bar's readings of the
+        place under the cursor and of a measurement, in the opposite corner of
+        the picture. The time and its step are left to the toolbox (T).
 
         Worth having twice because the status bar is not part of the picture.
         It is a row of widgets under the canvas, so it goes with the window
@@ -712,8 +704,6 @@ class StatusMixin:
                     # ephemeris panel, in the opposite corner. Unlike that one it
                     # starts hidden, having nothing to say that the status bar is
                     # not already saying while there is a status bar to say it.
-                    self._status_panel_datetime_var = tk.StringVar()
-                    self._status_panel_step_var = tk.StringVar()
                     self._status_panel_distance_var = tk.StringVar()
                     self._status_panel_height_var = tk.StringVar()
                     self._status_panel_lat_var = tk.StringVar()
@@ -725,8 +715,6 @@ class StatusMixin:
                                                 padx=6, pady=4)
                     self._status_panel_frame = status_panel_frame
                     for var in (self._status_panel_feature_var,
-                                self._status_panel_datetime_var,
-                                self._status_panel_step_var,
                                 self._status_panel_lat_var,
                                 self._status_panel_lon_var,
                                 self._status_panel_sun_var,
@@ -795,6 +783,10 @@ class StatusMixin:
 
                 if self.angle_bar_visible:
                     self.show_angle_bar(True)
+
+                # And the toolbox, after the ephemeris panel it stands beside
+                if self.toolbox_visible:
+                    self.show_toolbox(True)
 
                 # And the keyboard. PlotOptiX builds this window on its own
                 # thread while whatever started the renderer still holds the
