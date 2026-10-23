@@ -98,6 +98,17 @@ class TimeToolboxMixin:
         if self._toolbox_show is not None:
             self._toolbox_show(self.dt_local)
 
+    def release_toolbox_hold(self):
+        """
+        Let up whichever hold button is down; called as Q or W is pressed.
+
+        The key then steps as it always does. Left running, the hold would add
+        its steps to the key's - doubling the speed one way and leaving the
+        time jittering on the spot the other - so the key takes over instead.
+        """
+        if self._toolbox_hold_var is not None and self._toolbox_hold_var.get():
+            self._toolbox_hold_var.set("")
+
     def sync_toolbox_step(self):
         """Put the time step into the toolbox, N and M having changed it."""
         if self._toolbox_show_step is not None:

@@ -381,6 +381,9 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._status_coords_sun_fg = None
         self._status_coords_sun_bg = None
         self._status_feature = None
+        # Where on the canvas the cursor last moved to, which the coords and
+        # feature readouts describe (see StatusMixin._refresh_cursor_readout)
+        self._cursor_xy = None
 
         # Interactive-preview state (short accumulation cycles during scene changes)
         self._preview_active = False
@@ -589,6 +592,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         self._update_status_time()
         self._update_info_moon()
+        self._refresh_cursor_readout()
 
     def _begin_interactive_preview(self):
         """
@@ -1614,8 +1618,10 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'space':
             moon_renderer.center_view_on_cursor(event)
         elif event.keysym.lower() == 'q':
+            moon_renderer.release_toolbox_hold()
             moon_renderer.change_time(-moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 'w':
+            moon_renderer.release_toolbox_hold()
             moon_renderer.change_time(moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 't':
             moon_renderer.toggle_toolbox()
@@ -1642,19 +1648,10 @@ def run_renderer(dt_local: datetime,
 
     def custom_motion_handler(event):
         original_motion_handler(event)
+        moon_renderer._cursor_xy = (event.x, event.y)
         if not (moon_renderer.rt._any_mouse or moon_renderer.rt._any_key):
-            x, y = moon_renderer.rt._get_image_xy(event.x, event.y)
-            hx, hy, hz, hd = moon_renderer.rt._get_hit_at(x, y)
-            lat = None
-            lon = None
-            feature = None
-            if hd > 0:
-                lat, lon = moon_renderer.hit_to_selenographic(hx, hy, hz)
-                if lat is not None and lon is not None:
-                    feature = moon_renderer.find_feature_for_status_bar(lat, lon)
             moon_renderer.rt._status_action_text.set('')
-            moon_renderer._update_info_coords(lat, lon)
-            moon_renderer._update_status_feature(feature)
+            moon_renderer._refresh_cursor_readout()
 
     moon_renderer.rt._gui_motion = custom_motion_handler
 

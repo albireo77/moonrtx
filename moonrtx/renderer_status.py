@@ -356,6 +356,41 @@ class StatusMixin:
         self._status_panel_lon_var.set(lon_row)
         self._status_panel_sun_var.set(sun_row)
 
+    def _refresh_cursor_readout(self):
+        """
+        Read the point under the cursor afresh: its coordinates, the Sun's
+        altitude there and the feature it lies in.
+
+        On every mouse move, and after every step of the time - Q and W, the
+        toolbox's buttons, auto-advance. The Moon turns under a cursor that
+        stands still, and the Sun rises or sets over the point beneath it, so
+        without this the readouts went on describing the moment before the
+        step until the mouse was next moved.
+
+        Read at where the cursor last was over the canvas, which is the point
+        the readouts describe, rather than where the pointer is now: clicking
+        the toolbox puts it over a widget the canvas hears no motion from.
+
+        The hit is taken from the last frame drawn, which a step has not yet
+        redrawn. Only its direction from the Moon's centre is used, and the
+        scene's sphere does not turn - the surface is turned on it - so the
+        new orientation, applied by hit_to_selenographic, gives the point now
+        under the cursor; the camera's move for the Moon's apparent size
+        shifts it by far less than a pixel a step.
+        """
+        rt = self.rt
+        if rt is None or self._cursor_xy is None or rt._any_mouse or rt._any_key:
+            return
+        x, y = rt._get_image_xy(*self._cursor_xy)
+        hx, hy, hz, hd = rt._get_hit_at(x, y)
+        lat = lon = feature = None
+        if hd > 0:
+            lat, lon = self.hit_to_selenographic(hx, hy, hz)
+            if lat is not None and lon is not None:
+                feature = self.find_feature_for_status_bar(lat, lon)
+        self._update_info_coords(lat, lon)
+        self._update_status_feature(feature)
+
     def _update_status_feature(self, feature: Optional[MoonFeature] = None):
         """Update feature name in the status bar and remember the active feature."""
         self._status_feature = feature
