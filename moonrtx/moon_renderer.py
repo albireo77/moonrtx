@@ -41,14 +41,14 @@ from moonrtx.renderer_profile import ProfileMixin
 from moonrtx.renderer_settings import SettingsMixin
 from moonrtx.renderer_scalebar import ScaleBarMixin
 from moonrtx.renderer_scalebar_angle import AngleScaleBarMixin
-from moonrtx.renderer_toolbox import ToolboxMixin
+from moonrtx.renderer_time_toolbox import TimeToolboxMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
-                   SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, ToolboxMixin):
+                   SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, TimeToolboxMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.

@@ -1,9 +1,10 @@
 """
-ToolboxMixin: a strip of controls laid over the bottom of the picture, shown
-and hidden with T.
+TimeToolboxMixin: a strip of controls for the time, laid over the bottom of the
+picture, shown and hidden with T.
 
-It took over from the date/time window, and the clock is all it holds so far:
-the date and the time in spinboxes, Now, and the time step that Q and W move by.
+It took over from the date/time window: the date and the time in spinboxes,
+Now, buttons standing in for Q and W - pressed once, and held down - and the
+time step they move by.
 What is typed into a field is applied with Enter, a click on its arrows at once.
 It sits on the canvas rather than in a window of its own, so it goes wherever
 the picture goes - full screen included - and is dragged about by its grip.
@@ -20,8 +21,8 @@ from moonrtx.display import ToolTip
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
 
 
-class ToolboxMixin:
-    """Mixin providing the toolbox for MoonRenderer."""
+class TimeToolboxMixin:
+    """Mixin providing the time toolbox for MoonRenderer."""
 
     # The ground and lettering of the info and status panels, so the toolbox
     # reads as one more of them; the fields a shade lighter, to be seen as
@@ -39,11 +40,18 @@ class ToolboxMixin:
     TOOLBOX_MARGIN = 6
     TOOLBOX_PANEL_GAP_PX = 16
 
+    # How often a held Q or W button steps the time: Windows' own key repeat
+    # at its default speed, about thirty a second, so the button runs as the
+    # key held down does
+    TOOLBOX_HOLD_REPEAT_MS = 33
+
     def _init_toolbox(self):
         """Reset the toolbox state; called from MoonRenderer.__init__."""
         self._toolbox_frame = None
         self._toolbox_show = None       # puts a moment into the fields
         self._toolbox_show_step = None  # puts the time step into its field
+        # Which hold button is down: "", "back" or "forward" (see _build_toolbox)
+        self._toolbox_hold_var = None
         # Both kept between runs (see renderer_settings)
         self.toolbox_visible = False
         # Where its bottom-left corner was dragged to, as fractions of the
@@ -71,6 +79,9 @@ class ToolboxMixin:
             self._place_toolbox()
         else:
             self._toolbox_frame.place_forget()
+            # A held button let go of with the toolbox, so the time cannot go
+            # on running with nothing in sight to stop it
+            self._toolbox_hold_var.set("")
             # Typing must not go on into fields that can no longer be seen:
             # digits would land there rather than pinning features
             if self.toolbox_focused:
@@ -266,6 +277,91 @@ class ToolboxMixin:
                   activebackground=fg, activeforeground=bg,
                   relief='flat', padx=6, pady=0).pack(side=tk.LEFT)
 
+        # ---- Q and W ----
+
+        # The time out of range, as the clock fields say it; astro's own
+        # sentence is too long for the toolbox
+        out_of_range = (f"Only years {SKYFIELD_MOON_FRAME_START_UTC.year}"
+                        f"-{SKYFIELD_MOON_FRAME_END_UTC.year - 1}")
+
+        def step(sign: int) -> bool:
+            """One press of Q (-1) or W (+1); whether the time moved."""
+            if self._video_export is not None:      # the export owns the clock
+                return False
+            # Drawn as the keys are: a single frame, then the full render once
+            # the stepping stops (see _begin_interactive_preview)
+            self._begin_interactive_preview()
+            try:
+                self.change_time(sign * self.time_step_minutes)
+            except ValueError as e:
+                print(f"Time not stepped: {e}")
+                error_var.set(out_of_range)
+                return False
+            error_var.set("")
+            return True
+
+        # Both hold buttons on the one variable, each with a value of its own:
+        # pressing one sets it, and so lets the other up
+        hold_var = tk.StringVar(value="")
+        self._toolbox_hold_var = hold_var
+        hold_id = None
+
+        def hold_tick():
+            """One repeat of the key held down, and the next one booked."""
+            nonlocal hold_id
+            hold_id = None
+            direction = hold_var.get()
+            if not direction:
+                return
+            if step(-1 if direction == "back" else 1):
+                hold_id = frame.after(self.TOOLBOX_HOLD_REPEAT_MS, hold_tick)
+            else:
+                hold_var.set("")    # the end of the ephemeris, or an export
+
+        def on_hold_change(*_):
+            nonlocal hold_id
+            if hold_id is not None:
+                frame.after_cancel(hold_id)
+                hold_id = None
+            # The press buttons do nothing while either is held; greyed out to
+            # say so
+            state = tk.DISABLED if hold_var.get() else tk.NORMAL
+            for button in hit_buttons:
+                button.config(state=state)
+            hold_tick()
+
+        hold_var.trace_add('write', on_hold_change)
+
+        def hit(sign: int):
+            if not hold_var.get():
+                step(sign)
+
+        button_look = dict(font=font, bg=self.TOOLBOX_FIELD_BG, fg=self.TOOLBOX_FIELD_FG,
+                           activebackground=fg, activeforeground=bg,
+                           disabledforeground="#404040", padx=4, pady=0)
+
+        def hold_button(text: str, direction: str, hint: str):
+            # A button that stays down, drawn lighter while it is
+            button = tk.Checkbutton(frame, text=text, variable=hold_var,
+                                    onvalue=direction, offvalue="", indicatoron=False,
+                                    selectcolor="#505050", relief='flat', offrelief='flat',
+                                    **button_look)
+            button.pack(side=tk.LEFT, padx=1)
+            ToolTip(button, hint)
+
+        def hit_button(text: str, sign: int, hint: str):
+            button = tk.Button(frame, text=text, command=lambda: hit(sign),
+                               relief='flat', **button_look)
+            button.pack(side=tk.LEFT, padx=1)
+            ToolTip(button, hint)
+            return button
+
+        tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
+        hold_button("◀◀", "back", "Step back continuously, as Q held down (click again to stop)")
+        hit_buttons = [hit_button("◀", -1, "Step back once, as Q"),
+                       hit_button("▶", 1, "Step forward once, as W")]
+        hold_button("▶▶", "forward", "Step forward continuously, as W held down (click again to stop)")
+
         # The time step Q and W move by, and auto-advance waits. Not padded:
         # a step is a count of minutes, not a reading of a clock
         tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
@@ -341,8 +437,7 @@ class ToolboxMixin:
             # Refused here in a few words, rather than in astro's own long
             # sentence, which the toolbox has no room for
             if not (SKYFIELD_MOON_FRAME_START_UTC <= new_dt_local <= SKYFIELD_MOON_FRAME_END_UTC):
-                error_var.set(f"Only years {SKYFIELD_MOON_FRAME_START_UTC.year}"
-                              f"-{SKYFIELD_MOON_FRAME_END_UTC.year - 1}")
+                error_var.set(out_of_range)
                 return
 
             self.update_view(new_dt_local)
