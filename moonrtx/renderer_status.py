@@ -845,7 +845,7 @@ class StatusMixin:
                     self.show_angle_bar(True)
 
                 # And the toolbox, after the ephemeris panel it stands beside
-                if self.toolbox_visible:
+                if self.time_toolbox_visible:
                     self.show_toolbox(True)
 
                 # And the keyboard. PlotOptiX builds this window on its own

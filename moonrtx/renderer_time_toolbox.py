@@ -53,18 +53,21 @@ class TimeToolboxMixin:
         self._toolbox_show_step = None  # puts the time step into its field
         # Which hold button is down: "", "back" or "forward" (see _build_toolbox)
         self._toolbox_hold_var = None
-        # Both kept between runs (see renderer_settings)
-        self.toolbox_visible = False
+        # Both kept between runs (see renderer_settings). On until a run is
+        # closed with it off: the clock was a window of its own before, and a
+        # toolbox off from the start would leave nothing on screen to say
+        # where it has gone
+        self.time_toolbox_visible = True
         # Where its bottom-left corner was dragged to (see renderer_panel_handles);
         # None while it has never been dragged and stands beside the ephemeris
         # panel
-        self._toolbox_at = None
+        self._time_toolbox_at = None
         # True while one of its fields has the keyboard (see toolbox_takes_key)
         self.toolbox_focused = False
 
     def toggle_toolbox(self):
         """Show the toolbox, or put it away."""
-        self.show_toolbox(not self.toolbox_visible)
+        self.show_toolbox(not self.time_toolbox_visible)
 
     def show_toolbox(self, visible: bool):
         """Show the toolbox or put it away; also at start-up, if left on."""
@@ -72,8 +75,8 @@ class TimeToolboxMixin:
             return
         if self._toolbox_frame is None:
             self._build_toolbox()
-        self.toolbox_visible = visible
-        if self.toolbox_visible:
+        self.time_toolbox_visible = visible
+        if self.time_toolbox_visible:
             self._toolbox_show(self.dt_local)
             self._toolbox_show_step(self.time_step_minutes)
             self._place_toolbox()
@@ -117,7 +120,7 @@ class TimeToolboxMixin:
     def _place_toolbox(self):
         """Put the toolbox where it was dragged to, or beside the ephemeris panel."""
         frame = self._toolbox_frame
-        if self._place_panel_at(frame, "_toolbox_at", 'sw'):
+        if self._place_panel_at(frame, "_time_toolbox_at", 'sw'):
             return
         # Measured by what the panel asks for rather than what it has, so the
         # toolbox stands in the same place whether F2 has the panel up or not
@@ -137,7 +140,7 @@ class TimeToolboxMixin:
 
         # ---- the grip and the close cross (see renderer_panel_handles) ----
 
-        self._panel_grip(frame, frame, "_toolbox_at", 'sw', "Drag to move the toolbox",
+        self._panel_grip(frame, frame, "_time_toolbox_at", 'sw', "Drag to move the toolbox",
                          font, fg, bg).pack(side=tk.LEFT, padx=(0, 6))
         # At the far end, the grip holding the near one. Packed first so that
         # the error message, coming last, opens up between it and the fields
