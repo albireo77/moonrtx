@@ -61,6 +61,10 @@ class CatalogueMixin:
         self._catalogue_diameters = None
         self._catalogue_drawn = None        # what is on screen, to spot a change
         self._catalogue_pos = None
+        # What each drawn name names, and how many vertices it has (see
+        # LabelsMixin._aimed_to_scene)
+        self._catalogue_places = None
+        self._catalogue_counts = None
         self._catalogue_pinned = set()      # indices into moon_features
 
     def _catalogue_active(self) -> bool:
@@ -193,7 +197,9 @@ class CatalogueMixin:
         if drawn == self._catalogue_drawn:
             if moved and self._catalogue_pos is not None:
                 self.rt.update_graph(self.CATALOGUE_GEOM,
-                                     pos=self._rotate_to_scene(self._catalogue_pos))
+                                     pos=self._aimed_to_scene(self._catalogue_pos,
+                                                              self._catalogue_places,
+                                                              self._catalogue_counts))
             return
 
         self._catalogue_drawn = drawn
@@ -221,11 +227,14 @@ class CatalogueMixin:
                   + create_spot_labels(beside, **style))
         pos, edges, counts = self._label_graph_arrays(labels)
         self._catalogue_pos = pos
+        # One label to a feature, in the order they were written
+        self._catalogue_places = self._features_places(across + beside)
+        self._catalogue_counts = counts
 
         self.rt.update_material("catalogue_material", self._no_shadow_flat_material())
         self.rt.set_graph(
             self.CATALOGUE_GEOM,
-            pos=self._rotate_to_scene(pos),
+            pos=self._aimed_to_scene(pos, self._catalogue_places, counts),
             edges=edges,
             r=np.repeat(self.CATALOGUE_LABEL_RADIUS * self.label_scale(),
                         counts.sum()).astype(np.float32),

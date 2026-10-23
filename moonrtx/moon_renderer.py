@@ -323,6 +323,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._standard_labels_edges = None
         self._standard_labels_counts = None
         self._standard_units = None
+        self._standard_places = None    # what each names (see LabelsMixin._aimed_to_scene)
 
         # Spot labels settings
         self.spot_labels_visible = False
@@ -332,6 +333,9 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._spot_labels_edges = None
         self._spot_labels_counts = None
         self._spot_units = None
+        self._spot_places = None
+        # Where the eye was when the lettering was last aimed at the ground
+        self._labels_aimed_eye = None
 
         # Light position in scene coordinates (set on first update_view)
         self.light_pos = None
@@ -1637,6 +1641,9 @@ def run_renderer(dt_local: datetime,
             moon_renderer.toggle_pin_at_cursor(event, int(event.keysym))
         else:
             original_key_handler(event)
+        # The arrows, Ctrl with them, Home, End and the space bar move the eye;
+        # the names follow it at once rather than at the next poll
+        moon_renderer._reaim_if_eye_moved()
 
     moon_renderer.rt._gui_key_pressed = custom_key_handler
 
@@ -1712,6 +1719,12 @@ def run_renderer(dt_local: datetime,
     # All other gestures are passed to the original handler.
     original_apply_scene_edits = moon_renderer.rt._gui_apply_scene_edits
 
+    reaim_pending = [False]
+
+    def reaim_after_drag():
+        reaim_pending[0] = False
+        moon_renderer._reaim_if_eye_moved()
+
     def custom_apply_scene_edits(*args):
         rt = moon_renderer.rt
         # Mouse-driven view manipulation benefits from immediate preview too -
@@ -1724,6 +1737,13 @@ def run_renderer(dt_local: datetime,
         moved = (rt._mouse_from_x != rt._mouse_to_x) or (rt._mouse_from_y != rt._mouse_to_y)
         if rt._any_mouse and moved:
             moon_renderer._begin_interactive_preview()
+            # The drag moves the eye in the handler below; the names follow it
+            # straight after. Not here: this runs while the raytracing thread
+            # waits for it to start a frame, and the names are updated under
+            # the render padlock
+            if not reaim_pending[0]:
+                reaim_pending[0] = True
+                rt._root.after_idle(reaim_after_drag)
         if rt._selection_handle == -1 and rt._right_mouse and not rt._any_key:
             dx = rt._mouse_to_x - rt._mouse_from_x
             dy = rt._mouse_to_y - rt._mouse_from_y

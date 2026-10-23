@@ -55,7 +55,7 @@ class PinsMixin:
 
         self.rt.update_material("pin_material", self._no_shadow_flat_material())
 
-        self.rt.set_graph(f"pin_{digit}", pos=self._rotate_to_scene(pos), edges=edges,
+        self.rt.set_graph(f"pin_{digit}", pos=self._pin_to_scene(lat, lon, pos), edges=edges,
                           r=self.PIN_LABEL_RADIUS * self.label_scale(), c=self.PIN_COLOR,
                           mat="pin_material")
 
@@ -165,8 +165,15 @@ class PinsMixin:
         if self.moon_rotation is None:
             return
 
-        for digit, (_, _, pos) in self.pins.items():
-            self.rt.update_graph(f"pin_{digit}", pos=self._rotate_to_scene(pos))
+        for digit, (lat, lon, pos) in self.pins.items():
+            self.rt.update_graph(f"pin_{digit}", pos=self._pin_to_scene(lat, lon, pos))
+
+    def _pin_to_scene(self, lat: float, lon: float, pos: np.ndarray) -> np.ndarray:
+        """
+        A pin's or the place mark's vertices in the scene, aimed so the place
+        is seen on its own ground (see LabelsMixin._aimed_to_scene).
+        """
+        return self._aimed_to_scene(pos, (lat, lon), [len(pos)])
 
     # ---- the place the Find window went to ----
 
@@ -220,7 +227,7 @@ class PinsMixin:
         pos, edges = merge_segments_to_graph(arms)
         self._place_mark_pos = pos
         self.rt.update_material("pin_material", self._no_shadow_flat_material())
-        self.rt.set_graph(self.PLACE_MARK_GEOM, pos=self._rotate_to_scene(pos), edges=edges,
+        self.rt.set_graph(self.PLACE_MARK_GEOM, pos=self._pin_to_scene(lat, lon, pos), edges=edges,
                           r=self.PIN_LABEL_RADIUS * self.label_scale(), c=self.PIN_COLOR,
                           mat="pin_material")
 
@@ -228,7 +235,8 @@ class PinsMixin:
         """Turn the mark with the Moon after a step in time, as the pins are."""
         if self.rt is None or self._place_mark_pos is None:
             return
-        self.rt.update_graph(self.PLACE_MARK_GEOM, pos=self._rotate_to_scene(self._place_mark_pos))
+        self.rt.update_graph(self.PLACE_MARK_GEOM,
+                             pos=self._pin_to_scene(*self._place_mark, self._place_mark_pos))
 
     def update_pins_for_view_orientation(self):
         """

@@ -14,8 +14,8 @@ from plotoptix.materials import m_flat
 from moonrtx.shared_types import MoonFeature, MoonLabel
 from moonrtx.view_orientation import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
 from moonrtx.moon_grid import (
-    create_moon_grid, create_standard_labels, create_spot_labels, create_grid_labels_for_orientation,
-    merge_segments_to_graph
+    LABEL_LIFT, create_moon_grid, create_standard_labels, create_spot_labels,
+    create_grid_labels_for_orientation, merge_segments_to_graph
 )
 
 class LabelsMixin:
@@ -117,6 +117,9 @@ class LabelsMixin:
         # moves under the wheel and the mouse where nothing else would see it
         if self._catalogue_active():
             self.update_catalogue()
+        # And the eye, for any way of moving it that is not followed more
+        # closely (see _reaim_if_eye_moved)
+        self._reaim_if_eye_moved()
         self._schedule_label_scale_poll()
 
     def _schedule_label_scale_poll(self):
@@ -133,6 +136,193 @@ class LabelsMixin:
         """Rotate body-frame vertices to scene coordinates with the current Moon rotation."""
         R = self.moon_rotation
         return pos if R is None else pos @ R.T
+
+    # ---- aiming lettering at the ground it names ----
+    #
+    # Lettering is written on a sphere just above the highest peak (LABEL_LIFT),
+    # so that no mountain hides it. The ground it names lies below that, by some
+    # 12 km where the surface is at its mean height: looked at square on that
+    # changes nothing, but towards the limb the line of sight crosses the
+    # lettering's sphere well before it reaches the ground, and a name stood
+    # radially above its crater is seen beside it - towards the limb, by some
+    # 7 pixels on a 4K screen at Archytas, a crater 17 pixels across there.
+    #
+    # So each label is turned about the Moon's centre, as one piece, until the
+    # point it names on its sphere lies on the line from the eye to the ground
+    # itself: the name covers its crater from wherever it is seen, and is still
+    # above every peak. The turn is small - at most some 7 degrees, where the
+    # line of sight grazes the limb - so the lettering keeps its shape and its
+    # slant. The labels keep their vertices unturned and are turned each time
+    # they are put in the scene (_aimed_to_scene): with every step of the time,
+    # which turns the Moon, and whenever the eye moves (_reaim_if_eye_moved) -
+    # a frame after each step of a drag, straight after a key, and on the poll
+    # for anything else - so the turn follows the view as it changes. A label
+    # whose ground faces away from the eye is left as it is, behind the limb
+    # with its ground: turned, it would be brought round into sight.
+    #
+    # Lying on the sphere, a label is seen as slanted as the ground under it:
+    # at Archytas, 58 degrees north, its letters are squashed to about half
+    # their height, and further out they are squashed flat. So each label is
+    # also stood up, turned about the point it names until it stands square to
+    # the line of sight: read as if it faced the eye from straight ahead. It
+    # is laid so that it runs the way east runs on screen where it stands, so
+    # it still follows the graticule as before. Stood up, the half of it nearer
+    # the middle of the disk leans down towards the ground - by some 15 km at
+    # Archytas, enough to sink into it - so the label is then slid towards the
+    # eye along the same line of sight, just far enough that all of it is back
+    # on or above the lettering's sphere. Moved along the line of sight it
+    # stays where it is seen, still on its crater.
+
+    def _unit_vectors(self, lat, lon) -> np.ndarray:
+        """Body-frame unit position vectors of places, shape (n, 3)."""
+        lat = np.radians(np.atleast_1d(np.asarray(lat, dtype=float)))
+        lon = np.radians(np.atleast_1d(np.asarray(lon, dtype=float)))
+        cos_lat = np.cos(lat)
+        return np.column_stack((cos_lat * np.sin(lon), -cos_lat * np.cos(lon), np.sin(lat)))
+
+    def _aimed_at_ground(self, pos: np.ndarray, lat, lon, counts) -> np.ndarray:
+        """
+        Body-frame label vertices, each label turned so the place it names is
+        seen on its own ground from where the eye is now, and stood up to face
+        the eye (see the note above). Notes where the eye was, for
+        _reaim_if_eye_moved.
+
+        Parameters
+        ----------
+        pos : np.ndarray
+            Body-frame vertices of every label in the set, label after label
+        lat, lon : array_like
+            The place each label names, one per label
+        counts : array_like
+            How many of the vertices belong to each label
+        """
+        R = self.moon_rotation
+        if R is None or self.rt is None or len(pos) == 0:
+            return pos
+        lat = np.atleast_1d(np.asarray(lat, dtype=float))
+        lon = np.atleast_1d(np.asarray(lon, dtype=float))
+        eye = np.asarray(self.rt.get_camera(self.CAMERA_NAME)["Eye"], dtype=float)
+        self._labels_aimed_eye = eye
+
+        # Worked in the scene, where the eye is, and taken back to the body
+        # frame at the end, R being a rotation
+        named = self._unit_vectors(lat, lon) @ R.T
+        on_ground = named * (self.MOON_RADIUS * np.asarray(self._ground_factor(lat, lon),
+                                                           dtype=float))[:, None]
+        sight = eye - on_ground
+        sight /= np.linalg.norm(sight, axis=1, keepdims=True)
+
+        # Where the line from the ground to the eye leaves the lettering's
+        # sphere: the far root of |g + t s| = lifted, the ground being inside
+        lifted = self.MOON_RADIUS * (1 + LABEL_LIFT)
+        b = np.einsum('ij,ij->i', on_ground, sight)
+        c = np.einsum('ij,ij->i', on_ground, on_ground) - lifted * lifted
+        t = -b + np.sqrt(np.maximum(b * b - c, 0.0))
+        aimed = on_ground + t[:, None] * sight
+        aimed /= np.linalg.norm(aimed, axis=1, keepdims=True)
+
+        away = np.einsum('ij,ij->i', named, sight) <= 0.0
+        aimed[away] = named[away]
+
+        # Stood up at the aimed point, square to the line of sight: each label
+        # is written in its own frame - east along the line, north up, out of
+        # the sphere - and that frame is laid on the one it is seen in, with
+        # the line running the way east runs on screen there, up square to it
+        # and out towards the eye. The lettering then reads face on, slanted
+        # just as the graticule is where it stands
+        la, lo = np.radians(lat), np.radians(lon)
+        east = np.column_stack((np.cos(lo), np.sin(lo), np.zeros_like(lo))) @ R.T
+        north = np.column_stack((-np.sin(la) * np.sin(lo), np.sin(la) * np.cos(lo),
+                                 np.cos(la))) @ R.T
+        along_line = east - np.einsum('ij,ij->i', east, sight)[:, None] * sight
+        along_line /= np.linalg.norm(along_line, axis=1, keepdims=True)
+        up = np.cross(sight, along_line)
+        written = np.stack((east, north, named), axis=1)       # rows: the label's frame
+        seen = np.stack((along_line, up, sight), axis=1)       # rows: where it goes
+        turn = np.einsum('nki,nkj->nij', written, seen)
+        # A label behind the limb is left lying where it is, with its ground
+        turn[away] = np.eye(3)
+
+        scene = pos @ R.T
+        at = np.repeat(aimed * lifted, counts, axis=0)
+        rel = scene - np.repeat(named * lifted, counts, axis=0)
+        stood = at + np.einsum('vi,vij->vj', rel, np.repeat(turn, counts, axis=0))
+
+        # Stood up, the half nearer the middle of the disk leans in towards the
+        # ground, so the label is slid towards the eye along the line of sight
+        # until no vertex is under the lettering's sphere: for each one inside
+        # it, how far along the line it is to the sphere (the far root of
+        # |p + d s| = lifted), and for each label the most any vertex needs
+        towards = np.repeat(sight, counts, axis=0)
+        ps = np.einsum('ij,ij->i', stood, towards)
+        pp = np.einsum('ij,ij->i', stood, stood)
+        need = np.where(pp < lifted * lifted,
+                        -ps + np.sqrt(np.maximum(ps * ps + lifted * lifted - pp, 0.0)), 0.0)
+        slide = np.zeros(len(named))
+        np.maximum.at(slide, np.repeat(np.arange(len(named)), counts), need)
+        slide[away] = 0.0
+        stood += np.repeat(slide, counts)[:, None] * towards
+        return stood @ R
+
+    @staticmethod
+    def _features_places(features: list[MoonFeature]) -> tuple[np.ndarray, np.ndarray]:
+        """The places labels naming these features name: their centres."""
+        return (np.array([f.lat for f in features], dtype=float),
+                np.array([f.lon for f in features], dtype=float))
+
+    def _aimed_to_scene(self, pos: np.ndarray, places, counts) -> np.ndarray:
+        """
+        A set of labels in the scene, each aimed at its ground from where the
+        eye is now: what _rotate_to_scene is for every other overlay.
+
+        Parameters
+        ----------
+        pos : np.ndarray
+            Body-frame vertices of every label in the set, as written
+        places : tuple
+            (lat, lon) of the place each label names, one per label
+        counts : array_like
+            How many of the vertices belong to each label
+        """
+        return self._rotate_to_scene(self._aimed_at_ground(pos, *places, counts))
+
+    def _eye_moved_since_aim(self) -> bool:
+        """Whether the eye has moved since the lettering was last aimed."""
+        if self.rt is None:
+            return False
+        eye = np.asarray(self.rt.get_camera(self.CAMERA_NAME)["Eye"], dtype=float)
+        aimed = getattr(self, "_labels_aimed_eye", None)
+        return aimed is None or not np.allclose(eye, aimed, rtol=0.0, atol=1e-9)
+
+    def _reaim_if_eye_moved(self):
+        """
+        Aim every overlay naming a place again if the eye has moved: the
+        standard, spot and catalogue names, the pins and the place mark. Called
+        after whatever may have moved it, and does nothing if it did not, so
+        the picture is not started again for nothing.
+        """
+        if self.rt is None or self.moon_rotation is None or not self._eye_moved_since_aim():
+            return
+        self._labels_aimed_eye = np.asarray(
+            self.rt.get_camera(self.CAMERA_NAME)["Eye"], dtype=float)
+        if not (self.standard_labels_visible or self.spot_labels_visible
+                or (self.pins and self.pins_visible) or self._place_mark is not None
+                or self._catalogue_active()):
+            return
+        # Under the padlock, so the accumulation restarts once for them all
+        with self.rt._padlock:
+            if self.standard_labels_visible:
+                self.update_standard_labels_orientation()
+            if self.spot_labels_visible:
+                self.update_spot_labels_orientation()
+            if self.pins_visible:
+                self.update_pins_orientation()
+            if self._place_mark is not None:
+                self.update_place_mark_orientation()
+            if self._catalogue_active():
+                self.update_catalogue(moved=True)
+        if self.rt._is_started:
+            self.rt.refresh_scene()
 
     def _to_screen(self, body: np.ndarray) -> np.ndarray:
         """
@@ -349,7 +539,8 @@ class LabelsMixin:
             self._label_graph_arrays(self.standard_labels)
         self.rt.update_graph(
             self.STANDARD_LABELS_GEOM,
-            pos=self._rotate_to_scene(self._standard_labels_pos),
+            pos=self._aimed_to_scene(self._standard_labels_pos, self._standard_places,
+                                     self._standard_labels_counts),
             r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS * self.label_scale()))
 
     def update_spot_labels_for_view_orientation(self):
@@ -375,7 +566,8 @@ class LabelsMixin:
             self._label_graph_arrays(self.spot_labels)
         self.rt.update_graph(
             self.SPOT_LABELS_GEOM,
-            pos=self._rotate_to_scene(self._spot_labels_pos),
+            pos=self._aimed_to_scene(self._spot_labels_pos, self._spot_places,
+                                     self._spot_labels_counts),
             r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS * self.label_scale()))
 
     # ---- grid setup / show / hide ----
@@ -486,11 +678,13 @@ class LabelsMixin:
         self._standard_units = self._features_unit_vectors(self.standard_label_features)
         self._standard_labels_pos, self._standard_labels_edges, self._standard_labels_counts = \
             self._label_graph_arrays(self.standard_labels)
+        self._standard_places = self._features_places(self.standard_label_features)
 
         # All labels in one graph geometry; night-side labels hidden via zero vertex radii
         self.rt.set_graph(
             self.STANDARD_LABELS_GEOM,
-            pos=self._rotate_to_scene(self._standard_labels_pos),
+            pos=self._aimed_to_scene(self._standard_labels_pos, self._standard_places,
+                                     self._standard_labels_counts),
             edges=self._standard_labels_edges,
             r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS * self.label_scale()),
             c=self.STANDARD_LABEL_COLOR,
@@ -555,11 +749,13 @@ class LabelsMixin:
         self._spot_units = self._features_unit_vectors(self.spot_label_features)
         self._spot_labels_pos, self._spot_labels_edges, self._spot_labels_counts = \
             self._label_graph_arrays(self.spot_labels)
+        self._spot_places = self._features_places(self.spot_label_features)
 
         # All labels in one graph geometry; night-side labels hidden via zero vertex radii
         self.rt.set_graph(
             self.SPOT_LABELS_GEOM,
-            pos=self._rotate_to_scene(self._spot_labels_pos),
+            pos=self._aimed_to_scene(self._spot_labels_pos, self._spot_places,
+                                     self._spot_labels_counts),
             edges=self._spot_labels_edges,
             r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS * self.label_scale()),
             c=self.SPOT_LABEL_COLOR,
@@ -628,7 +824,8 @@ class LabelsMixin:
 
         self.rt.update_graph(
             self.SPOT_LABELS_GEOM,
-            pos=self._rotate_to_scene(self._spot_labels_pos),
+            pos=self._aimed_to_scene(self._spot_labels_pos, self._spot_places,
+                                     self._spot_labels_counts),
             r=self._label_radii(self._spot_units, self._spot_labels_counts, self.SPOT_LABEL_RADIUS * self.label_scale()))
 
     def update_standard_labels_orientation(self):
@@ -646,7 +843,8 @@ class LabelsMixin:
 
         self.rt.update_graph(
             self.STANDARD_LABELS_GEOM,
-            pos=self._rotate_to_scene(self._standard_labels_pos),
+            pos=self._aimed_to_scene(self._standard_labels_pos, self._standard_places,
+                                     self._standard_labels_counts),
             r=self._label_radii(self._standard_units, self._standard_labels_counts, self.STANDARD_LABEL_RADIUS * self.label_scale()))
 
     def update_moon_grid_orientation(self):

@@ -559,6 +559,34 @@ class NavigationMixin:
 
         self.rt.update_camera(self.CAMERA_NAME, up=new_up.tolist())
 
+    def _ground_behind(self, through: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Where the line from the eye through a point of the scene meets the
+        ground, or None if it passes the Moon by.
+
+        The ground's radius depends on where it is met, so the meeting is found
+        on a sphere of the mean radius first and then on one of the height of
+        the ground found there, a few times over: the line is nearly square to
+        the ground on any of the disk worth pointing at, and it settles at once.
+        """
+        if self.rt is None or self.moon_rotation_inv is None:
+            return None
+        eye = np.asarray(self.rt.get_camera(self.CAMERA_NAME)["Eye"], dtype=float)
+        sight = through - eye
+        sight /= np.linalg.norm(sight)
+        radius = self.MOON_RADIUS / getattr(self, "elevation_radius_scale", 1.0)
+        point = None
+        for _ in range(4):
+            b = eye @ sight
+            disc = b * b - (eye @ eye - radius * radius)
+            if disc < 0.0:
+                return None
+            point = eye + (-b - np.sqrt(disc)) * sight
+            x, y, z = self.moon_rotation_inv @ (point / np.linalg.norm(point))
+            radius = self.MOON_RADIUS * float(self._ground_factor(
+                np.degrees(np.arcsin(np.clip(z, -1, 1))), np.degrees(np.arctan2(x, -y))))
+        return point
+
     def hit_to_selenographic(self, hx: float, hy: float, hz: float) -> tuple:
         """
         Convert 3D hit position to selenographic coordinates.
@@ -584,7 +612,19 @@ class NavigationMixin:
         r = np.linalg.norm(hit_pos)
         if r < self.MOON_RADIUS * 0.9 or r > self.MOON_RADIUS * 1.15:
             return None, None
-        
+
+        # Above the highest peak is no ground: what was hit is lettering - a
+        # name, a pin, the place mark, the grid - which stands off the surface
+        # and, aimed and stood up to face the eye, off the line from the centre
+        # to the ground it names (see LabelsMixin._aimed_at_ground). The point
+        # meant is the ground seen through it, so the line of sight is followed
+        # on to the ground behind; past the limb there is none
+        if r > self.MOON_RADIUS * (1.0 + 1e-6):
+            hit_pos = self._ground_behind(hit_pos)
+            if hit_pos is None:
+                return None, None
+            r = np.linalg.norm(hit_pos)
+
         hit_normalized = hit_pos / r
         
         # Transform back to original Moon coordinates
@@ -704,6 +744,33 @@ class NavigationMixin:
                  - self._sub_point_direction(lat1, lon1)) * self.MOON_RADIUS_KM
         across = chord - (chord @ towards) * towards
         return float(np.linalg.norm(across)) / self.moon_ephem.distance
+
+    def _ground_factor(self, lat, lon) -> np.ndarray:
+        """
+        The radius of the ground at selenographic coordinates, as the stored
+        displacement factor: a share of the scene's Moon radius, the highest
+        peak being 1.0. Vectorized over arrays of places, for aiming labels at
+        their ground (see LabelsMixin._aimed_at_ground); looked up as
+        get_elevation_m does, which is left to its own arithmetic so that the
+        heights a measurement shows stay exactly what they were.
+        """
+        lat = np.asarray(lat, dtype=float)
+        lon = np.asarray(lon, dtype=float)
+        h, w = self.elevation.shape
+
+        row = (90.0 - lat) / 180.0 * h - 0.5
+        col = ((lon + 180.0) / 360.0 * w - 0.5) % w
+
+        r0 = np.clip(np.floor(row), 0, h - 2).astype(np.int64)
+        fr = np.clip(row - r0, 0.0, 1.0)
+        c0 = np.floor(col).astype(np.int64)
+        c1 = (c0 + 1) % w   # longitude wraps at the +/-180 seam
+        fc = col - c0
+
+        return (self.elevation[r0, c0] * (1.0 - fr) * (1.0 - fc)
+                + self.elevation[r0 + 1, c0] * fr * (1.0 - fc)
+                + self.elevation[r0, c1] * (1.0 - fr) * fc
+                + self.elevation[r0 + 1, c1] * fr * fc)
 
     def get_elevation_m(self, lat: float, lon: float) -> float:
         """
