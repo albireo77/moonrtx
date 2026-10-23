@@ -15,7 +15,7 @@ the render, so it never appears in a saved image or a video frame.
 
 import calendar
 import tkinter as tk
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from moonrtx.display import ToolTip
 from moonrtx.skyfield_utils import SKYFIELD_MOON_FRAME_END_UTC, SKYFIELD_MOON_FRAME_START_UTC
@@ -162,7 +162,7 @@ class TimeToolboxMixin:
             self.toolbox_focused = False
 
         def spin_group(label: str, separator: str, parts: list, on_enter,
-                       on_arrow=None, padded: bool = True) -> list:
+                       on_arrow=None, padded: bool = True, carry: bool = False) -> list:
             """
             One caption and its spinboxes, with a character between each.
 
@@ -173,15 +173,20 @@ class TimeToolboxMixin:
             separator : str
                 Character drawn between the spinboxes
             parts : list
-                One (low, high, digits, wrap) tuple per spinbox
+                One (low, high, digits) tuple per spinbox
             on_enter : callable
                 What Enter in any of them does
             on_arrow : callable, optional
                 What a click on an arrow does, at once and on every repeat
-                while it is held; on_enter if not given. Typing is left to
-                wait for Enter, a number half typed being no time to go to
+                while it is held, given the index of the spinbox clicked;
+                on_enter if not given. Typing is left to wait for Enter, a
+                number half typed being no time to go to
             padded : bool
                 Whether the arrows write the number with leading zeros
+            carry : bool
+                Whether an arrow may take a part one past either end of its
+                range, for on_arrow to carry into the next part (see
+                go_to_time) rather than the spinbox stopping or wrapping
 
             Returns
             -------
@@ -190,13 +195,16 @@ class TimeToolboxMixin:
             """
             tk.Label(frame, text=label, font=font, fg=fg, bg=bg).pack(side=tk.LEFT, padx=(0, 4))
             spins = []
-            for i, (low, high, digits, wrap) in enumerate(parts):
+            for i, (low, high, digits) in enumerate(parts):
                 if i:
                     tk.Label(frame, text=separator, font=font, fg=fg, bg=bg).pack(side=tk.LEFT)
                 var = tk.StringVar()
+                if carry:
+                    low, high = low - 1, high + 1
+                command = on_enter if on_arrow is None else (lambda i=i: on_arrow(i))
                 spin = tk.Spinbox(frame, textvariable=var, from_=low, to=high, width=digits + 1,
                                   format=f"%0{digits}.0f" if padded else "%.0f",
-                                  wrap=wrap, font=font, command=on_arrow or on_enter,
+                                  wrap=False, font=font, command=command,
                                   bg=self.TOOLBOX_FIELD_BG, fg=self.TOOLBOX_FIELD_FG,
                                   insertbackground=self.TOOLBOX_FIELD_FG,
                                   buttonbackground=self.TOOLBOX_FIELD_BG,
@@ -213,13 +221,15 @@ class TimeToolboxMixin:
             return spins
 
         # The year stops where the bundled Skyfield kernels do, and the day is
-        # trimmed to the length of the month chosen (see below)
+        # trimmed to the length of the month chosen (see below). An arrow
+        # taking any part past its end carries into the rest (see go_to_time)
         (year_var, _), (month_var, _), (day_var, day_spin) = spin_group(
             "Date:", "-",
-            [(SKYFIELD_MOON_FRAME_START_UTC.year, SKYFIELD_MOON_FRAME_END_UTC.year - 1, 4, False),
-             (1, 12, 2, True),
-             (1, 31, 2, True)],
-            lambda: go_to_time(), lambda: step_time())
+            [(SKYFIELD_MOON_FRAME_START_UTC.year, SKYFIELD_MOON_FRAME_END_UTC.year - 1, 4),
+             (1, 12, 2),
+             (1, 31, 2)],
+            lambda: go_to_time(), lambda i: step_time(("year", "month", "day")[i]),
+            carry=True)
 
         # The offset is deliberately not shown: the date set may fall the other
         # side of a daylight saving change from the one in force now, and a
@@ -228,10 +238,11 @@ class TimeToolboxMixin:
         tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
         (hour_var, _), (minute_var, _), (second_var, _) = spin_group(
             "Time:", ":",
-            [(0, 23, 2, True),
-             (0, 59, 2, True),
-             (0, 59, 2, True)],
-            lambda: go_to_time(), lambda: step_time())
+            [(0, 23, 2),
+             (0, 59, 2),
+             (0, 59, 2)],
+            lambda: go_to_time(), lambda i: step_time(("hour", "minute", "second")[i]),
+            carry=True)
 
         def clamp_day_to_month(*_):
             """Keep the day within the chosen month, so 31 Jan then Feb gives 28 or 29."""
@@ -239,7 +250,8 @@ class TimeToolboxMixin:
                 last = calendar.monthrange(int(year_var.get()), int(month_var.get()))[1]
             except ValueError:
                 return  # half-typed year or month; the next keystroke settles it
-            day_spin.config(to=last)
+            # One past the month's end, for an arrow to carry into the next
+            day_spin.config(to=last + 1)
             if int(day_var.get() or 0) > last:
                 day_var.set(f"{last:02d}")
 
@@ -346,7 +358,7 @@ class TimeToolboxMixin:
         # a step is a count of minutes, not a reading of a clock
         tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
         [(step_var, _)] = spin_group(
-            "Step:", "", [(1, 1440, 4, False)], lambda: go_to_step(), padded=False)
+            "Step:", "", [(1, 1440, 4)], lambda: go_to_step(), padded=False)
         tk.Label(frame, text="min", font=font, fg=fg, bg=bg).pack(side=tk.LEFT, padx=(4, 0))
 
         # Empty, and so taking no room, until there is something wrong to say.
@@ -385,25 +397,50 @@ class TimeToolboxMixin:
             show_step(self.time_step_minutes)
             error_var.set("")
 
-        def step_time():
+        def step_time(part: str):
             """
             An arrow clicked: go to the time at once. Held, the arrow repeats
             like a held Q or W, so it is drawn the way they are - a single
             frame each, and the full render once it is let go.
             """
             self._begin_interactive_preview()
-            go_to_time()
+            go_to_time(part)
 
-        def go_to_time():
-            """Apply the date and time in the fields, on the observer's clock."""
+        def carried(year, month, day, hour, minute, second, part: str) -> datetime:
+            """
+            The moment the parts name once a part an arrow took one past its
+            range is carried into the rest, as a clock does: 04:11:59 and a
+            second more is 04:12:00, and 23:59:59 on 31 December the first
+            second of the next year.
+
+            A year or a month carries into the year, and the day is then
+            trimmed to the month it lands in, as when either is set by hand:
+            31 January and a month more is the end of February, not 3 March.
+            """
+            year, month = year + (month - 1) // 12, (month - 1) % 12 + 1
+            if part in ("year", "month"):
+                day = min(day, calendar.monthrange(year, month)[1])
+                return datetime(year, month, day, hour, minute, second)
+            # The rest are lengths of time from the start of the month, so a
+            # day, an hour, a minute or a second past either end runs on
+            return datetime(year, month, 1) + timedelta(
+                days=day - 1, hours=hour, minutes=minute, seconds=second)
+
+        def go_to_time(part: str = ""):
+            """
+            Apply the date and time in the fields, on the observer's clock.
+            Given the part an arrow changed, a part run past its range carries
+            into the rest (see carried); typed, every part must be in range.
+            """
             if self._video_export is not None:      # the export owns the clock
                 return
             try:
                 # A spinbox can still be typed into, so the parts are validated
                 # rather than trusted; datetime rejects anything out of range
-                new_dt_naive = datetime(int(year_var.get()), int(month_var.get()), int(day_var.get()),
-                                        int(hour_var.get()), int(minute_var.get()), int(second_var.get()))
-            except ValueError as e:
+                parts = (int(year_var.get()), int(month_var.get()), int(day_var.get()),
+                         int(hour_var.get()), int(minute_var.get()), int(second_var.get()))
+                new_dt_naive = carried(*parts, part) if part else datetime(*parts)
+            except (ValueError, OverflowError) as e:
                 # Python's own wording ("invalid literal for int() with base
                 # 10") is too long for the toolbox, and no clearer
                 print(f"Date/time not set: {e}")
