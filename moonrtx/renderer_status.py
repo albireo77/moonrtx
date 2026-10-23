@@ -561,7 +561,11 @@ class StatusMixin:
                     self._status_coords_var = tk.StringVar()
                     self._status_coords_alt_var = tk.StringVar()
 
-                    self._auto_advance_var = tk.BooleanVar(value=False)
+                    # Shared with the time toolbox's Auto button, which is
+                    # how the two stay in step; whichever is built first
+                    # makes it (see TimeToolboxMixin._build_toolbox)
+                    if self._auto_advance_var is None:
+                        self._auto_advance_var = tk.BooleanVar(value=False)
 
                     font = ("Consolas", 9)
                     sun_font = ("Consolas", 7)      # subscript Sun sign

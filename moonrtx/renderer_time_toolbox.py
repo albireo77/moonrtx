@@ -3,8 +3,8 @@ TimeToolboxMixin: a strip of controls for the time, laid over the bottom of the
 picture, shown and hidden with T.
 
 It took over from the date/time window: the date and the time in spinboxes,
-Now, buttons standing in for Q and W - pressed once, and held down - and the
-time step they move by.
+Now, buttons standing in for Q and W - pressed once, and held down - the time
+step they move by, and auto-advance, as the status bar has it.
 What is typed into a field is applied with Enter, a click on its arrows at once.
 It sits on the canvas rather than in a window of its own, so it goes wherever
 the picture goes - full screen included - and is dragged about by its grip.
@@ -391,6 +391,23 @@ class TimeToolboxMixin:
         [(step_var, _)] = spin_group(
             "Step:", "", [(1, 1440, 4)], lambda: go_to_step(), padded=False)
         tk.Label(frame, text="min", font=font, fg=fg, bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+
+        # ---- auto-advance ----
+
+        # On the status bar's own variable, so the two buttons are one: either
+        # pressed shows both pressed, and F10 or a video export turning it on
+        # or off shows on both. Made here if the toolbox comes first, T having
+        # been pressed before the status bar was built (see renderer_status)
+        if self._auto_advance_var is None:
+            self._auto_advance_var = tk.BooleanVar(value=False)
+        # Beside the step, which is what it advances by. Named rather than
+        # drawn as the status bar's ▶, which here is a step forward
+        auto = tk.Checkbutton(frame, text="Auto", variable=self._auto_advance_var,
+                              indicatoron=False, selectcolor="#505050",
+                              relief='flat', offrelief='flat',
+                              command=self._on_auto_advance_toggle, **button_look)
+        auto.pack(side=tk.LEFT, padx=(8, 0))
+        ToolTip(auto, "Auto-advance time (every step minutes)")
 
         # Empty, and so taking no room, until there is something wrong to say.
         # The toolbox is held by its left edge, so a message grows it rightwards
