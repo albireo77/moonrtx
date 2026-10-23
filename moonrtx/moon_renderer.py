@@ -42,13 +42,15 @@ from moonrtx.renderer_settings import SettingsMixin
 from moonrtx.renderer_scalebar import ScaleBarMixin
 from moonrtx.renderer_scalebar_angle import AngleScaleBarMixin
 from moonrtx.renderer_time_toolbox import TimeToolboxMixin
+from moonrtx.renderer_panel_handles import PanelHandlesMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    LabelsMixin, PinsMixin, NavigationMixin, VideoMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
-                   SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, TimeToolboxMixin):
+                   SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, TimeToolboxMixin,
+                   PanelHandlesMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -422,6 +424,16 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         self._init_measure_line()
 
+        # The ephemeris panel (F2, bottom-left) and the status panel (F3,
+        # bottom-right): whether each is up and where it was dragged to (see
+        # renderer_panel_handles), kept between runs. The status panel says
+        # what the status bar does, drawn on the canvas so that it survives full
+        # screen; off to begin with - see StatusMixin.toggle_status_panel
+        self.show_info_panel = True
+        self.show_status_panel = False
+        self._info_panel_at = None
+        self._status_panel_at = None
+
         # The windows' choices the last run left, the field-of-view setup among
         # them - so after that setup's defaults (see renderer_settings)
         self._load_settings()
@@ -433,14 +445,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._auto_advance_interval = 1000  # tick interval in ms
         self._auto_advance_target_ms = time_step_minutes * 60 * 1000
 
-        # Info panel variables (bottom-left overlay)
         self._info_frame = None
-        self.show_info_panel = True
-
-        # The status panel (F3): what the status bar says, drawn on the
-        # canvas so that it survives full screen, F12 and the video export.
-        # Off to begin with - see StatusMixin.toggle_status_panel
-        self.show_status_panel = False
+        self._info_first_row = None     # where the eclipse rows go in above
         self._status_panel_frame = None
         self._status_panel_distance_var = None
         self._status_panel_height_var = None

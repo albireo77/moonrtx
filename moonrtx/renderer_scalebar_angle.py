@@ -150,7 +150,10 @@ class AngleScaleBarMixin:
         margin = self._overlay_px(self.ANGLE_BAR_MARGIN_PX)
         right, bottom = width - margin, height - margin - self._angle_bar_floor
         panel = getattr(self, "_status_panel_frame", None)
-        if self._overlay_surface is None and panel is not None and self.show_status_panel:
+        # Only while the panel is in its corner: dragged elsewhere, it no
+        # longer takes the corner the bar stands in
+        if (self._overlay_surface is None and panel is not None and self.show_status_panel
+                and self._status_panel_at is None):
             try:
                 if panel.winfo_ismapped():
                     right = panel.winfo_x() - self._overlay_px(self.ANGLE_BAR_PANEL_GAP_PX)

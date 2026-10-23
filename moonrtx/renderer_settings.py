@@ -4,16 +4,16 @@ SettingsMixin: the choices made in the windows, kept from one run to the next.
 The field-of-view setup is the one that costs most to lose - a telescope, an
 eyepiece or a camera typed in again every run - and the ticks and spans left in
 the planner, the graph and the profile go with it, whether the scale bar
-(Insert) is on, and whether the toolbox (T) is and where it was dragged to. They
-are read when the
-renderer starts and written when its window is closed, into a file of their own
-beside the caches in the data folder.
+(Insert) is on, and whether the time toolbox (T), the ephemeris panel (F2) and
+the status panel (F3) are, and where each was dragged to. They are read when
+the renderer starts and written when its window is closed, into a file of their
+own beside the caches in the data folder.
 
 Where a window was left on the screen is not kept: the same program is run on
 screens of different sizes and scaling, and a place remembered on one can be off
-the edge of the other. The toolbox is the exception, and can be, because it is
-kept as a share of the picture's width and height rather than in pixels: on any
-screen that is somewhere on the picture.
+the edge of the other. The toolbox and the two panels are the exception, and
+can be, because they are kept as a share of the picture's width and height
+rather than in pixels: on any screen that is somewhere on the picture.
 
 What is read back is checked before it is used, each value against what its
 window can show. A file from an older version, edited by hand, or cut short is
@@ -44,6 +44,14 @@ class SettingsMixin:
         def flag(value):
             return isinstance(value, bool)
 
+        def place(value):
+            # A dragged-to place (see renderer_panel_handles): a pair of
+            # fractions of the canvas, or None for the usual place
+            return value is None or (
+                isinstance(value, list) and len(value) == 2
+                and all(isinstance(x, (int, float)) and not isinstance(x, bool)
+                        and 0 <= x <= 1 for x in value))
+
         return {
             "fov_setup": None,                      # checked field by field
             "_clair_obscur_filter": lambda v: isinstance(v, str),
@@ -62,10 +70,11 @@ class SettingsMixin:
             "scale_bar_visible": flag,
             "angle_bar_visible": flag,
             "toolbox_visible": flag,
-            "_toolbox_at": lambda v: v is None or (
-                isinstance(v, list) and len(v) == 2
-                and all(isinstance(x, (int, float)) and not isinstance(x, bool)
-                        and 0 <= x <= 1 for x in v)),
+            "_toolbox_at": place,
+            "show_info_panel": flag,
+            "_info_panel_at": place,
+            "show_status_panel": flag,
+            "_status_panel_at": place,
         }
 
     def _fov_setup_from(self, stored) -> dict:

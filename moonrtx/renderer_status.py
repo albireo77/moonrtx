@@ -256,9 +256,10 @@ class StatusMixin:
         self._info_eclipse_kind_var.set(f"{eclipse['kind'] + ' eclipse':>17}")
         self._info_eclipse_magnitude_var.set(f"Magnitude: {eclipse['magnitude']:6.3f}")
         if not labels[0].winfo_ismapped():
-            first = self._info_frame.pack_slaves()[0]
+            # Above the first reading rather than the panel's first row, which
+            # is the grip and close cross
             for label in labels:
-                label.pack(anchor='w', before=first)
+                label.pack(anchor='w', before=self._info_first_row)
 
     def _status_panel_row(self, label: str, value: str) -> str:
         """One row of the status panel: the label flush left, the value flush
@@ -471,12 +472,18 @@ class StatusMixin:
 
     def toggle_info_panel(self):
         """Toggle the Moon info panel visibility."""
-        self.show_info_panel = not self.show_info_panel
-        if self._info_frame is not None:
-            if self.show_info_panel:
-                self._info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
-            else:
-                self._info_frame.place_forget()
+        self.set_info_panel(not self.show_info_panel)
+
+    def set_info_panel(self, visible: bool):
+        """Show the ephemeris panel or put it away: F2, and its close cross."""
+        self.show_info_panel = visible
+        if self._info_frame is None:
+            return
+        if not visible:
+            self._info_frame.place_forget()
+        elif not self._place_panel_at(self._info_frame, "_info_panel_at", 'sw'):
+            # Its usual place, the bottom-left corner
+            self._info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
 
     def toggle_status_panel(self):
         """
@@ -489,13 +496,18 @@ class StatusMixin:
         frame in full screen and has never appeared in a saved image or a video
         frame. This panel is drawn on the canvas, so it is in all three.
         """
-        self.show_status_panel = not self.show_status_panel
-        if self._status_panel_frame is not None:
-            if self.show_status_panel:
-                self._status_panel_frame.place(relx=1.0, rely=1.0, anchor='se',
-                                             x=-6, y=-6)
-            else:
-                self._status_panel_frame.place_forget()
+        self.set_status_panel(not self.show_status_panel)
+
+    def set_status_panel(self, visible: bool):
+        """Show the status panel or put it away: F3, and its close cross."""
+        self.show_status_panel = visible
+        if self._status_panel_frame is None:
+            return
+        if not visible:
+            self._status_panel_frame.place_forget()
+        elif not self._place_panel_at(self._status_panel_frame, "_status_panel_at", 'se'):
+            # Its usual place, the bottom-right corner
+            self._status_panel_frame.place(relx=1.0, rely=1.0, anchor='se', x=-6, y=-6)
 
     def window_title(self) -> str:
         lat = self.observer.lat
@@ -694,6 +706,10 @@ class StatusMixin:
 
                     info_frame = tk.Frame(rt._canvas, bg=info_bg, padx=6, pady=4)
                     self._info_frame = info_frame
+                    self._panel_header(info_frame, "_info_panel_at", 'sw',
+                                       "ephemeris panel", "F2",
+                                       lambda: self.set_info_panel(False),
+                                       info_font, info_fg, info_bg)
                     info_vars = [
                         self._info_az_var,
                         self._info_alt_var,
@@ -723,6 +739,8 @@ class StatusMixin:
                             width=info_width,
                         )
                         label.pack(anchor='w')
+                        if var is self._info_az_var:
+                            self._info_first_row = label
                         if var is self._info_alt_var:
                             self._info_alt_label = label
                     # The eclipse's two rows, made now and put in the panel only
@@ -733,7 +751,8 @@ class StatusMixin:
                         tk.Label(info_frame, textvariable=var, font=info_font, fg=info_fg,
                                  bg=info_bg, anchor='w', width=info_width)
                         for var in (self._info_eclipse_kind_var, self._info_eclipse_magnitude_var))
-                    info_frame.place(relx=0.0, rely=1.0, anchor='sw', x=6, y=-6)
+                    # Where F2 and the last run left it (see renderer_settings)
+                    self.set_info_panel(self.show_info_panel)
 
                     # The status panel: the same lettering and ground as the
                     # ephemeris panel, in the opposite corner. Unlike that one it
@@ -749,6 +768,10 @@ class StatusMixin:
                     status_panel_frame = tk.Frame(rt._canvas, bg=info_bg,
                                                 padx=6, pady=4)
                     self._status_panel_frame = status_panel_frame
+                    self._panel_header(status_panel_frame, "_status_panel_at", 'se',
+                                       "status panel", "F3",
+                                       lambda: self.set_status_panel(False),
+                                       info_font, info_fg, info_bg)
                     for var in (self._status_panel_feature_var,
                                 self._status_panel_lat_var,
                                 self._status_panel_lon_var,
@@ -764,9 +787,7 @@ class StatusMixin:
                             anchor='w',
                             width=self.STATUS_PANEL_WIDTH,
                         ).pack(anchor='w')
-                    if self.show_status_panel:
-                        status_panel_frame.place(relx=1.0, rely=1.0, anchor='se',
-                                               x=-6, y=-6)
+                    self.set_status_panel(self.show_status_panel)
 
                 # Add 4-char left padding to shift panels right
                 status_frame.grid(

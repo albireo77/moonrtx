@@ -54,10 +54,9 @@ class TimeToolboxMixin:
         self._toolbox_hold_var = None
         # Both kept between runs (see renderer_settings)
         self.toolbox_visible = False
-        # Where its bottom-left corner was dragged to, as fractions of the
-        # canvas, so it keeps its place when the canvas changes size - and
-        # between runs on screens of other sizes; None while it has never been
-        # dragged and stands beside the ephemeris panel
+        # Where its bottom-left corner was dragged to (see renderer_panel_handles);
+        # None while it has never been dragged and stands beside the ephemeris
+        # panel
         self._toolbox_at = None
         # True while one of its fields has the keyboard (see toolbox_takes_key)
         self.toolbox_focused = False
@@ -117,9 +116,7 @@ class TimeToolboxMixin:
     def _place_toolbox(self):
         """Put the toolbox where it was dragged to, or beside the ephemeris panel."""
         frame = self._toolbox_frame
-        if self._toolbox_at is not None:
-            relx, rely = self._toolbox_at
-            frame.place(relx=relx, rely=rely, x=0, y=0, anchor='sw')
+        if self._place_panel_at(frame, "_toolbox_at", 'sw'):
             return
         # Measured by what the panel asks for rather than what it has, so the
         # toolbox stands in the same place whether F2 has the panel up or not
@@ -137,42 +134,14 @@ class TimeToolboxMixin:
         frame = tk.Frame(canvas, bg=bg, padx=6, pady=4)
         self._toolbox_frame = frame
 
-        # ---- the grip ----
+        # ---- the grip and the close cross (see renderer_panel_handles) ----
 
-        grip = tk.Label(frame, text="⠿", font=font, fg=fg, bg=bg, cursor='fleur')
-        grip.pack(side=tk.LEFT, padx=(0, 6))
-        ToolTip(grip, "Drag to move the toolbox")
-        drag_from = None
-
-        def start_drag(event):
-            nonlocal drag_from
-            drag_from = (event.x_root, event.y_root,
-                         frame.winfo_x(), frame.winfo_y() + frame.winfo_height())
-
-        def drag(event):
-            if drag_from is None:
-                return
-            x0, y0, left, bottom = drag_from
-            width, height = canvas.winfo_width(), canvas.winfo_height()
-            # Kept wholly on the canvas, so it can never be lost off an edge
-            left = min(max(0, left + event.x_root - x0), max(0, width - frame.winfo_width()))
-            bottom = min(max(frame.winfo_height(), bottom + event.y_root - y0), height)
-            self._toolbox_at = (left / width, bottom / height)
-            frame.place(relx=self._toolbox_at[0], rely=self._toolbox_at[1], x=0, y=0, anchor='sw')
-
-        grip.bind('<ButtonPress-1>', start_drag)
-        grip.bind('<B1-Motion>', drag)
-
-        # ---- the close cross ----
-
+        self._panel_grip(frame, frame, "_toolbox_at", 'sw', "Drag to move the toolbox",
+                         font, fg, bg).pack(side=tk.LEFT, padx=(0, 6))
         # At the far end, the grip holding the near one. Packed first so that
         # the error message, coming last, opens up between it and the fields
-        close = tk.Label(frame, text="✕", font=font, fg=fg, bg=bg, cursor='hand2')
-        close.pack(side=tk.RIGHT, padx=(8, 0))
-        ToolTip(close, "Close the toolbox (T)")
-        close.bind('<Enter>', lambda _event: close.config(fg=self.TOOLBOX_FIELD_FG), add='+')
-        close.bind('<Leave>', lambda _event: close.config(fg=fg), add='+')
-        close.bind('<ButtonRelease-1>', lambda _event: self.show_toolbox(False))
+        self._panel_close(frame, lambda: self.show_toolbox(False), "Close the toolbox (T)",
+                          font, fg, bg).pack(side=tk.RIGHT, padx=(8, 0))
 
         # ---- the clock ----
 
