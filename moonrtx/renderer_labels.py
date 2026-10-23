@@ -11,7 +11,7 @@ import numpy as np
 
 from plotoptix.materials import m_flat
 
-from moonrtx.shared_types import MoonFeature, MoonLabel
+from moonrtx.shared_types import GeometryType, MoonFeature, MoonLabel
 from moonrtx.view_orientation import FLIP_HORIZONTAL_VIEW_ORIENTATIONS, FLIP_VERTICAL_VIEW_ORIENTATIONS
 from moonrtx.moon_grid import (
     LABEL_LIFT, create_moon_grid, create_standard_labels, create_spot_labels,
@@ -157,8 +157,9 @@ class LabelsMixin:
     # which turns the Moon, and whenever the eye moves (_reaim_if_eye_moved) -
     # a frame after each step of a drag, straight after a key, and on the poll
     # for anything else - so the turn follows the view as it changes. A label
-    # whose ground faces away from the eye is left as it is, behind the limb
-    # with its ground: turned, it would be brought round into sight.
+    # whose ground has gone round behind the edge of the visible side is named
+    # from the edge while any of its feature is still in sight, and put away
+    # once none of it is (see _aimed_at_ground).
     #
     # Lying on the sphere, a label is seen as slanted as the ground under it:
     # at Archytas, 58 degrees north, its letters are squashed to about half
@@ -180,7 +181,12 @@ class LabelsMixin:
         cos_lat = np.cos(lat)
         return np.column_stack((cos_lat * np.sin(lon), -cos_lat * np.cos(lon), np.sin(lat)))
 
-    def _aimed_at_ground(self, pos: np.ndarray, lat, lon, counts) -> np.ndarray:
+    # Points round a crater's rim, for how far it is seen to reach (see
+    # _aimed_at_ground)
+    LABEL_RIM_POINTS = 24
+
+    def _aimed_at_ground(self, pos: np.ndarray, lat, lon, counts, reach=None,
+                         rim=None) -> np.ndarray:
         """
         Body-frame label vertices, each label turned so the place it names is
         seen on its own ground from where the eye is now, and stood up to face
@@ -195,20 +201,53 @@ class LabelsMixin:
             The place each label names, one per label
         counts : array_like
             How many of the vertices belong to each label
+        reach : array_like, optional
+            How far each named thing reaches round its place, in degrees - a
+            feature's angular radius. A label stays while any of its feature
+            is on the visible side; one with no reach, naming only a point,
+            goes when the point does
+        rim : array_like, optional
+            For a label written beside its feature, clear of the rim, how far
+            out from the centre it was written to start, in degrees of the
+            ground (the feature's angular radius); 0 for one written across it
         """
         R = self.moon_rotation
         if R is None or self.rt is None or len(pos) == 0:
             return pos
         lat = np.atleast_1d(np.asarray(lat, dtype=float))
         lon = np.atleast_1d(np.asarray(lon, dtype=float))
+        reach = (np.zeros(len(lat)) if reach is None
+                 else np.radians(np.atleast_1d(np.asarray(reach, dtype=float))))
         eye = np.asarray(self.rt.get_camera(self.CAMERA_NAME)["Eye"], dtype=float)
         self._labels_aimed_eye = eye
 
         # Worked in the scene, where the eye is, and taken back to the body
         # frame at the end, R being a rotation
         named = self._unit_vectors(lat, lon) @ R.T
-        on_ground = named * (self.MOON_RADIUS * np.asarray(self._ground_factor(lat, lon),
-                                                           dtype=float))[:, None]
+        radius = self.MOON_RADIUS * np.asarray(self._ground_factor(lat, lon), dtype=float)
+
+        # The edge of the visible side, as an angle from the point under the
+        # eye: where the line from the eye only grazes the ground. A place
+        # beyond it, by less than the reach of what is named there, is named
+        # from the edge - from the point of it nearest the place, in the plane
+        # through the eye, the centre and the place - so the label slides to
+        # the edge and stops there as its ground goes round, and goes when the
+        # last of the feature has. Named from just inside the edge, where the
+        # line of sight still clears the ground
+        distance = np.linalg.norm(eye)
+        to_eye = eye / distance
+        edge = np.arccos(np.clip(radius / distance, -1.0, 1.0)) - 1e-6
+        off = np.arccos(np.clip(named @ to_eye, -1.0, 1.0))
+        hidden = off - edge > reach
+        place = named.copy()
+        at_edge = (off > edge) & ~hidden
+        if at_edge.any():
+            aside = named[at_edge] - (named[at_edge] @ to_eye)[:, None] * to_eye
+            aside /= np.linalg.norm(aside, axis=1, keepdims=True)
+            place[at_edge] = (np.cos(edge[at_edge])[:, None] * to_eye
+                              + np.sin(edge[at_edge])[:, None] * aside)
+
+        on_ground = place * radius[:, None]
         sight = eye - on_ground
         sight /= np.linalg.norm(sight, axis=1, keepdims=True)
 
@@ -221,32 +260,78 @@ class LabelsMixin:
         aimed = on_ground + t[:, None] * sight
         aimed /= np.linalg.norm(aimed, axis=1, keepdims=True)
 
-        away = np.einsum('ij,ij->i', named, sight) <= 0.0
-        aimed[away] = named[away]
-
-        # Stood up at the aimed point, square to the line of sight: each label
+        # Stood up at the aimed point, square to the line of sight. Each label
         # is written in its own frame - east along the line, north up, out of
-        # the sphere - and that frame is laid on the one it is seen in, with
-        # the line running the way east runs on screen there, up square to it
-        # and out towards the eye. The lettering then reads face on, slanted
-        # just as the graticule is where it stands
-        la, lo = np.radians(lat), np.radians(lon)
-        east = np.column_stack((np.cos(lo), np.sin(lo), np.zeros_like(lo))) @ R.T
-        north = np.column_stack((-np.sin(la) * np.sin(lo), np.sin(la) * np.cos(lo),
-                                 np.cos(la))) @ R.T
-        along_line = east - np.einsum('ij,ij->i', east, sight)[:, None] * sight
+        # the sphere - and that frame is laid on the one it is seen in: out
+        # towards the eye, and the line running the way the ground's east runs
+        # as it is seen there, so it follows the graticule. Except where east
+        # is seen nearly end on - at the eastern and western limbs it points
+        # along the line of sight, and the way it is seen to run is lost - when
+        # the line is taken square to the way north is seen to run instead,
+        # passing over from one to the other as east shortens from 30 to 10 per
+        # cent of its length. Not the two together everywhere: seen at a slant
+        # they are not square to each other, and a line between them leans off
+        # the graticule by some degrees
+        pole = R[:, 2]                                  # the Moon's north, in the scene
+
+        def frame(up_from):
+            east = np.cross(pole, up_from)
+            norm = np.linalg.norm(east, axis=1, keepdims=True)
+            east = np.where(norm > 1e-9, east / np.maximum(norm, 1e-12), R[:, 0])
+            return east, np.cross(up_from, east)
+
+        east_named, north_named = frame(named)
+        written = np.stack((east_named, north_named, named), axis=1)   # rows: the label's frame
+        east, north = frame(place)
+        east_seen = east - np.einsum('ij,ij->i', east, sight)[:, None] * sight
+        north_seen = north - np.einsum('ij,ij->i', north, sight)[:, None] * sight
+        east_length = np.linalg.norm(east_seen, axis=1, keepdims=True)
+        by_north = np.cross(north_seen, sight)
+        by_north /= np.maximum(np.linalg.norm(by_north, axis=1, keepdims=True), 1e-12)
+        share = np.clip((east_length - 0.1) / 0.2, 0.0, 1.0)
+        share = share * share * (3.0 - 2.0 * share)             # smoothly, not at a step
+        along_line = (share * east_seen / np.maximum(east_length, 1e-12)
+                      + (1.0 - share) * by_north)
         along_line /= np.linalg.norm(along_line, axis=1, keepdims=True)
         up = np.cross(sight, along_line)
-        written = np.stack((east, north, named), axis=1)       # rows: the label's frame
-        seen = np.stack((along_line, up, sight), axis=1)       # rows: where it goes
+        seen = np.stack((along_line, up, sight), axis=1)        # rows: where it goes
         turn = np.einsum('nki,nkj->nij', written, seen)
-        # A label behind the limb is left lying where it is, with its ground
-        turn[away] = np.eye(3)
 
         scene = pos @ R.T
         at = np.repeat(aimed * lifted, counts, axis=0)
         rel = scene - np.repeat(named * lifted, counts, axis=0)
         stood = at + np.einsum('vi,vij->vj', rel, np.repeat(turn, counts, axis=0))
+
+        # A label written beside its feature was written to start just clear of
+        # the rim, measured on the ground. Stood up, that is how far out it
+        # stands on screen too - but the crater is seen foreshortened, its rim
+        # nowhere near as far out as that towards the limb: Joliot, seen there
+        # by libration, reaches some 20 pixels out on a 4K screen and its name
+        # started 46 out, over the sky. So the label is brought in along its
+        # line, by as much as the rim is seen to fall short of where it was
+        # taken to be: the rim's points measured along the line from where the
+        # label is aimed, the furthest of them being how far the crater is
+        # seen to reach that way. Never moved out, only in
+        if rim is not None:
+            rim_rad = np.radians(np.atleast_1d(np.asarray(rim, dtype=float)))
+            beside = (rim_rad > 0.0) & ~hidden
+            if beside.any():
+                angles = np.linspace(0.0, 2 * np.pi, self.LABEL_RIM_POINTS, endpoint=False)
+                a = rim_rad[beside][:, None, None]
+                round_rim = (np.cos(angles)[None, :, None] * east_named[beside][:, None, :]
+                             + np.sin(angles)[None, :, None] * north_named[beside][:, None, :])
+                rim_points = (np.cos(a) * named[beside][:, None, :]
+                              + np.sin(a) * round_rim) * radius[beside][:, None, None]
+                seen_reach = np.einsum('nkj,nj->nk', rim_points - on_ground[beside][:, None, :],
+                                       along_line[beside]).max(axis=1)
+                # Named from the edge, with its centre round behind it, the
+                # crater can be seen to reach nowhere past the point the label
+                # is aimed at; the label then starts there, not before it
+                seen_reach = np.maximum(seen_reach, 0.0)
+                bring_in = np.zeros(len(named))
+                bring_in[beside] = np.maximum(rim_rad[beside] * lifted - seen_reach, 0.0)
+                stood -= (np.repeat(bring_in, counts)[:, None]
+                          * np.repeat(along_line, counts, axis=0))
 
         # Stood up, the half nearer the middle of the disk leans in towards the
         # ground, so the label is slid towards the eye along the line of sight
@@ -260,15 +345,28 @@ class LabelsMixin:
                         -ps + np.sqrt(np.maximum(ps * ps + lifted * lifted - pp, 0.0)), 0.0)
         slide = np.zeros(len(named))
         np.maximum.at(slide, np.repeat(np.arange(len(named)), counts), need)
-        slide[away] = 0.0
         stood += np.repeat(slide, counts)[:, None] * towards
+
+        # A label whose feature is all behind the edge is put away inside the
+        # Moon, at its centre, where nothing of it can be seen: left lying, it
+        # was seen end on past the limb, reading backwards
+        stood[np.repeat(hidden, counts)] = 0.0
         return stood @ R
 
     @staticmethod
-    def _features_places(features: list[MoonFeature]) -> tuple[np.ndarray, np.ndarray]:
-        """The places labels naming these features name: their centres."""
+    def _features_places(features: list[MoonFeature], beside: bool = False) -> tuple:
+        """
+        What labels naming these features name: their centres, how far each
+        reaches round its centre, and, for labels written beside them, how far
+        out from the centre they were written to start - all in degrees (see
+        _aimed_at_ground). Beside a round feature a label starts clear of its
+        rim; beside any other, from its centre (see moon_grid.create_spot_labels).
+        """
         return (np.array([f.lat for f in features], dtype=float),
-                np.array([f.lon for f in features], dtype=float))
+                np.array([f.lon for f in features], dtype=float),
+                np.array([f.angular_radius for f in features], dtype=float),
+                np.array([f.angular_radius if beside and f.geometry_type is GeometryType.CIRCULAR
+                          else 0.0 for f in features], dtype=float))
 
     def _aimed_to_scene(self, pos: np.ndarray, places, counts) -> np.ndarray:
         """
@@ -280,11 +378,16 @@ class LabelsMixin:
         pos : np.ndarray
             Body-frame vertices of every label in the set, as written
         places : tuple
-            (lat, lon) of the place each label names, one per label
+            (lat, lon) of the place each label names, one per label, and
+            optionally how far what is named reaches round it and how far out
+            a label beside it starts (see _features_places)
         counts : array_like
             How many of the vertices belong to each label
         """
-        return self._rotate_to_scene(self._aimed_at_ground(pos, *places, counts))
+        reach = places[2] if len(places) > 2 else None
+        rim = places[3] if len(places) > 3 else None
+        return self._rotate_to_scene(
+            self._aimed_at_ground(pos, places[0], places[1], counts, reach, rim))
 
     def _eye_moved_since_aim(self) -> bool:
         """Whether the eye has moved since the lettering was last aimed."""
@@ -749,7 +852,7 @@ class LabelsMixin:
         self._spot_units = self._features_unit_vectors(self.spot_label_features)
         self._spot_labels_pos, self._spot_labels_edges, self._spot_labels_counts = \
             self._label_graph_arrays(self.spot_labels)
-        self._spot_places = self._features_places(self.spot_label_features)
+        self._spot_places = self._features_places(self.spot_label_features, beside=True)
 
         # All labels in one graph geometry; night-side labels hidden via zero vertex radii
         self.rt.set_graph(

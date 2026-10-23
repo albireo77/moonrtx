@@ -228,7 +228,9 @@ class CatalogueMixin:
         pos, edges, counts = self._label_graph_arrays(labels)
         self._catalogue_pos = pos
         # One label to a feature, in the order they were written
-        self._catalogue_places = self._features_places(across + beside)
+        self._catalogue_places = tuple(
+            np.concatenate(parts) for parts in zip(self._features_places(across),
+                                                   self._features_places(beside, beside=True)))
         self._catalogue_counts = counts
 
         self.rt.update_material("catalogue_material", self._no_shadow_flat_material())
