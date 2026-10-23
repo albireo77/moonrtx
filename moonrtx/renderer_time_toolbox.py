@@ -263,11 +263,24 @@ class TimeToolboxMixin:
                 return
             self.set_time_to_now()
 
+        def reset():
+            # As Home: the time, the camera and the view orientation the
+            # session started with
+            if self._video_export is not None:      # the export owns the clock
+                return
+            self.reset_camera_position()
+
         tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
         tk.Button(frame, text="Now", command=set_now, font=font,
                   bg=self.TOOLBOX_FIELD_BG, fg=self.TOOLBOX_FIELD_FG,
                   activebackground=fg, activeforeground=bg,
                   relief='flat', padx=6, pady=0).pack(side=tk.LEFT)
+        reset_button = tk.Button(frame, text="Reset", command=reset, font=font,
+                                 bg=self.TOOLBOX_FIELD_BG, fg=self.TOOLBOX_FIELD_FG,
+                                 activebackground=fg, activeforeground=bg,
+                                 relief='flat', padx=6, pady=0)
+        reset_button.pack(side=tk.LEFT, padx=(4, 0))
+        ToolTip(reset_button, "Reset camera position and time to their initial values (Home)")
 
         # ---- Q and W ----
 
