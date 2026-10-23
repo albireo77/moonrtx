@@ -24,6 +24,17 @@ class NavigationMixin:
     MEASURE_ARROW_AT = 0.25
     MEASURE_ARROW_LENGTH = 12
     MEASURE_ARROW_HALF_WIDTH = 5
+    # The ring at each end of the line, by which that end is dragged to
+    # another place, and how far outside the ring a press still takes it - a
+    # ring is small, and a hand on a mouse is not
+    MEASURE_HOOK_RADIUS = 5
+    MEASURE_HOOK_GRAB = 4
+    # How often an open profile window is drawn again while a line's end is
+    # being dragged. Drawing it takes up to some 15 ms of sampling for the
+    # longest lines and the drawing besides, and the mouse moves far more
+    # often than that, so it is drawn at this pace - for the line as it stands
+    # then - rather than on every move, and the drag never falls behind
+    MEASURE_PROFILE_LIVE_MS = 50
 
     @staticmethod
     def _rotated(vector: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
@@ -836,7 +847,7 @@ class NavigationMixin:
             self.measuring = False
             return
 
-        self.drop_measure_line()
+        self.drop_measure_line(close_profile=not with_profile)
         self.measuring = True
         self.measure_start_canvas = (event.x, event.y)
         self.measure_start_coords = start
@@ -856,17 +867,25 @@ class NavigationMixin:
             canvas.create_polygon(event.x, event.y, event.x, event.y, event.x, event.y,
                                   tags=tag, state='hidden', fill=self.MEASURE_LINE_COLOR,
                                   outline=self.MEASURE_LINE_COLOR)
+            # A ring at each end, the start's first (see _place_measure_line)
+            for _ in range(2):
+                canvas.create_oval(event.x, event.y, event.x, event.y, tags=tag,
+                                   outline=self.MEASURE_LINE_COLOR, fill='',
+                                   width=max(1, round(self._overlay_px(self.MEASURE_LINE_WIDTH))))
             self.leading_line_id = tag
 
     def _place_measure_line(self, tag, x0: float, y0: float, x1: float, y1: float):
         """
         Lay the measurement line from (x0, y0) to (x1, y1), with its arrow a
-        quarter of the way along and pointing to the end. The arrow is hidden
-        while the line is too short to carry it.
+        quarter of the way along and pointing to the end, and a ring on each
+        end. The arrow is hidden while the line is too short to carry it.
         """
         canvas = self.rt._canvas
-        line, arrow = canvas.find_withtag(tag)          # in the order made
+        line, arrow, start_hook, end_hook = canvas.find_withtag(tag)    # in the order made
         canvas.coords(line, x0, y0, x1, y1)
+        ring = self._overlay_px(self.MEASURE_HOOK_RADIUS)
+        for hook, (x, y) in ((start_hook, (x0, y0)), (end_hook, (x1, y1))):
+            canvas.coords(hook, x - ring, y - ring, x + ring, y + ring)
         dx, dy = x1 - x0, y1 - y0
         length = math.hypot(dx, dy)
         arrow_length = self._overlay_px(self.MEASURE_ARROW_LENGTH)
@@ -889,6 +908,16 @@ class NavigationMixin:
         self._measure_line = None           # the kept measurement line (its tag), or None
         self._measure_line_view = None      # the view it was drawn in
         self._measure_line_watch = None     # the poll that notices the view move
+        # Where the kept line ends, in the window and on the Moon, as the start
+        # is kept in measure_start_canvas and measure_start_coords
+        self.measure_end_canvas = None
+        self.measure_end_coords = None
+        # Whether the kept line is the one the profile window shows
+        self._measure_line_graphed = False
+        # Which end is being dragged by its ring - "start" or "end" - or None
+        self._measure_hook = None
+        # The profile drawing booked while a drag goes on (see _follow_profile)
+        self._measure_profile_due = None
 
     def _keep_measure_line(self, line_id):
         """
@@ -901,8 +930,12 @@ class NavigationMixin:
         is taken away the moment the view moves: panned, zoomed, turned, the
         clock stepped or the window resized. Left standing, it would go on
         pointing at whatever ground had come under it instead.
+
+        Until then either end can be dragged by the ring on it to another place,
+        the measurement following it (see grab_measure_hook).
         """
         self._measure_line = line_id
+        self._measure_line_graphed = self.measure_with_profile
         self._measure_line_view = self._measure_line_view_now()
         self._measure_line_watch = self._schedule_overlay(self._watch_measure_line)
 
@@ -927,8 +960,16 @@ class NavigationMixin:
             return
         self._measure_line_watch = self._schedule_overlay(self._watch_measure_line)
 
-    def drop_measure_line(self):
-        """Take the kept measurement line off the picture, if there is one."""
+    def drop_measure_line(self, close_profile: bool = True):
+        """
+        Take the kept measurement line off the picture, if there is one, and
+        the profile window with it if the window shows that line's profile -
+        unless `close_profile` is False, as it is when a new profile line is
+        taking its place and will be drawn into the same window.
+        """
+        if self._measure_line is not None and self._measure_line_graphed and close_profile:
+            self.close_profile()
+        self._measure_line_graphed = False
         self._measure_line_watch = self._cancel_overlay(self._measure_line_watch)
         self._measure_line_view = None
         if self._measure_line is not None and self.rt is not None:
@@ -937,6 +978,15 @@ class NavigationMixin:
             except tk.TclError:         # the main window went first
                 pass
         self._measure_line = None
+        self._measure_hook = None
+        self._measure_profile_due = self._cancel_overlay(self._measure_profile_due)
+        self.measure_end_canvas = None
+        self.measure_end_coords = None
+        if self.rt is not None:
+            try:
+                self.rt._canvas.configure(cursor='')
+            except tk.TclError:
+                pass
 
     def update_leading_line(self, event):
         """
@@ -957,6 +1007,8 @@ class NavigationMixin:
         end = self._selenographic_at(event)
         if end is not None:
             self._measure_between(self.measure_start_coords, end)
+            self._live_end = end
+            self._follow_profile(lambda: (self.measure_start_coords, self._live_end))
 
     def finish_measurement(self, event):
         """
@@ -975,6 +1027,7 @@ class NavigationMixin:
         if not self.measuring:
             return
         self.measuring = False
+        self._measure_profile_due = self._cancel_overlay(self._measure_profile_due)
 
         line_id, self.leading_line_id = self.leading_line_id, None
         start_x, start_y = self.measure_start_canvas
@@ -985,15 +1038,112 @@ class NavigationMixin:
             if line_id is not None:
                 self.rt._canvas.delete(line_id)
             self.clear_measurement()
+            # The line a profile window may still be showing went when this
+            # one began, and this one leaves none in its place
+            if self.measure_with_profile:
+                self.close_profile()
             return
 
         self._measure_between(self.measure_start_coords, end)
+        self.measure_end_canvas = (event.x, event.y)
+        self.measure_end_coords = end
         # The ground in between, which the two numbers say nothing about
         if self.measure_with_profile:
             self.show_profile(self.measure_start_coords, end)
         if line_id is not None:
             self._place_measure_line(line_id, start_x, start_y, event.x, event.y)
             self._keep_measure_line(line_id)
+
+    # ---- moving the ends of a kept line ----
+
+    def _measure_hook_at(self, event) -> Optional[str]:
+        """Which end of the kept line has its ring under the pointer, if either."""
+        if (self._measure_line is None or self.measuring
+                or self.measure_end_canvas is None or self.measure_start_canvas is None):
+            return None
+        reach = self._overlay_px(self.MEASURE_HOOK_RADIUS + self.MEASURE_HOOK_GRAB)
+        # The end first: a line too short to tell its rings apart is most
+        # likely being lengthened, and that is the end that was drawn last
+        for which, (x, y) in (("end", self.measure_end_canvas),
+                              ("start", self.measure_start_canvas)):
+            if math.hypot(event.x - x, event.y - y) <= reach:
+                return which
+        return None
+
+    def grab_measure_hook(self, event) -> bool:
+        """
+        Take hold of an end of the kept line if the left button went down on
+        its ring, and say whether it did - so the press goes no further: it is
+        neither a drag of the view nor a click naming a feature.
+        """
+        self._measure_hook = self._measure_hook_at(event)
+        return self._measure_hook is not None
+
+    @property
+    def dragging_measure_hook(self) -> bool:
+        return self._measure_hook is not None
+
+    def drag_measure_hook(self, event):
+        """
+        Move the end being held to the pointer, and measure again from the end
+        left where it was. Off the Moon there is nothing to measure to, so the
+        end waits at the last place on it until the pointer comes back.
+        """
+        if self._measure_hook is None:
+            return
+        place = self._selenographic_at(event)
+        if place is None:
+            return
+        if self._measure_hook == "start":
+            self.measure_start_canvas, self.measure_start_coords = (event.x, event.y), place
+        else:
+            self.measure_end_canvas, self.measure_end_coords = (event.x, event.y), place
+        self._place_measure_line(self._measure_line, *self.measure_start_canvas,
+                                 *self.measure_end_canvas)
+        self._measure_between(self.measure_start_coords, self.measure_end_coords)
+        self._follow_profile(lambda: (self.measure_start_coords, self.measure_end_coords))
+
+    def _follow_profile(self, ends):
+        """
+        Draw the open profile window again for the line being dragged - at most
+        once every MEASURE_PROFILE_LIVE_MS, and for the line as it stands when
+        the time comes, which `ends` is asked for then. Only a profile line, and
+        only while its window is up: a window that is not open is opened when
+        the drag ends, as it always was, not sprung on the user halfway through.
+        """
+        if (not self.measure_with_profile or getattr(self, "_profile", None) is None
+                or self._measure_profile_due is not None):
+            return
+
+        def draw():
+            self._measure_profile_due = None
+            start, end = ends()
+            if start is not None and end is not None and getattr(self, "_profile", None) is not None:
+                self.show_profile(start, end)
+
+        self._measure_profile_due = self.rt._root.after(self.MEASURE_PROFILE_LIVE_MS, draw)
+
+    def release_measure_hook(self, event):
+        """
+        Let go of the end being held, where it stands, and draw the profile
+        afresh if the line has one, for where it ends up (see _follow_profile
+        for the drawing during the drag).
+        """
+        if self._measure_hook is None:
+            return
+        self.drag_measure_hook(event)
+        self._measure_hook = None
+        self._measure_profile_due = self._cancel_overlay(self._measure_profile_due)
+        if self.measure_with_profile:
+            self.show_profile(self.measure_start_coords, self.measure_end_coords)
+
+    def hover_measure_hook(self, event):
+        """Show a hand over a ring that can be dragged, and the usual pointer elsewhere."""
+        if self.rt is None:
+            return
+        cursor = 'hand2' if self._measure_hook_at(event) is not None else ''
+        if self.rt._canvas.cget('cursor') != cursor:
+            self.rt._canvas.configure(cursor=cursor)
 
     def clear_measurement(self):
         """

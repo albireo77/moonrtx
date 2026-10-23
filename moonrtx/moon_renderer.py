@@ -1662,6 +1662,7 @@ def run_renderer(dt_local: datetime,
     def custom_motion_handler(event):
         original_motion_handler(event)
         moon_renderer._cursor_xy = (event.x, event.y)
+        moon_renderer.hover_measure_hook(event)
         if not (moon_renderer.rt._any_mouse or moon_renderer.rt._any_key):
             moon_renderer.rt._status_action_text.set('')
             moon_renderer._refresh_cursor_readout()
@@ -1686,6 +1687,10 @@ def run_renderer(dt_local: datetime,
             # Left Ctrl measures; right Ctrl measures and draws the profile
             moon_renderer.start_measurement(event, with_profile=moon_renderer._right_ctrl_down)
             return
+        # A press on a ring at an end of the kept measurement line takes hold
+        # of that end, and is nothing else: not a drag of the view, not a click
+        if not event.state & 0x1 and moon_renderer.grab_measure_hook(event):
+            return
         if not (event.state & 0x1 or moon_renderer.rt._any_key):
             click_from = (event.x, event.y)
         original_pressed_left(event)
@@ -1694,6 +1699,9 @@ def run_renderer(dt_local: datetime,
         nonlocal click_from
         if moon_renderer.measuring:
             moon_renderer.finish_measurement(event)
+            return
+        if moon_renderer.dragging_measure_hook:
+            moon_renderer.release_measure_hook(event)
             return
         original_released_left(event)
         pressed_at, click_from = click_from, None
@@ -1706,6 +1714,9 @@ def run_renderer(dt_local: datetime,
     def custom_motion_pressed(event):
         if moon_renderer.measuring:
             moon_renderer.update_leading_line(event)
+            return
+        if moon_renderer.dragging_measure_hook:
+            moon_renderer.drag_measure_hook(event)
             return
         original_motion_pressed(event)
 

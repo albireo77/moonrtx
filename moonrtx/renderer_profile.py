@@ -139,6 +139,15 @@ class ProfileMixin:
         self._profile["draw"](*profile, start, end)
         return True
 
+    def close_profile(self):
+        """
+        Close the profile window, if it is open: the line it is the profile of
+        has been taken off the picture, and a profile of nothing on it would
+        read as the profile of whatever is there now.
+        """
+        if getattr(self, "_profile", None) is not None:
+            self._profile["close"]()
+
     def _open_profile_window(self):
         colours = self.PROFILE_COLOURS
         # Where the window was left is kept by _dialog_window; how large its
@@ -151,7 +160,7 @@ class ProfileMixin:
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up
-        win, frame, _close = self._dialog_window("Elevation profile", takes_keys=False,
+        win, frame, close = self._dialog_window("Elevation profile", takes_keys=False,
                                                  before_close=before_close,
                                                  remember=self.PROFILE_WINDOW)
 
@@ -370,7 +379,7 @@ class ProfileMixin:
 
         self._follow_window_size(frame, canvas, fit, redraw_profile)
 
-        self._profile = {"win": win, "draw": draw}
+        self._profile = {"win": win, "draw": draw, "close": close}
         # Larger or smaller by either edge, but never smaller than it first
         # opens at, however large the last one was left. Not forced to the
         # front, as it never was: it holds none of the renderer's keys
