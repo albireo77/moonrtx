@@ -1714,8 +1714,15 @@ def run_renderer(dt_local: datetime,
 
     def custom_apply_scene_edits(*args):
         rt = moon_renderer.rt
-        # Mouse-driven view manipulation benefits from immediate preview too
-        if rt._any_mouse:
+        # Mouse-driven view manipulation benefits from immediate preview too -
+        # but only once the mouse has moved with a button down. PlotOptiX
+        # raises this event with every frame, settled or not, so a plain click
+        # also arrives here; switched to preview by it, the picture was drawn
+        # again from nothing half a second later (_end_interactive_preview)
+        # with nothing in it changed. PlotOptiX's own handler stops at the
+        # same test.
+        moved = (rt._mouse_from_x != rt._mouse_to_x) or (rt._mouse_from_y != rt._mouse_to_y)
+        if rt._any_mouse and moved:
             moon_renderer._begin_interactive_preview()
         if rt._selection_handle == -1 and rt._right_mouse and not rt._any_key:
             dx = rt._mouse_to_x - rt._mouse_from_x
