@@ -32,6 +32,7 @@ class TimeToolboxMixin:
     TOOLBOX_FIELD_BG = "#202020"
     TOOLBOX_FIELD_FG = "#c0c0c0"
     TOOLBOX_ERROR_FG = "#d04040"
+    TOOLBOX_DISABLED_FG = "#404040"     # a button or field that does nothing for now
     TOOLBOX_FONT = ("Consolas", 9)
 
     # Where it stands until it is dragged: along the foot of the canvas, its
@@ -208,6 +209,12 @@ class TimeToolboxMixin:
                                   bg=self.TOOLBOX_FIELD_BG, fg=self.TOOLBOX_FIELD_FG,
                                   insertbackground=self.TOOLBOX_FIELD_FG,
                                   buttonbackground=self.TOOLBOX_FIELD_BG,
+                                  disabledbackground=self.TOOLBOX_FIELD_BG,
+                                  # Dimmed only to the labels' grey, not to the
+                                  # dead buttons' darker one: during a hold the
+                                  # fields show the running time, and in full
+                                  # screen nothing else does
+                                  disabledforeground=fg,
                                   relief='flat', highlightthickness=1,
                                   highlightbackground=bg, highlightcolor=fg,
                                   validate='key', validatecommand=(accepts_digits, '%P', digits))
@@ -223,26 +230,29 @@ class TimeToolboxMixin:
         # The year stops where the bundled Skyfield kernels do, and the day is
         # trimmed to the length of the month chosen (see below). An arrow
         # taking any part past its end carries into the rest (see go_to_time)
-        (year_var, _), (month_var, _), (day_var, day_spin) = spin_group(
+        date_parts = spin_group(
             "Date:", "-",
             [(SKYFIELD_MOON_FRAME_START_UTC.year, SKYFIELD_MOON_FRAME_END_UTC.year - 1, 4),
              (1, 12, 2),
              (1, 31, 2)],
             lambda: go_to_time(), lambda i: step_time(("year", "month", "day")[i]),
             carry=True)
+        (year_var, _), (month_var, _), (day_var, day_spin) = date_parts
 
         # The offset is deliberately not shown: the date set may fall the other
         # side of a daylight saving change from the one in force now, and a
         # label read at the wrong moment would name the wrong offset. The time
         # is on the session's clock whatever the date.
         tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
-        (hour_var, _), (minute_var, _), (second_var, _) = spin_group(
+        time_parts = spin_group(
             "Time:", ":",
             [(0, 23, 2),
              (0, 59, 2),
              (0, 59, 2)],
             lambda: go_to_time(), lambda i: step_time(("hour", "minute", "second")[i]),
             carry=True)
+        (hour_var, _), (minute_var, _), (second_var, _) = time_parts
+        clock_spins = [spin for _var, spin in date_parts + time_parts]
 
         def clamp_day_to_month(*_):
             """Keep the day within the chosen month, so 31 Jan then Feb gives 28 or 29."""
@@ -328,11 +338,19 @@ class TimeToolboxMixin:
             if hold_id is not None:
                 frame.after_cancel(hold_id)
                 hold_id = None
-            # The press buttons do nothing while either is held; greyed out to
-            # say so
+            # The press buttons and the date and time fields do nothing while
+            # either is held; greyed out to say so. The fields because every
+            # step of the hold writes the running time over them: an arrow
+            # would only nudge the run, and anything typed would be gone
+            # within a step. The time step stays live, to speed the run up or
+            # slow it down as it goes
             state = tk.DISABLED if hold_var.get() else tk.NORMAL
-            for button in hit_buttons:
-                button.config(state=state)
+            for widget in hit_buttons + clock_spins:
+                widget.config(state=state)
+            # A field holding the keyboard as it goes dead would go on taking
+            # the digits, meant then for the pins, to no effect
+            if hold_var.get() and frame.focus_get() in clock_spins:
+                canvas.focus_set()
             hold_tick()
 
         hold_var.trace_add('write', on_hold_change)
@@ -343,7 +361,7 @@ class TimeToolboxMixin:
 
         button_look = dict(font=font, bg=self.TOOLBOX_FIELD_BG, fg=self.TOOLBOX_FIELD_FG,
                            activebackground=fg, activeforeground=bg,
-                           disabledforeground="#404040", padx=4, pady=0)
+                           disabledforeground=self.TOOLBOX_DISABLED_FG, padx=4, pady=0)
 
         def hold_button(text: str, direction: str, hint: str):
             # A button that stays down, drawn lighter while it is
