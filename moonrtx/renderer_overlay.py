@@ -60,7 +60,7 @@ class CanvasOverlayMixin:
     # while one is being drawn into a picture instead of onto the window, so
     # that the window's own items are neither redrawn nor lost.
     OVERLAY_ITEM_LISTS = ("_compass_items", "_locator_items", "_fov_items",
-                          "_scale_bar_items")
+                          "_scale_bar_items", "_angle_bar_items")
 
     # A pixel is not a fixed size, and these overlays are drawn in pixels. Their
     # lettering escapes that by being asked for in points, which Tk grows with
