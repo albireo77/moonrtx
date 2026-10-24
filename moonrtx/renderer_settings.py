@@ -3,17 +3,18 @@ SettingsMixin: the choices made in the windows, kept from one run to the next.
 
 The field-of-view setup is the one that costs most to lose - a telescope, an
 eyepiece or a camera typed in again every run - and the ticks and spans left in
-the planner, the graph and the profile go with it, whether the scale bar
-(Insert) is on, and whether the time toolbox (T), the ephemeris panel (F2) and
-the status panel (F3) are, and where each was dragged to. They are read when
-the renderer starts and written when its window is closed, into a file of their
-own beside the caches in the data folder.
+the planner, the graph and the profile go with it, whether the scale bars
+(D, Shift + D) are on, and whether the time toolbox (T), the toolbar (Z),
+the ephemeris panel (F2) and the status panel (F3) are, and where each was
+dragged to. They are read when the renderer starts and written when its window
+is closed, into a file of their own beside the caches in the data folder.
 
 Where a window was left on the screen is not kept: the same program is run on
 screens of different sizes and scaling, and a place remembered on one can be off
-the edge of the other. The toolbox and the two panels are the exception, and
-can be, because they are kept as a share of the picture's width and height
-rather than in pixels: on any screen that is somewhere on the picture.
+the edge of the other. The toolbox, the toolbar and the two panels are the
+exception, and can be, because they are kept as a share of the picture's width
+and height rather than in pixels: on any screen that is somewhere on the
+picture.
 
 What is read back is checked before it is used, each value against what its
 window can show. A file from an older version, edited by hand, or cut short is
@@ -71,6 +72,8 @@ class SettingsMixin:
             "angle_bar_visible": flag,
             "time_toolbox_visible": flag,
             "_time_toolbox_at": place,
+            "toolbar_visible": flag,
+            "_toolbar_at": place,
             "show_info_panel": flag,
             "_info_panel_at": place,
             "show_status_panel": flag,

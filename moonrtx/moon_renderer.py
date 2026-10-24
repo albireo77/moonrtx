@@ -5,6 +5,7 @@ MoonRenderer: core renderer class (composing mixins) and run_renderer entry poin
 import math
 import sys
 import threading
+from types import SimpleNamespace
 import numpy as np
 from contextlib import contextmanager
 from typing import Optional
@@ -42,6 +43,7 @@ from moonrtx.renderer_settings import SettingsMixin
 from moonrtx.renderer_scalebar import ScaleBarMixin
 from moonrtx.renderer_scalebar_angle import AngleScaleBarMixin
 from moonrtx.renderer_time_toolbox import TimeToolboxMixin
+from moonrtx.renderer_toolbar import ToolbarMixin
 from moonrtx.renderer_panel_handles import PanelHandlesMixin
 
 
@@ -50,7 +52,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
                    SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, TimeToolboxMixin,
-                   PanelHandlesMixin):
+                   ToolbarMixin, PanelHandlesMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -348,6 +350,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self.search_dialog_open = 0
 
         self._init_toolbox()
+        self._init_toolbar()
 
         # Pins settings
         self.pins_visible = True  # Pins visible by default
@@ -1635,6 +1638,8 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_time(moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 't':
             moon_renderer.toggle_toolbox()
+        elif event.keysym.lower() == 'z':
+            moon_renderer.toggle_toolbar()
         elif event.keysym == '0':
             moon_renderer.toggle_pins()
         elif event.keysym in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
@@ -1644,8 +1649,20 @@ def run_renderer(dt_local: datetime,
         # The arrows, Ctrl with them, Home, End and the space bar move the eye;
         # the names follow it at once rather than at the next poll
         moon_renderer._reaim_if_eye_moved()
+        # And the toolbar's buttons that stay down show what the key turned
+        # on or off at once rather than at the next poll
+        moon_renderer.sync_toolbar()
 
     moon_renderer.rt._gui_key_pressed = custom_key_handler
+
+    # The toolbar's buttons are their keys pressed (see renderer_toolbar):
+    # through this handler, so they keep the same guards rather than a copy
+    # of them. Nothing in it a button stands for reads more of the event than
+    # this
+    def toolbar_press_key(keysym: str, shift: bool):
+        custom_key_handler(SimpleNamespace(keysym=keysym, char='', state=0x1 if shift else 0))
+
+    moon_renderer.toolbar_press_key = toolbar_press_key
 
     original_key_released = moon_renderer.rt._gui_key_released
 

@@ -122,14 +122,23 @@ class TimeToolboxMixin:
         frame = self._toolbox_frame
         if self._place_panel_at(frame, "_time_toolbox_at", 'sw'):
             return
-        # Measured by what the panel asks for rather than what it has, so the
-        # toolbox stands in the same place whether F2 has the panel up or not
+        frame.place(relx=0, rely=1.0, x=self._toolbox_usual_left(), y=-self.TOOLBOX_MARGIN,
+                    anchor='sw')
+
+    def _toolbox_usual_left(self) -> int:
+        """
+        The left edge of the toolbox's usual place, just right of the ephemeris
+        panel; the toolbar's too, which stands over it (see renderer_toolbar).
+
+        Measured by what the panel asks for rather than what it has, so the
+        toolbox stands in the same place whether F2 has the panel up or not.
+        """
         left = self.TOOLBOX_MARGIN
         panel = getattr(self, "_info_frame", None)
         if panel is not None:
             panel.update_idletasks()
             left += panel.winfo_reqwidth() + round(self._overlay_px(self.TOOLBOX_PANEL_GAP_PX))
-        frame.place(relx=0, rely=1.0, x=left, y=-self.TOOLBOX_MARGIN, anchor='sw')
+        return left
 
     def _build_toolbox(self):
         """Build the toolbox on the canvas, hidden."""

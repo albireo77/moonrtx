@@ -848,6 +848,10 @@ class StatusMixin:
                 if self.time_toolbox_visible:
                     self.show_toolbox(True)
 
+                # And the toolbar, over the toolbox
+                if self.toolbar_visible:
+                    self.show_toolbar(True)
+
                 # And the keyboard. PlotOptiX builds this window on its own
                 # thread while whatever started the renderer still holds the
                 # focus, so it opens without it - and it binds its key handler
