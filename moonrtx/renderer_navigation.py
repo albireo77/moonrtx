@@ -1095,7 +1095,7 @@ class NavigationMixin:
             self._measure_profile_due = None
             start, end = ends()
             if start is not None and end is not None and getattr(self, "_profile", None) is not None:
-                self.show_profile(start, end)
+                self.show_profile(start, end, live=True)
 
         self._measure_profile_due = self.rt._root.after(self.MEASURE_PROFILE_LIVE_MS, draw)
 

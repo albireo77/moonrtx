@@ -31,7 +31,22 @@ class ProfileMixin:
         "fill": "#eadfcc",        # the ground under it
         "grid": "#d0d0d0",
         "readout": "#a06010",     # the place under the pointer, as in the graph
+        "sunlit": "#fff2b0",      # the space above the ground in sunlight
+        "shadow": "#d8d8d8",      # and in shadow: a shade under the window, over the grid
     }
+    # How a sample's view towards the Sun is searched for ground standing in
+    # the way: at this many places, closer together near the sample, where
+    # the ground matters most, out to where the ray has climbed above the
+    # highest ground on the Moon - though never further than this
+    PROFILE_SUNLIT_STEPS = 400
+    PROFILE_SUNLIT_REACH_KM = 500.0
+    # While an end of the line is dragged, quicker: worked out at no more than
+    # this many places along the line, and filled in between (see
+    # _shadow_ceilings). Measured across Copernicus on the downscale-2 map,
+    # 18 ms for 120 in full, and the top of the shadow within 2 px of it on
+    # a plot 200 px tall; a shorter search from each place cost more in
+    # accuracy than it saved in time
+    PROFILE_SUNLIT_QUICK_SAMPLES = 300
     # The place under the profile's pointer, marked on the Moon in the main
     # window: the readout's colour made bright enough for the dark side of the
     # terminator, and rimmed in black for the bright highland, a size under the
@@ -90,7 +105,7 @@ class ProfileMixin:
         return (np.degrees(np.arcsin(np.clip(points[:, 2], -1.0, 1.0))),
                 np.degrees(np.arctan2(points[:, 0], -points[:, 1])))
 
-    def elevation_profile(self, start: tuple, end: tuple) -> Optional[tuple]:
+    def elevation_profile(self, start: tuple, end: tuple, quick: bool = False) -> Optional[tuple]:
         """
         Heights along the great circle from start to end.
 
@@ -98,12 +113,16 @@ class ProfileMixin:
         ----------
         start, end : tuple
             (lat, lon) in selenographic degrees
+        quick : bool
+            Work the light out the quicker way (see _shadow_ceilings)
 
         Returns
         -------
         tuple or None
-            (distance_km, height_m) arrays, the distances measured from start
-            along the surface; None when the two points are the same place
+            (distance_km, height_m, light): the distances measured from start
+            along the surface, the heights, and how high the shadow reaches
+            above each place (see _shadow_ceilings) - None before there is an
+            ephemeris; None when the two points are the same place
         """
         a, b = self._unit(*start), self._unit(*end)
         if math.acos(max(-1.0, min(1.0, float(a @ b)))) < 1e-9:
@@ -121,7 +140,103 @@ class ProfileMixin:
         # of thousand heights every time it is drawn, and while an end of its
         # line is dragged it is drawn every MEASURE_PROFILE_LIVE_MS
         factor = self._ground_factor(lats, lons)
-        return t * length_km, (factor * self.elevation_radius_scale - 1.0) * self.MOON_RADIUS_KM * 1000.0
+        heights = (factor * self.elevation_radius_scale - 1.0) * self.MOON_RADIUS_KM * 1000.0
+        return t * length_km, heights, self._shadow_ceilings(lats, lons, heights, quick)
+
+    def _shadow_ceilings(self, lats: np.ndarray, lons: np.ndarray,
+                         heights_m: np.ndarray, quick: bool = False) -> Optional[tuple]:
+        """
+        How high above each of these places on the ground the shadow reaches:
+        how far straight up from it one would have to go to see the Sun.
+
+        Two heights each, in metres: above `full` all of the Sun's disk is in
+        sight, below `some` none of it, and between the two lies the penumbra.
+        Both are 0 where the ground itself is in full sunlight. Drawn above the
+        profile they are the shadow's cross-section along the line, its upper
+        edge the light ray grazing whatever casts it - at the Sun's altitude
+        where the Sun shines along the line, gentler where it shines across.
+
+        Worked out from the elevation map, not read off the rendered picture:
+        from each place the ground is searched along the Sun's true direction -
+        off the line as much as on it, so a shadow thrown across the line by a
+        peak beside it is found as well - for how far each place ahead stands
+        above this one's horizontal plane, the Moon curving away beneath it,
+        and how far out along it. A ray at altitude a clears one standing r up
+        and d out from a height of r - d tan a; the highest any of them asks
+        for is the ceiling. For the Sun (the selenocentric subsolar point, the
+        rays parallel) a is its altitude there, less its radius for the whole
+        disk to be in sight and plus it for any of it.
+
+        quick for the profile drawn again and again while an end of its line is
+        dragged, which the full search, at about a tenth of a second for the
+        longest lines, would hold back: it is made at no more than
+        PROFILE_SUNLIT_QUICK_SAMPLES places, and filled in between.
+        What is filled in is the top of the shadow, ground and ceiling
+        together - made of straight rays, it runs straight between the places
+        where it was worked out, where the ceiling alone follows every rise
+        and dip of the ground under it. Between two places in sunlight it
+        stays sunlit, so a dip between them is not taken for a shadow. Letting
+        go of the drag draws it once more the full way.
+
+        None before there is an ephemeris to say where the Sun is.
+        """
+        e = getattr(self, "moon_ephem", None)
+        if e is None:
+            return None
+        if quick and len(lats) > self.PROFILE_SUNLIT_QUICK_SAMPLES:
+            pick = np.unique(np.rint(np.linspace(0, len(lats) - 1,
+                                                 self.PROFILE_SUNLIT_QUICK_SAMPLES)).astype(int))
+            light = self._shadow_ceilings(lats[pick], lons[pick], heights_m[pick])
+            everywhere = np.arange(len(lats))
+            filled = []
+            for ceiling in light:
+                top = np.interp(everywhere, pick, heights_m[pick] + ceiling)
+                shaded = np.interp(everywhere, pick, (ceiling > 0).astype(float)) > 0
+                filled.append(np.where(shaded, np.maximum(top - heights_m, 0.0), 0.0))
+            return tuple(filled)
+        radius_m = self.MOON_RADIUS_KM * 1000.0
+        sun = self._unit(e.subsolar_lat, e.subsolar_lon)
+        sun_radius = math.asin(self.SUN_RADIUS_KM / e.sun_distance)
+
+        la, lo = np.radians(lats), np.radians(lons)
+        up = np.column_stack((np.cos(la) * np.sin(lo), -np.cos(la) * np.cos(lo), np.sin(la)))
+        sin_altitude = np.clip(up @ sun, -1.0, 1.0)
+        altitude = np.arcsin(sin_altitude)
+        # The way to the Sun along the ground; with the Sun straight overhead
+        # there is none, and nothing can stand in its way either
+        towards = sun - sin_altitude[:, None] * up
+        length = np.linalg.norm(towards, axis=1)
+        towards /= np.where(length > 1e-12, length, 1.0)[:, None]
+
+        # The rays from the Sun's lower and upper edge, short of straight up
+        # and down, where the tangent would turn over
+        limit = math.pi / 2 - 1e-6
+        tan_low = np.tan(np.clip(altitude - sun_radius, -limit, limit))
+        tan_high = np.tan(np.clip(altitude + sun_radius, -limit, limit))
+
+        # Past where the lower edge's ray has climbed above the highest ground
+        # the map holds, nothing further on can be in the way of any of them
+        peak_m = (self.elevation_radius_scale - 1.0) * radius_m
+        rise = np.maximum(peak_m - heights_m, 0.0)
+        reach = radius_m * (np.sqrt(tan_low ** 2 + 2.0 * rise / radius_m) - tan_low)
+        reach = np.minimum(reach, self.PROFILE_SUNLIT_REACH_KM * 1000.0)
+
+        steps = (np.arange(1, self.PROFILE_SUNLIT_STEPS + 1) / self.PROFILE_SUNLIT_STEPS) ** 2
+        angle = reach[:, None] * steps[None, :] / radius_m          # round the Moon's centre
+        cos_a, sin_a = np.cos(angle)[..., None], np.sin(angle)[..., None]
+        ahead = cos_a * up[:, None, :] + sin_a * towards[:, None, :]
+        ahead_lat = np.degrees(np.arcsin(np.clip(ahead[..., 2], -1.0, 1.0)))
+        ahead_lon = np.degrees(np.arctan2(ahead[..., 0], -ahead[..., 1]))
+        ahead_r = self._ground_factor(ahead_lat, ahead_lon) * self.elevation_radius_scale * radius_m
+
+        # Each place ahead as seen from this one: how far above its horizontal
+        # plane, and how far out along it
+        here_r = radius_m + heights_m
+        rising = ahead_r * np.cos(angle) - here_r[:, None]
+        out = ahead_r * np.sin(angle)
+        full = np.maximum((rising - out * tan_low[:, None]).max(axis=1), 0.0)
+        some = np.maximum((rising - out * tan_high[:, None]).max(axis=1), 0.0)
+        return full, some
 
     def _canvas_xy_of(self, lat: float, lon: float) -> Optional[tuple]:
         """
@@ -202,14 +317,19 @@ class ProfileMixin:
 
     # ---- the window ----
 
-    def show_profile(self, start: tuple, end: tuple) -> bool:
+    def show_profile(self, start: tuple, end: tuple, live: bool = False) -> bool:
         """
         Draw the profile of the line from start to end, in the profile window -
         opening it if it is not already open - and say whether it was drawn.
+
+        live while an end of the line is being dragged, and the profile drawn
+        every MEASURE_PROFILE_LIVE_MS: the light is worked out the quick way
+        then (see _shadow_ceilings), and letting go of the drag draws it once
+        more the full way.
         """
         if self.rt is None or getattr(self, "elevation", None) is None:
             return False
-        profile = self.elevation_profile(start, end)
+        profile = self.elevation_profile(start, end, quick=live)
         if profile is None:
             return False
         if self._profile is None:
@@ -249,6 +369,7 @@ class ProfileMixin:
         line_h = metrics.metrics('linespace')
         pad = max(2, round(cell_w * 2 / 3))
         line_w = max(1, cell_w // 5)
+        end_r = max(3, round(cell_w * 0.6))     # the circles marking the line's ends
 
         # The summary on the left of the top row, the readout's choice on its right
         top_row = tk.Frame(frame)
@@ -299,14 +420,38 @@ class ProfileMixin:
             "   slope anywhere on the line, up or down. A line crossing a slope at an\n"
             "   angle reads it gentler than it is, and the map's spacing smooths\n"
             "   a short steep step into a longer, gentler one.\n"
+            "• Pale yellow is the space above the ground the Sun reaches, paler\n"
+            "   in the penumbra, where only part of its disk is in sight. The\n"
+            "   shadow is the grey wedge behind whatever casts it, its top\n"
+            "   the grazing ray: at the Sun's true angle, stretched as the heights\n"
+            "   are, and gentler where the Sun shines across the line. It is worked\n"
+            "   out from the map along the Sun's true direction, so a shadow cast\n"
+            "   across the line from beside it counts too; at the tips of long\n"
+            "   shadows it can differ a little from the picture.\n"
+            "• The filled circle is the start of the line, as on the Moon, and the\n"
+            "   ring its end. ⇄ draws the profile the other way round - for a\n"
+            "   line running right to left on the Moon - every number unchanged.\n"
             "• Drag the window's edges to make the profile larger.")
         help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
-        # Close to the checkbox, the room it gave up kept on its other side,
-        # between it and the summary
-        help_label.pack(side=tk.RIGHT, padx=(2 * cell_w, pad))
+        help_label.pack(side=tk.RIGHT, padx=pad)
         ToolTip(help_label, help_hint)
 
-        label_w = metrics.measure('-10000 m') + 2 * pad
+        # Mirrors the drawing alone: distances and heights are still counted
+        # from the start of the line, which the filled circle marks wherever
+        # it ends up. Kept while the window is open, for every line drawn in it
+        def flip():
+            state.update(flipped=not state["flipped"])
+            redraw_profile()
+
+        # The arrows alone, the tooltip saying what they do; a themed button
+        # being as wide as a word unless told otherwise
+        flip_button = ttk.Button(top_row, text="⇄", width=3, command=flip)
+        # Clear of the summary, close to Help
+        flip_button.pack(side=tk.RIGHT, padx=(2 * cell_w, 0))
+        ToolTip(flip_button, "Draw the profile the other way round, left to right")
+
+        # The heights' labels kept clear of the circle on the line's end there
+        label_w = metrics.measure('-10000 m') + 2 * pad + end_r
         plot_x0 = label_w
         plot_y0 = pad + line_h                  # a line of room for the readout
         # Under the plot, a line for the distances
@@ -333,8 +478,8 @@ class ProfileMixin:
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
 
-        state = {"x": None, "h": None, "slopes": None, "x_of": None, "y_of": None,
-                 "base": 0.0, "pointer": None}
+        state = {"x": None, "h": None, "light": None, "slopes": None, "x_of": None, "y_of": None,
+                 "base": 0.0, "pointer": None, "flipped": False}
 
         def signed(metres: float) -> str:
             """A height counted from the start of the line: signed, and plain 0 at it."""
@@ -346,9 +491,15 @@ class ProfileMixin:
             value = round(degrees, 1)
             return f"{value:+.1f}°" if value else "0.0°"
 
-        def draw(distance_km: np.ndarray, height_m: np.ndarray, start: tuple, end: tuple):
+        # The penumbra halfway between shadow and sunlight
+        shadow = np.array(canvas.winfo_rgb(colours["shadow"])) / 65535.0
+        sunlit = np.array(canvas.winfo_rgb(colours["sunlit"])) / 65535.0
+        penumbra = "#%02x%02x%02x" % tuple(int(round(c * 255)) for c in (shadow + sunlit) / 2)
+
+        def draw(distance_km: np.ndarray, height_m: np.ndarray, light: Optional[tuple],
+                 start: tuple, end: tuple):
             canvas.delete("all")
-            state.update(x=distance_km, h=height_m, start=start, end=end)
+            state.update(x=distance_km, h=height_m, light=light, start=start, end=end)
             length = float(distance_km[-1])
             low, high = float(height_m.min()), float(height_m.max())
             # A little room above and below the ground, and a span of at least
@@ -356,13 +507,39 @@ class ProfileMixin:
             margin = max(5.0, 0.08 * (high - low))
             y_min, y_max = low - margin, high + margin
 
+            flipped = state["flipped"]
+
             def x_of(km):
-                return plot_x0 + (plot_x1 - plot_x0) * km / length
+                share = km / length
+                return plot_x0 + (plot_x1 - plot_x0) * (1.0 - share if flipped else share)
 
             def y_of(m):
                 return plot_y1 - (plot_y1 - plot_y0) * (m - y_min) / (y_max - y_min)
 
             state.update(x_of=x_of, y_of=y_of)
+
+            # Light and shadow first, under everything else: the plot in shadow,
+            # then the space above the ground the Sun reaches, down to the top
+            # of the shadow over each place, and the penumbra paler below that,
+            # down to where none of the Sun is in sight. The ground is drawn
+            # over them all
+            if light is not None:
+                full, some = light
+                canvas.create_rectangle(plot_x0, plot_y0, plot_x1, plot_y1,
+                                        fill=colours["shadow"], outline="")
+                xs = [x_of(float(k)) for k in distance_km]
+
+                def edge(ceiling):
+                    ys = np.clip([y_of(float(m)) for m in height_m + ceiling], plot_y0, plot_y1)
+                    return [c for pair in zip(xs, ys) for c in pair]
+
+                full_edge, some_edge = edge(full), edge(some)
+                # Closed along the top from whichever side the line ends at
+                canvas.create_polygon([xs[0], plot_y0] + full_edge + [xs[-1], plot_y0],
+                                      fill=colours["sunlit"], outline="")
+                backwards = [c for k in range(len(xs) - 1, -1, -1)
+                             for c in some_edge[2 * k: 2 * k + 2]]
+                canvas.create_polygon(full_edge + backwards, fill=penumbra, outline="")
 
             # Grid and axis labels. Heights are read from the start of the line,
             # which stands at 0, and the lines fall on round steps of that
@@ -375,20 +552,26 @@ class ProfileMixin:
                 h = k * h_step
                 y = y_of(base + h)
                 canvas.create_line(plot_x0, y, plot_x1, y, fill=colours["grid"], tags="grid")
-                canvas.create_text(plot_x0 - pad, y, text=signed(h),
+                canvas.create_text(plot_x0 - pad - end_r, y, text=signed(h),
                                    anchor='e', font=font)
-            # The unit stands at the right-hand end, where the last number
-            # would run into it whenever a step falls near the end of the line:
-            # such a number is left out, its grid line kept
-            canvas.create_text(plot_x1, plot_y1 + pad, text="km", anchor='ne', font=font)
-            unit_left = plot_x1 - metrics.measure("km") - cell_w
+            # The unit stands at the far end of the axis from 0 - the right-hand
+            # end, or the left once flipped - where the last number would run
+            # into it whenever a step falls near the end of the line: such a
+            # number is left out, its grid line kept. 0 itself is always shown
+            unit_room = metrics.measure("km") + cell_w
+            if flipped:
+                canvas.create_text(plot_x0, plot_y1 + pad, text="km", anchor='nw', font=font)
+            else:
+                canvas.create_text(plot_x1, plot_y1 + pad, text="km", anchor='ne', font=font)
             d_step = self._nice_step(length, 10)
             d = 0.0
             while d <= length + 1e-9:
                 x = x_of(d)
                 canvas.create_line(x, plot_y0, x, plot_y1, fill=colours["grid"], tags="grid")
                 text = f"{d:.0f}" if d_step >= 1 else f"{d:.1f}"
-                if x + metrics.measure(text) / 2 <= unit_left:
+                half = metrics.measure(text) / 2
+                clear = (x - half >= plot_x0 + unit_room) if flipped else (x + half <= plot_x1 - unit_room)
+                if clear:
                     canvas.create_text(x, plot_y1 + pad, text=text, anchor='n', font=font)
                 d += d_step
 
@@ -396,13 +579,21 @@ class ProfileMixin:
             xs = [x_of(float(k)) for k in distance_km]
             ys = [y_of(float(m)) for m in height_m]
             outline = [c for pair in zip(xs, ys) for c in pair]
-            ground = canvas.create_polygon([plot_x0, plot_y1] + outline + [plot_x1, plot_y1],
+            ground = canvas.create_polygon([xs[0], plot_y1] + outline + [xs[-1], plot_y1],
                                            fill=colours["fill"], outline="")
             # The grid over the ground rather than under it, so the heights of
             # the low places can be read across the fill as well
             canvas.tag_raise("grid", ground)
             canvas.create_line(outline, fill=colours["ground"], width=line_w)
             canvas.create_rectangle(plot_x0, plot_y0, plot_x1, plot_y1, outline="#808080")
+
+            # The ends marked as on the Moon: the start filled, the end a ring.
+            # In the line's colour rather than the measuring line's yellow,
+            # which the sunlight behind would swallow
+            r = end_r
+            for (x, y), fill in (((xs[0], ys[0]), colours["ground"]), ((xs[-1], ys[-1]), "")):
+                canvas.create_oval(x - r, y - r, x + r, y + r, fill=fill,
+                                   outline=colours["ground"], width=line_w)
 
             # What a profile drawn to fill its box hides: how steep the ground
             # really is, from one sample to the next, in degrees. The steepest
@@ -436,7 +627,8 @@ class ProfileMixin:
             if state["x"] is None or px is None or not (plot_x0 <= px <= plot_x1):
                 self._mark_profile_place(None)
                 return
-            km = (px - plot_x0) / (plot_x1 - plot_x0) * float(state["x"][-1])
+            share = (px - plot_x0) / (plot_x1 - plot_x0)
+            km = (1.0 - share if state["flipped"] else share) * float(state["x"][-1])
             lat, lon = (float(v[0]) for v in
                         self._along(state["start"], state["end"], km / float(state["x"][-1])))
             self._mark_profile_place((lat, lon))
@@ -473,7 +665,7 @@ class ProfileMixin:
 
         def redraw_profile():
             if state["x"] is not None:
-                draw(state["x"], state["h"], state["start"], state["end"])
+                draw(state["x"], state["h"], state["light"], state["start"], state["end"])
                 refresh_readout()
 
         self._follow_window_size(frame, canvas, fit, redraw_profile)
