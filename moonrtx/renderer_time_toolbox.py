@@ -5,7 +5,9 @@ picture, shown and hidden with T.
 It took over from the date/time window: the date and the time in spinboxes,
 Now, buttons standing in for Q and W - pressed, held, and locked down - the
 time step they move by, and auto-advance, as the status bar has it.
-What is typed into a field is applied with Enter, a click on its arrows at once.
+What is typed into the date and time is applied with Enter or on leaving the
+field, into the step at once, and a click on an arrow at once; a field that
+loses focus shows what is in force, so what could not be applied is dropped.
 It sits on the canvas rather than in a window of its own, so it goes wherever
 the picture goes - full screen included - and is dragged about by its grip.
 
@@ -163,24 +165,34 @@ class TimeToolboxMixin:
 
         # ---- the clock ----
 
-        def digits_only(proposed: str, digits: str) -> bool:
+        # What typing into a spinbox does at once, by its Tk name, for those
+        # that do not wait for Enter (see spin_group)
+        on_typed = {}
+
+        def digits_only(proposed: str, digits: str, reason: str, widget: str) -> bool:
             """
             Let a spinbox hold nothing but digits, and no more than it has room
             for. Everything else typed at one is meant for the main window and
             is left alone here to reach it (see toolbox_takes_key).
+
+            A spinbox that takes what is typed at once is told once the
+            keystroke has landed, which is after this has let it in. Only
+            typing: an arrow, or the program writing a value in, is validated
+            as 'forced' rather than 'key', and applied by whoever wrote it.
             """
-            return proposed == "" or (proposed.isdigit() and len(proposed) <= int(digits))
+            accepted = proposed == "" or (proposed.isdigit() and len(proposed) <= int(digits))
+            if accepted and reason == 'key' and widget in on_typed:
+                frame.after_idle(on_typed[widget])
+            return accepted
 
         accepts_digits = frame.register(digits_only)
 
         def on_focus_in(_event):
             self.toolbox_focused = True
 
-        def on_focus_out(_event):
-            self.toolbox_focused = False
-
-        def spin_group(label: str, separator: str, parts: list, on_enter,
-                       on_arrow=None, padded: bool = True, carry: bool = False) -> list:
+        def spin_group(label: str, separator: str, parts: list, on_enter, in_force,
+                       on_arrow=None, on_type=None, padded: bool = True,
+                       carry: bool = False) -> list:
             """
             One caption and its spinboxes, with a character between each.
 
@@ -193,12 +205,20 @@ class TimeToolboxMixin:
             parts : list
                 One (low, high, digits) tuple per spinbox
             on_enter : callable
-                What Enter in any of them does
+                What Enter in any of them does, and leaving one holding a
+                number other than the one in force (see on_leave)
+            in_force : callable
+                What a spinbox shows for the value in force, given its index:
+                what it shows once it loses focus (see on_leave), so that a
+                field not being typed into never shows anything else
             on_arrow : callable, optional
                 What a click on an arrow does, at once and on every repeat
                 while it is held, given the index of the spinbox clicked;
-                on_enter if not given. Typing is left to wait for Enter, a
-                number half typed being no time to go to
+                on_enter if not given
+            on_type : callable, optional
+                What every keystroke typed into any of them does, once it has
+                landed. If not given, typing waits for Enter, a number half
+                typed being no time to go to
             padded : bool
                 Whether the arrows write the number with leading zeros
             carry : bool
@@ -234,10 +254,28 @@ class TimeToolboxMixin:
                                   disabledforeground=fg,
                                   relief='flat', highlightthickness=1,
                                   highlightbackground=bg, highlightcolor=fg,
-                                  validate='key', validatecommand=(accepts_digits, '%P', digits))
+                                  validate='key',
+                                  validatecommand=(accepts_digits, '%P', digits, '%V', '%W'))
+                if on_type is not None:
+                    on_typed[str(spin)] = on_type
                 spin.pack(side=tk.LEFT)
                 spin.bind('<FocusIn>', on_focus_in)
-                spin.bind('<FocusOut>', on_focus_out)
+
+                def on_leave(_event, var=var, i=i):
+                    # Left, a field is put into force as Enter would put it,
+                    # unless it holds the number in force already: clicked
+                    # into and out of, it would draw the Moon afresh for
+                    # nothing. Then it shows what is in force - the value just
+                    # put there, or, if what was left could not be (empty, out
+                    # of range), the one before, with the error that says why
+                    self.toolbox_focused = False
+                    error_var.set("")
+                    text = var.get()
+                    if text and int(text) != int(in_force(i)):
+                        on_enter()
+                    var.set(in_force(i))
+
+                spin.bind('<FocusOut>', on_leave)
                 # Both Enters, the keypad having a key of its own
                 for enter in ('<Return>', '<KP_Enter>'):
                     spin.bind(enter, lambda _event: on_enter())
@@ -252,8 +290,8 @@ class TimeToolboxMixin:
             [(SKYFIELD_MOON_FRAME_START_UTC.year, SKYFIELD_MOON_FRAME_END_UTC.year - 1, 4),
              (1, 12, 2),
              (1, 31, 2)],
-            lambda: go_to_time(), lambda i: step_time(("year", "month", "day")[i]),
-            carry=True)
+            lambda: go_to_time(), lambda i: clock_texts(self.dt_local)[i],
+            lambda i: step_time(("year", "month", "day")[i]), carry=True)
         (year_var, _), (month_var, _), (day_var, day_spin) = date_parts
 
         # The offset is deliberately not shown: the date set may fall the other
@@ -266,9 +304,9 @@ class TimeToolboxMixin:
             [(0, 23, 2),
              (0, 59, 2),
              (0, 59, 2)],
-            lambda: go_to_time(), lambda i: step_time(("hour", "minute", "second")[i]),
-            carry=True)
-        (hour_var, _), (minute_var, _), (second_var, _) = time_parts
+            lambda: go_to_time(), lambda i: clock_texts(self.dt_local)[3 + i],
+            lambda i: step_time(("hour", "minute", "second")[i]), carry=True)
+        clock_vars = [var for var, _spin in date_parts + time_parts]
         clock_spins = [spin for _var, spin in date_parts + time_parts]
 
         def clamp_day_to_month(*_):
@@ -407,10 +445,14 @@ class TimeToolboxMixin:
         hold_button("▶▶", "forward", "Step forward continuously, as W held down (click again to stop)")
 
         # The time step Q and W move by, and auto-advance waits. Not padded:
-        # a step is a count of minutes, not a reading of a clock
+        # a step is a count of minutes, not a reading of a clock. Taken as it
+        # is typed, unlike the clock: any number in range is a step to go on
+        # with, where a date or time half typed is a moment nobody asked for
         tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
         [(step_var, _)] = spin_group(
-            "Step:", "", [(1, 1440, 4)], lambda: go_to_step(), padded=False)
+            "Step:", "", [(1, 1440, 4)], lambda: go_to_step(),
+            lambda _i: str(self.time_step_minutes), on_type=lambda: go_to_step(),
+            padded=False)
         tk.Label(frame, text="min", font=font, fg=fg, bg=bg).pack(side=tk.LEFT, padx=(4, 0))
 
         # ---- auto-advance ----
@@ -437,11 +479,15 @@ class TimeToolboxMixin:
         tk.Label(frame, textvariable=error_var, font=font, fg=self.TOOLBOX_ERROR_FG,
                  bg=bg).pack(side=tk.LEFT, padx=(6, 0))
 
+        def clock_texts(dt) -> list:
+            """A moment as the six spinboxes show it."""
+            return [f"{dt.year:04d}", f"{dt.month:02d}", f"{dt.day:02d}",
+                    f"{dt.hour:02d}", f"{dt.minute:02d}", f"{dt.second:02d}"]
+
         def show_datetime(dt):
             """Put a moment into the six spinboxes."""
-            for var, value in ((year_var, dt.year), (month_var, dt.month), (day_var, dt.day),
-                               (hour_var, dt.hour), (minute_var, dt.minute), (second_var, dt.second)):
-                var.set(f"{value:04d}" if var is year_var else f"{value:02d}")
+            for var, text in zip(clock_vars, clock_texts(dt)):
+                var.set(text)
             error_var.set("")
 
         self._toolbox_show = show_datetime
@@ -452,11 +498,15 @@ class TimeToolboxMixin:
         self._toolbox_show_step = show_step
 
         def go_to_step():
-            """Apply the time step in its field."""
-            try:
-                minutes = int(step_var.get())
-            except ValueError:
-                minutes = 0
+            """
+            Apply the time step in its field: as it is typed, on Enter, on
+            leaving it, and by its arrows. Nothing while it is empty, a number
+            not yet typed.
+            """
+            text = step_var.get()
+            if not text:
+                return
+            minutes = int(text)     # nothing but digits (see digits_only)
             if not 1 <= minutes <= 1440:
                 error_var.set("Step 1-1440 min")
                 return
@@ -506,8 +556,7 @@ class TimeToolboxMixin:
             try:
                 # A spinbox can still be typed into, so the parts are validated
                 # rather than trusted; datetime rejects anything out of range
-                parts = (int(year_var.get()), int(month_var.get()), int(day_var.get()),
-                         int(hour_var.get()), int(minute_var.get()), int(second_var.get()))
+                parts = tuple(int(var.get()) for var in clock_vars)
                 new_dt_naive = carried(*parts, part) if part else datetime(*parts)
             except (ValueError, OverflowError) as e:
                 # Python's own wording ("invalid literal for int() with base
