@@ -19,6 +19,8 @@ from typing import Optional
 import numpy as np
 
 from moonrtx.display import ToolTip
+from moonrtx.view_orientation import (FLIP_HORIZONTAL_VIEW_ORIENTATIONS,
+                                      FLIP_VERTICAL_VIEW_ORIENTATIONS)
 
 
 class ProfileMixin:
@@ -30,6 +32,13 @@ class ProfileMixin:
         "grid": "#d0d0d0",
         "readout": "#a06010",     # the place under the pointer, as in the graph
     }
+    # The place under the profile's pointer, marked on the Moon in the main
+    # window: the readout's colour made bright enough for the dark side of the
+    # terminator, and rimmed in black for the bright highland, a size under the
+    # measurement line's rings so it is not taken for an end
+    PROFILE_MARK_COLOUR = "#ff9a1f"
+    PROFILE_MARK_RADIUS_PX = 4
+    PROFILE_MARK_TAG = "profile_mark"
     # Wide enough to follow a long line's detail, and as a share of the screen so
     # a 4K display gets the room it has rather than a FullHD-sized window
     PROFILE_WIDTH_FRACTION = 0.5
@@ -107,8 +116,77 @@ class ProfileMixin:
 
         t = np.linspace(0.0, 1.0, count)
         lats, lons = self._along(start, end, t)
-        heights = np.array([self.get_elevation_m(la, lo) for la, lo in zip(lats, lons)])
-        return t * length_km, heights
+        # All at once rather than through get_elevation_m one by one: the same
+        # float64 lookup to the last bit, but the profile wants up to a couple
+        # of thousand heights every time it is drawn, and while an end of its
+        # line is dragged it is drawn every MEASURE_PROFILE_LIVE_MS
+        factor = self._ground_factor(lats, lons)
+        return t * length_km, (factor * self.elevation_radius_scale - 1.0) * self.MOON_RADIUS_KM * 1000.0
+
+    def _canvas_xy_of(self, lat: float, lon: float) -> Optional[tuple]:
+        """
+        Where a place on the ground is in the main window, in canvas pixels; or
+        None when the eye is not looking towards it.
+
+        The place is projected through the live camera rather than found by
+        sliding along the measurement line as drawn: that line is straight on
+        the screen, and equal steps over the ground are not equal steps on it
+        once foreshortening sets in - towards the limb, a point halfway along
+        the ground would be marked well short of where it is.
+
+        Projected as PlotOptiX renders (see LocatorMixin._locator_camera and
+        CompassMixin._compass_screen_points), the image mirrored afterwards for
+        the flipped view orientations, and scaled into the window as
+        TkOptiX._get_image_xy undoes it.
+        """
+        camera = self._locator_camera()
+        if camera is None:
+            return None
+        eye, right, up, forward, tan_right, tan_up = camera
+
+        # On its own ground, as the surface is displaced (see _aimed_at_ground)
+        radius = self.MOON_RADIUS * float(self._ground_factor(lat, lon))
+        from_eye = self.moon_rotation @ (self._unit(lat, lon) * radius) - eye
+        depth = float(from_eye @ forward)
+        if depth <= 0.0:
+            return None
+
+        rt = self.rt
+        x = (1.0 + float(from_eye @ right) / (depth * tan_right)) / 2.0 * rt._width
+        y = (1.0 - float(from_eye @ up) / (depth * tan_up)) / 2.0 * rt._height
+        if self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS:
+            x = rt._width - x
+        if self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS:
+            y = rt._height - y
+        if rt._fixed_size is not None:
+            x = x * rt._image_scale + rt._image_at[0]
+            y = y * rt._image_scale + rt._image_at[1]
+        return x, y
+
+    def _mark_profile_place(self, place: Optional[tuple]):
+        """
+        Mark a place on the profile's line in the main window, or take the mark
+        away (None): where the pointer in the profile is, so a rise or a dip in
+        it can be found on the Moon by looking rather than by its coordinates.
+
+        Only while the line the profile is of is on the picture. It goes when
+        the view moves (see _keep_measure_line), and a mark left without it
+        would point at ground nobody measured.
+        """
+        if self.rt is None:
+            return
+        canvas = self.rt._canvas
+        canvas.delete(self.PROFILE_MARK_TAG)
+        if place is None or self._measure_line is None or not self._measure_line_graphed:
+            return
+        at = self._canvas_xy_of(*place)
+        if at is None:
+            return
+        x, y = at
+        r = self._overlay_px(self.PROFILE_MARK_RADIUS_PX)
+        canvas.create_oval(x - r, y - r, x + r, y + r, fill=self.PROFILE_MARK_COLOUR,
+                           outline="black", width=max(1, round(self._overlay_px(1))),
+                           tags=self.PROFILE_MARK_TAG)
 
     @staticmethod
     def _nice_step(span: float, lines: int) -> float:
@@ -157,6 +235,7 @@ class ProfileMixin:
         def before_close():
             memory["canvas"] = (width, height)
             self._profile = None
+            self._mark_profile_place(None)
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up
@@ -206,6 +285,7 @@ class ProfileMixin:
             "• The ground along a line measured with the right Ctrl, from the\n"
             "   elevation map the surface is drawn with.\n"
             "• Heights are counted from the start of the line, where the drag began.\n"
+            "• The place under the pointer is marked on the Moon with an orange dot.\n"
             f"• The map holds one height every {spacing_m:.0f} m{averaged}.\n"
             "• Between those heights the curve is blended from the nearest of\n"
             "   them, so a line only a few times that long shows less of the\n"
@@ -214,6 +294,10 @@ class ProfileMixin:
             "• Vertical exaggeration says how much more the heights are\n"
             "   stretched than the distances - below 1, the ground is drawn\n"
             "   flatter than it is.\n"
+            "• Slopes are true angles, not exaggerated ones, taken along the line:\n"
+            "   + rising towards its end, - falling. A line crossing a slope at an\n"
+            "   angle reads it gentler than it is, and the map's spacing smooths\n"
+            "   a short steep step into a longer, gentler one.\n"
             "• Drag the window's edges to make the profile larger.")
         help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
         help_label.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
@@ -246,13 +330,18 @@ class ProfileMixin:
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
 
-        state = {"x": None, "h": None, "x_of": None, "y_of": None, "base": 0.0,
-                 "pointer": None}
+        state = {"x": None, "h": None, "slopes": None, "x_of": None, "y_of": None,
+                 "base": 0.0, "pointer": None}
 
         def signed(metres: float) -> str:
             """A height counted from the start of the line: signed, and plain 0 at it."""
             value = round(metres)
             return f"{value:+d} m" if value else "0 m"
+
+        def signed_slope(degrees: float) -> str:
+            """A slope along the line, as signed as the heights, and plain 0 when level."""
+            value = round(degrees, 1)
+            return f"{value:+.1f}°" if value else "0.0°"
 
         def draw(distance_km: np.ndarray, height_m: np.ndarray, start: tuple, end: tuple):
             canvas.delete("all")
@@ -320,11 +409,19 @@ class ProfileMixin:
             exaggeration = m_per_px_x / m_per_px_y
             exaggeration_text = (f"{exaggeration:.1f}" if exaggeration < 9.95
                                  else f"{exaggeration:.0f}")
+
+            # What the exaggeration hides: how steep the ground really is, from
+            # one sample to the next, in degrees. The steepest either way, as
+            # a scarp is as steep going down it as up
+            slopes = np.degrees(np.arctan2(np.diff(height_m), np.diff(distance_km) * 1000.0))
+            state.update(slopes=slopes)
+
             # Counted from the start of the line, as the axis is
             rise = float(height_m[-1]) - base
             summary_var.set(
                 f"{length:.1f} km, Δh {signed(rise)}, "
                 f"lowest {signed(low - base)}, highest {signed(high - base)}, "
+                f"steepest {float(np.abs(slopes).max()):.1f}°, "
                 f"vertical exaggeration ×{exaggeration_text}")
 
         def readout(event):
@@ -334,27 +431,33 @@ class ProfileMixin:
         def pointer_left(_event):
             state.update(pointer=None)
             canvas.delete("readout")
+            self._mark_profile_place(None)
 
         def refresh_readout():
-            """The readout for where the pointer is, drawn afresh."""
+            """The readout for where the pointer is, drawn afresh, and its mark on the Moon."""
             canvas.delete("readout")
             px = state["pointer"]
             if state["x"] is None or px is None or not (plot_x0 <= px <= plot_x1):
+                self._mark_profile_place(None)
                 return
             km = (px - plot_x0) / (plot_x1 - plot_x0) * float(state["x"][-1])
+            lat, lon = (float(v[0]) for v in
+                        self._along(state["start"], state["end"], km / float(state["x"][-1])))
+            self._mark_profile_place((lat, lon))
             m = float(np.interp(km, state["x"], state["h"]))
             x, y = state["x_of"](km), state["y_of"](m)
             canvas.create_line(x, plot_y0, x, plot_y1, fill=colours["readout"], tags="readout")
             canvas.create_oval(x - 2 * line_w, y - 2 * line_w, x + 2 * line_w, y + 2 * line_w,
                                outline=colours["readout"], width=line_w, tags="readout")
             anchor = 'sw' if x < (plot_x0 + plot_x1) / 2 else 'se'
-            # The height read as the axis reads, from the start of the line, and
-            # where on the Moon the point is when that is asked for, written as
-            # the status bar writes it
-            text = f" {km:.1f} km  {signed(m - state['base'])} "
+            # The height read as the axis reads, from the start of the line, the
+            # slope of the stretch the pointer is over, and where on the Moon
+            # the point is when that is asked for, written as the status bar
+            # writes it
+            stretch = int(np.clip(np.searchsorted(state["x"], km) - 1, 0, len(state["slopes"]) - 1))
+            text = (f" {km:.1f} km  {signed(m - state['base'])}  "
+                    f"{signed_slope(float(state['slopes'][stretch]))} ")
             if self._profile_show_place:
-                lat, lon = (float(v[0]) for v in
-                            self._along(state["start"], state["end"], km / float(state["x"][-1])))
                 text += (f" {abs(lat):.2f}°{'N' if lat >= 0 else 'S'} "
                          f"{abs(lon):.2f}°{'E' if lon >= 0 else 'W'} ")
             canvas.create_text(x, plot_y0 - 1, text=text,
