@@ -649,6 +649,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         """Handle mouse wheel events for zooming."""
         self._begin_interactive_preview()
         self.zoom_with_wheel(event)
+        self.check_measure_line()
 
     def init_astro(self):
         astro.init(self.observer)
@@ -1307,6 +1308,13 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # can move under it; its fields follow rather than going stale
         self.sync_toolbox()
 
+        # The kept measuring line follows its ground at once when the clock is
+        # moved from the window, rather than a beat of its poll later. A video
+        # export moves the clock from the raytracing thread, where Tk may not
+        # be touched, and leaves the line to the poll
+        if threading.current_thread() is threading.main_thread():
+            self.check_measure_line()
+
         # Since 0.19.1 updates applied while the accumulation cycle is idle do
         # not restart rendering on their own; force a new cycle so the change
         # is displayed immediately
@@ -1647,8 +1655,10 @@ def run_renderer(dt_local: datetime,
         else:
             original_key_handler(event)
         # The arrows, Ctrl with them, Home, End and the space bar move the eye;
-        # the names follow it at once rather than at the next poll
+        # the names follow it at once rather than at the next poll, and so
+        # does a kept measuring line
         moon_renderer._reaim_if_eye_moved()
+        moon_renderer.check_measure_line()
         # And the toolbar's buttons that stay down show what the key turned
         # on or off at once rather than at the next poll
         moon_renderer.sync_toolbar()
@@ -1752,6 +1762,7 @@ def run_renderer(dt_local: datetime,
     def reaim_after_drag():
         reaim_pending[0] = False
         moon_renderer._reaim_if_eye_moved()
+        moon_renderer.check_measure_line()
 
     def custom_apply_scene_edits(*args):
         rt = moon_renderer.rt

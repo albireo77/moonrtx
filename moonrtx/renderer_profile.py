@@ -241,13 +241,24 @@ class ProfileMixin:
     def _canvas_xy_of(self, lat: float, lon: float) -> Optional[tuple]:
         """
         Where a place on the ground is in the main window, in canvas pixels; or
-        None when the eye is not looking towards it.
+        None when the eye is not looking towards it (see _canvas_points).
+        """
+        points = self._canvas_points(np.array([lat]), np.array([lon]))
+        return None if points is None else (float(points[0, 0]), float(points[0, 1]))
 
-        The place is projected through the live camera rather than found by
-        sliding along the measurement line as drawn: that line is straight on
-        the screen, and equal steps over the ground are not equal steps on it
-        once foreshortening sets in - towards the limb, a point halfway along
-        the ground would be marked well short of where it is.
+    def _canvas_points(self, lats: np.ndarray, lons: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Where places on the ground are in the main window, as an (n, 2) array
+        of canvas pixels; or None when the eye is not looking towards all of
+        them.
+
+        Each is projected at its own height through the live camera, so it
+        lands where the rendered surface shows it: seen at a slant, towards
+        the limb, high ground stands out towards the limb and low ground falls
+        back from it, the more so the further from the disk's centre. The
+        measurement line is drawn along its ground through these (see
+        NavigationMixin._place_measure_line), and the profile's pointer is
+        marked by one, so the mark sits on the line.
 
         Projected as PlotOptiX renders (see LocatorMixin._locator_camera and
         CompassMixin._compass_screen_points), the image mirrored afterwards for
@@ -259,16 +270,18 @@ class ProfileMixin:
             return None
         eye, right, up, forward, tan_right, tan_up = camera
 
-        # On its own ground, as the surface is displaced (see _aimed_at_ground)
-        radius = self.MOON_RADIUS * float(self._ground_factor(lat, lon))
-        from_eye = self.moon_rotation @ (self._unit(lat, lon) * radius) - eye
-        depth = float(from_eye @ forward)
-        if depth <= 0.0:
+        # On their own ground, as the surface is displaced (see _aimed_at_ground)
+        la, lo = np.radians(lats), np.radians(lons)
+        units = np.column_stack((np.cos(la) * np.sin(lo), -np.cos(la) * np.cos(lo), np.sin(la)))
+        radius = self.MOON_RADIUS * np.asarray(self._ground_factor(lats, lons), dtype=float)
+        from_eye = (units * radius[:, None]) @ self.moon_rotation.T - eye
+        depth = from_eye @ forward
+        if np.any(depth <= 0.0):
             return None
 
         rt = self.rt
-        x = (1.0 + float(from_eye @ right) / (depth * tan_right)) / 2.0 * rt._width
-        y = (1.0 - float(from_eye @ up) / (depth * tan_up)) / 2.0 * rt._height
+        x = (1.0 + (from_eye @ right) / (depth * tan_right)) / 2.0 * rt._width
+        y = (1.0 - (from_eye @ up) / (depth * tan_up)) / 2.0 * rt._height
         if self.view_orientation in FLIP_HORIZONTAL_VIEW_ORIENTATIONS:
             x = rt._width - x
         if self.view_orientation in FLIP_VERTICAL_VIEW_ORIENTATIONS:
@@ -276,7 +289,7 @@ class ProfileMixin:
         if rt._fixed_size is not None:
             x = x * rt._image_scale + rt._image_at[0]
             y = y * rt._image_scale + rt._image_at[1]
-        return x, y
+        return np.column_stack((x, y))
 
     def _mark_profile_place(self, place: Optional[tuple]):
         """
@@ -284,9 +297,9 @@ class ProfileMixin:
         away (None): where the pointer in the profile is, so a rise or a dip in
         it can be found on the Moon by looking rather than by its coordinates.
 
-        Only while the line the profile is of is on the picture. It goes when
-        the view moves (see _keep_measure_line), and a mark left without it
-        would point at ground nobody measured.
+        Only while the line the profile is of is on the picture: once it has
+        gone (see _keep_measure_line), a mark left without it would point at
+        ground nobody measured.
         """
         if self.rt is None:
             return

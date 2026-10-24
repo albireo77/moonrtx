@@ -32,6 +32,16 @@ class NavigationMixin:
     # often than that, so it is drawn at this pace - for the line as it stands
     # then - rather than on every move, and the drag never falls behind
     MEASURE_PROFILE_LIVE_MS = 50
+    # The line is drawn along its ground (see _place_measure_line) as a run of
+    # straight pieces this long on the screen - short enough for the bends of
+    # a rim seen at a slant to show - and no more of them than this
+    MEASURE_PATH_STEP_PX = 4
+    MEASURE_PATH_MAX_POINTS = 600
+    # How long the clock has to stand still, with a kept line's profile open,
+    # before the profile's light is drawn in full rather than the quick way
+    # (see _follow_measure_line): past the gap between the steps of a held Q
+    # or W, short of making a single step wait for it
+    MEASURE_PROFILE_SETTLE_MS = 400
 
     @staticmethod
     def _rotated(vector: np.ndarray, axis: np.ndarray, angle: float) -> np.ndarray:
@@ -867,23 +877,57 @@ class NavigationMixin:
                                    outline=self.MEASURE_LINE_COLOR, fill=fill, width=width)
             self.leading_line_id = tag
 
-    def _place_measure_line(self, tag, x0: float, y0: float, x1: float, y1: float):
+    def _place_measure_line(self, tag, x0: float, y0: float, x1: float, y1: float,
+                            ground: Optional[tuple] = None):
         """
         Lay the measurement line from (x0, y0) to (x1, y1), with a circle on
         each end: filled at the start, a ring at the end.
+
+        Given the (lat, lon) of its two ends as `ground`, the line is drawn
+        along the ground between them - the great circle its profile samples,
+        each point at its own height where the picture shows it (see
+        ProfileMixin._canvas_points) - so it bends over rims and floors seen at
+        a slant as a line painted on them would, and the profile's mark for
+        any point of it sits on it. Straight otherwise: an end off the Moon,
+        or a point of the way the eye cannot see.
         """
         canvas = self.rt._canvas
         line, start_hook, end_hook = canvas.find_withtag(tag)    # in the order made
-        canvas.coords(line, x0, y0, x1, y1)
+        path = None if ground is None else self._measure_line_path(*ground, (x0, y0), (x1, y1))
+        canvas.coords(line, *(path if path is not None else (x0, y0, x1, y1)))
         radius = self._overlay_px(self.MEASURE_HOOK_RADIUS)
         for hook, (x, y) in ((start_hook, (x0, y0)), (end_hook, (x1, y1))):
             canvas.coords(hook, x - radius, y - radius, x + radius, y + radius)
+
+    def _measure_line_path(self, start: tuple, end: tuple, start_xy: tuple,
+                           end_xy: tuple) -> Optional[list]:
+        """
+        The measurement line's way over the ground as flat canvas coordinates,
+        a point every MEASURE_PATH_STEP_PX of it, from start_xy to end_xy -
+        the ends where they were placed, the way between where the ground is.
+        None for two ends on one place, or a way the eye cannot see all of.
+        """
+        if start == end:
+            return None
+        length = math.hypot(end_xy[0] - start_xy[0], end_xy[1] - start_xy[1])
+        count = int(np.clip(length / self._overlay_px(self.MEASURE_PATH_STEP_PX),
+                            1, self.MEASURE_PATH_MAX_POINTS))
+        lats, lons = self._along(start, end, np.linspace(0.0, 1.0, count + 1))
+        points = self._canvas_points(lats, lons)
+        if points is None:
+            return None
+        points[0], points[-1] = start_xy, end_xy
+        return points.ravel().tolist()
 
     def _init_measure_line(self):
         """Reset the kept-line state; called from MoonRenderer.__init__."""
         self._measure_line = None           # the kept measurement line (its tag), or None
         self._measure_line_view = None      # the view it was drawn in
+        self._measure_line_time = None      # and the moment shown then
         self._measure_line_watch = None     # the poll that notices the view move
+        # The profile drawn in full once the clock has stood still a while,
+        # after being drawn the quick way as it moved (see _follow_measure_line)
+        self._measure_profile_settle = None
         # Where the kept line ends, in the window and on the Moon, as the start
         # is kept in measure_start_canvas and measure_start_coords
         self.measure_end_canvas = None
@@ -901,11 +945,12 @@ class NavigationMixin:
         so the numbers (and the profile window, if one was drawn) say what the
         line is of.
 
-        It is drawn in the window's pixels, as it was during the drag, so it
-        marks the ground only while the view stays as it was measured - and it
-        is taken away the moment the view moves: panned, zoomed, turned, the
-        clock stepped or the window resized. Left standing, it would go on
-        pointing at whatever ground had come under it instead.
+        It is drawn in the window's pixels, as it was during the drag, and
+        whenever the view changes - the clock moved, the view panned, zoomed or
+        turned, the window resized - its ends are carried to where their ground
+        now is on the window (see _follow_measure_line), so it stays on the
+        ground it measures. It goes only when an end has left the side of the
+        Moon the eye looks at.
 
         Until then either end can be dragged by the ring on it to another place,
         the measurement following it (see grab_measure_hook).
@@ -913,6 +958,7 @@ class NavigationMixin:
         self._measure_line = line_id
         self._measure_line_graphed = self.measure_with_profile
         self._measure_line_view = self._measure_line_view_now()
+        self._measure_line_time = self.dt_local
         self._measure_line_watch = self._schedule_overlay(self._watch_measure_line)
 
     def _measure_line_view_now(self):
@@ -926,15 +972,83 @@ class NavigationMixin:
         return self._overlay_view_state(extra=(self.rt._optix.get_camera_fov(0),))
 
     def _watch_measure_line(self):
-        """One beat of the poll: take the kept line away once the view has moved."""
+        """One beat of the poll: see to the kept line once the view has moved."""
         self._measure_line_watch = None
         if self._measure_line is None:
             return
-        if self._measure_line_view_now() != self._measure_line_view:
+        self.check_measure_line()
+        if self._measure_line is not None:
+            self._measure_line_watch = self._schedule_overlay(self._watch_measure_line)
+
+    def check_measure_line(self):
+        """
+        Carry the kept line to where its ground now is if the view has changed
+        since it was drawn, or take it away if an end cannot be seen any more;
+        nothing if the view stands as it was. From the poll, and straight after
+        whatever moves the view from the window - a key, a drag, the wheel, a
+        step of the clock (see update_view) - so that the line does not trail a
+        beat of the poll behind the Moon.
+        """
+        if self._measure_line is None or self._measure_line_view_now() == self._measure_line_view:
+            return
+        if not self._follow_measure_line():
             self.drop_measure_line()
             self.clear_measurement()
-            return
-        self._measure_line_watch = self._schedule_overlay(self._watch_measure_line)
+
+    def _follow_measure_line(self) -> bool:
+        """
+        Draw the kept line between where its two ends' ground now is on the
+        window, and say whether it could be: an end turned away to the far
+        side of the globe, or behind the eye, has nowhere to go.
+
+        The ground under the line is what it was, so its length and height
+        difference are too. When the clock has moved, though, the angle it
+        spans as seen from Earth has followed the Moon's distance, and is
+        measured again; and its profile is the same ground in another light,
+        drawn again the quick way as the clock moves and in full once it has
+        stood still for MEASURE_PROFILE_SETTLE_MS.
+        """
+        ends = []
+        for place in (self.measure_start_coords, self.measure_end_coords):
+            at = self._canvas_xy_of(*place) if self._faces_eye(*place) else None
+            if at is None:
+                return False
+            ends.append(at)
+        self.measure_start_canvas, self.measure_end_canvas = ends
+        self._place_measure_line(self._measure_line, *ends[0], *ends[1],
+                                 ground=(self.measure_start_coords, self.measure_end_coords))
+        self._measure_line_view = self._measure_line_view_now()
+        if self.dt_local == self._measure_line_time:
+            return True
+        self._measure_line_time = self.dt_local
+        self._measure_between(self.measure_start_coords, self.measure_end_coords)
+
+        if self._measure_line_graphed and getattr(self, "_profile", None) is not None:
+            self.show_profile(self.measure_start_coords, self.measure_end_coords, live=True)
+            self._cancel_overlay(self._measure_profile_settle)
+            self._measure_profile_settle = self._schedule_overlay(
+                self._settle_measure_profile, self.MEASURE_PROFILE_SETTLE_MS)
+        return True
+
+    def _faces_eye(self, lat: float, lon: float) -> bool:
+        """
+        Whether a place on the Moon is on the side of the globe the eye looks
+        at - the test LocatorMixin._locator_on_screen makes, for a point at
+        the surface.
+        """
+        if self.rt is None or self.moon_rotation is None:
+            return False
+        eye = np.asarray(self.rt.get_camera(self.CAMERA_NAME)["Eye"], dtype=float)
+        la, lo = math.radians(lat), math.radians(lon)
+        body = np.array([math.cos(la) * math.sin(lo), -math.cos(la) * math.cos(lo), math.sin(la)])
+        return float((self.moon_rotation @ body) @ eye) * self.MOON_RADIUS > self.MOON_RADIUS ** 2
+
+    def _settle_measure_profile(self):
+        """The kept line's profile drawn in full, the clock having stood still."""
+        self._measure_profile_settle = None
+        if (self._measure_line is not None and self._measure_line_graphed
+                and getattr(self, "_profile", None) is not None):
+            self.show_profile(self.measure_start_coords, self.measure_end_coords)
 
     def drop_measure_line(self, close_profile: bool = True):
         """
@@ -956,6 +1070,7 @@ class NavigationMixin:
         self._measure_line = None
         self._measure_hook = None
         self._measure_profile_due = self._cancel_overlay(self._measure_profile_due)
+        self._measure_profile_settle = self._cancel_overlay(self._measure_profile_settle)
         self.measure_end_canvas = None
         self.measure_end_coords = None
         if self.rt is not None:
@@ -976,11 +1091,13 @@ class NavigationMixin:
         if not self.measuring or self.leading_line_id is None:
             return
 
+        # Along the ground while the pointer is on the Moon, straight to it off it
         start_x, start_y = self.measure_start_canvas
-        self._place_measure_line(self.leading_line_id, start_x, start_y, event.x, event.y)
+        end = self._selenographic_at(event)
+        self._place_measure_line(self.leading_line_id, start_x, start_y, event.x, event.y,
+                                 ground=None if end is None else (self.measure_start_coords, end))
 
         # Live distance update during drag
-        end = self._selenographic_at(event)
         if end is not None:
             self._measure_between(self.measure_start_coords, end)
             self._live_end = end
@@ -990,8 +1107,9 @@ class NavigationMixin:
         """
         Finish distance measurement on B1 release.
 
-        The line drawn during the drag stays on the picture until the view
-        moves or a new measurement starts (see _keep_measure_line). A click
+        The line drawn during the drag stays on the picture, on its ground
+        whatever the view does, until Backspace takes it off or a new
+        measurement starts (see _keep_measure_line). A click
         that did not drag, or a release off the Moon, measures nothing and
         leaves nothing.
 
@@ -1027,7 +1145,8 @@ class NavigationMixin:
         if self.measure_with_profile:
             self.show_profile(self.measure_start_coords, end)
         if line_id is not None:
-            self._place_measure_line(line_id, start_x, start_y, event.x, event.y)
+            self._place_measure_line(line_id, start_x, start_y, event.x, event.y,
+                                     ground=(self.measure_start_coords, end))
             self._keep_measure_line(line_id)
 
     # ---- moving the ends of a kept line ----
@@ -1075,7 +1194,8 @@ class NavigationMixin:
         else:
             self.measure_end_canvas, self.measure_end_coords = (event.x, event.y), place
         self._place_measure_line(self._measure_line, *self.measure_start_canvas,
-                                 *self.measure_end_canvas)
+                                 *self.measure_end_canvas,
+                                 ground=(self.measure_start_coords, self.measure_end_coords))
         self._measure_between(self.measure_start_coords, self.measure_end_coords)
         self._follow_profile(lambda: (self.measure_start_coords, self.measure_end_coords))
 
