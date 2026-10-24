@@ -3,8 +3,8 @@ TimeToolboxMixin: a strip of controls for the time, laid over the bottom of the
 picture, shown and hidden with T.
 
 It took over from the date/time window: the date and the time in spinboxes,
-Now, buttons standing in for Q and W - pressed once, and held down - the time
-step they move by, and auto-advance, as the status bar has it.
+Now, buttons standing in for Q and W - pressed, held, and locked down - the
+time step they move by, and auto-advance, as the status bar has it.
 What is typed into a field is applied with Enter, a click on its arrows at once.
 It sits on the canvas rather than in a window of its own, so it goes wherever
 the picture goes - full screen included - and is dragged about by its grip.
@@ -45,6 +45,11 @@ class TimeToolboxMixin:
     # at its default speed, about thirty a second, so the button runs as the
     # key held down does
     TOOLBOX_HOLD_REPEAT_MS = 33
+    # How long the Q or W button is held before it starts stepping, as a key
+    # held waits before it repeats. Shorter than the key's half second: a key
+    # steps once as it goes down and then waits, where Tk's repeating button
+    # makes its first step only once the wait is over
+    TOOLBOX_HOLD_DELAY_MS = 300
 
     def _init_toolbox(self):
         """Reset the toolbox state; called from MoonRenderer.__init__."""
@@ -385,7 +390,11 @@ class TimeToolboxMixin:
             ToolTip(button, hint)
 
         def hit_button(text: str, sign: int, hint: str):
+            # Clicked, it steps once as it is let go; held down, it steps on
+            # and on until it is, as its key held down does (Tk's own repeat)
             button = tk.Button(frame, text=text, command=lambda: hit(sign),
+                               repeatdelay=self.TOOLBOX_HOLD_DELAY_MS,
+                               repeatinterval=self.TOOLBOX_HOLD_REPEAT_MS,
                                relief='flat', **button_look)
             button.pack(side=tk.LEFT, padx=1)
             ToolTip(button, hint)
@@ -393,8 +402,8 @@ class TimeToolboxMixin:
 
         tk.Frame(frame, bg=bg, width=12).pack(side=tk.LEFT)
         hold_button("◀◀", "back", "Step back continuously, as Q held down (click again to stop)")
-        hit_buttons = [hit_button("◀", -1, "Step back once, as Q"),
-                       hit_button("▶", 1, "Step forward once, as W")]
+        hit_buttons = [hit_button("◀", -1, "Step back, as Q (hold down to animate)"),
+                       hit_button("▶", 1, "Step forward, as W (hold down to animate)")]
         hold_button("▶▶", "forward", "Step forward continuously, as W held down (click again to stop)")
 
         # The time step Q and W move by, and auto-advance waits. Not padded:
