@@ -36,6 +36,13 @@ class FovMixin:
     FOV_LINE_WIDTH = 2
     FOV_TEXT_TOP_PX = 10                    # the summary, below the title bar
     FOV_TEXT_FONT = ("Consolas", 10)
+    # The view outside the field, blacked out when that is asked for, as the
+    # eyepiece's field stop or the sensor's edge leaves it. The edge of the
+    # field is followed by this many points round an eyepiece's circle, and
+    # this many along each side of a sensor (see _fov_surround)
+    FOV_SURROUND_COLOR = "black"
+    FOV_SURROUND_CIRCLE_POINTS = 128
+    FOV_SURROUND_SIDE_POINTS = 32
 
     def _init_fov_overlay(self):
         """Reset the overlay state; called from MoonRenderer.__init__."""
@@ -53,6 +60,9 @@ class FovMixin:
             "eyepiece_mm": 10.0,
             "afov_deg": 68.0,
         }
+        # Whether the view outside the field is blacked out, to show only what
+        # the eyepiece or the sensor takes in; kept between runs as well
+        self.fov_dark_outside = False
         self._fov_items = []
         self._fov_refresh_id = None
         self._fov_last_view = None
@@ -152,6 +162,12 @@ class FovMixin:
 
         if self.fov_setup["mode"] == "eyepiece":
             radius = width_px / 2
+            if self.fov_dark_outside:
+                steps = self.FOV_SURROUND_CIRCLE_POINTS
+                edge = [(centre_x + radius * math.cos(2 * math.pi * k / steps),
+                         centre_y + radius * math.sin(2 * math.pi * k / steps))
+                        for k in range(steps)]
+                self._fov_items.extend(self._fov_surround(canvas, centre_x, centre_y, edge))
             self._fov_items.append(canvas.create_oval(
                 centre_x - radius, centre_y - radius, centre_x + radius, centre_y + radius,
                 outline=self.FOV_COLOR,
@@ -160,13 +176,19 @@ class FovMixin:
             angle = self._fov_screen_rotation()
             cos_a, sin_a = math.cos(angle), math.sin(angle)
             half_w, half_h = width_px / 2, height_px / 2
-            corners = []
-            for dx, dy in ((-half_w, -half_h), (half_w, -half_h),
-                           (half_w, half_h), (-half_w, half_h)):
-                corners += [centre_x + dx * cos_a - dy * sin_a,
-                            centre_y + dx * sin_a + dy * cos_a]
+            corner_points = [(centre_x + dx * cos_a - dy * sin_a,
+                              centre_y + dx * sin_a + dy * cos_a)
+                             for dx, dy in ((-half_w, -half_h), (half_w, -half_h),
+                                            (half_w, half_h), (-half_w, half_h))]
+            if self.fov_dark_outside:
+                steps = self.FOV_SURROUND_SIDE_POINTS
+                edge = [(x0 + (x1 - x0) * k / steps, y0 + (y1 - y0) * k / steps)
+                        for (x0, y0), (x1, y1) in zip(corner_points,
+                                                      corner_points[1:] + corner_points[:1])
+                        for k in range(steps)]
+                self._fov_items.extend(self._fov_surround(canvas, centre_x, centre_y, edge))
             self._fov_items.append(canvas.create_polygon(
-                corners, outline=self.FOV_COLOR, fill="",
+                [c for point in corner_points for c in point], outline=self.FOV_COLOR, fill="",
                 width=self._overlay_px(self.FOV_LINE_WIDTH)))
 
         text = self._fov_summary(width_rad, height_rad)
@@ -179,6 +201,48 @@ class FovMixin:
         self._fov_items.extend(self._rimmed_text(
             canvas, centre_x, self._overlay_px(self.FOV_TEXT_TOP_PX), text,
             self.FOV_TEXT_COLOR, self.FOV_TEXT_FONT))
+
+    def _fov_surround(self, canvas, centre_x: float, centre_y: float, edge: list) -> list:
+        """
+        Black out everything outside the field, and hand back the pieces.
+
+        Tk draws no shape with a hole in it, so the outside is laid as wedges
+        instead: one for each step round the edge, between the two rays from
+        the centre through its ends, reaching out past the window's corners.
+        The field being convex and centred, they tile the outside exactly,
+        with no gap and no overlap, and the same calls draw it into a saved
+        picture (see overlay_raster). Each wedge is outlined in its own colour
+        to close the hairlines a fill can leave between neighbours.
+
+        On the window the wedges go straight above the rendered picture, under
+        every other overlay, so the compass, the locator, the scale bars and
+        the measuring line stay in sight over the black; a picture draws the
+        frame first for the same reason (see overlay_image).
+        """
+        reach = math.hypot(self.rt._width, self.rt._height) + max(
+            math.hypot(x - centre_x, y - centre_y) for x, y in edge)
+        far = []
+        for x, y in edge:
+            length = math.hypot(x - centre_x, y - centre_y)
+            if length == 0.0:
+                return []
+            far.append((centre_x + (x - centre_x) / length * reach,
+                        centre_y + (y - centre_y) / length * reach))
+
+        items = []
+        width = max(1, round(self._overlay_px(1)))
+        for k in range(len(edge)):
+            (x0, y0), (x1, y1) = edge[k], edge[(k + 1) % len(edge)]
+            (fx0, fy0), (fx1, fy1) = far[k], far[(k + 1) % len(edge)]
+            items.append(canvas.create_polygon(
+                x0, y0, x1, y1, fx1, fy1, fx0, fy0,
+                fill=self.FOV_SURROUND_COLOR, outline=self.FOV_SURROUND_COLOR, width=width))
+
+        picture = getattr(self.rt, "_img_id", None)
+        if canvas is getattr(self.rt, "_canvas", None) and picture is not None:
+            for item in items:
+                canvas.tag_raise(item, picture)
+        return items
 
     def _fov_view_state(self):
         """
@@ -284,6 +348,17 @@ class FovMixin:
             widget.grid(row=i, column=1, padx=5, pady=2, sticky='w')
             tk.Label(grid, text=unit, fg='gray').grid(row=i, column=2, sticky='w', pady=2)
             field_widgets.append((widget, only_mode))
+
+        # What the eyepiece or the camera shows and nothing more. Themed, as the
+        # mode buttons are, so the box follows the display
+        dark_var = tk.BooleanVar(value=self.fov_dark_outside)
+
+        def dark_toggled():
+            self.fov_dark_outside = dark_var.get()
+            self.show_fov_overlay(True)
+
+        ttk.Checkbutton(main_frame, text="Black out the view outside the field",
+                        variable=dark_var, command=dark_toggled).pack(anchor='w', pady=(8, 0))
 
         status_var = tk.StringVar()
         status_label = tk.Label(main_frame, textvariable=status_var, anchor='w', justify='left')

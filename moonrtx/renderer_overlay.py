@@ -262,10 +262,12 @@ class CanvasOverlayMixin:
         be a different size from it and so that this can be done from the
         raytracing thread, where Tk may not be touched at all.
         """
-        showing = [(getattr(self, "compass_visible", False), "_draw_compass"),
-                   (getattr(self, "locator_visible", False), "_draw_locator"),
-                   (getattr(self, "fov_overlay_visible", False),
+        # The field-of-view frame first: blacking out the view outside it, it
+        # has to lie under the others, as it does on the window
+        showing = [(getattr(self, "fov_overlay_visible", False),
                     "_draw_fov_overlay"),
+                   (getattr(self, "compass_visible", False), "_draw_compass"),
+                   (getattr(self, "locator_visible", False), "_draw_locator"),
                    (getattr(self, "scale_bar_visible", False), "_draw_scale_bar"),
                    (getattr(self, "angle_bar_visible", False), "_draw_angle_bar")]
         if not any(visible for visible, _draw in showing):

@@ -55,6 +55,7 @@ class SettingsMixin:
 
         return {
             "fov_setup": None,                      # checked field by field
+            "fov_dark_outside": flag,
             "_clair_obscur_filter": lambda v: isinstance(v, str),
             "_clair_obscur_visible_only": flag,
             "_eclipse_visible_only": flag,
