@@ -15,18 +15,15 @@ from moonrtx.shared_types import MoonFeature
 class NavigationMixin:
     """Mixin providing camera navigation and measurement methods for MoonRenderer."""
 
-    # The measurement line, and the filled arrow a quarter of the way along it
-    # that says which way it runs: which end the height difference is measured
-    # to, and which way its profile reads. Sizes are for a 96-dpi screen.
+    # The measurement line. Sizes are for a 96-dpi screen.
     MEASURE_LINE_COLOR = 'yellow'
     MEASURE_LINE_WIDTH = 2
     MEASURE_LINE_DASH = 4           # the length of each dash and of each gap
-    MEASURE_ARROW_AT = 0.25
-    MEASURE_ARROW_LENGTH = 12
-    MEASURE_ARROW_HALF_WIDTH = 5
-    # The ring at each end of the line, by which that end is dragged to
-    # another place, and how far outside the ring a press still takes it - a
-    # ring is small, and a hand on a mouse is not
+    # The circle at each end of the line, by which that end is dragged to
+    # another place, and how far outside it a press still takes it - a circle
+    # is small, and a hand on a mouse is not. The start's is filled and the
+    # end's a ring, which says which way the line runs: which end the height
+    # difference is measured to, and which way its profile reads
     MEASURE_HOOK_RADIUS = 5
     MEASURE_HOOK_GRAB = 4
     # How often an open profile window is drawn again while a line's end is
@@ -853,55 +850,34 @@ class NavigationMixin:
         self.measure_start_coords = start
 
         if hasattr(self.rt, '_canvas'):
-            # The line and its arrow share a tag of their own, which is what
-            # the rest of the measurement holds on to, so the two are moved,
-            # kept and deleted as one (see _place_measure_line)
+            # The line and the circles on its ends share a tag of their own,
+            # which is what the rest of the measurement holds on to, so they
+            # are moved, kept and deleted as one (see _place_measure_line)
             self._measure_serial += 1
             tag = f"measure{self._measure_serial}"
             canvas = self.rt._canvas
+            width = max(1, round(self._overlay_px(self.MEASURE_LINE_WIDTH)))
             dash = max(1, round(self._overlay_px(self.MEASURE_LINE_DASH)))
             canvas.create_line(event.x, event.y, event.x, event.y, tags=tag,
-                               fill=self.MEASURE_LINE_COLOR,
-                               width=max(1, round(self._overlay_px(self.MEASURE_LINE_WIDTH))),
-                               dash=(dash, dash))
-            canvas.create_polygon(event.x, event.y, event.x, event.y, event.x, event.y,
-                                  tags=tag, state='hidden', fill=self.MEASURE_LINE_COLOR,
-                                  outline=self.MEASURE_LINE_COLOR)
-            # A ring at each end, the start's first (see _place_measure_line)
-            for _ in range(2):
+                               fill=self.MEASURE_LINE_COLOR, width=width, dash=(dash, dash))
+            # A circle at each end, the start's first and filled (see
+            # MEASURE_HOOK_RADIUS)
+            for fill in (self.MEASURE_LINE_COLOR, ''):
                 canvas.create_oval(event.x, event.y, event.x, event.y, tags=tag,
-                                   outline=self.MEASURE_LINE_COLOR, fill='',
-                                   width=max(1, round(self._overlay_px(self.MEASURE_LINE_WIDTH))))
+                                   outline=self.MEASURE_LINE_COLOR, fill=fill, width=width)
             self.leading_line_id = tag
 
     def _place_measure_line(self, tag, x0: float, y0: float, x1: float, y1: float):
         """
-        Lay the measurement line from (x0, y0) to (x1, y1), with its arrow a
-        quarter of the way along and pointing to the end, and a ring on each
-        end. The arrow is hidden while the line is too short to carry it.
+        Lay the measurement line from (x0, y0) to (x1, y1), with a circle on
+        each end: filled at the start, a ring at the end.
         """
         canvas = self.rt._canvas
-        line, arrow, start_hook, end_hook = canvas.find_withtag(tag)    # in the order made
+        line, start_hook, end_hook = canvas.find_withtag(tag)    # in the order made
         canvas.coords(line, x0, y0, x1, y1)
-        ring = self._overlay_px(self.MEASURE_HOOK_RADIUS)
+        radius = self._overlay_px(self.MEASURE_HOOK_RADIUS)
         for hook, (x, y) in ((start_hook, (x0, y0)), (end_hook, (x1, y1))):
-            canvas.coords(hook, x - ring, y - ring, x + ring, y + ring)
-        dx, dy = x1 - x0, y1 - y0
-        length = math.hypot(dx, dy)
-        arrow_length = self._overlay_px(self.MEASURE_ARROW_LENGTH)
-        if length < 2 * arrow_length:
-            canvas.itemconfigure(arrow, state='hidden')
-            return
-        # Along the line and across it, and the arrow centred on its place
-        ux, uy = dx / length, dy / length
-        half_width = self._overlay_px(self.MEASURE_ARROW_HALF_WIDTH)
-        cx, cy = x0 + self.MEASURE_ARROW_AT * dx, y0 + self.MEASURE_ARROW_AT * dy
-        tip_x, tip_y = cx + ux * arrow_length / 2, cy + uy * arrow_length / 2
-        base_x, base_y = cx - ux * arrow_length / 2, cy - uy * arrow_length / 2
-        canvas.coords(arrow, tip_x, tip_y,
-                      base_x - uy * half_width, base_y + ux * half_width,
-                      base_x + uy * half_width, base_y - ux * half_width)
-        canvas.itemconfigure(arrow, state='normal')
+            canvas.coords(hook, x - radius, y - radius, x + radius, y + radius)
 
     def _init_measure_line(self):
         """Reset the kept-line state; called from MoonRenderer.__init__."""
