@@ -359,7 +359,7 @@ class ProfileMixin:
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up
-        win, frame, close = self._dialog_window("Elevation and Lighting profile", takes_keys=False,
+        win, frame, close = self._dialog_window("Elevation and Illumination profile", takes_keys=False,
                                                  before_close=before_close,
                                                  remember=self.PROFILE_WINDOW)
 
