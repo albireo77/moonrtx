@@ -166,6 +166,7 @@ class ToolbarMixin:
         toggle("▦", 'g', "Toggle selenographic grid (G)", lambda: self.moon_grid_visible)
         toggle("Aa", 'l', "Toggle standard labels (L)", lambda: self.standard_labels_visible)
         toggle("a•", 's', "Toggle spot labels (S)", lambda: self.spot_labels_visible)
+        toggle("A…", 'p', "Toggle labels for all Moon features (P)", lambda: self.catalogue_visible)
         toggle("☉", 'y', "Toggle markers for sub-solar and sub-Earth points (Y)",
                lambda: self.sub_points_visible)
         toggle("📍", '0', "Toggle pins (0)", lambda: self.pins_visible)
