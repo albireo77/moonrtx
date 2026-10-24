@@ -28,6 +28,12 @@ is named the way the table marks it: across the feature if it carries a standard
 label, and otherwise beside it with an arrow, as a spot label is, since a name
 written across a small crater hides the crater it names.
 
+A satellite crater the catalogue names of its own accord is named by its letter
+alone - the A of Copernicus A - written across it as the rest are: the parent
+is nearly always named beside it, and thousands of the table's features are
+satellites, whose full names would fill the view with the same few words over
+and over. A pinned one keeps its full name, being the one under study.
+
 Only the chosen names are built, and only when the choice changes - forty of them
 cost about seven milliseconds, against the eight hundred the whole table would.
 The choice is looked at on the same poll that follows the lettering size, so it
@@ -36,10 +42,24 @@ sees any other way.
 """
 
 import math
+import re
+from typing import Optional
 
 import numpy as np
 
 from moonrtx.moon_grid import create_spot_labels, create_standard_labels
+
+# A satellite crater's name, as the IAU gives it: its parent's name and a capital
+# letter, or two for a satellite of a satellite (Plato KA). Checked against the
+# whole table: every name of that shape is a satellite crater, and no other name
+# ends in a word of one or two capitals
+SATELLITE_NAME = re.compile(r"(?P<parent>.+) (?P<letter>[A-Z]{1,2})")
+
+
+def satellite_letter(name: str) -> Optional[str]:
+    """The letter of a satellite crater (A for Copernicus A), or None for any other name."""
+    match = SATELLITE_NAME.fullmatch(name)
+    return match.group("letter") if match else None
 
 
 class CatalogueMixin:
@@ -212,15 +232,18 @@ class CatalogueMixin:
 
         # A pinned feature is named as the table marks it (see the module note):
         # beside it with an arrow unless it carries a standard label. Every other
-        # name is written across its feature, as the catalogue always has
+        # name is written across its feature, as the catalogue always has - a
+        # satellite crater's as its letter alone
         across, beside = [], []
         for i in chosen:
             feature = self.moon_features[i]
-            if (i in self._catalogue_pinned and not feature.standard_label
+            pinned = i in self._catalogue_pinned
+            if (pinned and not feature.standard_label
                     and (feature.spot_label or feature.status_bar)):
                 beside.append(feature)
             else:
-                across.append(feature)
+                letter = None if pinned else satellite_letter(feature.name)
+                across.append(feature if letter is None else feature._replace(name=letter))
         style = dict(moon_radius=self.MOON_RADIUS, offset=0.0,
                      flips_at=self._glyph_flips, scale=self.label_scale())
         labels = (create_standard_labels(across, **style)
