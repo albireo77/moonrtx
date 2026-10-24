@@ -262,7 +262,7 @@ class ProfileMixin:
             self._profile_show_place = place_var.get()
             refresh_readout()
 
-        ttk.Checkbutton(top_row, text="Show coordinates", variable=place_var,
+        ttk.Checkbutton(top_row, text="Coordinates", variable=place_var,
                         command=place_toggled).pack(side=tk.RIGHT)
 
         # What the window does not say on its face, as the graph keeps its own
@@ -291,16 +291,19 @@ class ProfileMixin:
             "   them, so a line only a few times that long shows less of the\n"
             "   ground than its shape suggests"
             + ("; a lower downscale shows more of it.\n" if downscale > 1 else ".\n") +
-            "• Vertical exaggeration says how much more the heights are\n"
-            "   stretched than the distances - below 1, the ground is drawn\n"
-            "   flatter than it is.\n"
-            "• Slopes are true angles, not exaggerated ones, taken along the line:\n"
-            "   + rising towards its end, - falling. A line crossing a slope at an\n"
+            "• Relief is the height from the lowest point of the line to the\n"
+            "   highest: across a crater, its depth below the rim.\n"
+            "• Slopes are true angles, however the profile stretches the heights,\n"
+            "   taken along the line. The one under the pointer is signed: + rising\n"
+            "   towards the end of the line, - falling. Steepest is the largest\n"
+            "   slope anywhere on the line, up or down. A line crossing a slope at an\n"
             "   angle reads it gentler than it is, and the map's spacing smooths\n"
             "   a short steep step into a longer, gentler one.\n"
             "• Drag the window's edges to make the profile larger.")
         help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
-        help_label.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
+        # Close to the checkbox, the room it gave up kept on its other side,
+        # between it and the summary
+        help_label.pack(side=tk.RIGHT, padx=(2 * cell_w, pad))
         ToolTip(help_label, help_hint)
 
         label_w = metrics.measure('-10000 m') + 2 * pad
@@ -401,28 +404,21 @@ class ProfileMixin:
             canvas.create_line(outline, fill=colours["ground"], width=line_w)
             canvas.create_rectangle(plot_x0, plot_y0, plot_x1, plot_y1, outline="#808080")
 
-            # How much the height axis is stretched against the distance axis:
-            # a profile drawn to fill its box always looks dramatic, and this
-            # is what says by how much it overstates the slopes
-            m_per_px_x = length * 1000.0 / (plot_x1 - plot_x0)
-            m_per_px_y = (y_max - y_min) / (plot_y1 - plot_y0)
-            exaggeration = m_per_px_x / m_per_px_y
-            exaggeration_text = (f"{exaggeration:.1f}" if exaggeration < 9.95
-                                 else f"{exaggeration:.0f}")
-
-            # What the exaggeration hides: how steep the ground really is, from
-            # one sample to the next, in degrees. The steepest either way, as
-            # a scarp is as steep going down it as up
+            # What a profile drawn to fill its box hides: how steep the ground
+            # really is, from one sample to the next, in degrees. The steepest
+            # either way, as a scarp is as steep going down it as up
             slopes = np.degrees(np.arctan2(np.diff(height_m), np.diff(distance_km) * 1000.0))
             state.update(slopes=slopes)
 
-            # Counted from the start of the line, as the axis is
+            # Counted from the start of the line, as the axis is - all but the
+            # relief, the height from the lowest point to the highest, which
+            # is a crater's depth below its rim when the line crosses one
             rise = float(height_m[-1]) - base
             summary_var.set(
                 f"{length:.1f} km, Δh {signed(rise)}, "
                 f"lowest {signed(low - base)}, highest {signed(high - base)}, "
-                f"steepest {float(np.abs(slopes).max()):.1f}°, "
-                f"vertical exaggeration ×{exaggeration_text}")
+                f"relief {round(high - low)} m, "
+                f"steepest {float(np.abs(slopes).max()):.1f}°")
 
         def readout(event):
             state.update(pointer=event.x)
