@@ -853,7 +853,7 @@ class DialogsMixin:
             ("Hold and drag left mouse button", "Rotate the eye around Moon"),
             ("Hold and drag right mouse button", "Rotate Moon around the eye (move view)"),
             ("Hold left Ctrl + drag left mouse button", "Measure distance and elevation difference on Moon surface"),
-            ("Hold right Ctrl + drag left mouse button", "Measure, and show the elevation profile along the line"),
+            ("Hold right Ctrl + drag left mouse button", "Show Elevation and Lighting profile along the line"),
             ("Hold left Shift + left mouse button and drag up/down", "Zoom out/in (more reliable)"),
             ("Mouse wheel up/down", "Zoom in/out (less reliable)"),
         ]
