@@ -117,7 +117,7 @@ class ToolbarMixin:
 
         self._panel_grip(frame, frame, "_toolbar_at", 'sw', "Drag to move the toolbar",
                          font, fg, bg).pack(side=tk.LEFT, padx=(0, 6))
-        self._panel_close(frame, lambda: self.show_toolbar(False), "Close the toolbar (Z)",
+        self._panel_close(frame, lambda: self.show_toolbar(False), "Close the toolbar (X)",
                           font, fg, bg).pack(side=tk.RIGHT, padx=(8, 0))
 
         # ---- the buttons ----
