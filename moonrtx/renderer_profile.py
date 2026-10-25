@@ -47,6 +47,11 @@ class ProfileMixin:
     # a plot 200 px tall; a shorter search from each place cost more in
     # accuracy than it saved in time
     PROFILE_SUNLIT_QUICK_SAMPLES = 300
+    # Fewer still while an end of the line is dragged, every place moving with
+    # it so none of the ground towards the Sun can be used again: 9.5 ms
+    # rather than 19.5 for the same line, the top of the shadow within 2.7 px
+    # of the full one for 99% of it, until the drag is let go
+    PROFILE_SUNLIT_DRAG_SAMPLES = 150
     # The ground looked up towards the Sun is kept and used again while the
     # Sun's bearing from every place has turned by less than this - at 10 km
     # out, 44 m to the side, under a texel of the map - and the search still
@@ -115,7 +120,7 @@ class ProfileMixin:
         return (np.degrees(np.arcsin(np.clip(points[:, 2], -1.0, 1.0))),
                 np.degrees(np.arctan2(points[:, 0], -points[:, 1])))
 
-    def elevation_profile(self, start: tuple, end: tuple, quick: bool = False) -> Optional[tuple]:
+    def elevation_profile(self, start: tuple, end: tuple, quick: int = 0) -> Optional[tuple]:
         """
         Heights along the great circle from start to end.
 
@@ -123,8 +128,9 @@ class ProfileMixin:
         ----------
         start, end : tuple
             (lat, lon) in selenographic degrees
-        quick : bool
-            Work the light out the quicker way (see _shadow_ceilings)
+        quick : int
+            Work the light out the quicker way, at no more than this many
+            places (see _shadow_ceilings); 0 for every place
 
         Returns
         -------
@@ -154,7 +160,7 @@ class ProfileMixin:
         return t * length_km, heights, self._shadow_ceilings(lats, lons, heights, quick)
 
     def _shadow_ceilings(self, lats: np.ndarray, lons: np.ndarray,
-                         heights_m: np.ndarray, quick: bool = False) -> Optional[tuple]:
+                         heights_m: np.ndarray, quick: int = 0) -> Optional[tuple]:
         """
         How high above each of these places on the ground the shadow reaches:
         how far straight up from it one would have to go to see the Sun.
@@ -177,10 +183,10 @@ class ProfileMixin:
         rays parallel) a is its altitude there, less its radius for the whole
         disk to be in sight and plus it for any of it.
 
-        quick for the profile drawn again and again while an end of its line is
-        dragged, which the full search, at about a tenth of a second for the
-        longest lines, would hold back: it is made at no more than
-        PROFILE_SUNLIT_QUICK_SAMPLES places, and filled in between.
+        quick, a number of places, for the profile drawn again and again while
+        an end of its line is dragged or the clock moves, which the full search,
+        at about a tenth of a second for the longest lines, would hold back: it
+        is made at no more than that many places, and filled in between.
         What is filled in is the top of the shadow, ground and ceiling
         together - made of straight rays, it runs straight between the places
         where it was worked out, where the ceiling alone follows every rise
@@ -193,9 +199,8 @@ class ProfileMixin:
         e = getattr(self, "moon_ephem", None)
         if e is None:
             return None
-        if quick and len(lats) > self.PROFILE_SUNLIT_QUICK_SAMPLES:
-            pick = np.unique(np.rint(np.linspace(0, len(lats) - 1,
-                                                 self.PROFILE_SUNLIT_QUICK_SAMPLES)).astype(int))
+        if quick and len(lats) > quick:
+            pick = np.unique(np.rint(np.linspace(0, len(lats) - 1, quick)).astype(int))
             light = self._shadow_ceilings(lats[pick], lons[pick], heights_m[pick])
             everywhere = np.arange(len(lats))
             filled = []
@@ -373,7 +378,13 @@ class ProfileMixin:
         """
         if self.rt is None or getattr(self, "elevation", None) is None:
             return False
-        profile = self.elevation_profile(start, end, quick=live)
+        # A drag finds no ground to use again, every place moving with it, so
+        # it is given fewer places than the clock, which finds most of them
+        # (see PROFILE_LIGHT_REUSE_DEG)
+        quick = 0
+        if live:
+            quick = self.PROFILE_SUNLIT_QUICK_SAMPLES if light_only else self.PROFILE_SUNLIT_DRAG_SAMPLES
+        profile = self.elevation_profile(start, end, quick=quick)
         if profile is None:
             return False
         if self._profile is None:
@@ -544,13 +555,15 @@ class ProfileMixin:
         def place_light():
             """Shape the light and the penumbra to the light worked out last."""
             _shadow_item, sunlit_item, penumbra_item = state["light_items"]
-            full, some = state["light"]
+            drawn = state["drawn"]
+            full, some = (ceiling[drawn] for ceiling in state["light"])
             x_of, y_of = state["x_of"], state["y_of"]
-            xs = [x_of(float(k)) for k in state["x"]]
+            xs = x_of(state["x"][drawn]).tolist()
+            heights = state["h"][drawn]
 
             def edge(ceiling):
-                ys = np.clip([y_of(float(m)) for m in state["h"] + ceiling], plot_y0, plot_y1)
-                return [c for pair in zip(xs, ys) for c in pair]
+                ys = np.clip(y_of(heights + ceiling), plot_y0, plot_y1)
+                return np.column_stack((xs, ys)).ravel().tolist()
 
             full_edge, some_edge = edge(full), edge(some)
             # Closed along the top from whichever side the line ends at
@@ -594,7 +607,16 @@ class ProfileMixin:
             def y_of(m):
                 return plot_y1 - (plot_y1 - plot_y0) * (m - y_min) / (y_max - y_min)
 
-            state.update(x_of=x_of, y_of=y_of)
+            # The samples drawn: about one to a pixel of the plot's width, the
+            # two ends always - a long line holds up to PROFILE_MAX_SAMPLES of
+            # them, more than a plot of most widths can show, and every point
+            # more in the ground's and the light's outlines is work for Tk on
+            # every drawing, a drag's included. Read off, the profile is
+            # still read from every sample (see refresh_readout)
+            stride = max(1, int(len(distance_km) / max(1.0, plot_x1 - plot_x0)))
+            drawn = np.unique(np.append(np.arange(0, len(distance_km), stride),
+                                        len(distance_km) - 1))
+            state.update(x_of=x_of, y_of=y_of, drawn=drawn)
 
             # Light and shadow first, under everything else: the plot in shadow,
             # then the space above the ground the Sun reaches, down to the top
@@ -646,9 +668,10 @@ class ProfileMixin:
                 d += d_step
 
             # The ground: filled down to the bottom of the plot, then its edge
-            xs = [x_of(float(k)) for k in distance_km]
-            ys = [y_of(float(m)) for m in height_m]
-            outline = [c for pair in zip(xs, ys) for c in pair]
+            drawn = state["drawn"]
+            xs = x_of(distance_km[drawn]).tolist()
+            ys = y_of(height_m[drawn]).tolist()
+            outline = np.column_stack((xs, ys)).ravel().tolist()
             ground = canvas.create_polygon([xs[0], plot_y1] + outline + [xs[-1], plot_y1],
                                            fill=colours["fill"], outline="")
             # The grid over the ground rather than under it, so the heights of
