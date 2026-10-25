@@ -25,6 +25,20 @@ from moonrtx.view_orientation import (FLIP_HORIZONTAL_VIEW_ORIENTATIONS,
                                       FLIP_VERTICAL_VIEW_ORIENTATIONS)
 
 
+def double_click_ms() -> int:
+    """
+    The longest time between the two clicks of a double click, as the user's
+    Windows is set: what a single click has to wait out before it can be sure
+    it is not the first of a double one. 500 ms, Windows' own default, where
+    it cannot be asked.
+    """
+    try:
+        import ctypes
+        return int(ctypes.windll.user32.GetDoubleClickTime())
+    except (AttributeError, OSError):
+        return 500
+
+
 class ProfileMixin:
     """Mixin drawing the elevation profile along a measurement."""
 
@@ -582,9 +596,11 @@ class ProfileMixin:
             memory["canvas"] = (width, height)
             self._profile = None
             self._mark_profile_place(None)
-            # A finer sampling still waiting has no window left to draw into
-            if state["refine_due"] is not None:
-                canvas.after_cancel(state["refine_due"])
+            # Whatever is still waiting has no window left to draw into: a finer
+            # sampling, a click's going
+            for due in (state["refine_due"], held["click_due"]):
+                if due is not None:
+                    canvas.after_cancel(due)
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up
@@ -664,12 +680,14 @@ class ProfileMixin:
             "   ground under the pointer next goes into shadow, or into sunlight,\n"
             "   on the session's clock - as the Sun's centre crosses\n"
             "   the horizon its surroundings make, from the Sun's real course; the\n"
-            "   penumbra starts a little before and ends a little after. Click to\n"
-            "   take the clock there. Not told while the clock is moving.\n"
+            "   penumbra starts a little before and ends a little after. Not told\n"
+            "   while the clock is moving. Click to take the clock there - a moment\n"
+            "   after the click, which waits to be sure it is not the first of a\n"
+            "   double click.\n"
             "• The mouse wheel zooms in on the profile around the pointer, and back\n"
-            "   out. Zoomed in, drag with the left button to move left and right\n"
-            "   along it. The heights' scale fits what is in view, the numbers\n"
-            "   above stay those of the line.\n"
+            "   out; double-click to see the whole line again. Zoomed in, drag with\n"
+            "   the left button to move left and right along it. The heights' scale\n"
+            "   fits what is in view, the numbers above stay those of the line.\n"
             "• Drag the window's edges to make the profile larger.")
         help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
         help_label.pack(side=tk.RIGHT, padx=pad)
@@ -1036,13 +1054,13 @@ class ProfileMixin:
                                              else moment(found[1])))
             return state["changes"][sample]
 
-        def go_to_change(event):
+        def go_to_change(px: float):
             """A click on the profile: the clock taken to when the light changes there."""
-            if state["x"] is None or not (plot_x0 <= event.x <= plot_x1):
+            if state["x"] is None or not (plot_x0 <= px <= plot_x1):
                 return
             if getattr(self, "_video_export", None) is not None:    # the export owns the clock
                 return
-            change = change_at(state["km_of"](event.x))
+            change = change_at(state["km_of"](px))
             if change is None or change[1] is None:
                 return
             self._go_to_moment(change[1])
@@ -1121,8 +1139,11 @@ class ProfileMixin:
 
         # A drag sideways moves a zoomed-in profile along the line; a click
         # that does not move takes the clock to when the light changes there
-        # (see go_to_change)
-        held = {"x": None, "view": None, "moved": False}
+        # (see go_to_change); a double click shows the whole line again.
+        # click_due: the click's going, waiting to see that it is not the
+        # first of a double click; swallow: the release of a double click's
+        # second press, which is no click of its own
+        held = {"x": None, "view": None, "moved": False, "click_due": None, "swallow": False}
 
         def press(event):
             held.update(x=event.x, view=state["view_km"], moved=False)
@@ -1143,15 +1164,37 @@ class ProfileMixin:
             redraw_profile()
 
         def release(event):
-            moved = held["moved"]
-            held.update(x=None, moved=False)
-            if not moved:
-                go_to_change(event)
+            moved, swallow = held["moved"], held["swallow"]
+            held.update(x=None, moved=False, swallow=False)
+            # A click goes to the light's change only with the Light change box
+            # ticked, and then not at once: a double click starts with a click,
+            # so it waits out the system's double-click time first
+            if moved or swallow or not self._profile_show_light_change:
+                return
+            if held["click_due"] is not None:
+                canvas.after_cancel(held["click_due"])
+            held.update(click_due=canvas.after(
+                double_click_ms(), lambda px=event.x: clicked(px)))
+
+        def clicked(px: float):
+            held.update(click_due=None)
+            go_to_change(px)
+
+        def double_click(event):
+            """The whole line shown again, a zoomed-in profile zoomed out at once."""
+            if held["click_due"] is not None:
+                canvas.after_cancel(held["click_due"])
+                held.update(click_due=None)
+            held.update(swallow=True)
+            if state["view"] is not None and plot_x0 <= event.x <= plot_x1:
+                state.update(view=None)
+                redraw_profile()
 
         canvas.bind("<MouseWheel>", zoom)
         canvas.bind("<ButtonPress-1>", press)
         canvas.bind("<B1-Motion>", drag)
         canvas.bind("<ButtonRelease-1>", release)
+        canvas.bind("<Double-ButtonPress-1>", double_click)
 
         # Dragging the window's edges makes the plot wider, narrower, taller or
         # shorter, the profile drawn again to fill it - a long line's detail
