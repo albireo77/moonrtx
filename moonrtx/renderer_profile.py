@@ -47,6 +47,13 @@ class ProfileMixin:
     # a plot 200 px tall; a shorter search from each place cost more in
     # accuracy than it saved in time
     PROFILE_SUNLIT_QUICK_SAMPLES = 300
+    # The ground looked up towards the Sun is kept and used again while the
+    # Sun's bearing from every place has turned by less than this - at 10 km
+    # out, 44 m to the side, under a texel of the map - and the search still
+    # reaches far enough, made this much longer than needed each time it is
+    # looked up afresh (see _shadow_ceilings)
+    PROFILE_LIGHT_REUSE_DEG = 0.25
+    PROFILE_LIGHT_REACH_SPARE = 1.25
     # The place under the profile's pointer, marked on the Moon in the main
     # window: the readout's colour made bright enough for the dark side of the
     # terminator, and rimmed in black for the bright highland, a size under the
@@ -75,6 +82,9 @@ class ProfileMixin:
     def _init_profile(self):
         """Reset the profile window state; called from MoonRenderer.__init__."""
         self._profile = None                # the open window and its redraw, or None
+        # The ground looked up towards the Sun, by how many places it was
+        # looked up for (see _shadow_ceilings)
+        self._light_rays = {}
 
     # ---- the numbers ----
 
@@ -221,19 +231,35 @@ class ProfileMixin:
         reach = radius_m * (np.sqrt(tan_low ** 2 + 2.0 * rise / radius_m) - tan_low)
         reach = np.minimum(reach, self.PROFILE_SUNLIT_REACH_KM * 1000.0)
 
-        steps = (np.arange(1, self.PROFILE_SUNLIT_STEPS + 1) / self.PROFILE_SUNLIT_STEPS) ** 2
-        angle = reach[:, None] * steps[None, :] / radius_m          # round the Moon's centre
-        cos_a, sin_a = np.cos(angle)[..., None], np.sin(angle)[..., None]
-        ahead = cos_a * up[:, None, :] + sin_a * towards[:, None, :]
-        ahead_lat = np.degrees(np.arcsin(np.clip(ahead[..., 2], -1.0, 1.0)))
-        ahead_lon = np.degrees(np.arctan2(ahead[..., 0], -ahead[..., 1]))
-        ahead_r = self._ground_factor(ahead_lat, ahead_lon) * self.elevation_radius_scale * radius_m
-
         # Each place ahead as seen from this one: how far above its horizontal
-        # plane, and how far out along it
-        here_r = radius_m + heights_m
-        rising = ahead_r * np.cos(angle) - here_r[:, None]
-        out = ahead_r * np.sin(angle)
+        # plane, and how far out along it. Looked up again only when it has to
+        # be (see PROFILE_LIGHT_REUSE_DEG): as the clock moves, the Sun climbs
+        # or sinks far faster than its bearing turns, and the ground towards it
+        # is the same ground, seen at a new angle
+        rays = self._light_rays.get(len(up))
+        if (rays is None or not np.array_equal(rays["up"], up)
+                or not np.array_equal(rays["heights"], heights_m)
+                or np.any(reach > rays["reach"])
+                or np.min(np.einsum("ij,ij->i", towards, rays["towards"]))
+                < math.cos(math.radians(self.PROFILE_LIGHT_REUSE_DEG))):
+            # With room to spare, so a Sun sinking a little lower still finds
+            # the search long enough
+            reach = np.minimum(reach * self.PROFILE_LIGHT_REACH_SPARE,
+                               self.PROFILE_SUNLIT_REACH_KM * 1000.0)
+            steps = (np.arange(1, self.PROFILE_SUNLIT_STEPS + 1) / self.PROFILE_SUNLIT_STEPS) ** 2
+            angle = reach[:, None] * steps[None, :] / radius_m          # round the Moon's centre
+            cos_a, sin_a = np.cos(angle)[..., None], np.sin(angle)[..., None]
+            ahead = cos_a * up[:, None, :] + sin_a * towards[:, None, :]
+            ahead_lat = np.degrees(np.arcsin(np.clip(ahead[..., 2], -1.0, 1.0)))
+            ahead_lon = np.degrees(np.arctan2(ahead[..., 0], -ahead[..., 1]))
+            ahead_r = (self._ground_factor(ahead_lat, ahead_lon)
+                       * self.elevation_radius_scale * radius_m)
+            here_r = radius_m + heights_m
+            rays = {"up": up, "heights": np.array(heights_m), "towards": towards, "reach": reach,
+                    "rising": ahead_r * np.cos(angle) - here_r[:, None],
+                    "out": ahead_r * np.sin(angle)}
+            self._light_rays[len(up)] = rays
+        rising, out = rays["rising"], rays["out"]
         full = np.maximum((rising - out * tan_low[:, None]).max(axis=1), 0.0)
         some = np.maximum((rising - out * tan_high[:, None]).max(axis=1), 0.0)
         return full, some
@@ -330,15 +356,20 @@ class ProfileMixin:
 
     # ---- the window ----
 
-    def show_profile(self, start: tuple, end: tuple, live: bool = False) -> bool:
+    def show_profile(self, start: tuple, end: tuple, live: bool = False,
+                     light_only: bool = False) -> bool:
         """
         Draw the profile of the line from start to end, in the profile window -
         opening it if it is not already open - and say whether it was drawn.
 
-        live while an end of the line is being dragged, and the profile drawn
-        every MEASURE_PROFILE_LIVE_MS: the light is worked out the quick way
-        then (see _shadow_ceilings), and letting go of the drag draws it once
+        live while an end of the line is being dragged, or the clock is moving,
+        and the profile drawn again and again: the light is worked out the
+        quick way then (see _shadow_ceilings), and the end of it draws it once
         more the full way.
+
+        light_only when only the moment has changed, the line being the same:
+        its ground, grid and lettering are left as drawn and the light alone
+        reshaped, so the profile keeps up with a held Q or W.
         """
         if self.rt is None or getattr(self, "elevation", None) is None:
             return False
@@ -347,7 +378,7 @@ class ProfileMixin:
             return False
         if self._profile is None:
             self._open_profile_window()
-        self._profile["draw"](*profile, start, end)
+        self._profile["light" if light_only else "draw"](*profile, start, end)
         return True
 
     def close_profile(self):
@@ -491,7 +522,8 @@ class ProfileMixin:
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
 
-        state = {"x": None, "h": None, "light": None, "slopes": None, "x_of": None, "y_of": None,
+        state = {"x": None, "h": None, "light": None, "light_items": None,
+                 "slopes": None, "x_of": None, "y_of": None,
                  "base": 0.0, "pointer": None, "flipped": False}
 
         def signed(metres: float) -> str:
@@ -508,6 +540,39 @@ class ProfileMixin:
         shadow = np.array(canvas.winfo_rgb(colours["shadow"])) / 65535.0
         sunlit = np.array(canvas.winfo_rgb(colours["sunlit"])) / 65535.0
         penumbra = "#%02x%02x%02x" % tuple(int(round(c * 255)) for c in (shadow + sunlit) / 2)
+
+        def place_light():
+            """Shape the light and the penumbra to the light worked out last."""
+            _shadow_item, sunlit_item, penumbra_item = state["light_items"]
+            full, some = state["light"]
+            x_of, y_of = state["x_of"], state["y_of"]
+            xs = [x_of(float(k)) for k in state["x"]]
+
+            def edge(ceiling):
+                ys = np.clip([y_of(float(m)) for m in state["h"] + ceiling], plot_y0, plot_y1)
+                return [c for pair in zip(xs, ys) for c in pair]
+
+            full_edge, some_edge = edge(full), edge(some)
+            # Closed along the top from whichever side the line ends at
+            canvas.coords(sunlit_item, [xs[0], plot_y0] + full_edge + [xs[-1], plot_y0])
+            backwards = [c for k in range(len(xs) - 1, -1, -1)
+                         for c in some_edge[2 * k: 2 * k + 2]]
+            canvas.coords(penumbra_item, full_edge + backwards)
+
+        def update_light(distance_km: np.ndarray, height_m: np.ndarray, light: Optional[tuple],
+                         start: tuple, end: tuple):
+            """
+            The light alone drawn again, for the same line at another moment -
+            its ground, grid and lettering left as they are, which is most of
+            the drawing; the whole of it where there is no light drawn yet to
+            reshape, or the line is another.
+            """
+            if (light is None or state["light_items"] is None
+                    or (start, end) != (state["start"], state["end"])):
+                draw(distance_km, height_m, light, start, end)
+                return
+            state.update(light=light)
+            place_light()
 
         def draw(distance_km: np.ndarray, height_m: np.ndarray, light: Optional[tuple],
                  start: tuple, end: tuple):
@@ -535,24 +600,16 @@ class ProfileMixin:
             # then the space above the ground the Sun reaches, down to the top
             # of the shadow over each place, and the penumbra paler below that,
             # down to where none of the Sun is in sight. The ground is drawn
-            # over them all
+            # over them all. Made empty here and shaped by place_light, which
+            # alone is called again as the clock moves (see update_light)
+            state.update(light_items=None)
             if light is not None:
-                full, some = light
-                canvas.create_rectangle(plot_x0, plot_y0, plot_x1, plot_y1,
-                                        fill=colours["shadow"], outline="")
-                xs = [x_of(float(k)) for k in distance_km]
-
-                def edge(ceiling):
-                    ys = np.clip([y_of(float(m)) for m in height_m + ceiling], plot_y0, plot_y1)
-                    return [c for pair in zip(xs, ys) for c in pair]
-
-                full_edge, some_edge = edge(full), edge(some)
-                # Closed along the top from whichever side the line ends at
-                canvas.create_polygon([xs[0], plot_y0] + full_edge + [xs[-1], plot_y0],
-                                      fill=colours["sunlit"], outline="")
-                backwards = [c for k in range(len(xs) - 1, -1, -1)
-                             for c in some_edge[2 * k: 2 * k + 2]]
-                canvas.create_polygon(full_edge + backwards, fill=penumbra, outline="")
+                state.update(light_items=(
+                    canvas.create_rectangle(plot_x0, plot_y0, plot_x1, plot_y1,
+                                            fill=colours["shadow"], outline=""),
+                    canvas.create_polygon(0, 0, 0, 0, 0, 0, fill=colours["sunlit"], outline=""),
+                    canvas.create_polygon(0, 0, 0, 0, 0, 0, fill=penumbra, outline="")))
+                place_light()
 
             # Grid and axis labels. Heights are read from the start of the line,
             # which stands at 0, and the lines fall on round steps of that
@@ -683,7 +740,7 @@ class ProfileMixin:
 
         self._follow_window_size(frame, canvas, fit, redraw_profile)
 
-        self._profile = {"win": win, "draw": draw, "close": close}
+        self._profile = {"win": win, "draw": draw, "light": update_light, "close": close}
         # Larger or smaller by either edge, but never smaller than it first
         # opens at, however large the last one was left. Not forced to the
         # front, as it never was: it holds none of the renderer's keys

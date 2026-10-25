@@ -1024,7 +1024,9 @@ class NavigationMixin:
         self._measure_between(self.measure_start_coords, self.measure_end_coords)
 
         if self._measure_line_graphed and getattr(self, "_profile", None) is not None:
-            self.show_profile(self.measure_start_coords, self.measure_end_coords, live=True)
+            # The light alone: the ground under the line has not changed
+            self.show_profile(self.measure_start_coords, self.measure_end_coords,
+                              live=True, light_only=True)
             self._cancel_overlay(self._measure_profile_settle)
             self._measure_profile_settle = self._schedule_overlay(
                 self._settle_measure_profile, self.MEASURE_PROFILE_SETTLE_MS)
@@ -1048,7 +1050,7 @@ class NavigationMixin:
         self._measure_profile_settle = None
         if (self._measure_line is not None and self._measure_line_graphed
                 and getattr(self, "_profile", None) is not None):
-            self.show_profile(self.measure_start_coords, self.measure_end_coords)
+            self.show_profile(self.measure_start_coords, self.measure_end_coords, light_only=True)
 
     def drop_measure_line(self, close_profile: bool = True):
         """
