@@ -58,7 +58,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **F12** - Save image  
 **1-9** - Create/Remove pin (when pins are ON)  
 **0** - Toggle pins ON/OFF  
-**Z** - Toggle toolbar  
+**X** - Toggle toolbar  
 **T** - Toggle time toolbar  
 **P** - Toggle labels for all Moon features  
 **L** - Toggle standard labels  

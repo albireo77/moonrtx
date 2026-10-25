@@ -1646,7 +1646,7 @@ def run_renderer(dt_local: datetime,
             moon_renderer.change_time(moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 't':
             moon_renderer.toggle_toolbox()
-        elif event.keysym.lower() == 'z':
+        elif event.keysym.lower() == 'x':
             moon_renderer.toggle_toolbar()
         elif event.keysym == '0':
             moon_renderer.toggle_pins()
