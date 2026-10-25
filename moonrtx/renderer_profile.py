@@ -51,8 +51,11 @@ class ProfileMixin:
     PROFILE_SUNLIT_QUICK_SAMPLES = 300
     # The wheel zooms the profile in or out this much a notch, around the
     # pointer, no further in than this many samples across the view (see zoom)
-    PROFILE_ZOOM_STEP = 1.25
+    PROFILE_ZOOM_STEP = 1.05
     PROFILE_ZOOM_MIN_SAMPLES = 8
+    # How long the wheel or a drag along the line has to pause before the
+    # stretch in view is sampled afresh at the map's own detail (see refine)
+    PROFILE_REFINE_MS = 150
     # Fewer still while an end of the line is dragged, every place moving with
     # it so none of the ground towards the Sun can be used again: 9.5 ms
     # rather than 19.5 for the same line, the top of the shadow within 2.7 px
@@ -145,7 +148,8 @@ class ProfileMixin:
         return (np.degrees(np.arcsin(np.clip(points[:, 2], -1.0, 1.0))),
                 np.degrees(np.arctan2(points[:, 0], -points[:, 1])))
 
-    def elevation_profile(self, start: tuple, end: tuple, quick: int = 0) -> Optional[tuple]:
+    def elevation_profile(self, start: tuple, end: tuple, quick: int = 0,
+                          part: tuple = (0.0, 1.0)) -> Optional[tuple]:
         """
         Heights along the great circle from start to end.
 
@@ -156,6 +160,12 @@ class ProfileMixin:
         quick : int
             Work the light out the quicker way, at no more than this many
             places (see _shadow_ceilings); 0 for every place
+        part : tuple
+            The stretch of the line wanted, as shares of its length from the
+            start: (0, 1) for the whole of it. Sampled as finely as a line of
+            that stretch's length would be, so a stretch of a long line zoomed
+            in on is given the map's own detail, which the whole line, held to
+            PROFILE_MAX_SAMPLES, has to go without
 
         Returns
         -------
@@ -171,10 +181,11 @@ class ProfileMixin:
 
         length_km = self.calculate_great_circle_distance(*start, *end)
         texel_km = 2 * math.pi * self.MOON_RADIUS_KM / self.elevation.shape[1]
-        count = int(np.clip(math.ceil(length_km / texel_km * self.PROFILE_SAMPLES_PER_TEXEL),
+        stretch_km = length_km * (part[1] - part[0])
+        count = int(np.clip(math.ceil(stretch_km / texel_km * self.PROFILE_SAMPLES_PER_TEXEL),
                             self.PROFILE_MIN_SAMPLES, self.PROFILE_MAX_SAMPLES))
 
-        t = np.linspace(0.0, 1.0, count)
+        t = np.linspace(part[0], part[1], count)
         lats, lons = self._along(start, end, t)
         # All at once rather than through get_elevation_m one by one: the same
         # float64 lookup to the last bit, but the profile wants up to a couple
@@ -571,6 +582,9 @@ class ProfileMixin:
             memory["canvas"] = (width, height)
             self._profile = None
             self._mark_profile_place(None)
+            # A finer sampling still waiting has no window left to draw into
+            if state["refine_due"] is not None:
+                canvas.after_cancel(state["refine_due"])
 
         # Not holding the renderer's keys and not modal: measuring again, and
         # stepping the clock, go on in the main window while the profile is up
@@ -710,7 +724,8 @@ class ProfileMixin:
         state = {"x": None, "h": None, "light": None, "light_items": None,
                  "slopes": None, "x_of": None, "y_of": None,
                  "base": 0.0, "pointer": None, "flipped": False,
-                 "changes": {}, "changes_at": None, "view": None, "view_km": None}
+                 "changes": {}, "changes_at": None, "view": None, "view_km": None,
+                 "source": None, "fine": None, "refine_due": None}
 
         def signed(metres: float) -> str:
             """A height counted from the start of the line: signed, and plain 0 at it."""
@@ -730,11 +745,11 @@ class ProfileMixin:
         def place_light():
             """Shape the light and the penumbra to the light worked out last."""
             _shadow_item, sunlit_item, penumbra_item = state["light_items"]
-            in_view = state["in_view"]
-            full, some = (in_view(ceiling) for ceiling in state["light"])
+            in_view, source = state["in_view"], state["source"]
+            full, some = (in_view(ceiling) for ceiling in source["light"])
             x_of, y_of = state["x_of"], state["y_of"]
-            xs = x_of(in_view(state["x"])).tolist()
-            heights = in_view(state["h"])
+            xs = x_of(in_view(source["x"])).tolist()
+            heights = in_view(source["h"])
 
             def edge(ceiling):
                 ys = np.clip(y_of(heights + ceiling), plot_y0, plot_y1)
@@ -760,6 +775,18 @@ class ProfileMixin:
                 draw(distance_km, height_m, light, start, end)
                 return
             state.update(light=light)
+            # The finer stretch in view, if one is drawn, in the new light too:
+            # the quick way while the clock is moving, as the line's own is
+            fine = state["fine"]
+            if fine is not None and state["source"] is fine:
+                moving = getattr(self, "_measure_profile_settle", None) is not None
+                stretch = self.elevation_profile(
+                    start, end, quick=self.PROFILE_SUNLIT_QUICK_SAMPLES if moving else 0,
+                    part=fine["part"])
+                if stretch is not None and stretch[2] is not None:
+                    fine["light"] = stretch[2]
+            else:
+                state["source"] = {"x": distance_km, "h": height_m, "light": light}
             place_light()
             # And the readout, which tells when the light changes from now
             refresh_readout()
@@ -779,6 +806,18 @@ class ProfileMixin:
             km0, km1 = state["view"] if state["view"] is not None else (0.0, length)
             span = km1 - km0
 
+            # What the view is drawn from: the stretch in view sampled as finely
+            # as the map holds (see refine), once it has been for this view;
+            # the line's own samples otherwise
+            fine = state["fine"]
+            if fine is not None and (fine["start"], fine["end"], fine["view"]) == (start, end, (km0, km1)):
+                source = fine
+            else:
+                state.update(fine=None)
+                source = {"x": distance_km, "h": height_m, "light": light}
+            state.update(source=source)
+            source_x, source_h = source["x"], source["h"]
+
             # The samples drawn: those in view and one past each end of it, at
             # about one to a pixel of the plot's width - a long line holds up
             # to PROFILE_MAX_SAMPLES of them, more than a plot of most widths
@@ -787,23 +826,23 @@ class ProfileMixin:
             # two outermost are brought in to the ends of the view (see
             # in_view). Read off, the profile is still read from every sample
             # (see refresh_readout)
-            first = max(0, int(np.searchsorted(distance_km, km0, side="right")) - 1)
-            last = min(len(distance_km) - 1, int(np.searchsorted(distance_km, km1, side="left")))
+            first = max(0, int(np.searchsorted(source_x, km0, side="right")) - 1)
+            last = min(len(source_x) - 1, int(np.searchsorted(source_x, km1, side="left")))
             stride = max(1, int((last - first + 1) / max(1.0, plot_x1 - plot_x0)))
             drawn = np.unique(np.append(np.arange(first, last + 1, stride), last))
 
             def in_view(values: np.ndarray) -> np.ndarray:
                 """Values at the samples drawn, the outermost two at the view's ends."""
                 shown = np.array(values[drawn], dtype=float)
-                shown[0] = np.interp(km0, distance_km, values)
-                shown[-1] = np.interp(km1, distance_km, values)
+                shown[0] = np.interp(km0, source_x, values)
+                shown[-1] = np.interp(km1, source_x, values)
                 return shown
 
             # The heights in view set the height scale, so a small rise zoomed
             # in on is given height; a little room above and below the ground,
             # and a span of at least ten metres so a flat mare does not draw
             # its noise as mountains
-            seen = np.concatenate((in_view(height_m), height_m[first + 1:last]))
+            seen = np.concatenate((in_view(source_h), source_h[first + 1:last]))
             margin = max(5.0, 0.08 * (float(seen.max()) - float(seen.min())))
             y_min, y_max = float(seen.min()) - margin, float(seen.max()) + margin
 
@@ -874,8 +913,8 @@ class ProfileMixin:
                 d += d_step
 
             # The ground: filled down to the bottom of the plot, then its edge
-            xs = x_of(in_view(distance_km)).tolist()
-            ys = y_of(in_view(height_m)).tolist()
+            xs = x_of(in_view(source_x)).tolist()
+            ys = y_of(in_view(source_h)).tolist()
             outline = np.column_stack((xs, ys)).ravel().tolist()
             ground = canvas.create_polygon([xs[0], plot_y1] + outline + [xs[-1], plot_y1],
                                            fill=colours["fill"], outline="")
@@ -900,7 +939,10 @@ class ProfileMixin:
             # really is, from one sample to the next, in degrees. The steepest
             # either way, as a scarp is as steep going down it as up
             slopes = np.degrees(np.arctan2(np.diff(height_m), np.diff(distance_km) * 1000.0))
-            state.update(slopes=slopes)
+            # And of what the view is drawn from, for the readout to read
+            source_slopes = (slopes if source_x is distance_km else
+                             np.degrees(np.arctan2(np.diff(source_h), np.diff(source_x) * 1000.0)))
+            state.update(slopes=slopes, source_slopes=source_slopes)
 
             # Counted from the start of the line, as the axis is - all but the
             # relief, the height from the lowest point to the highest, which
@@ -911,6 +953,38 @@ class ProfileMixin:
                 f"lowest {signed(low - base)}, highest {signed(high - base)}, "
                 f"relief {round(high - low)} m, "
                 f"steepest {float(np.abs(slopes).max()):.1f}°")
+
+            # Zoomed in on a line too long for its own samples to hold all the
+            # map has, the stretch in view is sampled afresh once the wheel or
+            # the drag has paused (see refine)
+            if state["refine_due"] is not None:
+                canvas.after_cancel(state["refine_due"])
+                state.update(refine_due=None)
+            texel_km = 2 * math.pi * self.MOON_RADIUS_KM / self.elevation.shape[1]
+            coarser = length / (len(distance_km) - 1) > texel_km / self.PROFILE_SAMPLES_PER_TEXEL * 1.01
+            if state["view"] is not None and source is not state["fine"] and coarser:
+                state.update(refine_due=canvas.after(self.PROFILE_REFINE_MS, refine))
+
+        def refine():
+            """
+            The stretch of the line in view sampled as finely as the map holds,
+            heights and light, and the profile drawn again from it: once, after
+            the wheel or a drag along the line has paused, so that zooming and
+            moving stay quick while they go on.
+            """
+            state.update(refine_due=None)
+            if state["view"] is None or state["x"] is None:
+                return
+            length = float(state["x"][-1])
+            km0, km1 = state["view"]
+            part = (km0 / length, km1 / length)
+            stretch = self.elevation_profile(state["start"], state["end"], part=part)
+            if stretch is None:
+                return
+            state.update(fine={"start": state["start"], "end": state["end"], "view": (km0, km1),
+                               "part": part, "x": stretch[0], "h": stretch[1],
+                               "light": stretch[2]})
+            redraw_profile()
 
         def readout(event):
             state.update(pointer=event.x)
@@ -987,7 +1061,10 @@ class ProfileMixin:
             lat, lon = (float(v[0]) for v in
                         self._along(state["start"], state["end"], km / float(state["x"][-1])))
             self._mark_profile_place((lat, lon))
-            m = float(np.interp(km, state["x"], state["h"]))
+            # Read from what the view is drawn from: zoomed in on a long line,
+            # the stretch sampled to the map's own detail (see refine)
+            source = state["source"]
+            m = float(np.interp(km, source["x"], source["h"]))
             x, y = state["x_of"](km), state["y_of"](m)
             canvas.create_line(x, plot_y0, x, plot_y1, fill=colours["readout"], tags="readout")
             canvas.create_oval(x - 2 * line_w, y - 2 * line_w, x + 2 * line_w, y + 2 * line_w,
@@ -997,9 +1074,10 @@ class ProfileMixin:
             # slope of the stretch the pointer is over, and where on the Moon
             # the point is when that is asked for, written as the status bar
             # writes it
-            stretch = int(np.clip(np.searchsorted(state["x"], km) - 1, 0, len(state["slopes"]) - 1))
+            slopes = state["source_slopes"]
+            stretch = int(np.clip(np.searchsorted(source["x"], km) - 1, 0, len(slopes) - 1))
             text = (f" {km:.1f} km  {signed(m - state['base'])}  "
-                    f"{signed_slope(float(state['slopes'][stretch]))} ")
+                    f"{signed_slope(float(slopes[stretch]))} ")
             text += (f" {abs(lat):.2f}°{'N' if lat >= 0 else 'S'} "
                      f"{abs(lon):.2f}°{'E' if lon >= 0 else 'W'} ")
             canvas.create_text(x, plot_y0 - 1, text=text,
