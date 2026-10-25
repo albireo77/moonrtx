@@ -12,12 +12,14 @@ surface with, so it shows the terrain the picture is made of.
 
 import math
 import tkinter as tk
+from datetime import datetime, timedelta
 import tkinter.font as tkfont
 from tkinter import ttk
 from typing import Optional
 
 import numpy as np
 
+from moonrtx import astro
 from moonrtx.display import ToolTip
 from moonrtx.view_orientation import (FLIP_HORIZONTAL_VIEW_ORIENTATIONS,
                                       FLIP_VERTICAL_VIEW_ORIENTATIONS)
@@ -58,6 +60,22 @@ class ProfileMixin:
     # reaches far enough, made this much longer than needed each time it is
     # looked up afresh (see _shadow_ceilings)
     PROFILE_LIGHT_REUSE_DEG = 0.25
+    # When the ground under the pointer next goes into shadow or sunlight (see
+    # light_change): looked for this far ahead - past the longest night, half
+    # a lunation - with the Sun's place taken every so many minutes, a day of
+    # them looked at together, and the moment pinned down between two of them
+    # to well under a second. The Sun's course is worked out once and used
+    # for as long as the clock stays within this many hours after its start
+    PROFILE_LIGHT_DAYS = 16
+    PROFILE_LIGHT_STEP_MINUTES = 30
+    PROFILE_LIGHT_BATCH = 48
+    PROFILE_LIGHT_HALVINGS = 14
+    PROFILE_LIGHT_TRACK_REUSE_HOURS = 24
+    # The ground towards the Sun searched at this many evenly spaced places
+    # for it: some 11 m apart for a ridge 9 km off as the Sun clears it, where
+    # the shadows' own spacing, close in and wide out, put its top 40 m out and
+    # the moment 4 minutes early
+    PROFILE_LIGHT_STEPS = 800
     PROFILE_LIGHT_REACH_SPARE = 1.25
     # The place under the profile's pointer, marked on the Moon in the main
     # window: the readout's colour made bright enough for the dark side of the
@@ -77,12 +95,13 @@ class ProfileMixin:
     PROFILE_SAMPLES_PER_TEXEL = 2
     PROFILE_MIN_SAMPLES = 64
     PROFILE_MAX_SAMPLES = 2000
-    # Whether the pointer's readout gives the place as well as the distance and
-    # height. Off to begin with, the readout being busy enough without it;
-    # changing it stores it on the instance, so it holds for the rest of the
-    # session and into the next, as the planner's own choices do (see
+    # Whether the pointer's readout tells, on a line of its own, when the light
+    # changes under it (see light_change) - worked out only when it is asked
+    # for, being the one part of the readout that takes time. Off to begin
+    # with; changing it stores it on the instance, so it holds for the rest of
+    # the session and into the next, as the planner's own choices do (see
     # renderer_settings)
-    _profile_show_place = False
+    _profile_show_light_change = False
 
     def _init_profile(self):
         """Reset the profile window state; called from MoonRenderer.__init__."""
@@ -90,6 +109,8 @@ class ProfileMixin:
         # The ground looked up towards the Sun, by how many places it was
         # looked up for (see _shadow_ceilings)
         self._light_rays = {}
+        # The Sun's course from a moment on (see _sun_track)
+        self._profile_sun_track = None
 
     # ---- the numbers ----
 
@@ -269,6 +290,141 @@ class ProfileMixin:
         some = np.maximum((rising - out * tan_high[:, None]).max(axis=1), 0.0)
         return full, some
 
+    def light_change(self, lat: float, lon: float, height_m: float) -> Optional[tuple]:
+        """
+        When the ground at a place next goes into shadow, if it is in sunlight
+        now, or into sunlight, if it is in shadow.
+
+        Sunlight here is the Sun's centre standing above the ground's own
+        horizon towards it - the middle of the penumbra, which starts a little
+        before and ends a little after. The horizon is searched afresh for
+        every place of the Sun, its bearing drifting as it climbs or sinks: a
+        ridge beside the line can throw its shadow across the place hours after
+        the Sun has risen over the ground straight ahead.
+
+        The Sun's course is taken from the ephemeris every
+        PROFILE_LIGHT_STEP_MINUTES (see _sun_track), a day of it looked at at
+        once until the light changes, and the moment found by halving the step
+        it falls in, the Sun's place in between drawn straight between its two
+        ends - which over half an hour it is, to far better than the map can
+        tell.
+
+        Returns
+        -------
+        tuple or None
+            (lit_now, hours): whether the place is in sunlight now, and how
+            many hours until that changes - None for hours when it does not
+            within PROFILE_LIGHT_DAYS. None altogether before there is an
+            ephemeris.
+        """
+        track = self._sun_track()
+        if track is None:
+            return None
+        hours, suns = track
+        up = self._unit(lat, lon)
+
+        def lit(sun_rows) -> np.ndarray:
+            return self._sun_clearance(up, height_m, sun_rows) > 0.0
+
+        lit_now = bool(lit(suns[:1])[0])
+        first = 0
+        while first < len(hours) - 1:
+            # Each batch starts where the last one ended, so a change between
+            # them is caught too
+            last = min(first + self.PROFILE_LIGHT_BATCH, len(hours) - 1)
+            changed = np.flatnonzero(lit(suns[first:last + 1]) != lit_now)
+            if changed.size:
+                after = first + int(changed[0])
+                low, high = hours[after - 1], hours[after]
+                for _ in range(self.PROFILE_LIGHT_HALVINGS):
+                    middle = (low + high) / 2
+                    share = (middle - hours[after - 1]) / (hours[after] - hours[after - 1])
+                    sun = suns[after - 1] + (suns[after] - suns[after - 1]) * share
+                    sun /= np.linalg.norm(sun)
+                    if bool(lit(sun[None, :])[0]) == lit_now:
+                        low = middle
+                    else:
+                        high = middle
+                return lit_now, high
+            first = last
+        return lit_now, None
+
+    def _sun_track(self) -> Optional[tuple]:
+        """
+        The Sun's course over the Moon from the moment shown on: (hours, suns),
+        the hours since that moment and the body-frame unit vector to the Sun
+        at each (see astro.subsolar_track).
+
+        Worked out from a moment for PROFILE_LIGHT_DAYS and the next day, and
+        used again while the clock stays within PROFILE_LIGHT_TRACK_REUSE_HOURS
+        after that moment, the moment shown standing in for its first place -
+        so a clock stepped while the pointer rests on the profile does not ask
+        the ephemeris for the whole of it on every step.
+        """
+        when = getattr(self, "dt_local", None)
+        if when is None or getattr(self, "moon_ephem", None) is None:
+            return None
+        track = self._profile_sun_track
+        offset = None if track is None else (when - track[0]).total_seconds() / 3600.0
+        if offset is None or not 0.0 <= offset <= self.PROFILE_LIGHT_TRACK_REUSE_HOURS:
+            hours, lat, lon = astro.subsolar_track(
+                when, self.PROFILE_LIGHT_DAYS + self.PROFILE_LIGHT_TRACK_REUSE_HOURS / 24.0,
+                self.PROFILE_LIGHT_STEP_MINUTES)
+            la, lo = np.radians(lat), np.radians(lon)
+            suns = np.column_stack((np.cos(la) * np.sin(lo), -np.cos(la) * np.cos(lo), np.sin(la)))
+            self._profile_sun_track = track = (when, hours, suns)
+            offset = 0.0
+        _start, hours, suns = track
+        # From the moment shown: the place of the Sun then drawn straight
+        # between the two places of the course either side of it
+        after = int(np.searchsorted(hours, offset, side="right"))
+        if after >= len(hours):
+            return None
+        share = (offset - hours[after - 1]) / (hours[after] - hours[after - 1])
+        now = suns[after - 1] + (suns[after] - suns[after - 1]) * share
+        now /= np.linalg.norm(now)
+        end = min(len(hours), after + int(self.PROFILE_LIGHT_DAYS * 24 * 60
+                                          / self.PROFILE_LIGHT_STEP_MINUTES))
+        return (np.concatenate(([0.0], hours[after:end] - offset)),
+                np.vstack((now[None, :], suns[after:end])))
+
+    def _sun_clearance(self, up: np.ndarray, height_m: float, suns: np.ndarray) -> np.ndarray:
+        """
+        How far the Sun's centre stands above the ground's own horizon towards
+        it, in radians, from one place on the ground, for each of these
+        body-frame directions of the Sun: below 0, the place is in shadow.
+
+        The ground towards the Sun is searched at PROFILE_LIGHT_STEPS evenly
+        spaced places, out to where a ray at the Sun's altitude has climbed
+        above the highest ground the map holds (as _shadow_ceilings searches,
+        but evenly: the timing turns on the very top of whatever stands
+        furthest out in the way).
+        """
+        radius_m = self.MOON_RADIUS_KM * 1000.0
+        sin_altitude = np.clip(suns @ up, -1.0, 1.0)
+        altitude = np.arcsin(sin_altitude)
+        towards = suns - sin_altitude[:, None] * up[None, :]
+        length = np.linalg.norm(towards, axis=1)
+        towards /= np.where(length > 1e-12, length, 1.0)[:, None]
+        limit = math.pi / 2 - 1e-6
+        tan_altitude = np.tan(np.clip(altitude, -limit, limit))
+
+        peak_m = (self.elevation_radius_scale - 1.0) * radius_m
+        rise = max(peak_m - float(height_m), 0.0)
+        reach = radius_m * (np.sqrt(tan_altitude ** 2 + 2.0 * rise / radius_m) - tan_altitude)
+        reach = np.minimum(reach, self.PROFILE_SUNLIT_REACH_KM * 1000.0)
+
+        steps = np.arange(1, self.PROFILE_LIGHT_STEPS + 1) / self.PROFILE_LIGHT_STEPS
+        angle = reach[:, None] * steps[None, :] / radius_m          # round the Moon's centre
+        ahead = (np.cos(angle)[..., None] * up[None, None, :]
+                 + np.sin(angle)[..., None] * towards[:, None, :])
+        ahead_lat = np.degrees(np.arcsin(np.clip(ahead[..., 2], -1.0, 1.0)))
+        ahead_lon = np.degrees(np.arctan2(ahead[..., 0], -ahead[..., 1]))
+        ahead_r = self._ground_factor(ahead_lat, ahead_lon) * self.elevation_radius_scale * radius_m
+        rising = ahead_r * np.cos(angle) - (radius_m + float(height_m))
+        out = ahead_r * np.sin(angle)
+        return altitude - np.arctan2(rising, out).max(axis=1)
+
     def _canvas_xy_of(self, lat: float, lon: float) -> Optional[tuple]:
         """
         Where a place on the ground is in the main window, in canvas pixels; or
@@ -432,14 +588,14 @@ class ProfileMixin:
         summary_var = tk.StringVar()
         tk.Label(top_row, textvariable=summary_var, font=font, anchor='w').pack(
             side=tk.LEFT, fill=tk.X, expand=True)
-        place_var = tk.BooleanVar(value=self._profile_show_place)
+        light_change_var = tk.BooleanVar(value=self._profile_show_light_change)
 
-        def place_toggled():
-            self._profile_show_place = place_var.get()
+        def light_change_toggled():
+            self._profile_show_light_change = light_change_var.get()
             refresh_readout()
 
-        ttk.Checkbutton(top_row, text="Coordinates", variable=place_var,
-                        command=place_toggled).pack(side=tk.RIGHT)
+        ttk.Checkbutton(top_row, text="Light change", variable=light_change_var,
+                        command=light_change_toggled).pack(side=tk.RIGHT)
 
         # What the window does not say on its face, as the graph keeps its own
         # (see feature_graph_dialog) - among it how finely the map holds the
@@ -486,6 +642,12 @@ class ProfileMixin:
             "• The filled circle is the start of the line, as on the Moon, and the\n"
             "   ring its end. ⇄ draws the profile the other way round - for a\n"
             "   line running right to left on the Moon - every number unchanged.\n"
+            "• With Light change ticked, a line above the readout tells when the\n"
+            "   ground under the pointer next goes into shadow, or into sunlight,\n"
+            "   on the session's clock - as the Sun's centre crosses\n"
+            "   the horizon its surroundings make, from the Sun's real course; the\n"
+            "   penumbra starts a little before and ends a little after. Click to\n"
+            "   take the clock there. Not told while the clock is moving.\n"
             "• Drag the window's edges to make the profile larger.")
         help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
         help_label.pack(side=tk.RIGHT, padx=pad)
@@ -508,7 +670,9 @@ class ProfileMixin:
         # The heights' labels kept clear of the circle on the line's end there
         label_w = metrics.measure('-10000 m') + 2 * pad + end_r
         plot_x0 = label_w
-        plot_y0 = pad + line_h                  # a line of room for the readout
+        # Two lines of room for the readout: the place under the pointer, and
+        # above it when the light there changes
+        plot_y0 = pad + 2 * line_h
         # Under the plot, a line for the distances
         below = pad + line_h + pad
 
@@ -533,9 +697,12 @@ class ProfileMixin:
                            highlightthickness=0, bg=win.cget('bg'))
         canvas.pack()
 
+        # changes: when the light changes, by sample, as change_at found it at
+        # the moment changes_at
         state = {"x": None, "h": None, "light": None, "light_items": None,
                  "slopes": None, "x_of": None, "y_of": None,
-                 "base": 0.0, "pointer": None, "flipped": False}
+                 "base": 0.0, "pointer": None, "flipped": False,
+                 "changes": {}, "changes_at": None}
 
         def signed(metres: float) -> str:
             """A height counted from the start of the line: signed, and plain 0 at it."""
@@ -586,11 +753,14 @@ class ProfileMixin:
                 return
             state.update(light=light)
             place_light()
+            # And the readout, which tells when the light changes from now
+            refresh_readout()
 
         def draw(distance_km: np.ndarray, height_m: np.ndarray, light: Optional[tuple],
                  start: tuple, end: tuple):
             canvas.delete("all")
-            state.update(x=distance_km, h=height_m, light=light, start=start, end=end)
+            state.update(x=distance_km, h=height_m, light=light, start=start, end=end,
+                         changes={}, changes_at=None)
             length = float(distance_km[-1])
             low, high = float(height_m.min()), float(height_m.max())
             # A little room above and below the ground, and a span of at least
@@ -713,6 +883,63 @@ class ProfileMixin:
             canvas.delete("readout")
             self._mark_profile_place(None)
 
+        def moment(hours: float) -> datetime:
+            """
+            The moment that many hours after the one shown, on the observer's
+            clock, rounded up to the whole second - so that going to it finds
+            the change already made.
+            """
+            when = self.in_observer_clock(self.dt_local + timedelta(hours=hours))
+            if when.microsecond:
+                when = when.replace(microsecond=0) + timedelta(seconds=1)
+            return when
+
+        def moment_text(hours: float) -> str:
+            return moment(hours).strftime("%Y-%m-%d %H:%M:%S")
+
+        def change_at(km: float) -> Optional[tuple]:
+            """
+            When the ground at the profile's sample nearest km next goes into
+            shadow or sunlight (see light_change): (lit_now, the moment, or None
+            for none within PROFILE_LIGHT_DAYS) - or None when it is not asked
+            for (the Light change box), while there is no light to tell, or
+            while the clock is moving, so a held Q or W is not slowed by it; it
+            is told once the clock stands still. Worked out the first time it is
+            asked for at a moment, and kept for it: the pointer goes back and
+            forth over the same samples.
+            """
+            if (not self._profile_show_light_change or state["light"] is None
+                    or getattr(self, "_measure_profile_settle", None) is not None):
+                return None
+            if state["changes_at"] != self.dt_local:
+                state.update(changes={}, changes_at=self.dt_local)
+            sample = int(np.argmin(np.abs(state["x"] - km)))
+            if sample not in state["changes"]:
+                lat, lon = (float(v[0]) for v in
+                            self._along(state["start"], state["end"],
+                                        float(state["x"][sample]) / float(state["x"][-1])))
+                found = self.light_change(lat, lon, float(state["h"][sample]))
+                state["changes"][sample] = (None if found is None else
+                                            (found[0], None if found[1] is None
+                                             else moment(found[1])))
+            return state["changes"][sample]
+
+        def go_to_change(event):
+            """A click on the profile: the clock taken to when the light changes there."""
+            if state["x"] is None or not (plot_x0 <= event.x <= plot_x1):
+                return
+            if getattr(self, "_video_export", None) is not None:    # the export owns the clock
+                return
+            share = (event.x - plot_x0) / (plot_x1 - plot_x0)
+            km = (1.0 - share if state["flipped"] else share) * float(state["x"][-1])
+            change = change_at(km)
+            if change is None or change[1] is None:
+                return
+            self._go_to_moment(change[1])
+            # The light has been reshaped for the new moment (see
+            # NavigationMixin._follow_measure_line); the readout follows it
+            refresh_readout()
+
         def refresh_readout():
             """The readout for where the pointer is, drawn afresh, and its mark on the Moon."""
             canvas.delete("readout")
@@ -738,15 +965,28 @@ class ProfileMixin:
             stretch = int(np.clip(np.searchsorted(state["x"], km) - 1, 0, len(state["slopes"]) - 1))
             text = (f" {km:.1f} km  {signed(m - state['base'])}  "
                     f"{signed_slope(float(state['slopes'][stretch]))} ")
-            if self._profile_show_place:
-                text += (f" {abs(lat):.2f}°{'N' if lat >= 0 else 'S'} "
-                         f"{abs(lon):.2f}°{'E' if lon >= 0 else 'W'} ")
+            text += (f" {abs(lat):.2f}°{'N' if lat >= 0 else 'S'} "
+                     f"{abs(lon):.2f}°{'E' if lon >= 0 else 'W'} ")
             canvas.create_text(x, plot_y0 - 1, text=text,
                                anchor=anchor, fill=colours["readout"], font=font,
                                tags="readout")
+            # On the line above, when asked for: when the light there changes
+            change = change_at(km)
+            if change is not None:
+                lit_now, when = change
+                if when is None:
+                    text = (f" {'lit' if lit_now else 'in shadow'} past "
+                            f"{moment_text(self.PROFILE_LIGHT_DAYS * 24.0)} ")
+                else:
+                    text = (f" {'in shadow' if lit_now else 'lit'} at "
+                            f"{when.strftime('%Y-%m-%d %H:%M:%S')} (click to go) ")
+                canvas.create_text(x, plot_y0 - 1 - line_h, text=text,
+                                   anchor=anchor, fill=colours["readout"], font=font,
+                                   tags="readout")
 
         canvas.bind("<Motion>", readout)
         canvas.bind("<Leave>", pointer_left)
+        canvas.bind("<Button-1>", go_to_change)
 
         # Dragging the window's edges makes the plot wider, narrower, taller or
         # shorter, the profile drawn again to fill it - a long line's detail

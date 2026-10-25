@@ -238,6 +238,25 @@ def _sub_point(target, t, moon_at) -> tuple:
             np.degrees(np.arctan2(body_vec[1], body_vec[0])))
 
 
+def subsolar_track(start_local: datetime, days: float, step_minutes: int) -> tuple:
+    """
+    Where the Sun stands overhead on the Moon from start_local on, every
+    step_minutes for that many days (cut short at the end of the bundled
+    kernels): one vectorized Skyfield evaluation for the lot.
+
+    Returns
+    -------
+    tuple
+        (hours, lat, lon) arrays: hours since start_local, and the subsolar
+        point's selenographic latitude and longitude in degrees, in the frame
+        MoonEphemeris.subsolar_lat / subsolar_lon use
+    """
+    dts, t = _scan_times(start_local, days, step_minutes)
+    lat, lon = _sub_point(_sun, t, _moon.at(t))
+    hours = np.arange(len(dts)) * step_minutes / 60.0
+    return hours, lat, lon
+
+
 def _split_windows(idx: np.ndarray) -> list:
     """Split indices of qualifying samples into runs of consecutive ones."""
     breaks = np.flatnonzero(np.diff(idx) > 1)

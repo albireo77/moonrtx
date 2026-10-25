@@ -68,7 +68,7 @@ class SettingsMixin:
                                       and v in self.GRAPH_ZOOM_SPANS),
             "_graph_step_minutes": lambda v: v is None or (
                 isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 1440),
-            "_profile_show_place": flag,
+            "_profile_show_light_change": flag,
             "scale_bar_visible": flag,
             "angle_bar_visible": flag,
             "time_toolbox_visible": flag,
