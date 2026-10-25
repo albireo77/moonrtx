@@ -49,6 +49,10 @@ class ProfileMixin:
     # a plot 200 px tall; a shorter search from each place cost more in
     # accuracy than it saved in time
     PROFILE_SUNLIT_QUICK_SAMPLES = 300
+    # The wheel zooms the profile in or out this much a notch, around the
+    # pointer, no further in than this many samples across the view (see zoom)
+    PROFILE_ZOOM_STEP = 1.25
+    PROFILE_ZOOM_MIN_SAMPLES = 8
     # Fewer still while an end of the line is dragged, every place moving with
     # it so none of the ground towards the Sun can be used again: 9.5 ms
     # rather than 19.5 for the same line, the top of the shadow within 2.7 px
@@ -648,6 +652,10 @@ class ProfileMixin:
             "   the horizon its surroundings make, from the Sun's real course; the\n"
             "   penumbra starts a little before and ends a little after. Click to\n"
             "   take the clock there. Not told while the clock is moving.\n"
+            "• The mouse wheel zooms in on the profile around the pointer, and back\n"
+            "   out. Zoomed in, drag with the left button to move left and right\n"
+            "   along it. The heights' scale fits what is in view, the numbers\n"
+            "   above stay those of the line.\n"
             "• Drag the window's edges to make the profile larger.")
         help_label = tk.Label(top_row, text="Help", font=font, fg='#606060')
         help_label.pack(side=tk.RIGHT, padx=pad)
@@ -702,7 +710,7 @@ class ProfileMixin:
         state = {"x": None, "h": None, "light": None, "light_items": None,
                  "slopes": None, "x_of": None, "y_of": None,
                  "base": 0.0, "pointer": None, "flipped": False,
-                 "changes": {}, "changes_at": None}
+                 "changes": {}, "changes_at": None, "view": None, "view_km": None}
 
         def signed(metres: float) -> str:
             """A height counted from the start of the line: signed, and plain 0 at it."""
@@ -722,11 +730,11 @@ class ProfileMixin:
         def place_light():
             """Shape the light and the penumbra to the light worked out last."""
             _shadow_item, sunlit_item, penumbra_item = state["light_items"]
-            drawn = state["drawn"]
-            full, some = (ceiling[drawn] for ceiling in state["light"])
+            in_view = state["in_view"]
+            full, some = (in_view(ceiling) for ceiling in state["light"])
             x_of, y_of = state["x_of"], state["y_of"]
-            xs = x_of(state["x"][drawn]).tolist()
-            heights = state["h"][drawn]
+            xs = x_of(in_view(state["x"])).tolist()
+            heights = in_view(state["h"])
 
             def edge(ceiling):
                 ys = np.clip(y_of(heights + ceiling), plot_y0, plot_y1)
@@ -759,34 +767,61 @@ class ProfileMixin:
         def draw(distance_km: np.ndarray, height_m: np.ndarray, light: Optional[tuple],
                  start: tuple, end: tuple):
             canvas.delete("all")
+            # The stretch of the line in view: the whole of it, or the part the
+            # wheel has zoomed in on (see zoom), for as long as the line is the
+            # same - another line, or this one with an end moved, starts whole
+            if (start, end) != (state.get("start"), state.get("end")):
+                state.update(view=None)
             state.update(x=distance_km, h=height_m, light=light, start=start, end=end,
                          changes={}, changes_at=None)
             length = float(distance_km[-1])
             low, high = float(height_m.min()), float(height_m.max())
-            # A little room above and below the ground, and a span of at least
-            # ten metres so a flat mare does not draw its noise as mountains
-            margin = max(5.0, 0.08 * (high - low))
-            y_min, y_max = low - margin, high + margin
+            km0, km1 = state["view"] if state["view"] is not None else (0.0, length)
+            span = km1 - km0
+
+            # The samples drawn: those in view and one past each end of it, at
+            # about one to a pixel of the plot's width - a long line holds up
+            # to PROFILE_MAX_SAMPLES of them, more than a plot of most widths
+            # can show, and every point more in the ground's and the light's
+            # outlines is work for Tk on every drawing, a drag's included. The
+            # two outermost are brought in to the ends of the view (see
+            # in_view). Read off, the profile is still read from every sample
+            # (see refresh_readout)
+            first = max(0, int(np.searchsorted(distance_km, km0, side="right")) - 1)
+            last = min(len(distance_km) - 1, int(np.searchsorted(distance_km, km1, side="left")))
+            stride = max(1, int((last - first + 1) / max(1.0, plot_x1 - plot_x0)))
+            drawn = np.unique(np.append(np.arange(first, last + 1, stride), last))
+
+            def in_view(values: np.ndarray) -> np.ndarray:
+                """Values at the samples drawn, the outermost two at the view's ends."""
+                shown = np.array(values[drawn], dtype=float)
+                shown[0] = np.interp(km0, distance_km, values)
+                shown[-1] = np.interp(km1, distance_km, values)
+                return shown
+
+            # The heights in view set the height scale, so a small rise zoomed
+            # in on is given height; a little room above and below the ground,
+            # and a span of at least ten metres so a flat mare does not draw
+            # its noise as mountains
+            seen = np.concatenate((in_view(height_m), height_m[first + 1:last]))
+            margin = max(5.0, 0.08 * (float(seen.max()) - float(seen.min())))
+            y_min, y_max = float(seen.min()) - margin, float(seen.max()) + margin
 
             flipped = state["flipped"]
 
             def x_of(km):
-                share = km / length
+                share = (km - km0) / span
                 return plot_x0 + (plot_x1 - plot_x0) * (1.0 - share if flipped else share)
+
+            def km_of(px):
+                share = (px - plot_x0) / (plot_x1 - plot_x0)
+                return km0 + (1.0 - share if flipped else share) * span
 
             def y_of(m):
                 return plot_y1 - (plot_y1 - plot_y0) * (m - y_min) / (y_max - y_min)
 
-            # The samples drawn: about one to a pixel of the plot's width, the
-            # two ends always - a long line holds up to PROFILE_MAX_SAMPLES of
-            # them, more than a plot of most widths can show, and every point
-            # more in the ground's and the light's outlines is work for Tk on
-            # every drawing, a drag's included. Read off, the profile is
-            # still read from every sample (see refresh_readout)
-            stride = max(1, int(len(distance_km) / max(1.0, plot_x1 - plot_x0)))
-            drawn = np.unique(np.append(np.arange(0, len(distance_km), stride),
-                                        len(distance_km) - 1))
-            state.update(x_of=x_of, y_of=y_of, drawn=drawn)
+            state.update(x_of=x_of, km_of=km_of, y_of=y_of, drawn=drawn, in_view=in_view,
+                         view_km=(km0, km1))
 
             # Light and shadow first, under everything else: the plot in shadow,
             # then the space above the ground the Sun reaches, down to the top
@@ -825,12 +860,13 @@ class ProfileMixin:
                 canvas.create_text(plot_x0, plot_y1 + pad, text="km", anchor='nw', font=font)
             else:
                 canvas.create_text(plot_x1, plot_y1 + pad, text="km", anchor='ne', font=font)
-            d_step = self._nice_step(length, 10)
-            d = 0.0
-            while d <= length + 1e-9:
+            d_step = self._nice_step(span, 10)
+            decimals = max(0, -math.floor(math.log10(d_step)))
+            d = math.ceil(km0 / d_step - 1e-9) * d_step
+            while d <= km1 + 1e-9:
                 x = x_of(d)
                 canvas.create_line(x, plot_y0, x, plot_y1, fill=colours["grid"], tags="grid")
-                text = f"{d:.0f}" if d_step >= 1 else f"{d:.1f}"
+                text = f"{d:.{decimals}f}"
                 half = metrics.measure(text) / 2
                 clear = (x - half >= plot_x0 + unit_room) if flipped else (x + half <= plot_x1 - unit_room)
                 if clear:
@@ -838,9 +874,8 @@ class ProfileMixin:
                 d += d_step
 
             # The ground: filled down to the bottom of the plot, then its edge
-            drawn = state["drawn"]
-            xs = x_of(distance_km[drawn]).tolist()
-            ys = y_of(height_m[drawn]).tolist()
+            xs = x_of(in_view(distance_km)).tolist()
+            ys = y_of(in_view(height_m)).tolist()
             outline = np.column_stack((xs, ys)).ravel().tolist()
             ground = canvas.create_polygon([xs[0], plot_y1] + outline + [xs[-1], plot_y1],
                                            fill=colours["fill"], outline="")
@@ -853,10 +888,13 @@ class ProfileMixin:
             # The ends marked as on the Moon: the start filled, the end a ring.
             # In the line's colour rather than the measuring line's yellow,
             # which the sunlight behind would swallow
+            # Only the ends in view, zoomed in
             r = end_r
-            for (x, y), fill in (((xs[0], ys[0]), colours["ground"]), ((xs[-1], ys[-1]), "")):
-                canvas.create_oval(x - r, y - r, x + r, y + r, fill=fill,
-                                   outline=colours["ground"], width=line_w)
+            for (x, y), fill, shown in (((xs[0], ys[0]), colours["ground"], km0 <= 0.0),
+                                        ((xs[-1], ys[-1]), "", km1 >= length)):
+                if shown:
+                    canvas.create_oval(x - r, y - r, x + r, y + r, fill=fill,
+                                       outline=colours["ground"], width=line_w)
 
             # What a profile drawn to fill its box hides: how steep the ground
             # really is, from one sample to the next, in degrees. The steepest
@@ -930,9 +968,7 @@ class ProfileMixin:
                 return
             if getattr(self, "_video_export", None) is not None:    # the export owns the clock
                 return
-            share = (event.x - plot_x0) / (plot_x1 - plot_x0)
-            km = (1.0 - share if state["flipped"] else share) * float(state["x"][-1])
-            change = change_at(km)
+            change = change_at(state["km_of"](event.x))
             if change is None or change[1] is None:
                 return
             self._go_to_moment(change[1])
@@ -947,8 +983,7 @@ class ProfileMixin:
             if state["x"] is None or px is None or not (plot_x0 <= px <= plot_x1):
                 self._mark_profile_place(None)
                 return
-            share = (px - plot_x0) / (plot_x1 - plot_x0)
-            km = (1.0 - share if state["flipped"] else share) * float(state["x"][-1])
+            km = state["km_of"](px)
             lat, lon = (float(v[0]) for v in
                         self._along(state["start"], state["end"], km / float(state["x"][-1])))
             self._mark_profile_place((lat, lon))
@@ -986,7 +1021,59 @@ class ProfileMixin:
 
         canvas.bind("<Motion>", readout)
         canvas.bind("<Leave>", pointer_left)
-        canvas.bind("<Button-1>", go_to_change)
+
+        def zoom(event):
+            """
+            The wheel: in on the stretch under the pointer, or back out - the
+            pointer's place held where it is, and never out past the whole
+            line or in past PROFILE_ZOOM_MIN_SAMPLES of its samples, finer
+            than which the map holds nothing more to show.
+            """
+            if state["x"] is None or not (plot_x0 <= event.x <= plot_x1):
+                return
+            length = float(state["x"][-1])
+            km0, km1 = state["view_km"]
+            at = state["km_of"](event.x)
+            smallest = min(length, self.PROFILE_ZOOM_MIN_SAMPLES * length / (len(state["x"]) - 1))
+            span = km1 - km0
+            new_span = min(length, max(smallest, span * self.PROFILE_ZOOM_STEP ** (-event.delta / 120)))
+            new0 = min(max(at - (at - km0) * new_span / span, 0.0), length - new_span)
+            state.update(view=None if new_span >= length else (new0, new0 + new_span))
+            redraw_profile()
+
+        # A drag sideways moves a zoomed-in profile along the line; a click
+        # that does not move takes the clock to when the light changes there
+        # (see go_to_change)
+        held = {"x": None, "view": None, "moved": False}
+
+        def press(event):
+            held.update(x=event.x, view=state["view_km"], moved=False)
+
+        def drag(event):
+            state.update(pointer=event.x)
+            if held["x"] is None or state["view"] is None:
+                return
+            dx = event.x - held["x"]
+            if not held["moved"] and abs(dx) <= self._overlay_px(self.CLICK_SLOP_PX):
+                return
+            held.update(moved=True)
+            km0, km1 = held["view"]
+            span, length = km1 - km0, float(state["x"][-1])
+            shift = dx / (plot_x1 - plot_x0) * span * (1.0 if state["flipped"] else -1.0)
+            new0 = min(max(km0 + shift, 0.0), length - span)
+            state.update(view=(new0, new0 + span))
+            redraw_profile()
+
+        def release(event):
+            moved = held["moved"]
+            held.update(x=None, moved=False)
+            if not moved:
+                go_to_change(event)
+
+        canvas.bind("<MouseWheel>", zoom)
+        canvas.bind("<ButtonPress-1>", press)
+        canvas.bind("<B1-Motion>", drag)
+        canvas.bind("<ButtonRelease-1>", release)
 
         # Dragging the window's edges makes the plot wider, narrower, taller or
         # shorter, the profile drawn again to fill it - a long line's detail
