@@ -12,7 +12,7 @@ surface with, so it shows the terrain the picture is made of.
 
 import math
 import tkinter as tk
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import tkinter.font as tkfont
 from tkinter import ttk
 from typing import Optional
@@ -393,6 +393,10 @@ class ProfileMixin:
         when = getattr(self, "dt_local", None)
         if when is None or getattr(self, "moon_ephem", None) is None:
             return None
+        # As an instant: two moments on the one zone subtract by their wall
+        # clocks, and a daylight saving change between them put the Sun an
+        # hour from where it stood
+        when = when.astimezone(timezone.utc)
         track = self._profile_sun_track
         offset = None if track is None else (when - track[0]).total_seconds() / 3600.0
         if offset is None or not 0.0 <= offset <= self.PROFILE_LIGHT_TRACK_REUSE_HOURS:
@@ -1017,9 +1021,12 @@ class ProfileMixin:
             """
             The moment that many hours after the one shown, on the observer's
             clock, rounded up to the whole second - so that going to it finds
-            the change already made.
+            the change already made. Hours of real time, counted on the instant
+            (see shifted_time): added to the wall clock, they came out an hour
+            off across a daylight saving change.
             """
-            when = self.in_observer_clock(self.dt_local + timedelta(hours=hours))
+            when = self.in_observer_clock(self.dt_local.astimezone(timezone.utc)
+                                          + timedelta(hours=hours))
             if when.microsecond:
                 when = when.replace(microsecond=0) + timedelta(seconds=1)
             return when

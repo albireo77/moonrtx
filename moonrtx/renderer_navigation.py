@@ -686,8 +686,11 @@ class NavigationMixin:
 
         # Clamp FOV to reasonable range. The lower bound keeps the maximum zoom-in
         # (relative to the ~4.2 degree default FOV of the camera at 30 Moon radii)
-        # similar to the previous 10-radii/1-degree setup.
-        new_fov = max(0.3, min(90, new_fov))
+        # similar to the previous 10-radii/1-degree setup. The wheel only stops
+        # at a bound, never jumps to it: Shift with the left button zooms past
+        # 0.3 degrees, and from there a notch either way used to throw the view
+        # back out to 0.3 at once
+        new_fov = max(min(0.3, current_fov), min(max(90, current_fov), new_fov))
 
         self.rt._optix.set_camera_fov(new_fov)
 
