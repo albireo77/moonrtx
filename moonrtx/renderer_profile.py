@@ -943,8 +943,8 @@ class ProfileMixin:
             canvas.create_rectangle(plot_x0, plot_y0, plot_x1, plot_y1, outline="#808080")
 
             # The ends marked as on the Moon: the start filled, the end a ring.
-            # In the line's colour rather than the measuring line's yellow,
-            # which the sunlight behind would swallow
+            # In the line's colour rather than the measuring line's pale
+            # orange, which the sunlight behind would swallow
             # Only the ends in view, zoomed in
             r = end_r
             for (x, y), fill, shown in (((xs[0], ys[0]), colours["ground"], km0 <= 0.0),

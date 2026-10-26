@@ -9,14 +9,17 @@ import tkinter as tk
 import numpy as np
 from typing import Optional
 
+from moonrtx.renderer_overlay import CanvasOverlayMixin
 from moonrtx.shared_types import MoonFeature
 
 
 class NavigationMixin:
     """Mixin providing camera navigation and measurement methods for MoonRenderer."""
 
-    # The measurement line. Sizes are for a 96-dpi screen.
-    MEASURE_LINE_COLOR = 'yellow'
+    # The measurement line, in the pale orange of the overlays that measure the
+    # picture (CanvasOverlayMixin.OVERLAY_ACCENT_COLOR). Sizes are for a
+    # 96-dpi screen.
+    MEASURE_LINE_COLOR = CanvasOverlayMixin.OVERLAY_ACCENT_COLOR
     MEASURE_LINE_WIDTH = 2
     MEASURE_LINE_DASH = 4           # the length of each dash and of each gap
     # The circle at each end of the line, by which that end is dragged to
