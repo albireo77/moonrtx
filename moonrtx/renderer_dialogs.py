@@ -847,7 +847,7 @@ class DialogsMixin:
             ("End", "Reset camera to default position (useful after starting with `--init-view` parameter)"),
             ("Delete", "Remove labels left by Find, Observation Planner and clicks"),
             ("Backspace", "Remove measurement lines"),
-            ("Ctrl + Z / Ctrl + Y", "Undo / redo a jump in time (stored up to 10 time positions)"),
+            ("Ctrl + Z / Ctrl + Y", "Undo / redo a jump in time (up to 10 time positions stored)"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
             ("Click left mouse button", "Label Moon feature under cursor; click again to remove"),
