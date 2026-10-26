@@ -42,8 +42,9 @@ from moonrtx.renderer_profile import ProfileMixin
 from moonrtx.renderer_settings import SettingsMixin
 from moonrtx.renderer_scalebar import ScaleBarMixin
 from moonrtx.renderer_scalebar_angle import AngleScaleBarMixin
-from moonrtx.renderer_time_toolbox import TimeToolboxMixin
+from moonrtx.renderer_time_toolbar import TimeToolboxMixin
 from moonrtx.renderer_toolbar import ToolbarMixin
+from moonrtx.renderer_time_history import TimeHistoryMixin
 from moonrtx.renderer_panel_handles import PanelHandlesMixin
 
 
@@ -52,7 +53,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
                    SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, TimeToolboxMixin,
-                   ToolbarMixin, PanelHandlesMixin):
+                   ToolbarMixin, TimeHistoryMixin, PanelHandlesMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -351,6 +352,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         self._init_toolbox()
         self._init_toolbar()
+        self._init_time_history()
 
         # Pins settings
         self.pins_visible = True  # Pins visible by default
@@ -564,7 +566,9 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._auto_advance_elapsed += self._auto_advance_interval
         if self._auto_advance_elapsed >= self._auto_advance_target_ms:
             self._auto_advance_elapsed = 0
-            self.change_time(self.time_step_minutes)
+            # The clock following the time of day, no move to go back from
+            with self.time_history_paused():
+                self.change_time(self.time_step_minutes)
         self._schedule_auto_advance()
 
     def set_time_to_now(self):
@@ -1268,7 +1272,10 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         target_dt = self.in_observer_clock(self.dt_local if dt_local is None else dt_local)
         moon_ephem = astro.calculate_moon_ephemeris(target_dt, self.parallactic_mode)
 
+        previous_dt = self.dt_local
         self.dt_local = target_dt
+        # Remembered for Ctrl+Z to go back to (see TimeHistoryMixin)
+        self.note_time_change(previous_dt)
         self.moon_ephem = moon_ephem
         self.moon_rotation = self.moon_ephem.rotation_matrix
         self.moon_rotation_inv = self.moon_rotation.T
@@ -1311,8 +1318,10 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # The kept measuring line follows its ground at once when the clock is
         # moved from the window, rather than a beat of its poll later. A video
         # export moves the clock from the raytracing thread, where Tk may not
-        # be touched, and leaves the line to the poll
-        if threading.current_thread() is threading.main_thread():
+        # be touched, and leaves the line to the poll. Told by the export
+        # itself rather than by the thread: PlotOptiX runs the window's event
+        # loop on a thread of its own, not Python's main one
+        if self._video_export is None:
             self.check_measure_line()
 
         # Since 0.19.1 updates applied while the accumulation cycle is idle do
@@ -1512,6 +1521,10 @@ def run_renderer(dt_local: datetime,
     update_view_keysyms = {'F4', 'F9', 'F10', 'Home'}
     update_view_letters = set('qwkau')
 
+    # Where the clock stood when Q or W went down, until it comes up (see
+    # custom_key_released)
+    step_key_from = {"when": None}
+
     def custom_key_handler(event):
         # Ahead of every early return below: a dialog holding the keys must not
         # leave the renderer believing the right Ctrl is up while it is down
@@ -1634,16 +1647,25 @@ def run_renderer(dt_local: datetime,
         elif event.keysym.lower() == 'n':
             step = 60 if event.state & 0x1 else 1
             moon_renderer.change_time_step(-step)
+        elif event.keysym.lower() == 'z' and event.state & 0x4:
+            moon_renderer.undo_time()
+        elif event.keysym.lower() == 'y' and event.state & 0x4:
+            moon_renderer.redo_time()
         elif event.keysym.lower() == 'y':
             moon_renderer.toggle_sub_points()
         elif event.keysym == 'space':
             moon_renderer.center_view_on_cursor(event)
-        elif event.keysym.lower() == 'q':
+        elif event.keysym.lower() in ('q', 'w'):
             moon_renderer.release_toolbox_hold()
-            moon_renderer.change_time(-moon_renderer.time_step_minutes)
-        elif event.keysym.lower() == 'w':
-            moon_renderer.release_toolbox_hold()
-            moon_renderer.change_time(moon_renderer.time_step_minutes)
+            # A press of Q or W, held or not, is one move of the clock to undo
+            # (see TimeHistoryMixin): the moment it started from is remembered
+            # as the key is let go (see custom_key_released), not at every
+            # repeat while it is held
+            if step_key_from["when"] is None:
+                step_key_from["when"] = moon_renderer.dt_local
+            sign = -1 if event.keysym.lower() == 'q' else 1
+            with moon_renderer.time_history_paused():
+                moon_renderer.change_time(sign * moon_renderer.time_step_minutes)
         elif event.keysym.lower() == 't':
             moon_renderer.toggle_toolbox()
         elif event.keysym.lower() == 'x':
@@ -1679,6 +1701,10 @@ def run_renderer(dt_local: datetime,
     def custom_key_released(event):
         if event.keysym == 'Control_R':
             moon_renderer._right_ctrl_down = False
+        if event.keysym.lower() in ('q', 'w'):
+            started, step_key_from["when"] = step_key_from["when"], None
+            if started is not None:
+                moon_renderer.record_time_jump(started)
         original_key_released(event)
 
     moon_renderer.rt._gui_key_released = custom_key_released

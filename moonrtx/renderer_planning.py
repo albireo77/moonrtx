@@ -595,8 +595,16 @@ class PlanningMixin:
         Auto-advance is put back to the start of its interval so the jump is not
         followed a moment later by a step it was already part way through, and
         the panels are told because the clock moved under them.
+
+        Each such jump is one move to undo with Ctrl+Z, whatever came just
+        before (see TimeHistoryMixin.record_time_jump) - unless it is Ctrl+Z or
+        Ctrl+Y going there, which keep the history themselves.
         """
-        self.update_view(when)
+        previous, quiet = self.dt_local, self._time_history_quiet
+        with self.time_history_paused():
+            self.update_view(when)
+        if not quiet:
+            self.record_time_jump(previous)
         if self._auto_advance_var and self._auto_advance_var.get():
             self._auto_advance_elapsed = 0
         self._update_all_status_panels()

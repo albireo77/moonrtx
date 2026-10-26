@@ -3,11 +3,14 @@ TimeToolboxMixin: a strip of controls for the time, laid over the bottom of the
 picture, shown and hidden with T.
 
 It took over from the date/time window: the date and the time in spinboxes,
-Now, buttons standing in for Q and W - pressed, held, and locked down - the
-time step they move by, and auto-advance, as the status bar has it.
-What is typed into the date and time is applied with Enter or on leaving the
-field, into the step at once, and a click on an arrow at once; a field that
-loses focus shows what is in force, so what could not be applied is dropped.
+Now, Reset, undo and redo of the clock's jumps (Ctrl+Z, Ctrl+Y), buttons
+standing in for Q and W - pressed, held, and locked down - the time step they
+move by, and auto-advance, as the status bar has it.
+What is typed into the date and time is applied with Enter, into the step at
+once, and an arrow, clicked or held, at once - as Enter for its own field. A
+date or time field that loses focus shows what is in force again, what was
+typed and not entered dropped. Enter, and an arrow let go, are each one move
+to undo with Ctrl+Z (see TimeHistoryMixin).
 It sits on the canvas rather than in a window of its own, so it goes wherever
 the picture goes - full screen included - and is dragged about by its grip.
 
@@ -60,6 +63,7 @@ class TimeToolboxMixin:
         self._toolbox_show_step = None  # puts the time step into its field
         # Which hold button is down: "", "back" or "forward" (see _build_toolbox)
         self._toolbox_hold_var = None
+        self._toolbox_history_buttons = ()  # undo and redo (see _build_toolbox)
         # Both kept between runs (see renderer_settings). On until a run is
         # closed with it off: the clock was a window of its own before, and a
         # toolbox off from the start would leave nothing on screen to say
@@ -118,6 +122,16 @@ class TimeToolboxMixin:
         """
         if self._toolbox_hold_var is not None and self._toolbox_hold_var.get():
             self._toolbox_hold_var.set("")
+
+    def sync_time_history_buttons(self):
+        """Grey the undo and redo buttons out while there is nowhere for them to go."""
+        buttons = getattr(self, "_toolbox_history_buttons", None)
+        if not buttons:
+            return
+        for button, can in zip(buttons, (self.can_undo_time, self.can_redo_time)):
+            wanted = tk.NORMAL if can else tk.DISABLED
+            if str(button.cget("state")) != wanted:
+                button.config(state=wanted)
 
     def sync_toolbox_step(self):
         """Put the time step into the toolbox, N and M having changed it."""
@@ -192,7 +206,7 @@ class TimeToolboxMixin:
 
         def spin_group(label: str, separator: str, parts: list, on_enter, in_force,
                        on_arrow=None, on_type=None, padded: bool = True,
-                       carry: bool = False) -> list:
+                       carry: bool = False, leave_applies: bool = True) -> list:
             """
             One caption and its spinboxes, with a character between each.
 
@@ -205,8 +219,9 @@ class TimeToolboxMixin:
             parts : list
                 One (low, high, digits) tuple per spinbox
             on_enter : callable
-                What Enter in any of them does, and leaving one holding a
-                number other than the one in force (see on_leave)
+                What Enter in any of them does, and, with leave_applies,
+                leaving one holding a number other than the one in force (see
+                on_leave)
             in_force : callable
                 What a spinbox shows for the value in force, given its index:
                 what it shows once it loses focus (see on_leave), so that a
@@ -225,6 +240,9 @@ class TimeToolboxMixin:
                 Whether an arrow may take a part one past either end of its
                 range, for on_arrow to carry into the next part (see
                 go_to_time) rather than the spinbox stopping or wrapping
+            leave_applies : bool
+                Whether leaving a spinbox puts what it holds into force, as
+                Enter would; if not, what was typed and not entered is dropped
 
             Returns
             -------
@@ -262,16 +280,18 @@ class TimeToolboxMixin:
                 spin.bind('<FocusIn>', on_focus_in)
 
                 def on_leave(_event, var=var, i=i):
-                    # Left, a field is put into force as Enter would put it,
-                    # unless it holds the number in force already: clicked
-                    # into and out of, it would draw the Moon afresh for
-                    # nothing. Then it shows what is in force - the value just
-                    # put there, or, if what was left could not be (empty, out
-                    # of range), the one before, with the error that says why
+                    # Left, a field shows what is in force. With leave_applies
+                    # it is put into force first, as Enter would put it, unless
+                    # it holds the number in force already: clicked into and
+                    # out of, it would draw the Moon afresh for nothing - and
+                    # what is in force is then the value just put there, or,
+                    # if what was left could not be (empty, out of range), the
+                    # one before, with the error that says why. Without it,
+                    # what was typed and not entered is dropped
                     self.toolbox_focused = False
                     error_var.set("")
                     text = var.get()
-                    if text and int(text) != int(in_force(i)):
+                    if leave_applies and text and int(text) != int(in_force(i)):
                         on_enter()
                     var.set(in_force(i))
 
@@ -290,8 +310,8 @@ class TimeToolboxMixin:
             [(SKYFIELD_MOON_FRAME_START_UTC.year, SKYFIELD_MOON_FRAME_END_UTC.year - 1, 4),
              (1, 12, 2),
              (1, 31, 2)],
-            lambda: go_to_time(), lambda i: clock_texts(self.dt_local)[i],
-            lambda i: step_time(("year", "month", "day")[i]), carry=True)
+            lambda: go_to_time(record=True), lambda i: clock_texts(self.dt_local)[i],
+            lambda i: step_time(("year", "month", "day")[i]), carry=True, leave_applies=False)
         (year_var, _), (month_var, _), (day_var, day_spin) = date_parts
 
         # The offset is deliberately not shown: the date set may fall the other
@@ -304,10 +324,38 @@ class TimeToolboxMixin:
             [(0, 23, 2),
              (0, 59, 2),
              (0, 59, 2)],
-            lambda: go_to_time(), lambda i: clock_texts(self.dt_local)[3 + i],
-            lambda i: step_time(("hour", "minute", "second")[i]), carry=True)
+            lambda: go_to_time(record=True), lambda i: clock_texts(self.dt_local)[3 + i],
+            lambda i: step_time(("hour", "minute", "second")[i]), carry=True, leave_applies=False)
         clock_vars = [var for var, _spin in date_parts + time_parts]
         clock_spins = [spin for _var, spin in date_parts + time_parts]
+
+        # A press of an arrow, held or not, is one move of the clock to undo
+        # (see TimeHistoryMixin): the moment it started from is remembered as
+        # the arrow is let go, not at every repeat while it is held - and the
+        # same for the Up and Down keys, which turn a field's arrows
+        arrow_from = {"when": None}
+
+        def arrow_down(event, spin):
+            if event.type == tk.EventType.KeyPress or spin.identify(event.x, event.y) in (
+                    "buttonup", "buttondown"):
+                if arrow_from["when"] is None:
+                    arrow_from["when"] = self.dt_local
+
+        def arrow_up(_event):
+            # Once Tk's own handling of the release is done, not here: an arrow
+            # clicked and not held moves the field as it is let go (the
+            # spinbox's ButtonUp), after this, the field's own binding, has run
+            started, arrow_from["when"] = arrow_from["when"], None
+            if started is not None:
+                canvas.after_idle(lambda: self.record_time_jump(started))
+
+        for spin in clock_spins:
+            spin.bind("<ButtonPress-1>", lambda event, spin=spin: arrow_down(event, spin), add="+")
+            spin.bind("<ButtonRelease-1>", arrow_up, add="+")
+            for key in ("Up", "Down"):
+                spin.bind(f"<KeyPress-{key}>", lambda event, spin=spin: arrow_down(event, spin),
+                          add="+")
+                spin.bind(f"<KeyRelease-{key}>", arrow_up, add="+")
 
         def clamp_day_to_month(*_):
             """Keep the day within the chosen month, so 31 Jan then Feb gives 28 or 29."""
@@ -346,6 +394,22 @@ class TimeToolboxMixin:
                                  relief='flat', padx=6, pady=0)
         reset_button.pack(side=tk.LEFT, padx=(4, 0))
         ToolTip(reset_button, "Reset camera position and time to their initial values (Home)")
+
+        # Back and forward through the moves of the clock (see
+        # TimeHistoryMixin), greyed out while there is nowhere to go
+        history_buttons = []
+        for text, go, hint in (("↶", self.undo_time, "Undo time change (Ctrl + Z)"),
+                               ("↷", self.redo_time, "Redo time change (Ctrl + Y)")):
+            button = tk.Button(frame, text=text, command=go, font=font,
+                               bg=self.TOOLBOX_FIELD_BG, fg=self.TOOLBOX_FIELD_FG,
+                               activebackground=fg, activeforeground=bg,
+                               disabledforeground=self.TOOLBOX_DISABLED_FG,
+                               relief='flat', padx=4, pady=0)
+            button.pack(side=tk.LEFT, padx=(4 if not history_buttons else 1, 0))
+            ToolTip(button, hint)
+            history_buttons.append(button)
+        self._toolbox_history_buttons = tuple(history_buttons)
+        self.sync_time_history_buttons()
 
         # ---- Q and W ----
 
@@ -545,18 +609,32 @@ class TimeToolboxMixin:
             return datetime(year, month, 1) + timedelta(
                 days=day - 1, hours=hour, minutes=minute, seconds=second)
 
-        def go_to_time(part: str = ""):
+        def go_to_time(part: str = "", record: bool = False):
             """
             Apply the date and time in the fields, on the observer's clock.
             Given the part an arrow changed, a part run past its range carries
             into the rest (see carried); typed, every part must be in range.
+
+            Entered, every field is read; but an arrow puts its own field into
+            force and no other, the rest read as they stand in force - a
+            number typed into another and not entered is no part of it.
+
+            The move is remembered for Ctrl+Z (see TimeHistoryMixin) only when
+            record is asked for, by Enter; an arrow's moves are remembered as
+            one, as it is let go (see arrow_up).
             """
             if self._video_export is not None:      # the export owns the clock
                 return
             try:
                 # A spinbox can still be typed into, so the parts are validated
                 # rather than trusted; datetime rejects anything out of range
-                parts = tuple(int(var.get()) for var in clock_vars)
+                if part:
+                    arrowed = ("year", "month", "day", "hour", "minute", "second").index(part)
+                    texts = clock_texts(self.dt_local)
+                    texts[arrowed] = clock_vars[arrowed].get()
+                else:
+                    texts = [var.get() for var in clock_vars]
+                parts = tuple(int(text) for text in texts)
                 new_dt_naive = carried(*parts, part) if part else datetime(*parts)
             except (ValueError, OverflowError) as e:
                 # Python's own wording ("invalid literal for int() with base
@@ -575,7 +653,11 @@ class TimeToolboxMixin:
                 error_var.set(out_of_range)
                 return
 
-            self.update_view(new_dt_local)
+            previous = self.dt_local
+            with self.time_history_paused():
+                self.update_view(new_dt_local)
+            if record:
+                self.record_time_jump(previous)
             # Reset auto-advance counter when time is manually set
             if self._auto_advance_var and self._auto_advance_var.get():
                 self._auto_advance_elapsed = 0
