@@ -183,6 +183,7 @@ class ToolbarMixin:
 
         # The view
         group()
+        button("⌂", 'End', "Reset camera to default position (End)")
         toggle("⭡", 'F4', "Toggle parallactic mode, celestial north up (F4)",
                lambda: self.parallactic_mode)
         orientation_var = tk.StringVar(value=self.view_orientation)
