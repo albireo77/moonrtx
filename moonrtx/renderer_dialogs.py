@@ -827,6 +827,7 @@ class DialogsMixin:
             ("K", "Open observation planner (terminator / libration) for Moon feature in status bar"),
             ("I", "Open USGS web page for Moon feature in status bar"),
             ("O", "Open user defined web page (Wikipedia by default) for Moon feature in status bar"),
+            ("Z", "Tap to keep the picture; hold to see it again over the live one (blink comparator)"),
             ("V", "Export time-lapse video (MP4, NSWE view only)"),
             ("-/+", "Decrease/Increase brightness"),
             ("[/]", "Decrease/Increase gamma correction (0.5 - 5.0)"),
@@ -839,8 +840,7 @@ class DialogsMixin:
         other_lines = [
             ("Shift + N/M", "Decrease/Increase the time step by 60 minutes (maximum 1440 = 1 day)"),
             ("Shift + B", "Set up the eyepiece / camera field of view frame"),
-            ("Shift + D", "Toggle angular scale bar (angle as seen from Earth, at the centre of the view)"),
-            ("Arrows", "Move view"),
+            ("Shift + D", "Toggle angular scale bar (angle as seen from Earth, at the centre of the view)"),            ("Arrows", "Move view"),
             ("Space", "Center and fix view on point under cursor"),
             ("Escape", "Leave full screen; close a window (dialog)"),
             ("Home", "Reset camera position and time to their initial values"),

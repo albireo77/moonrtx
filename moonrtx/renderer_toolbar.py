@@ -180,6 +180,13 @@ class ToolbarMixin:
         toggle("⟷", 'd', "Toggle scale bar (D)", lambda: self.scale_bar_visible)
         toggle("∠", 'd', "Toggle angular scale bar (Shift + D)", lambda: self.angle_bar_visible,
                shift=True)
+        # Pressed and let go as Z is, rather than clicked: a click keeps the
+        # picture, and a hold shows the kept one (see BlinkMixin)
+        blink = tk.Button(frame, text="⇆", **look)
+        blink.pack(side=tk.LEFT, padx=1)
+        blink.bind("<ButtonPress-1>", lambda _event: self.blink_press(), add="+")
+        blink.bind("<ButtonRelease-1>", lambda _event: self.blink_release(), add="+")
+        ToolTip(blink, "Click to keep the picture, hold to see the kept one (Z)")
 
         # The view
         group()

@@ -46,6 +46,7 @@ from moonrtx.renderer_time_toolbar import TimeToolboxMixin
 from moonrtx.renderer_toolbar import ToolbarMixin
 from moonrtx.renderer_time_history import TimeHistoryMixin
 from moonrtx.renderer_panel_handles import PanelHandlesMixin
+from moonrtx.renderer_blink import BlinkMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
@@ -53,7 +54,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
                    SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, TimeToolboxMixin,
-                   ToolbarMixin, TimeHistoryMixin, PanelHandlesMixin):
+                   ToolbarMixin, TimeHistoryMixin, PanelHandlesMixin, BlinkMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -353,6 +354,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._init_toolbox()
         self._init_toolbar()
         self._init_time_history()
+        self._init_blink()
 
         # Pins settings
         self.pins_visible = True  # Pins visible by default
@@ -1653,6 +1655,9 @@ def run_renderer(dt_local: datetime,
             moon_renderer.redo_time()
         elif event.keysym.lower() == 'y':
             moon_renderer.toggle_sub_points()
+        elif event.keysym.lower() == 'z':
+            # A tap or a hold, told apart as it is let go (see custom_key_released)
+            moon_renderer.blink_press()
         elif event.keysym == 'space':
             moon_renderer.center_view_on_cursor(event)
         elif event.keysym.lower() in ('q', 'w'):
@@ -1705,6 +1710,8 @@ def run_renderer(dt_local: datetime,
             started, step_key_from["when"] = step_key_from["when"], None
             if started is not None:
                 moon_renderer.record_time_jump(started)
+        elif event.keysym.lower() == 'z':
+            moon_renderer.blink_release()
         original_key_released(event)
 
     moon_renderer.rt._gui_key_released = custom_key_released

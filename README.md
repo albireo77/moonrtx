@@ -76,6 +76,7 @@ where `--init-view` parameter value is taken from the screenshot default filenam
 **K** - Open observation planner (terminator / libration) for Moon feature in status bar  
 **I** - Open USGS web page for Moon feature in status bar  
 **O** - Open user defined web page (Wikipedia by default) for Moon feature in status bar  
+**Z** - Tap to keep the picture; hold to see it again over the live one (blink comparator)  
 **V** - Export time-lapse video (MP4)  
 **-/+** - Decrease/Increase brightness  
 **[/]** - Decrease/Increase gamma correction  
