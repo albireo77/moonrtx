@@ -2,6 +2,7 @@
 MoonRenderer: core renderer class (composing mixins) and run_renderer entry point.
 """
 
+import gc
 import math
 import sys
 import threading
@@ -1381,6 +1382,14 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
             rt._is_started = False
             rt._optix.destroy_scene()
             rt._is_closed = True
+
+        # Whatever of the session's Tk is garbage waiting in a reference cycle -
+        # a window's variables, say, gone with the window but not yet collected
+        # - is collected now, on the thread Tk runs on. Left for Python's own
+        # collection at exit, it is deleted from the main thread once this loop
+        # has ended, and every Tk variable in it prints "main thread is not in
+        # main loop" to the console as it goes
+        gc.collect()
         rt._root.quit()
 
 # ---------------------------------------------------------------------------
