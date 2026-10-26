@@ -6,7 +6,9 @@ A planner's Go, a finder's result, a click on the profile's light change, F9,
 Home: each takes the clock somewhere else in one go, and there was no way back
 to where it was but setting it again by hand. Every move of the clock now
 remembers the moment it left, the last TIME_HISTORY_SIZE of them, and Ctrl+Z
-goes back through them as a browser's Back does, Ctrl+Y forward again.
+goes back through them as a browser's Back does, Ctrl+Y forward again. Each
+moment is kept once, to the second: going to one already kept takes its earlier
+copy out, and the moment now shown is never among them.
 
 A run of moves close together - a held Q or W, a held arrow of the time
 toolbar, a step after a step - is one move: what is remembered is where the
@@ -60,9 +62,9 @@ class TimeHistoryMixin:
                 or self.rt is None):
             return
         if self._time_run is None:
-            self._time_undo.append(previous)
-            del self._time_undo[:-self.TIME_HISTORY_SIZE]
+            self._remember(self._time_undo, previous)
             self._time_redo.clear()
+            self._drop_time_shown()
             self.sync_time_history_buttons()
         else:
             self.rt._root.after_cancel(self._time_run)
@@ -70,6 +72,30 @@ class TimeHistoryMixin:
 
     def _end_time_run(self):
         self._time_run = None
+
+    @staticmethod
+    def _same_moment(a, b) -> bool:
+        """Two moments the same to the second, as the clock shows them."""
+        return a.replace(microsecond=0) == b.replace(microsecond=0)
+
+    def _remember(self, moments: list, when):
+        """
+        Keep when, latest, in moments - each moment only once: an earlier
+        copy is taken out, so going back never visits a moment twice - and no
+        more than TIME_HISTORY_SIZE of them, the oldest let go.
+        """
+        moments[:] = [m for m in moments if not self._same_moment(m, when)]
+        moments.append(when)
+        del moments[:-self.TIME_HISTORY_SIZE]
+
+    def _drop_time_shown(self):
+        """
+        Take the moment now shown out of both lists: going to it would go
+        nowhere, and a press of Ctrl+Z or Ctrl+Y that does nothing looks like
+        one that does not work.
+        """
+        for moments in (self._time_undo, self._time_redo):
+            moments[:] = [m for m in moments if not self._same_moment(m, self.dt_local)]
 
     def record_time_jump(self, previous):
         """
@@ -84,9 +110,9 @@ class TimeHistoryMixin:
         if self._time_run is not None:
             self.rt._root.after_cancel(self._time_run)
             self._time_run = None
-        self._time_undo.append(previous)
-        del self._time_undo[:-self.TIME_HISTORY_SIZE]
+        self._remember(self._time_undo, previous)
         self._time_redo.clear()
+        self._drop_time_shown()
         self.sync_time_history_buttons()
 
     @property
@@ -116,8 +142,8 @@ class TimeHistoryMixin:
             self.rt._root.after_cancel(self._time_run)
             self._time_run = None
         when = take_from.pop()
-        keep_in.append(self.dt_local)
-        del keep_in[:-self.TIME_HISTORY_SIZE]
+        self._remember(keep_in, self.dt_local)
         with self.time_history_paused():
             self._go_to_moment(when)
+        self._drop_time_shown()
         self.sync_time_history_buttons()
