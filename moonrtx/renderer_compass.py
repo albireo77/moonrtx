@@ -14,8 +14,8 @@ one to longitude 0 on the equator, each bumped and named at its tip, with the
 meridian arc between those tips closing them into a quarter of a globe. In grey,
 the globe as the default view of this moment shows it - the view the End key returns
 to, so the libration and the parallactic roll of the date are already in the
-grey. In blue, the globe as it lies now. The difference between the two colours
-is exactly what the rotation keys have done: reset the view and the blue lands
+grey. In pale orange, the globe as it lies now. The difference between the two colours
+is exactly what the rotation keys have done: reset the view and the orange lands
 under the grey, which is then all that shows.
 
 The planes are filled rather than outlined, in the stipple a Tk canvas has to use
@@ -45,6 +45,7 @@ from typing import Optional
 
 import numpy as np
 
+from moonrtx.renderer_overlay import CanvasOverlayMixin
 from moonrtx.view_orientation import (FLIP_HORIZONTAL_VIEW_ORIENTATIONS,
                                       FLIP_VERTICAL_VIEW_ORIENTATIONS)
 
@@ -54,9 +55,10 @@ class CompassMixin:
 
     # The locator's two colours, so that the pair of overlays reads as one set:
     # the grey it draws its rim and graticule in for the globe as it is meant to
-    # stand, and the blue it draws the field in for the globe as it stands now
+    # stand, and the pale orange it draws the field in for the globe as it
+    # stands now (CanvasOverlayMixin.OVERLAY_ACCENT_COLOR)
     COMPASS_REFERENCE_COLOR = "#9aa7bd"     # the default position, in grey
-    COMPASS_CURRENT_COLOR = "#6772ab"       # blue, well clear of the reference grey
+    COMPASS_CURRENT_COLOR = CanvasOverlayMixin.OVERLAY_ACCENT_COLOR   # well clear of the grey
     COMPASS_LINE_WIDTH = 3                  # the axis of each globe
     COMPASS_DOT_RADIUS = 4                  # the bumps along it and on the rim
     # The equatorial plane is filled rather than merely outlined, and the fill
@@ -264,7 +266,7 @@ class CompassMixin:
         Write the three readings under the globe, in the colour of the globe they
         describe, each rimmed in black so that it can be read over ground of any
         brightness. All three stand at zero when the view is at its default,
-        which is the same thing the blue lying under the grey says.
+        which is the same thing the orange lying under the grey says.
         """
         readings = self._compass_readings()
         if readings is None:
@@ -278,7 +280,7 @@ class CompassMixin:
             self._compass_items.extend(self._rimmed_text(
                 canvas, centre_x, top + row * line_height,
                 f"\u0394{name} {written}\u00b0",
-                self.COMPASS_CURRENT_COLOR, self.COMPASS_VALUE_FONT))
+                self.OVERLAY_ACCENT_COLOR, self.COMPASS_VALUE_FONT))
 
     def _compass_placement(self) -> Optional[tuple]:
         """Centre and radius of the globe, in canvas pixels."""

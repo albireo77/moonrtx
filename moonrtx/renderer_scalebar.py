@@ -66,8 +66,8 @@ class ScaleBarMixin:
         self._scale_bar_floor = 0.0
 
     def _scale_bar_colour(self) -> str:
-        """The yellow of the labels on the Moon (LabelsMixin.SPOT_LABEL_COLOR)."""
-        return "#%02x%02x%02x" % tuple(round(255 * c) for c in self.SPOT_LABEL_COLOR)
+        """The pale orange of the overlays (CanvasOverlayMixin.OVERLAY_ACCENT_COLOR)."""
+        return self.OVERLAY_ACCENT_COLOR
 
     # ---- the numbers ----
 
@@ -229,9 +229,9 @@ class ScaleBarMixin:
         shapes += [(left + share * length, y, left + share * length, y - minor)
                    for share in self.SCALE_BAR_MINOR_AT]
 
-        # A dark rim under the yellow, as the lettering has, so the bar reads
+        # A dark rim under the colour, as the lettering has, so the bar reads
         # over black sky and lit highland alike. Every rim goes down before any
-        # yellow, so no rim is drawn across the bar's own line
+        # colour, so no rim is drawn across the bar's own line
         items = []
         line = self._overlay_px(self.SCALE_BAR_LINE_WIDTH)
         rim = self._overlay_px(self.SCALE_BAR_RIM_PX)

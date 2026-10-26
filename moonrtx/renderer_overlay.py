@@ -53,6 +53,13 @@ class CanvasOverlayMixin:
     # carries its own dark rim wherever it goes, and stands at nearly five to one
     # against that rim whatever is behind it.
     OVERLAY_HALO_COLOR = "#000000"
+
+    # The pale orange of the overlays that measure or mark the picture - the
+    # scale bars, the field-of-view frame - of the readings under the compass
+    # and the locator, and of the blink comparator's label:
+    # warm like the names on the Moon, but apart from their yellow, so a bar or
+    # a frame is not taken for one of them
+    OVERLAY_ACCENT_COLOR = "#ffd27f"
     OVERLAY_HALO_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0),
                             (1, 0), (-1, 1), (0, 1), (1, 1))
 

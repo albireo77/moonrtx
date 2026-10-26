@@ -58,6 +58,8 @@ from typing import Optional
 
 import numpy as np
 
+from moonrtx.renderer_overlay import CanvasOverlayMixin
+
 
 class LocatorMixin:
     """Mixin providing the where-on-the-Moon inset."""
@@ -71,16 +73,13 @@ class LocatorMixin:
     # carry the same stipple, so neither hides what is behind it more than the
     # other and the two read as one disk lit from one side.
     LOCATOR_FACE_STIPPLE = "gray50"
-    # A dark, quiet blue. The rim round the lettering (see
-    # CanvasOverlayMixin._rimmed_text) is what settled how dark it could be: a letter
-    # is no longer read against the Moon but against its own black edge, and
-    # small text wants four and a half to one against that, which puts a floor
-    # under it - below about a 116 out of 255 in lightness the letter sinks into
-    # its own outline. This sits just clear of that floor, at four and a half on
-    # the rim, and keeps far enough from the reference grey not to be taken for
-    # it. The lines carry no rim and are still read against the ground, where a
-    # colour this dark shows well on the highlands and less well on the maria.
-    LOCATOR_FIELD_COLOR = "#6772ab"
+    # The pale orange of the overlays that measure or mark the picture
+    # (CanvasOverlayMixin.OVERLAY_ACCENT_COLOR), which the reading under the
+    # globe is written in too, and far enough from the rim's grey not to be
+    # taken for it. The lines carry no rim and are read against what is behind
+    # them: the night side and the maria well, the pale day side of the globe
+    # and lit highland less well.
+    LOCATOR_FIELD_COLOR = CanvasOverlayMixin.OVERLAY_ACCENT_COLOR
     LOCATOR_FIELD_WIDTH = 2
     LOCATOR_LINE_WIDTH = 1
     LOCATOR_FONT = ("Consolas", 10)
@@ -774,7 +773,7 @@ class LocatorMixin:
         self._locator_items.extend(self._rimmed_text(
             canvas, centre_x,
             centre_y + radius + self._overlay_px(self.LOCATOR_VALUE_GAP_PX),
-            self._locator_reading(centre), self.LOCATOR_FIELD_COLOR,
+            self._locator_reading(centre), self.OVERLAY_ACCENT_COLOR,
             self.LOCATOR_FONT))
 
     # ---- keeping up with the view ----

@@ -18,6 +18,8 @@ overlays drawn on the canvas - the measurement line, the compass, the frame -
 stay over it. A picture kept at another size of the window no longer fits it.
 """
 
+from moonrtx.renderer_overlay import CanvasOverlayMixin
+
 
 class BlinkMixin:
     """Mixin keeping a picture to show again over the live one."""
@@ -27,7 +29,7 @@ class BlinkMixin:
     # making the wait for the picture felt
     BLINK_HOLD_MS = 250
 
-    BLINK_LABEL_COLOR = "#ffd27f"
+    BLINK_LABEL_COLOR = CanvasOverlayMixin.OVERLAY_ACCENT_COLOR
     BLINK_LABEL_FONT = ("Consolas", 11, "bold")
     # From the top of the picture to the label, for a 96-dpi screen
     BLINK_LABEL_MARGIN_PX = 10

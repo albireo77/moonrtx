@@ -21,18 +21,19 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Optional
 
+from moonrtx.renderer_overlay import CanvasOverlayMixin
 from moonrtx.view_orientation import VIEW_ORIENTATION_NSEW, VIEW_ORIENTATION_SNWE
 
 
 class FovMixin:
     """Mixin providing the field-of-view overlay and its setup dialog."""
 
-    # The blue the locator and the compass use; the reasoning for it is written
-    # beside LocatorMixin.LOCATOR_FIELD_COLOR. The summary line carries the same
-    # black rim their lettering does, so it holds up over any ground; the frame
-    # itself is a bare line and is read against the surface behind it.
-    FOV_COLOR = "#6772ab"
-    FOV_TEXT_COLOR = "#6772ab"
+    # The pale orange of the scale bars (CanvasOverlayMixin.OVERLAY_ACCENT_COLOR).
+    # The summary line carries the black rim all the overlays' lettering does,
+    # so it holds up over any ground; the frame itself is a bare line and is
+    # read against the surface behind it.
+    FOV_COLOR = CanvasOverlayMixin.OVERLAY_ACCENT_COLOR
+    FOV_TEXT_COLOR = CanvasOverlayMixin.OVERLAY_ACCENT_COLOR
     FOV_LINE_WIDTH = 2
     FOV_TEXT_TOP_PX = 10                    # the summary, below the title bar
     FOV_TEXT_FONT = ("Consolas", 10)
