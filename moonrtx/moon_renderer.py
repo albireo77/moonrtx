@@ -1416,6 +1416,38 @@ def toolbox_takes_key(event) -> bool:
     return event.char.isdigit() or event.keysym in TOOLBOX_KEYSYMS
 
 
+# While a window holding the keys is open - the planner, its graph, the finders,
+# the rise and set chart (see DialogsMixin._dialog_window) - these keys of the
+# main window do nothing: they move the clock that window was worked out from
+# (Q, W, Home, F9, F10, Ctrl+Z, Ctrl+Y), or open another window over it (F, K,
+# A, E, U, V, Shift+B, F1, F12). Everything else - the overlays, the labels, the
+# brightness, the view - goes on working
+WINDOW_HELD_KEYSYMS = frozenset({'F1', 'F9', 'F10', 'F12', 'Home'})
+WINDOW_HELD_LETTERS = frozenset('qwfkaeuv')
+
+
+def window_holds_key(event, main_window) -> bool:
+    """
+    Whether an open window holding the keys keeps this one from the main
+    window: every key typed with the keyboard in that window - into its fields,
+    which have digits, Delete and Backspace of their own - and in the main
+    window the ones listed above. A toolbar button is the main window's.
+    """
+    widget = getattr(event, "widget", None)
+    if widget is not None:
+        try:
+            if widget.winfo_toplevel() is not main_window:
+                return True
+        except Exception:               # a widget gone, or not a widget at all
+            return True
+    key = event.keysym.lower()
+    if event.keysym in WINDOW_HELD_KEYSYMS or key in WINDOW_HELD_LETTERS:
+        return True
+    if key == 'b' and event.state & 0x1:       # Shift+B, the frame's setup
+        return True
+    return key in ('z', 'y') and bool(event.state & 0x4)
+
+
 def run_renderer(dt_local: datetime,
                  observer: Observer,
                  elevation_file: str,
@@ -1541,9 +1573,11 @@ def run_renderer(dt_local: datetime,
         # leave the renderer believing the right Ctrl is up while it is down
         if event.keysym == 'Control_R':
             moon_renderer._right_ctrl_down = True
-        # The search dialog wants every key, being a place to type a name; the
-        # toolbox takes only its own (see toolbox_takes_key)
-        if moon_renderer.search_dialog_open:
+        # A window holding the keys keeps those that would move its clock or
+        # open another over it, and everything typed into it (see
+        # window_holds_key); the toolbox takes only its own (see toolbox_takes_key)
+        if (moon_renderer.search_dialog_open
+                and window_holds_key(event, moon_renderer.rt._root)):
             return
         # Not a toolbar button, though, which is no typing: its Delete, Backspace
         # or End would otherwise go to a time field holding the keyboard
