@@ -1605,14 +1605,16 @@ def run_renderer(dt_local: datetime,
     preview_letters = set('qwhj')
 
     # Keys that reach update_view: time stepping (Q/W), the resets that restore
-    # the initial time (Home), the dialogs that jump to a time (the planners K
-    # and X, and the rise and set chart U, which goes to whatever moment in it
-    # is clicked), the parallactic toggle (F4) and the set-time-now keys
-    # (F9/F10). A running video export drives update_view from the raytracing
-    # thread, so these are ignored while it lasts - see the export guard in
-    # custom_key_handler. The toolbox's clock keeps a guard of its own.
+    # the initial time (Home), the dialogs that jump to a time (the observation
+    # planner K, the clair-obscur and eclipse finders A and E, and the rise and
+    # set chart U, which goes to whatever moment in it is clicked), the
+    # parallactic toggle (F4) and the set-time-now keys (F9/F10). A running
+    # video export drives update_view from the raytracing thread, so these are
+    # ignored while it lasts - see the export guard in custom_key_handler. The
+    # toolbox's clock keeps a guard of its own, and so does the history behind
+    # Ctrl+Z and Ctrl+Y (see TimeHistoryMixin).
     update_view_keysyms = {'F4', 'F9', 'F10', 'Home'}
-    update_view_letters = set('qwkau')
+    update_view_letters = set('qwkaeu')
 
     # Where the clock stood when Q or W went down, until it comes up (see
     # custom_key_released)
