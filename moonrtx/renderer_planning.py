@@ -136,9 +136,6 @@ class PlanningMixin:
     # and the ribbon already says when the Moon is up
     _graph_show_moon_alt = False
     _graph_span = PLANNER_SCAN_DAYS
-    # The arrow keys' step in the graph, in minutes; None until first set, when
-    # it starts from the renderer's own Q/W step, which it then leaves alone
-    _graph_step_minutes = None
     # Where the planning windows were left, and how tall the graph's plot was
     # dragged to, are kept by DialogsMixin._window_memory under these names
     VISIBILITY_WINDOW = "visibility"
@@ -2010,10 +2007,6 @@ class PlanningMixin:
                 self.center_on_feature(feature)
 
         def go_to(event):
-            # A click on a canvas does not take the keyboard focus in Tk, so after
-            # a change in the step box the arrows would go on moving its cursor;
-            # taken here, they step the time again
-            win.focus_set()
             if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
                     or not (plot_y0 <= event.y <= moon_y1):
                 return
@@ -2198,45 +2191,6 @@ class PlanningMixin:
 
         canvas.bind('<Leave>', leave)
 
-        def step_time(direction: int):
-            """
-            Step the time back or on by the step set in this window, which the
-            renderer's own Q/W step does not share.
-
-            Taken the same way as Q/W: nothing while a video export owns the
-            clock, and the single-frame preview switched on first, so a held
-            key shows each step rather than stalling on converged frames. The
-            red line moves on its own; only a step past either end of the span
-            pages the graph, by the span, as the arrow buttons do. The view then
-            follows the choice above, as it does for a click.
-            """
-            # In the step box the arrows move the cursor, not the time
-            try:
-                if win.focus_get() is step_box:
-                    return None
-            except KeyError:
-                pass
-            if self._video_export is not None:
-                return "break"
-            self._begin_interactive_preview()
-            self.change_time(direction * graph_step())
-            now_utc = self.dt_local.astimezone(timezone.utc)
-            if state["dts"] and not (state["dts"][0] <= now_utc <= state["dts"][-1]):
-                state["start"] += timedelta(days=direction * state["days"])
-                redraw()
-            else:
-                place_now_line()
-                # The time and the figures follow the red line while the pointer
-                # is away; under the pointer they stand for where it is
-                if pointer["x"] is None:
-                    show_now_readout()
-            apply_view()
-            # The renderer's own arrow keys move the view; not these
-            return "break"
-
-        win.bind('<Left>', lambda event: step_time(-1))
-        win.bind('<Right>', lambda event: step_time(1))
-
         legend = tk.Frame(main_frame)
         legend.pack(fill=tk.X, pady=(2 * pad, 0))
         # Each curve carries what it means as a hint: the Sun's and the
@@ -2357,8 +2311,6 @@ class PlanningMixin:
         # width of the bullet and its space, keeping it under the entry's text
         help_hint = (
             "• Click the graph to go to that moment.\n"
-            "• ← → step the time by Step (min), and page the graph by a whole\n"
-            "   span when a step passes either end of it.\n"
             "• The mouse wheel over the graph zooms the time axis, 60 days down\n"
             "   to 1, keeping the moment under the pointer where it is.\n"
             "• Drag the window's bottom edge to make the graph taller.\n"
@@ -2368,10 +2320,8 @@ class PlanningMixin:
             "   the span.\n"
             "• Span (days) sets the axis to 60, 15 or 5 days about that moment;\n"
             "   between those, the wheel's spans show no button chosen.\n"
-            "• Step (min) is this window's own time step - the renderer's own\n"
-            "   Q/W step is left as it is.\n"
             "• Keep view / Standard view / View fixed on feature say what a\n"
-            "   click or a step does to the camera.\n"
+            "   click does to the camera.\n"
             "• Label on Moon puts the feature's name on the Moon.\n"
             "• Show Moon altitude draws the Moon's altitude in your sky, whose\n"
             "   daily arcs read best at the shorter spans.\n"
@@ -2422,7 +2372,7 @@ class PlanningMixin:
             """
             centre_on_moment(state["days"])
 
-        # The span, the step and the buttons in a block of their own, which
+        # The span and the buttons in a block of their own, which
         # fit_rows puts at the end of the legend's row where there is room for
         # it, and on a row under the legend where there is not
         legend_controls = tk.Frame(main_frame)
@@ -2445,37 +2395,6 @@ class PlanningMixin:
         for days in self.GRAPH_SPANS:
             ttk.Radiobutton(span_row, text=str(days), value=days, variable=span_var,
                             command=set_span).pack(side=tk.LEFT)
-        # The arrow keys' step for this window alone, beside the span: the
-        # renderer's Q/W step (time_step_minutes) is never touched by it. Packed
-        # from the right after the span, so it stands just left of it. Themed, as
-        # the other controls here, so it follows the display
-        step_var = tk.StringVar(value=str(self._graph_step_minutes or self.time_step_minutes))
-        step_row = tk.Frame(legend_controls)
-        step_row.pack(side=tk.RIGHT, padx=(0, 2 * cell_w))
-        tk.Label(step_row, text="Step (min):", font=font).pack(side=tk.LEFT)
-        step_box = ttk.Spinbox(step_row, from_=1, to=1440, increment=1, width=5,
-                               textvariable=step_var)
-        step_box.pack(side=tk.LEFT, padx=(max(1, cell_w // 2), 0))
-
-        def graph_step() -> int:
-            """
-            The step in the box, in whole minutes from 1 to 1440 as the
-            renderer's own step allows - put back to the last good value if what
-            is there is not a number - and kept for the rest of the session,
-            and for the next (see renderer_settings).
-            """
-            try:
-                minutes = int(step_var.get())
-            except ValueError:
-                minutes = self._graph_step_minutes or self.time_step_minutes
-            minutes = max(1, min(1440, minutes))
-            self._graph_step_minutes = minutes
-            step_var.set(str(minutes))
-            return minutes
-
-        step_box.bind('<FocusOut>', lambda event: graph_step())
-        # Enter settles the value and hands the arrows back to the time
-        step_box.bind('<Return>', lambda event: (graph_step(), win.focus_set()))
 
         # The mouse wheel zooms the time axis through GRAPH_ZOOM_SPANS, keeping
         # the moment under the pointer where it is. Bound on the window rather
@@ -2580,7 +2499,7 @@ class PlanningMixin:
 
         # The red line follows the clock wherever it is moved from - Q and W in
         # the main window, the time toolbar, the profile - as it follows this
-        # window's own clicks and arrows; and the time and the figures with it
+        # window's own clicks; and the time and the figures with it
         # while the pointer is away
         def clock_moved():
             place_now_line()
