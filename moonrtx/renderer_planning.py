@@ -2007,6 +2007,11 @@ class PlanningMixin:
                 self.center_on_feature(feature)
 
         def go_to(event):
+            # A click on a canvas does not take the keyboard in Tk, so after a
+            # click on a span or a box the keys would stay with it, theirs alone;
+            # taken back to the window here, they go on to the Moon (see
+            # moon_renderer.window_holds_key)
+            win.focus_set()
             if not state["dts"] or not (plot_x0 <= event.x <= plot_x1) \
                     or not (plot_y0 <= event.y <= moon_y1):
                 return

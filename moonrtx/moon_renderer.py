@@ -1454,18 +1454,31 @@ def toolbox_takes_key(event) -> bool:
 WINDOW_HELD_KEYSYMS = frozenset({'F1', 'F12'})
 WINDOW_HELD_LETTERS = frozenset('fkaeuv')
 
+# The widgets of another window that do something with keys themselves: a key
+# typed with one of these holding the keyboard is theirs alone - digits into a
+# field, the arrows and Enter through a list, Space pressing a button - and
+# never the Moon's as well. With the keyboard anywhere else in such a window -
+# the window itself, a plot, a label, which it is left on by opening it and
+# by a click on the plot - a key is the main window's
+KEY_TAKING_CLASSES = frozenset({
+    "Entry", "TEntry", "Spinbox", "TSpinbox", "Text", "Listbox", "TCombobox",
+    "Button", "TButton", "Checkbutton", "TCheckbutton", "Radiobutton", "TRadiobutton",
+    "Menubutton", "TMenubutton", "Scale", "TScale",
+})
+
 
 def window_holds_key(event, main_window) -> bool:
     """
     Whether an open window holding the keys keeps this one from the main
-    window: every key typed with the keyboard in that window - into its fields,
-    which have digits, Delete and Backspace of their own - and in the main
-    window the ones listed above. A toolbar button is the main window's.
+    window: a key typed into a widget of another window that takes keys (see
+    KEY_TAKING_CLASSES), and anywhere the ones listed above. A toolbar button
+    is the main window's.
     """
     widget = getattr(event, "widget", None)
     if widget is not None:
         try:
-            if widget.winfo_toplevel() is not main_window:
+            if (widget.winfo_toplevel() is not main_window
+                    and widget.winfo_class() in KEY_TAKING_CLASSES):
                 return True
         except Exception:               # a widget gone, or not a widget at all
             return True

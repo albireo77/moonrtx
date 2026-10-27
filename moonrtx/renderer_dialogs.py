@@ -140,11 +140,12 @@ class DialogsMixin:
             Padding of the frame the contents go in, as (padx, pady)
         takes_keys : bool
             Hold the main window's keys for as long as this dialog is open, and
-            not minimized: everything typed into the dialog - PlotOptiX binds
-            the handler with bind_all, so without this a dialog being typed into
-            also drives the Moon - and, typed in the main window, the keys that
-            would open another window over this one. The rest, the clock's
-            among them, go on working there (see moon_renderer.window_holds_key).
+            not minimized: whatever is typed into its fields, lists and buttons
+            - PlotOptiX binds the handler with bind_all, so without this a
+            dialog being typed into also drives the Moon - and, anywhere, the
+            keys that would open another window over this one. The rest, the
+            clock's among them, go on working, with the keyboard in the main
+            window or on this one's plot (see moon_renderer.window_holds_key).
         over_main : bool
             Keep the window above the main one and hide it along with it
         size : tuple, optional
