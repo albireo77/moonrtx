@@ -1357,9 +1357,19 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         Tell the windows following the clock that it has moved (see
         follow_clock). From the Tk thread only: a video export moves the clock
         from the raytracing thread, and tells them once it has finished.
+
+        One that fails is let go rather than let through: update_view calls
+        this before it starts the new frame, and an error out of a window - one
+        gone without its own close, say - would leave the Moon at the old moment
+        while the clock had moved on.
         """
         for follower in list(self._clock_followers):
-            follower()
+            try:
+                follower()
+            except Exception as e:
+                print(f"A window stopped following the clock: {e!r}")
+                if follower in self._clock_followers:
+                    self._clock_followers.remove(follower)
 
     # ---- lifecycle ----
 
