@@ -2507,7 +2507,11 @@ class PlanningMixin:
         # window's own clicks; and the time and the figures with it
         # while the pointer is away. A clock gone past either end of the span
         # takes the graph with it, by as many whole spans as it went, as ◀ ▶
-        # page it - so the red line stays in view
+        # page it - so the red line stays in view. The figures, worked out
+        # exactly for the moment at a few milliseconds each, wait until Tk is
+        # idle, as the pointer's do (see hover): a held Q or W moves the clock
+        # some thirty times a second, and they need working out only once it
+        # pauses
         def clock_moved():
             if state["dts"]:
                 now_utc = self.dt_local.astimezone(timezone.utc)
@@ -2517,8 +2521,9 @@ class PlanningMixin:
                     page(spans * state["days"])
                     return
             place_now_line()
-            if pointer["x"] is None:
-                show_now_readout()
+            if pointer["x"] is None and not pointer["pending"]:
+                pointer["pending"] = True
+                canvas.after_idle(read_out)
 
         stop_following = self.follow_clock(clock_moved)
 
