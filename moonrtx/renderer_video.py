@@ -440,6 +440,9 @@ class VideoMixin:
                     self._on_auto_advance_toggle()
 
                 self._update_all_status_panels()
+                # The windows marking the moment on show, which the export's
+                # frames moved past without telling them (see follow_clock)
+                self._clock_moved()
                 st["on_done"](error)
 
             self.rt._root.after(500, finish)

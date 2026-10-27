@@ -143,8 +143,8 @@ class DialogsMixin:
             not minimized: everything typed into the dialog - PlotOptiX binds
             the handler with bind_all, so without this a dialog being typed into
             also drives the Moon - and, typed in the main window, the keys that
-            would move the clock or open another window over this one. The rest
-            go on working there (see moon_renderer.window_holds_key).
+            would open another window over this one. The rest, the clock's
+            among them, go on working there (see moon_renderer.window_holds_key).
         over_main : bool
             Keep the window above the main one and hide it along with it
         size : tuple, optional

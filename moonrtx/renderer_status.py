@@ -809,11 +809,10 @@ class StatusMixin:
                 # F10 is intercepted by the window manager on Windows
                 # (activates menu bar), so bind it explicitly on _root
                 # and return 'break' to suppress the default behaviour.
-                # Kept from the key handler's guards all the same: it moves the
-                # clock, which a window holding the keys or an export owns
-                # (see moon_renderer.window_holds_key)
+                # Kept from the clock all the same while a video export owns it,
+                # as the key handler keeps the other keys that move it
                 def _f10_handler(event):
-                    if not (self.search_dialog_open or self._video_export is not None):
+                    if self._video_export is None:
                         self.set_time_to_now_and_auto_advance()
                     return 'break'
                 rt._root.bind('<F10>', _f10_handler)

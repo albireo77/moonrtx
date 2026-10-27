@@ -351,6 +351,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # planner's graph) and closing one must not clear this while the
         # other is still up.
         self.search_dialog_open = 0
+        # What is told when the clock moves (see follow_clock)
+        self._clock_followers = []
 
         self._init_toolbox()
         self._init_toolbar()
@@ -1326,12 +1328,38 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # loop on a thread of its own, not Python's main one
         if self._video_export is None:
             self.check_measure_line()
+            self._clock_moved()
 
         # Since 0.19.1 updates applied while the accumulation cycle is idle do
         # not restart rendering on their own; force a new cycle so the change
         # is displayed immediately
         if self.rt._is_started:
             self.rt.refresh_scene()
+
+    def follow_clock(self, follower):
+        """
+        Have follower called after every move of the clock, wherever it was
+        moved from - the keys, the time toolbar, the profile, one window's Go
+        while another is open - so a window marking the moment on show keeps
+        its mark on it. Hands back what stops it, for the window to call as it
+        closes.
+        """
+        self._clock_followers.append(follower)
+
+        def stop():
+            if follower in self._clock_followers:
+                self._clock_followers.remove(follower)
+
+        return stop
+
+    def _clock_moved(self):
+        """
+        Tell the windows following the clock that it has moved (see
+        follow_clock). From the Tk thread only: a video export moves the clock
+        from the raytracing thread, and tells them once it has finished.
+        """
+        for follower in list(self._clock_followers):
+            follower()
 
     # ---- lifecycle ----
 
@@ -1418,12 +1446,13 @@ def toolbox_takes_key(event) -> bool:
 
 # While a window holding the keys is open - the planner, its graph, the finders,
 # the rise and set chart (see DialogsMixin._dialog_window) - these keys of the
-# main window do nothing: they move the clock that window was worked out from
-# (Q, W, Home, F9, F10, Ctrl+Z, Ctrl+Y), or open another window over it (F, K,
-# A, E, U, V, Shift+B, F1, F12). Everything else - the overlays, the labels, the
-# brightness, the view - goes on working
-WINDOW_HELD_KEYSYMS = frozenset({'F1', 'F9', 'F10', 'F12', 'Home'})
-WINDOW_HELD_LETTERS = frozenset('qwfkaeuv')
+# main window do nothing: they open another window over it (F, K, A, E, U, V,
+# Shift+B, F1, F12). Everything else - the overlays, the labels, the view, and
+# the clock too, which the mouse can move under such a window anyway (the time
+# toolbar, the profile, another window's Go) and which the windows showing it
+# follow (see MoonRenderer.follow_clock) - goes on working
+WINDOW_HELD_KEYSYMS = frozenset({'F1', 'F12'})
+WINDOW_HELD_LETTERS = frozenset('fkaeuv')
 
 
 def window_holds_key(event, main_window) -> bool:
@@ -1443,9 +1472,7 @@ def window_holds_key(event, main_window) -> bool:
     key = event.keysym.lower()
     if event.keysym in WINDOW_HELD_KEYSYMS or key in WINDOW_HELD_LETTERS:
         return True
-    if key == 'b' and event.state & 0x1:       # Shift+B, the frame's setup
-        return True
-    return key in ('z', 'y') and bool(event.state & 0x4)
+    return key == 'b' and bool(event.state & 0x1)     # Shift+B, the frame's setup
 
 
 def run_renderer(dt_local: datetime,

@@ -243,7 +243,8 @@ class PlanningMixin:
             return
 
         win, main_frame, on_close = self._dialog_window("Moon rise and set",
-                                                        remember=self.VISIBILITY_WINDOW)
+                                                        remember=self.VISIBILITY_WINDOW,
+                                                        before_close=lambda: stop_following())
 
         colours = self.VISIBILITY_COLOURS
         font = ('Consolas', 8)
@@ -576,8 +577,13 @@ class PlanningMixin:
 
         reset()   # the first draw sits on the night the app is showing
 
+        # The red line follows the clock wherever it is moved from, as it
+        # follows a click in the chart (see follow_clock)
+        stop_following = self.follow_clock(draw_now_marker)
+
         # Not modal, so the renderer's mouse stays in use while the chart is
-        # open; its keys stay held (search_dialog_open)
+        # open; the keys that would open another window over it stay held
+        # (see moon_renderer.window_holds_key)
         self._show_tool_window(win, self.VISIBILITY_WINDOW)
 
     # ---- taking results out of the dialogs ----
@@ -1124,7 +1130,8 @@ class PlanningMixin:
         rescan()
 
         # Not modal, so the renderer's mouse stays in use while the list is
-        # open; its keys stay held (search_dialog_open)
+        # open; the keys that would open another window over it stay held
+        # (see moon_renderer.window_holds_key)
         # Tall enough at first for the whole list, as the eclipse finder is
         self._show_results_window(win, self.CLAIR_OBSCUR_WINDOW, listbox=listbox, rows=listbox.size())
 
@@ -1282,7 +1289,8 @@ class PlanningMixin:
         rescan()
 
         # Not modal, so the renderer's mouse stays in use while the list is
-        # open; its keys stay held (search_dialog_open)
+        # open; the keys that would open another window over it stay held
+        # (see moon_renderer.window_holds_key)
         # Tall enough at first for the whole list
         self._show_results_window(win, self.ECLIPSE_WINDOW, listbox=listbox, rows=listbox.size())
 
@@ -1556,8 +1564,9 @@ class PlanningMixin:
 
         # Not modal, so the renderer's mouse stays in use while the list is
         # open - the view dragged and turned, a feature named with a click. The
-        # renderer's keys stay held all the same (search_dialog_open), so
-        # nothing typed there moves the clock the list was worked out from
+        # renderer's keys that would open another window over it stay held
+        # (see moon_renderer.window_holds_key); the clock may move, the list
+        # being of the windows ahead of when it was worked out
         # Tall enough at first for the whole list, as the eclipse finder is
         self._show_results_window(win, self.PLANNER_WINDOW, listbox=listbox, rows=listbox.size())
 
@@ -1644,6 +1653,7 @@ class PlanningMixin:
             # How tall the plot was dragged to, for the next graph to open at;
             # where the window stood is kept by _dialog_window
             memory["plot_h"] = plot_h
+            stop_following()
 
         win, main_frame, on_close = self._dialog_window(
             f"{feature.name} - graph", before_close=before_close,
@@ -2191,8 +2201,7 @@ class PlanningMixin:
         def step_time(direction: int):
             """
             Step the time back or on by the step set in this window, which the
-            renderer's own Q/W step does not share - the renderer's keys being
-            held while this window is open.
+            renderer's own Q/W step does not share.
 
             Taken the same way as Q/W: nothing while a video export owns the
             clock, and the single-frame preview switched on first, so a held
@@ -2569,11 +2578,22 @@ class PlanningMixin:
         self._follow_window_size(main_frame, canvas, fit, redraw,
                                  redraw_ms=self.GRAPH_RESIZE_MS, horizontal=False)
 
+        # The red line follows the clock wherever it is moved from - Q and W in
+        # the main window, the time toolbar, the profile - as it follows this
+        # window's own clicks and arrows; and the time and the figures with it
+        # while the pointer is away
+        def clock_moved():
+            place_now_line()
+            if pointer["x"] is None:
+                show_now_readout()
+
+        stop_following = self.follow_clock(clock_moved)
+
         # Not modal, so the renderer's mouse stays in use while the graph is
         # open - the view dragged with the right button, turned with the left -
         # which a grab would stop, as it stops every button pressed outside the
-        # window. The renderer's keys stay held all the same (search_dialog_open),
-        # so nothing typed there moves the clock or opens a dialog over this one.
+        # window. The renderer's keys that would open a dialog over this one
+        # stay held (see moon_renderer.window_holds_key).
         # Taller or shorter only: its width is the share of the screen the plot
         # is made for. No shorter than it opens at the first time
         self._show_tool_window(win, self.GRAPH_WINDOW, resizable=(False, True),
