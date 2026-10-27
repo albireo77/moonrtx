@@ -2505,8 +2505,17 @@ class PlanningMixin:
         # The red line follows the clock wherever it is moved from - Q and W in
         # the main window, the time toolbar, the profile - as it follows this
         # window's own clicks; and the time and the figures with it
-        # while the pointer is away
+        # while the pointer is away. A clock gone past either end of the span
+        # takes the graph with it, by as many whole spans as it went, as ◀ ▶
+        # page it - so the red line stays in view
         def clock_moved():
+            if state["dts"]:
+                now_utc = self.dt_local.astimezone(timezone.utc)
+                start_utc = state["start"].astimezone(timezone.utc)
+                spans = math.floor((now_utc - start_utc) / timedelta(days=state["days"]))
+                if spans:
+                    page(spans * state["days"])
+                    return
             place_now_line()
             if pointer["x"] is None:
                 show_now_readout()
