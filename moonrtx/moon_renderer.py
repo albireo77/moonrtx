@@ -1545,7 +1545,10 @@ def run_renderer(dt_local: datetime,
         # toolbox takes only its own (see toolbox_takes_key)
         if moon_renderer.search_dialog_open:
             return
-        if moon_renderer.toolbox_focused and toolbox_takes_key(event):
+        # Not a toolbar button, though, which is no typing: its Delete, Backspace
+        # or End would otherwise go to a time field holding the keyboard
+        if (moon_renderer.toolbox_focused and not getattr(event, "from_toolbar", False)
+                and toolbox_takes_key(event)):
             return
         # The video export owns the clock until it finishes: letting a key
         # change the time here would run update_view on the Tk main thread while
@@ -1706,7 +1709,8 @@ def run_renderer(dt_local: datetime,
     # of them. Nothing in it a button stands for reads more of the event than
     # this
     def toolbar_press_key(keysym: str, shift: bool):
-        custom_key_handler(SimpleNamespace(keysym=keysym, char='', state=0x1 if shift else 0))
+        custom_key_handler(SimpleNamespace(keysym=keysym, char='', state=0x1 if shift else 0,
+                                           from_toolbar=True))
 
     moon_renderer.toolbar_press_key = toolbar_press_key
 

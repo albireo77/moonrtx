@@ -171,6 +171,12 @@ class ToolbarMixin:
                lambda: self.sub_points_visible)
         toggle("📍", '0', "Toggle pins (0)", lambda: self.pins_visible)
 
+        # Taking off what clicks and measuring left on the picture, each drawn
+        # as the key it stands for is marked
+        group()
+        button("⌦", 'Delete', "Remove labels left by Find, Observation Planner and clicks (Delete)")
+        button("⌫", 'BackSpace', "Remove measurement lines (Backspace)")
+
         # Over the picture
         group()
         toggle("◯", 'b', "Toggle the field of view frame (B)", lambda: self.fov_overlay_visible)
