@@ -854,12 +854,16 @@ class NavigationMixin:
         if self.rt is None:
             return
 
-        self.measure_with_profile = with_profile
         start = self._selenographic_at(event)
         if start is None:
             self.measuring = False
             return
 
+        # Only once there is a measurement to say it of: a click off the Moon
+        # starts none and leaves the kept line as it was, which this says the
+        # kind of - and said wrongly, a plain line's dragged end opened a
+        # profile, and a profile line's stopped following it
+        self.measure_with_profile = with_profile
         self.drop_measure_line(close_profile=not with_profile)
         self.measuring = True
         self.measure_start_canvas = (event.x, event.y)
@@ -1134,7 +1138,10 @@ class NavigationMixin:
         line_id, self.leading_line_id = self.leading_line_id, None
         start_x, start_y = self.measure_start_canvas
         end = self._selenographic_at(event)
-        moved = math.hypot(event.x - start_x, event.y - start_y) > self.CLICK_SLOP_PX
+        # In this screen's pixels, as a plain click's slop is (see run_renderer):
+        # four of them at 300% scaling are a third of what they were written for
+        moved = (math.hypot(event.x - start_x, event.y - start_y)
+                 > self._overlay_px(self.CLICK_SLOP_PX))
 
         if end is None or not moved:
             if line_id is not None:

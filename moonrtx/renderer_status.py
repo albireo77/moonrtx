@@ -469,6 +469,24 @@ class StatusMixin:
         self._update_status_pins()
         self._update_info_moon()
         self._update_info_coords()
+        # The place under the cursor and its feature, emptied above, read again
+        # once the frame showing the moment and the view now in force is drawn
+        # (see refresh_readout_after_frame): every caller has just jumped the
+        # clock, the camera, or both, and until then K, I and O would have no
+        # feature to act on
+        self._readout_after_frame = True
+
+    def refresh_readout_after_frame(self):
+        """
+        Each frame put on the window: read what is under the cursor afresh, if a
+        jump asked for it (see _update_all_status_panels). Not before the frame:
+        the place is read from the picture's own hits, which until then are the
+        old view's - a planner's Go turns the camera to the feature after it
+        moves the clock.
+        """
+        if getattr(self, "_readout_after_frame", False):
+            self._readout_after_frame = False
+            self._refresh_cursor_readout()
 
     def toggle_info_panel(self):
         """Toggle the Moon info panel visibility."""

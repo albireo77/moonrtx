@@ -1828,6 +1828,17 @@ def run_renderer(dt_local: datetime,
 
     moon_renderer.rt._gui_motion = custom_motion_handler
 
+    # Each finished frame put on the window, which is when the readout of the
+    # place under the cursor can be read again after a jump (see
+    # StatusMixin.refresh_readout_after_frame)
+    original_update_content = moon_renderer.rt._gui_update_content
+
+    def custom_update_content(*args):
+        original_update_content(*args)
+        moon_renderer.refresh_readout_after_frame()
+
+    moon_renderer.rt._gui_update_content = custom_update_content
+
     # Override mouse handlers for distance measurement (Ctrl+drag)
     original_pressed_left = moon_renderer.rt._gui_pressed_left
     original_released_left = moon_renderer.rt._gui_released_left
