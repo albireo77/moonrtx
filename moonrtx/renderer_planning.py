@@ -1084,7 +1084,7 @@ class PlanningMixin:
                 # Left-aligned like the columns before them, so the values start
                 # under their labels (see header)
                 sun_alt = f"{o['sun_alt']:+.1f}°"
-                moon_alt = f"{o['moon_alt']:+.0f}°"
+                moon_alt = f"{self._moon_alt_shown(o['moon_alt']):+.1f}°"
                 listbox.insert(tk.END,
                                f"{o['event']:<20}{peak:%Y-%m-%d %a %H:%M}  {pattern:<16}"
                                f"{visible:<16}{sun_alt:<8}{moon_alt:<8}  {self._sky_of(o)}")
@@ -1120,7 +1120,7 @@ class PlanningMixin:
                     visible = "below the horizon"
                 rows.append([o["event"], f"{peak:%Y-%m-%d %H:%M}", f"{start:%Y-%m-%d %H:%M}",
                              f"{end:%Y-%m-%d %H:%M}", visible, f"{o['sun_alt']:+.1f}",
-                             f"{o['moon_alt']:+.0f}", self._sky_of(o)])
+                             f"{self._moon_alt_shown(o['moon_alt']):+.1f}", self._sky_of(o)])
                 entries.append({
                     "summary": f"MoonRTX: {o['event']}",
                     # The pattern itself, not the part of it above the horizon:
@@ -1129,7 +1129,7 @@ class PlanningMixin:
                     "start": o["start"], "end": o["end"],
                     "description": (f"Peak at {peak:%Y-%m-%d %H:%M}. Visible from here: {visible}. "
                                     f"Sun {o['sun_alt']:+.1f} deg over the formation, Moon "
-                                    f"{o['moon_alt']:+.0f} deg up in a {self._sky_of(o)} sky."),
+                                    f"{self._moon_alt_shown(o['moon_alt']):+.1f} deg up in a {self._sky_of(o)} sky."),
                 })
             return columns, rows, entries
 
@@ -1332,6 +1332,16 @@ class PlanningMixin:
         return ttk.Checkbutton(parent, text="Label on Moon", variable=label_var,
                                command=toggle)
 
+    @staticmethod
+    def _moon_alt_shown(altitude: float) -> float:
+        """
+        A Moon altitude as the planner and the clair-obscur finder list it: to
+        the tenth of a degree, rounded down, so a minimum typed in from the
+        list (see _moon_alt_min) keeps the row it was read from. Rounded to the
+        nearest, 13.96 read as 14.0 and went at a minimum of 14.
+        """
+        return math.floor(altitude * 10.0) / 10.0
+
     def _moon_alt_min_box(self, parent, on_change) -> ttk.Spinbox:
         """
         The field the lowest Moon altitude is set in (see _moon_alt_min), handed
@@ -1530,17 +1540,17 @@ class PlanningMixin:
                     listbox.insert(tk.END,
                                    f"{best:%Y-%m-%d %a %H:%M}  {w['event']:<9}{span}"
                                    f"{w['sun_alt']:>6.1f}°{w['libr_delta']:>8.1f}°"
-                                   f"{w['moon_alt']:>9.0f}°  {self._sky_of(w)}")
+                                   f"{self._moon_alt_shown(w['moon_alt']):>9.1f}°  {self._sky_of(w)}")
                 elif libration:
                     listbox.insert(tk.END,
                                    f"{best:%Y-%m-%d %a %H:%M}  {span}"
                                    f"{w['earth_alt']:>9.2f}°{w['libr_long']:>+8.2f}°"
                                    f"{w['libr_lat']:>+8.2f}°{w['sun_alt']:>9.1f}°"
-                                   f"{w['moon_alt']:>9.0f}°  {self._sky_of(w)}")
+                                   f"{self._moon_alt_shown(w['moon_alt']):>9.1f}°  {self._sky_of(w)}")
                 else:
                     listbox.insert(tk.END,
                                    f"{best:%Y-%m-%d %a %H:%M}  {w['event']:<9}{span}"
-                                   f"{w['sun_alt']:>6.1f}°{w['moon_alt']:>9.0f}°  {self._sky_of(w)}")
+                                   f"{w['sun_alt']:>6.1f}°{self._moon_alt_shown(w['moon_alt']):>9.1f}°  {self._sky_of(w)}")
             listbox.selection_set(0)
 
         def go_to(event=None):
@@ -1589,7 +1599,7 @@ class PlanningMixin:
                 row += [f"{w['sun_alt']:.1f}"]
                 if mode == "same":
                     row += [f"{w['libr_delta']:.1f}"]
-                row += [f"{w['moon_alt']:.0f}", self._sky_of(w)]
+                row += [f"{self._moon_alt_shown(w['moon_alt']):.1f}", self._sky_of(w)]
                 rows.append(row)
                 events.append({
                     "summary": f"MoonRTX: {headline}",
@@ -1597,7 +1607,7 @@ class PlanningMixin:
                     "description": (f"{feature.name} at lat {feature.lat:.2f}, lon {feature.lon:.2f}. "
                                     f"Best at {best:%Y-%m-%d %H:%M}. "
                                     f"Sun {w['sun_alt']:.1f} deg over the feature, Moon "
-                                    f"{w['moon_alt']:.0f} deg up in a {self._sky_of(w)} sky."),
+                                    f"{self._moon_alt_shown(w['moon_alt']):.1f} deg up in a {self._sky_of(w)} sky."),
                 })
             return columns, rows, events
 
