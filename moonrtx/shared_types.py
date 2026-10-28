@@ -37,6 +37,9 @@ class VisibilityChart(NamedTuple):
     sun_twilight: list[tuple[datetime, datetime]]
     transits: list[tuple[datetime, float]]
     illumination: list[tuple[datetime, float]]
+    # The Moon's spells above an altitude asked for (see
+    # astro.find_visibility_chart), within moon_up
+    moon_high: list[tuple[datetime, datetime]] = ()
 
 class MoonEphemeris(NamedTuple):
     az: float

@@ -92,7 +92,8 @@ class PlanningMixin:
         "day": "#cfe0f5",       # Sun up
         "twilight": "#5f7ea8",  # Sun down but less than 12 degrees under
         "night": "#101a2b",     # astronomical darkness
-        "moon": "#f0c419",      # the Moon above the horizon
+        "moon": "#f0c419",      # the Moon at least as high as asked (see _moon_alt_min)
+        "moon_low": "#9c8530",  # and above the horizon, but lower than that
         "moon_edge": "#8a6d00",
         "transit": "#ffffff",
         "grid": "#46587a",
@@ -246,9 +247,13 @@ class PlanningMixin:
         if self.rt is None:
             return
 
+        def before_close():
+            stop_following()
+            stop_following_moon_alt()
+
         win, main_frame, on_close = self._dialog_window("Moon rise and set",
                                                         remember=self.VISIBILITY_WINDOW,
-                                                        before_close=lambda: stop_following())
+                                                        before_close=before_close)
 
         colours = self.VISIBILITY_COLOURS
         font = ('Consolas', 8)
@@ -394,7 +399,8 @@ class PlanningMixin:
             first_date = span["first_date"]
             try:
                 chart = astro.find_visibility_chart(midday_on(first_date),
-                                                    self.VISIBILITY_CHART_DAYS)
+                                                    self.VISIBILITY_CHART_DAYS,
+                                                    moon_alt_min=self._moon_alt_min)
             except ValueError as e:
                 # This page falls outside the bundled ephemeris kernel range.
                 # The date it was asked for is kept, so paging back off the end
@@ -454,10 +460,17 @@ class PlanningMixin:
                 canvas.create_line(x_of(hour), head_h, x_of(hour), head_h + rows * row_h,
                                    fill=colours["grid"])
 
-            for row, a, b in pieces(chart.moon_up):
-                canvas.create_rectangle(x_of(a), y_of(row) + bar_pad,
-                                        x_of(b), y_of(row) + row_h - bar_pad,
-                                        fill=colours["moon"], outline=colours["moon_edge"])
+            # The Moon's whole spell above the horizon in the duller colour, and
+            # over it, brighter, the part of it at least as high as the planner
+            # and the finder ask (see _moon_alt_min): the stretch of the night
+            # worth going out for
+            for spells, colour in ((chart.moon_up, colours["moon_low"]),
+                                   (chart.moon_high, colours["moon"])):
+                for row, a, b in pieces(spells):
+                    canvas.create_rectangle(x_of(a), y_of(row) + bar_pad,
+                                            x_of(b), y_of(row) + row_h - bar_pad,
+                                            fill=colour, outline=colours["moon_edge"])
+            high_label.config(text=f"Moon ≥ {self._moon_alt_min:g}°")
 
             # Per-row times: the rise and set of the night that row stands for,
             # which is the pair belonging together far more often than the two
@@ -544,15 +557,23 @@ class PlanningMixin:
 
         legend = tk.Frame(main_frame)
         legend.pack(fill=tk.X, pady=(2 * pad, 0))
-        for text, colour in (("Moon up", colours["moon"]), ("Daylight", colours["day"]),
+        legend_labels = []
+        # The first label says the height in force, written again with every
+        # drawing (see redraw), the planner or the finder able to change it
+        for text, colour in ((f"Moon ≥ {self._moon_alt_min:g}°", colours["moon"]),
+                             ("Moon lower", colours["moon_low"]), ("Daylight", colours["day"]),
                              ("Twilight", colours["twilight"]), ("Dark", colours["night"])):
             swatch = tk.Frame(legend, bg=colour, width=row_h, height=line_h - bar_pad,
                               highlightthickness=1, highlightbackground="#808080")
             swatch.pack(side=tk.LEFT)
             swatch.pack_propagate(False)
-            tk.Label(legend, text=text, font=font).pack(
-                side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
-        tk.Label(legend, text="Click the chart to go to that moment", font=font,
+            label = tk.Label(legend, text=text, font=font)
+            label.pack(side=tk.LEFT, padx=(max(1, cell_w // 2), cell_w + pad))
+            legend_labels.append(label)
+        high_label = legend_labels[0]
+        # Short, so the legend with both Moon entries stays within the chart's
+        # width rather than widening the window past it
+        tk.Label(legend, text="Click to go there", font=font,
                  fg='#606060').pack(side=tk.LEFT)
         def page(days: int):
             """
@@ -587,6 +608,9 @@ class PlanningMixin:
         # The red line follows the clock wherever it is moved from, as it
         # follows a click in the chart (see follow_clock)
         stop_following = self.follow_clock(draw_now_marker)
+        # And the brighter part of the Moon bars follows the lowest Moon
+        # altitude, set in the planner or the clair-obscur finder
+        stop_following_moon_alt = self._follow_moon_alt_min(redraw)
 
         # Not modal, so the renderer's mouse stays in use while the chart is
         # open; the keys that would open another window over it stay held
@@ -1345,6 +1369,22 @@ class PlanningMixin:
         """
         return math.floor(altitude * 10.0) / 10.0
 
+    def _follow_moon_alt_min(self, on_change):
+        """
+        Have a window with no field of its own redrawn whenever the lowest Moon
+        altitude changes in one that has (see _moon_alt_min_box); hands back
+        what stops it, for the window to call as it closes.
+        """
+        entry = (None, on_change)
+        self.__dict__.setdefault("_moon_alt_min_boxes", []).append(entry)
+
+        def stop():
+            boxes = self.__dict__.get("_moon_alt_min_boxes", [])
+            if entry in boxes:
+                boxes.remove(entry)
+
+        return stop
+
     def _moon_alt_min_box(self, parent, on_change) -> ttk.Spinbox:
         """
         The field the lowest Moon altitude is set in (see _moon_alt_min), handed
@@ -1372,7 +1412,8 @@ class PlanningMixin:
             if value != self._moon_alt_min:
                 self._moon_alt_min = value
                 for other_var, rescan in list(open_boxes):
-                    other_var.set(f"{value:g}")
+                    if other_var is not None:
+                        other_var.set(f"{value:g}")
                     rescan()
 
         def closed(event):

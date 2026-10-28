@@ -1206,7 +1206,8 @@ def _daily_illumination(start_utc: datetime, end_utc: datetime) -> list:
     return list(zip(moments, (float(f) for f in np.atleast_1d(lit))))
 
 
-def find_visibility_chart(start_local: datetime, days: int) -> VisibilityChart:
+def find_visibility_chart(start_local: datetime, days: int,
+                          moon_alt_min: float = None) -> VisibilityChart:
     """
     When the Moon and the Sun stand above the observer's horizon over the days
     following start_local, and when the Moon crosses the meridian.
@@ -1218,6 +1219,11 @@ def find_visibility_chart(start_local: datetime, days: int) -> VisibilityChart:
     days : int
         Length of the span; trimmed where it would run past the dates the
         bundled kernels cover
+    moon_alt_min : float, optional
+        A Moon altitude in degrees to find the spells above as well, as
+        moon_high - its centre that high, an observer's minimum (see
+        PlanningMixin._moon_alt_min). Without one, or at 0 or below,
+        moon_high is moon_up
 
     Returns
     -------
@@ -1226,15 +1232,19 @@ def find_visibility_chart(start_local: datetime, days: int) -> VisibilityChart:
     """
     start_utc = _validate_supported_datetime(start_local)
     end_utc = min(start_utc + timedelta(days=days), SKYFIELD_MOON_FRAME_END_UTC)
+    moon_up = _up_intervals(_moon, start_utc, end_utc)
+    moon_high = (moon_up if moon_alt_min is None or moon_alt_min <= 0.0
+                 else _up_intervals(_moon, start_utc, end_utc, horizon_degrees=moon_alt_min))
     return VisibilityChart(
         start=start_utc,
         end=end_utc,
-        moon_up=_up_intervals(_moon, start_utc, end_utc),
+        moon_up=moon_up,
         sun_up=_up_intervals(_sun, start_utc, end_utc),
         sun_twilight=_up_intervals(_sun, start_utc, end_utc,
                                    horizon_degrees=ASTRONOMICAL_TWILIGHT_DEGREES),
         transits=_upper_transits(start_utc, end_utc),
         illumination=_daily_illumination(start_utc, end_utc),
+        moon_high=moon_high,
     )
 
 
