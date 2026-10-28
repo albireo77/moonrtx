@@ -470,7 +470,7 @@ class PlanningMixin:
                     canvas.create_rectangle(x_of(a), y_of(row) + bar_pad,
                                             x_of(b), y_of(row) + row_h - bar_pad,
                                             fill=colour, outline=colours["moon_edge"])
-            high_label.config(text=f"Moon ≥ {self._moon_alt_min:g}°")
+            high_label.config(text=f"Moon at least {self._moon_alt_min:g}°")
 
             # Per-row times: the rise and set of the night that row stands for,
             # which is the pair belonging together far more often than the two
@@ -560,7 +560,7 @@ class PlanningMixin:
         legend_labels = []
         # The first label says the height in force, written again with every
         # drawing (see redraw), the planner or the finder able to change it
-        for text, colour in ((f"Moon ≥ {self._moon_alt_min:g}°", colours["moon"]),
+        for text, colour in ((f"Moon at least {self._moon_alt_min:g}°", colours["moon"]),
                              ("Moon lower", colours["moon_low"]), ("Daylight", colours["day"]),
                              ("Twilight", colours["twilight"]), ("Dark", colours["night"])):
             swatch = tk.Frame(legend, bg=colour, width=row_h, height=line_h - bar_pad,
