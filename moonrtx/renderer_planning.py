@@ -64,7 +64,6 @@ class PlanningMixin:
     # See astro.find_terminator_windows / astro.find_libration_windows.
     PLANNER_SCAN_DAYS = 60
     PLANNER_SUN_ALT_MAX = 12.0
-    PLANNER_MOON_ALT_MIN = 5.0
     PLANNER_LIBRATION_SUN_ALT_MIN = 3.0
     PLANNER_MAX_RESULTS = 20
     # How far the Sun has to be under the observer's horizon for the sky to
@@ -117,6 +116,14 @@ class PlanningMixin:
     # renderer_settings).
     _clair_obscur_filter = CLAIR_OBSCUR_ALL_EVENTS
     _clair_obscur_visible_only = True
+    # How high the Moon has to stand in the observer's sky for a time to count:
+    # the observation planner's windows, the graph's strips of them, and the
+    # clair-obscur finder's visible events. One setting for all of them, being
+    # the site's - trees, roofs, the seeing low down - rather than any one
+    # window's, set in either window and kept the same way. Up to
+    # MOON_ALT_MIN_MAX, past which few nights would qualify anywhere
+    _moon_alt_min = 5.0
+    MOON_ALT_MIN_MAX = 80
     # The lunar eclipse finder's, kept the same way: only the eclipses the
     # Moon is up for, and the penumbral ones among them, which are hard to see
     _eclipse_visible_only = True
@@ -754,6 +761,8 @@ class PlanningMixin:
         `extra`, when given, is a (label, command) pair for one more button
         placed next to "Go to selected" - the observation planner's way in to
         feature_graph_dialog, which the clair-obscur finder has no use for.
+
+        Hands back the row, for a caller to put more of its own after Save.
         """
         def copy():
             columns, rows, _entries = table()
@@ -781,6 +790,7 @@ class PlanningMixin:
                   width=8).pack(side=tk.LEFT, padx=(6, 0))
         tk.Button(row, text="Close", command=results.close,
                   width=10).pack(side=tk.RIGHT)
+        return row
 
     @staticmethod
     def _sky_of(record: dict) -> str:
@@ -817,14 +827,14 @@ class PlanningMixin:
             return astro.find_libration_windows(
                 start, days, feature.lat, feature.lon,
                 sun_alt_min=self.PLANNER_LIBRATION_SUN_ALT_MIN,
-                moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+                moon_alt_min=self._moon_alt_min,
                 max_results=self.PLANNER_MAX_RESULTS,
                 observer_sun_alt_max=self._planner_observer_sun_alt_max(),
                 refine_edges=refine_edges)
         return astro.find_terminator_windows(
             start, days, feature.lat, feature.lon,
             sun_alt_max=self.PLANNER_SUN_ALT_MAX,
-            moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+            moon_alt_min=self._moon_alt_min,
             observer_sun_alt_max=self._planner_observer_sun_alt_max(),
             refine_edges=refine_edges)
 
@@ -1018,10 +1028,12 @@ class PlanningMixin:
         visible_only_var = tk.BooleanVar(value=self._clair_obscur_visible_only)
         # Naming the column ties the filter to the figure it acts on
         # Themed, so the little box follows the display
+        # The altitude itself in a field inside the sentence (see _moon_alt_min)
         ttk.Checkbutton(filter_row, variable=visible_only_var,
-                       text=f"Only when the Moon altitude (h☾) is at least "
-                            f"{self.PLANNER_MOON_ALT_MIN:.0f}° in my sky",
+                       text="Only when the Moon altitude (h☾) is at least",
                        command=lambda: rescan()).pack(side=tk.LEFT)
+        self._moon_alt_min_box(filter_row, lambda: rescan()).pack(side=tk.LEFT, padx=(4, 0))
+        tk.Label(filter_row, text="° in my sky").pack(side=tk.LEFT)
 
         def show_description(event=None):
             selection = listbox.curselection()
@@ -1042,7 +1054,7 @@ class PlanningMixin:
                 events = astro.find_clair_obscur_events(
                     self.dt_local, self.CLAIR_OBSCUR_SCAN_DAYS,
                     step_minutes=self.CLAIR_OBSCUR_STEP_MINUTES,
-                    moon_alt_min=self.PLANNER_MOON_ALT_MIN if visible_only_var.get() else 0.0,
+                    moon_alt_min=self._moon_alt_min if visible_only_var.get() else None,
                     events=catalogue)
             except ValueError as e:
                 # Scan start outside the bundled ephemeris kernel range
@@ -1320,6 +1332,47 @@ class PlanningMixin:
         return ttk.Checkbutton(parent, text="Label on Moon", variable=label_var,
                                command=toggle)
 
+    def _moon_alt_min_box(self, parent, on_change) -> ttk.Spinbox:
+        """
+        The field the lowest Moon altitude is set in (see _moon_alt_min), handed
+        back for the caller to place between its own words. A value is put into
+        force by an arrow, by Enter, and by leaving the field with it in it; one
+        that is not a number in range is put back to the one in force. on_change
+        is called whenever the value in force changes, to scan again - for every
+        such field open, the setting being one: the planner and the finder open
+        side by side both show it and both follow it.
+        """
+        var = tk.StringVar(value=f"{self._moon_alt_min:g}")
+        open_boxes = self.__dict__.setdefault("_moon_alt_min_boxes", [])
+        entry = (var, on_change)
+        open_boxes.append(entry)
+
+        def apply(*_):
+            try:
+                value = float(var.get())
+            except ValueError:
+                value = None
+            if value is None or not 0 <= value <= self.MOON_ALT_MIN_MAX:
+                var.set(f"{self._moon_alt_min:g}")
+                return
+            var.set(f"{value:g}")
+            if value != self._moon_alt_min:
+                self._moon_alt_min = value
+                for other_var, rescan in list(open_boxes):
+                    other_var.set(f"{value:g}")
+                    rescan()
+
+        def closed(event):
+            if event.widget is box and entry in open_boxes:
+                open_boxes.remove(entry)
+
+        box = ttk.Spinbox(parent, from_=0, to=self.MOON_ALT_MIN_MAX, increment=1, width=4,
+                          textvariable=var, command=apply)
+        box.bind('<Return>', apply)
+        box.bind('<FocusOut>', apply)
+        box.bind('<Destroy>', closed, add="+")
+        return box
+
     def observation_planner_dialog(self, feature: MoonFeature):
         """
         Show upcoming windows when the given feature is worth observing and
@@ -1397,8 +1450,11 @@ class PlanningMixin:
         ttk.Checkbutton(mode_row, variable=dark_only_var,
                         text="Only when the sky is dark",
                         command=lambda: rescan()).pack(side=tk.LEFT)
-        # The feature's name on the Moon, the same box the graph has
-        self._label_on_moon_box(mode_row, feature).pack(side=tk.LEFT, padx=(gap, 0))
+        # How high the Moon has to be in the observer's sky, for every choice
+        # above (see _moon_alt_min)
+        tk.Label(mode_row, text="Moon at least").pack(side=tk.LEFT, padx=(gap, 4))
+        self._moon_alt_min_box(mode_row, lambda: rescan()).pack(side=tk.LEFT)
+        tk.Label(mode_row, text="° up").pack(side=tk.LEFT)
 
         def rescan():
             nonlocal windows
@@ -1423,7 +1479,7 @@ class PlanningMixin:
                     windows = astro.find_same_lighting_windows(
                         reference["when"], days, feature.lat, feature.lon, lighting,
                         tolerance=self.PLANNER_SAME_LIGHT_TOLERANCE,
-                        moon_alt_min=self.PLANNER_MOON_ALT_MIN,
+                        moon_alt_min=self._moon_alt_min,
                         observer_sun_alt_max=self._planner_observer_sun_alt_max())
                 else:
                     windows = self._planner_windows(libration, self.dt_local, days, feature)
@@ -1441,7 +1497,7 @@ class PlanningMixin:
                     f"{lighting['sun_alt']:.1f}° and {'rising' if lighting['rising'] else 'setting'}, "
                     f"within {self.PLANNER_SAME_LIGHT_TOLERANCE:.0f}°, so the shadows are the same. "
                     f"Libr Δ is how far the view's angle differs from then: the smaller, the more "
-                    f"alike. Listed while the Moon is at least {self.PLANNER_MOON_ALT_MIN:.0f}° up "
+                    f"alike. Listed while the Moon is at least {self._moon_alt_min:g}° up "
                     f"in your sky{dark}.")
                 header_var.set(same_header)
             elif libration:
@@ -1449,13 +1505,13 @@ class PlanningMixin:
                     "How far inside the limb libration turns the feature, best first: 90° is the "
                     "centre of the disk, 0° exactly on the limb, and the feature is squashed by the "
                     "sine of it. Listed only while the feature is sunlit and the Moon at least "
-                    f"{self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky{dark}.")
+                    f"{self._moon_alt_min:g}° up in your sky{dark}.")
                 header_var.set(libration_header)
             else:
                 desc_var.set(
                     f"Times when the Sun stands 0-{self.PLANNER_SUN_ALT_MAX:.0f}° above the feature, "
                     f"lighting it with long shadows, the feature is turned toward Earth, and the "
-                    f"Moon is at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky{dark}.")
+                    f"Moon is at least {self._moon_alt_min:g}° up in your sky{dark}.")
                 header_var.set(terminator_header)
 
             if not windows:
@@ -1551,11 +1607,15 @@ class PlanningMixin:
             on_close()
             self.feature_graph_dialog(feature)
 
-        self._results_actions(
+        actions = self._results_actions(
             dialog, go_to, results_for_export,
             lambda: (f"{feature.name.replace(' ', '_')}_"
                      f"{'same_lighting' if mode_var.get() == 'same' else mode_var.get()}"),
             extra=("Graph", open_graph))
+        # The feature's name on the Moon, the same box the graph has: after
+        # Save, with the buttons that act on the Moon and on the list rather
+        # than among the choices of what is listed
+        self._label_on_moon_box(actions, feature).pack(side=tk.LEFT, padx=(gap, 0))
 
         rescan()
 
@@ -2220,7 +2280,7 @@ class PlanningMixin:
             "day: at the shorter spans each day's arc shows how high it gets,\n"
             "and over weeks the arcs run together into a band.\n"
             "Drawn while Show Moon altitude is ticked.\n"
-            f"The observation planner's windows need it at least {self.PLANNER_MOON_ALT_MIN:.0f}° up.")
+            f"The observation planner's windows need it at least {self._moon_alt_min:g}° up.")
         dash_hint = (
             "The top of the band the observation planner counts as near the\n"
             f"terminator: it lists the times the Sun stands between 0° and {self.PLANNER_SUN_ALT_MAX:.0f}°\n"
@@ -2251,12 +2311,12 @@ class PlanningMixin:
         terminator_window_hint = (
             "Windows the Observation Planner lists under \"near the terminator\":\n"
             f"the Sun 0-{self.PLANNER_SUN_ALT_MAX:.0f}° over the feature, the feature turned toward\n"
-            f"Earth and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up in your sky."
+            f"Earth and the Moon at least {self._moon_alt_min:g}° up in your sky."
             f"{dark_hint}")
         libration_window_hint = (
             "Windows the Observation Planner lists under \"best presented (libration)\":\n"
             f"the feature turned toward Earth, the Sun at least {self.PLANNER_LIBRATION_SUN_ALT_MIN:.0f}° "
-            f"over it and the Moon at least {self.PLANNER_MOON_ALT_MIN:.0f}° up.\n"
+            f"over it and the Moon at least {self._moon_alt_min:g}° up.\n"
             f"Only its {self.PLANNER_MAX_RESULTS} best, as in the list.{dark_hint}")
         def line_entry(text: str, colour: str, hint: str):
             """A curve's entry: a bar of its colour, then what it is."""

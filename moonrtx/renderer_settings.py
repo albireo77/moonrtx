@@ -58,6 +58,8 @@ class SettingsMixin:
             "fov_dark_outside": flag,
             "_clair_obscur_filter": lambda v: isinstance(v, str),
             "_clair_obscur_visible_only": flag,
+            "_moon_alt_min": lambda v: (isinstance(v, (int, float)) and not isinstance(v, bool)
+                                        and 0 <= v <= self.MOON_ALT_MIN_MAX),
             "_eclipse_visible_only": flag,
             "_eclipse_penumbral": flag,
             "_planner_dark_only": flag,

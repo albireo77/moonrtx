@@ -875,10 +875,12 @@ def find_clair_obscur_events(start_local: datetime, days: int,
         Scan length in days (clamped to the bundled kernel range)
     step_minutes : int
         Sample spacing; window edges are accurate to this resolution
-    moon_alt_min : float
+    moon_alt_min : float or None
         Minimum Moon altitude at the observer site for an occurrence to count
-        as visible. Occurrences with no visible part are dropped; pass 0 to
-        keep every occurrence regardless of the observer's sky.
+        as visible. Occurrences with no visible part are dropped - at 0 as at
+        any other height, the Moon then having to be over the horizon. None
+        keeps every occurrence regardless of the observer's sky, its visible
+        part, if any, being the part with the Moon over the horizon.
     events : tuple of ClairObscurEvent
         Events to scan for, by default the whole catalogue
 
@@ -910,6 +912,11 @@ def find_clair_obscur_events(start_local: datetime, days: int,
 
     subsolar_lat, subsolar_lon = _sub_point(_sun, t, _moon.at(t))
 
+    # What "visible" is measured against: the height asked for, or the horizon
+    # when every occurrence is kept
+    keep_all = moon_alt_min is None
+    moon_alt_min = 0.0 if keep_all else moon_alt_min
+
     occurrences = []
     for event in events:
         sun_alt = _body_altitude_at_feature(subsolar_lat, subsolar_lon, event.lat, event.lon)
@@ -936,7 +943,7 @@ def find_clair_obscur_events(start_local: datetime, days: int,
             # the moon_alt_min filter applies - so a listed occurrence can
             # never show a Moon altitude below it, which the peak could
             visible = seg[moon_alt[seg] >= moon_alt_min]
-            if moon_alt_min > 0.0 and visible.size == 0:
+            if not keep_all and visible.size == 0:
                 continue
             highest = seg[np.argmax(moon_alt[seg])]
             occurrences.append({
