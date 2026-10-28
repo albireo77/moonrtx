@@ -346,9 +346,12 @@ class PlanningMixin:
             centre_x = phase_x + phase_w // 2
             box = (centre_x - radius, centre_y - radius, centre_x + radius, centre_y + radius)
             canvas.create_oval(*box, fill=colours["unlit"], outline="")
-            # Waxing lights the western limb, which is drawn to the right here,
-            # the side the Sun is on for the first half of the month
-            canvas.create_arc(*box, start=-90 if waxing else 90, extent=180,
+            # Waxing lights the western limb, the side the Sun is on for the
+            # first half of the month - on the right as an observer north of the
+            # equator sees it, and on the left from south of it, where the Moon
+            # stands the other way up
+            lit_right = waxing if self.observer.lat >= 0.0 else not waxing
+            canvas.create_arc(*box, start=-90 if lit_right else 90, extent=180,
                               style=tk.PIESLICE, fill=colours["lit"], outline="")
             gibbous = lit_fraction > 0.5
             terminator = radius * abs(2.0 * lit_fraction - 1.0)
@@ -362,7 +365,7 @@ class PlanningMixin:
             # full the sliver it cuts off is thinner than a pixel at this size,
             # and a run of dates would otherwise all render as flatly full
             if terminator >= 1.0:
-                canvas.create_arc(*ellipse, start=90 if waxing == gibbous else -90,
+                canvas.create_arc(*ellipse, start=90 if lit_right == gibbous else -90,
                                   extent=180, style=tk.ARC, outline=colours["limb"])
             canvas.create_oval(*box, fill="", outline=colours["limb"])
 
