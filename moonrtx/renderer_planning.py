@@ -91,7 +91,7 @@ class PlanningMixin:
     VISIBILITY_COLOURS = {
         "day": "#cfe0f5",       # Sun up
         "twilight": "#5f7ea8",  # Sun down but less than 12 degrees under
-        "night": "#101a2b",     # astronomical darkness
+        "night": "#101a2b",     # dark: the Sun past nautical twilight
         "moon": "#f0c419",      # the Moon at least as high as asked (see _moon_alt_min)
         "moon_low": "#9c8530",  # and above the horizon, but lower than that
         "moon_edge": "#8a6d00",
@@ -240,7 +240,7 @@ class PlanningMixin:
 
         Rise and set alone do not say whether a night is worth anything: a Moon
         that clears the horizon at noon is no use to anybody. So the row is
-        painted with the Sun first - daylight, twilight, then astronomical dark
+        painted with the Sun first - daylight, twilight, then nautical dark
         - and the Moon's own spell laid on top of it, leaving the nights it is
         up in darkness to be picked out at a glance. Clicking anywhere in the
         chart takes the app to that moment.
@@ -2371,7 +2371,7 @@ class PlanningMixin:
         # left unlabelled: it is the ribbon's own background, not a band drawn on it
         twilight_hint = (
             "The Sky ribbon: the Sun between your horizon and "
-            f"{abs(astro.ASTRONOMICAL_TWILIGHT_DEGREES):.0f}° below it.\n"
+            f"{abs(astro.NAUTICAL_TWILIGHT_DEGREES):.0f}° below it.\n"
             "Darker than that is night, the ribbon's background, which is what\n"
             "the observation planner's dark-sky filter asks for.")
         daylight_hint = (

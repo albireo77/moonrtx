@@ -1105,8 +1105,7 @@ def _horizon_crossings(found: tuple) -> list[datetime]:
     times, crossed = found
     return [t.utc_datetime() for t, ok in zip(times, crossed) if ok]
 
-
-ASTRONOMICAL_TWILIGHT_DEGREES = -12.0
+NAUTICAL_TWILIGHT_DEGREES = -12.0
 
 
 def _is_up(target, when_utc: datetime, horizon_degrees: float = None) -> bool:
@@ -1241,7 +1240,7 @@ def find_visibility_chart(start_local: datetime, days: int,
         moon_up=moon_up,
         sun_up=_up_intervals(_sun, start_utc, end_utc),
         sun_twilight=_up_intervals(_sun, start_utc, end_utc,
-                                   horizon_degrees=ASTRONOMICAL_TWILIGHT_DEGREES),
+                                   horizon_degrees=NAUTICAL_TWILIGHT_DEGREES),
         transits=_upper_transits(start_utc, end_utc),
         illumination=_daily_illumination(start_utc, end_utc),
         moon_high=moon_high,
