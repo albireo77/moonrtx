@@ -121,9 +121,10 @@ class PlanningMixin:
     # the observation planner's windows, the graph's strips of them, and the
     # clair-obscur finder's visible events. One setting for all of them, being
     # the site's - trees, roofs, the seeing low down - rather than any one
-    # window's, set in either window and kept the same way. Up to
+    # window's, set in either window and kept the same way. Whole degrees,
+    # which is as finely as a horizon of trees or roofs is known, up to
     # MOON_ALT_MIN_MAX, past which few nights would qualify anywhere
-    _moon_alt_min = 5.0
+    _moon_alt_min = 5
     MOON_ALT_MIN_MAX = 80
     # The lunar eclipse finder's, kept the same way: only the eclipses the
     # Moon is up for, and the penumbral ones among them, which are hard to see
@@ -1388,10 +1389,12 @@ class PlanningMixin:
     def _moon_alt_min_box(self, parent, on_change) -> ttk.Spinbox:
         """
         The field the lowest Moon altitude is set in (see _moon_alt_min), handed
-        back for the caller to place between its own words. A value is put into
-        force by an arrow, by Enter, and by leaving the field with it in it; one
-        that is not a number in range is put back to the one in force. on_change
-        is called whenever the value in force changes, to scan again - for every
+        back for the caller to place between its own words. Nothing but digits
+        can be typed into it, two at most and no more than MOON_ALT_MIN_MAX, as
+        the time toolbar's fields take them. A value is put into force by an
+        arrow or the wheel, by Enter, and by leaving the field with it in it;
+        left empty, the field shows the value in force again. on_change is
+        called whenever the value in force changes, to scan again - for every
         such field open, the setting being one: the planner and the finder open
         side by side both show it and both follow it.
         """
@@ -1402,8 +1405,8 @@ class PlanningMixin:
 
         def apply(*_):
             try:
-                value = float(var.get())
-            except ValueError:
+                value = math.floor(float(var.get()) + 0.5)      # 12.5 to 13, as written down
+            except (ValueError, OverflowError):
                 value = None
             if value is None or not 0 <= value <= self.MOON_ALT_MIN_MAX:
                 var.set(f"{self._moon_alt_min:g}")
@@ -1420,10 +1423,27 @@ class PlanningMixin:
             if event.widget is box and entry in open_boxes:
                 open_boxes.remove(entry)
 
+        def typed(proposed: str) -> bool:
+            """Only what could become a whole degree in range: digits, two at most."""
+            return proposed == "" or (proposed.isdigit() and len(proposed) <= 2
+                                      and int(proposed) <= self.MOON_ALT_MIN_MAX)
+
+        def before_spin(_event):
+            # An arrow or the wheel on a field emptied by typing: Tk's spinbox
+            # would put its lowest value, 0, there and then put that into force.
+            # It steps from the value in force instead
+            if not var.get().strip():
+                var.set(f"{self._moon_alt_min:g}")
+
         box = ttk.Spinbox(parent, from_=0, to=self.MOON_ALT_MIN_MAX, increment=1, width=4,
-                          textvariable=var, command=apply)
+                          textvariable=var, command=apply, validate='key',
+                          validatecommand=(parent.register(typed), '%P'))
         box.bind('<Return>', apply)
         box.bind('<FocusOut>', apply)
+        # Ahead of the spinbox's own handling of both, which the arrows, the
+        # Up and Down keys and the wheel all go through
+        box.bind('<<Increment>>', before_spin)
+        box.bind('<<Decrement>>', before_spin)
         box.bind('<Destroy>', closed, add="+")
         return box
 

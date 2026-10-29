@@ -58,7 +58,10 @@ class SettingsMixin:
             "fov_dark_outside": flag,
             "_clair_obscur_filter": lambda v: isinstance(v, str),
             "_clair_obscur_visible_only": flag,
+            # Whole degrees (see PlanningMixin._moon_alt_min) - written as 15.0
+            # as well, by the version that took tenths, and taken all the same
             "_moon_alt_min": lambda v: (isinstance(v, (int, float)) and not isinstance(v, bool)
+                                        and float(v).is_integer()
                                         and 0 <= v <= self.MOON_ALT_MIN_MAX),
             "_eclipse_visible_only": flag,
             "_eclipse_penumbral": flag,
