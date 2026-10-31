@@ -1249,10 +1249,15 @@ class NavigationMixin:
             self.show_profile(self.measure_start_coords, self.measure_end_coords)
 
     def hover_measure_hook(self, event):
-        """Show a hand over a ring that can be dragged, and the usual pointer elsewhere."""
+        """
+        Show a hand over a ring that can be dragged - at an end of the kept
+        measurement line, or a corner of the kept topography area (see
+        TopographyMixin) - and the usual pointer elsewhere.
+        """
         if self.rt is None:
             return
-        cursor = 'hand2' if self._measure_hook_at(event) is not None else ''
+        over = self._measure_hook_at(event) is not None or self.area_corner_at(event) is not None
+        cursor = 'hand2' if over else ''
         if self.rt._canvas.cget('cursor') != cursor:
             self.rt._canvas.configure(cursor=cursor)
 

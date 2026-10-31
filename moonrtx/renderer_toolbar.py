@@ -175,7 +175,7 @@ class ToolbarMixin:
         # as the key it stands for is marked
         group()
         button("⌦", 'Delete', "Remove labels left by Find, Observation Planner and clicks (Delete)")
-        button("⌫", 'BackSpace', "Remove measurement lines (Backspace)")
+        button("⌫", 'BackSpace', "Remove measurement lines and the topography area (Backspace)")
 
         # Over the picture
         group()

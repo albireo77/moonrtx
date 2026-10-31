@@ -850,7 +850,7 @@ class DialogsMixin:
             ("Home", "Reset camera position and time to their initial values"),
             ("End", "Reset camera to default position (useful after starting with `--init-view` parameter)"),
             ("Delete", "Remove labels left by Find, Observation Planner and clicks"),
-            ("Backspace", "Remove measurement lines"),
+            ("Backspace", "Remove measurement lines and the topography area"),
             ("Ctrl + Z/Y", "Undo/Redo a jump in time (up to 10 time positions stored)"),
             ("Ctrl + Left/Right", "Rotate view around Moon's polar axis"),
             ("Ctrl + Up/Down", "Rotate view around Moon's equatorial axis"),
@@ -859,6 +859,7 @@ class DialogsMixin:
             ("Hold and drag right mouse button", "Rotate Moon around the eye (move view)"),
             ("Hold left Ctrl + drag left mouse button", "Measure distance and elevation difference on Moon surface"),
             ("Hold right Ctrl + drag left mouse button", "Show Elevation and Illumination profile along the line"),
+            ("Hold Ctrl + drag right mouse button", "Show the rectangle's topography in 3-D"),
             ("Hold left Shift + left mouse button and drag up/down", "Zoom out/in (more reliable)"),
             ("Mouse wheel up/down", "Zoom in/out (less reliable)"),
         ]

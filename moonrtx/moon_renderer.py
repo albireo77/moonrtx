@@ -48,6 +48,7 @@ from moonrtx.renderer_toolbar import ToolbarMixin
 from moonrtx.renderer_time_history import TimeHistoryMixin
 from moonrtx.renderer_panel_handles import PanelHandlesMixin
 from moonrtx.renderer_blink import BlinkMixin
+from moonrtx.renderer_topography import TopographyMixin
 
 
 class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
@@ -55,7 +56,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
                    FovMixin, SubPointsMixin, CanvasOverlayMixin,
                    CompassMixin, LocatorMixin, CatalogueMixin, ProfileMixin,
                    SettingsMixin, ScaleBarMixin, AngleScaleBarMixin, TimeToolboxMixin,
-                   ToolbarMixin, TimeHistoryMixin, PanelHandlesMixin, BlinkMixin):
+                   ToolbarMixin, TimeHistoryMixin, PanelHandlesMixin, BlinkMixin,
+                   TopographyMixin):
     """
     Renders the Moon surface as seen from a specific location on Earth
     at a specific time, with accurate solar illumination.
@@ -435,6 +437,8 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
 
         # The ground along a measurement (see renderer_profile.ProfileMixin)
         self._init_profile()
+        # And over a rectangle (see renderer_topography.TopographyMixin)
+        self._init_topography()
 
         self._init_measure_line()
 
@@ -659,6 +663,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         self._begin_interactive_preview()
         self.zoom_with_wheel(event)
         self.check_measure_line()
+        self.check_area()
 
     def init_astro(self):
         astro.init(self.observer)
@@ -1328,6 +1333,7 @@ class MoonRenderer(StatusMixin, FullScreenMixin, DialogsMixin, PlanningMixin,
         # loop on a thread of its own, not Python's main one
         if self._video_export is None:
             self.check_measure_line()
+            self.check_area()
             self._clock_moved()
 
         # Since 0.19.1 updates applied while the accumulation cycle is idle do
@@ -1685,6 +1691,7 @@ def run_renderer(dt_local: datetime,
         elif event.keysym == 'BackSpace':
             moon_renderer.drop_measure_line()
             moon_renderer.clear_measurement()
+            moon_renderer.drop_area()
         elif event.keysym.lower() == 'd':
             if event.state & 0x1:
                 moon_renderer.toggle_angle_bar()
@@ -1784,6 +1791,7 @@ def run_renderer(dt_local: datetime,
         # does a kept measuring line
         moon_renderer._reaim_if_eye_moved()
         moon_renderer.check_measure_line()
+        moon_renderer.check_area()
         # And the toolbar's buttons that stay down show what the key turned
         # on or off at once rather than at the next poll
         moon_renderer.sync_toolbar()
@@ -1861,6 +1869,9 @@ def run_renderer(dt_local: datetime,
         # of that end, and is nothing else: not a drag of the view, not a click
         if not event.state & 0x1 and moon_renderer.grab_measure_hook(event):
             return
+        # And so does a press on a ring at a corner of the kept topography area
+        if not event.state & 0x1 and moon_renderer.grab_area_corner(event):
+            return
         if not (event.state & 0x1 or moon_renderer.rt._any_key):
             click_from = (event.x, event.y)
         original_pressed_left(event)
@@ -1873,6 +1884,9 @@ def run_renderer(dt_local: datetime,
         if moon_renderer.dragging_measure_hook:
             moon_renderer.release_measure_hook(event)
             return
+        if moon_renderer.dragging_area_corner:
+            moon_renderer.release_area_corner(event)
+            return
         original_released_left(event)
         pressed_at, click_from = click_from, None
         if pressed_at is not None:
@@ -1882,17 +1896,44 @@ def run_renderer(dt_local: datetime,
                 moon_renderer.name_feature_at(event)
 
     def custom_motion_pressed(event):
+        if moon_renderer.selecting_area:
+            moon_renderer.update_area_selection(event)
+            return
         if moon_renderer.measuring:
             moon_renderer.update_leading_line(event)
             return
         if moon_renderer.dragging_measure_hook:
             moon_renderer.drag_measure_hook(event)
             return
+        if moon_renderer.dragging_area_corner:
+            moon_renderer.drag_area_corner(event)
+            return
         original_motion_pressed(event)
 
     moon_renderer.rt._gui_pressed_left = custom_pressed_left
     moon_renderer.rt._gui_released_left = custom_released_left
     moon_renderer.rt._gui_motion_pressed = custom_motion_pressed
+
+    # Ctrl with the right button draws a rectangle whose ground is shown as a
+    # block in 3-D (see TopographyMixin) - and nothing of PlotOptiX's
+    # own, which turns it into a change of the camera's aperture, unused here
+    original_pressed_right = moon_renderer.rt._gui_pressed_right
+    original_released_right = moon_renderer.rt._gui_released_right
+
+    def custom_pressed_right(event):
+        if event.state & 0x4:
+            moon_renderer.start_area_selection(event)
+            return
+        original_pressed_right(event)
+
+    def custom_released_right(event):
+        if moon_renderer.selecting_area:
+            moon_renderer.finish_area_selection(event)
+            return
+        original_released_right(event)
+
+    moon_renderer.rt._gui_pressed_right = custom_pressed_right
+    moon_renderer.rt._gui_released_right = custom_released_right
 
     # Override camera pan/tilt (right mouse drag, no modifier keys): the built-in
     # handler rotates by fixed angles per pixel, which is far too sensitive with a
@@ -1906,6 +1947,7 @@ def run_renderer(dt_local: datetime,
         reaim_pending[0] = False
         moon_renderer._reaim_if_eye_moved()
         moon_renderer.check_measure_line()
+        moon_renderer.check_area()
 
     def custom_apply_scene_edits(*args):
         rt = moon_renderer.rt

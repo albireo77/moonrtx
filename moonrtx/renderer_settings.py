@@ -72,6 +72,7 @@ class SettingsMixin:
             "_graph_span": lambda v: (isinstance(v, int) and not isinstance(v, bool)
                                       and v in self.GRAPH_ZOOM_SPANS),
             "_profile_show_light_change": flag,
+            "_topo_names": flag,
             "scale_bar_visible": flag,
             "angle_bar_visible": flag,
             "time_toolbox_visible": flag,
