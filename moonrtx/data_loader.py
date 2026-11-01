@@ -104,8 +104,8 @@ def _load_cache(cache_base: str, fingerprint: dict,
 
     mmap_mode : str, optional
         Passed to np.load. "r" leaves the array in its file and pages it in as
-        it is read, which is how the full-size elevation map is used - it is
-        larger than the RAM of the machines that can still render it.
+        it is read, which is how the elevation map is used (see
+        load_elevation_data).
     """
     meta = _cache_meta(cache_base, fingerprint)
     if meta is None:
@@ -521,14 +521,19 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
     """
     print(f"Loading elevation data from {filepath}...")
 
-    # Disk cache of the processed result. The undownscaled map is left in its
-    # file and paged in as it is read: at ~16 GB it is bigger than the RAM of
-    # machines that can still render it (see _build_full_size_cache).
+    # Disk cache of the processed result, left in its file and paged in as it is
+    # read, at every downscale. The undownscaled map has to be: at ~16 GB it is
+    # bigger than the RAM of machines that can still render it (see
+    # _build_full_size_cache). The others need not be, but are for the same
+    # reason in smaller measure. After the upload to the GPU all the renderer
+    # reads of the map is a height here and a small area there, while a copy
+    # loaded whole stayed in RAM for the session: at downscale 2 the process
+    # held 8.8 GB, against 4.8 GB with the map left in its file, the start just
+    # as quick - the paging in moves from np.load to the upload.
     cache_base = f"{filepath}.ds{downscale}"
     fingerprint = _cache_fingerprint(filepath, downscale=downscale)
-    mmap_mode = "r" if downscale == 1 else None
     with _fits_in_memory("the elevation map", ELEVATION_DOWNSCALE_REMEDY):
-        elevation, meta = _load_cache(cache_base, fingerprint, mmap_mode)
+        elevation, meta = _load_cache(cache_base, fingerprint, "r")
     if elevation is not None:
         print(f"  Loaded from cache: {cache_base}.npy, dimensions {elevation.shape}")
         return elevation, float(meta["radius_scale"])
@@ -596,6 +601,11 @@ def load_elevation_data(filepath: str, downscale: int) -> tuple[np.ndarray, floa
 
     if downscale > 1:
         _save_cache(cache_base, elevation, {**fingerprint, "radius_scale": radius_scale})
+        # Taken back from the file just written, so the first run holds no more
+        # than the later ones; kept as built if it could not be written
+        cached, _ = _load_cache(cache_base, fingerprint, "r")
+        if cached is not None:
+            elevation = cached
 
     return elevation, radius_scale
 
