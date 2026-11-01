@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -29,7 +30,7 @@ DATA_DIRECTORY_PATH = os.path.join(BASE_PATH, "data")
 
 DEFAULT_ELEVATION_FILE_NAME = "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif"
 DEFAULT_ELEVATION_FILE_LOCAL_PATH = os.path.join(DATA_DIRECTORY_PATH, DEFAULT_ELEVATION_FILE_NAME)
-DEFAULT_ELEVATION_FILE_REMOTE_PATH = "http://planetarymaps.usgs.gov/mosaic/" + DEFAULT_ELEVATION_FILE_NAME
+DEFAULT_ELEVATION_FILE_REMOTE_PATH = "https://planetarymaps.usgs.gov/mosaic/" + DEFAULT_ELEVATION_FILE_NAME
 DEFAULT_ELEVATION_FILE_SIZE_GB = 7.91
 DEFAULT_ELEVATION_FILE_SIZE_BYTES = DEFAULT_ELEVATION_FILE_SIZE_GB * 1024**3
 # Height and width in samples, known before the map is fetched, so a downscale
@@ -101,7 +102,7 @@ def parse_args():
 
 class _DownloadProgress:
     """
-    Says how far a download has got, as urlretrieve's reporthook
+    Says how far a download has got, from the bytes done and the whole size
 
     On a console the figure is rewritten in place on one line. Into a file or a
     pipe, where a carriage return would only leave junk, a line is written each
@@ -115,10 +116,9 @@ class _DownloadProgress:
         self.shown = -1          # the last percentage, or hundred megabytes, written
         self.started = False
 
-    def report(self, blocks: int, block_size: int, total: int):
+    def report(self, done: int, total: int):
         if self.out is None:     # a frozen build with no console
             return
-        done = blocks * block_size
         if total > 0:
             done = min(done, total)
             mark = done * 100 // total
@@ -143,7 +143,7 @@ class _DownloadProgress:
             print(flush=True)
 
 
-def _download_whole(dest: str, fetch):
+def _download_whole(dest: str, fetch, keep_part: bool = False):
     """
     Have fetch(path) write the file under a ".part" name beside dest, and move it
     to dest only once it has finished.
@@ -151,9 +151,11 @@ def _download_whole(dest: str, fetch):
     Written straight to dest, a download stopped part way - Ctrl+C, a dropped
     connection - left a truncated file where the whole one belongs, and every
     later run found it there, took it as complete, and failed loading it with
-    nothing to say why. Now dest only ever exists whole. A failure removes the
-    part-file and is passed on; one the process does not live through leaves it
-    behind, but under a name nothing reads, and the next download writes over it.
+    nothing to say why. Now dest only ever exists whole. A failure is passed on,
+    and removes the part-file unless keep_part: a fetch that can continue from
+    what the part-file holds (see _fetch_resuming) wants it left for the next
+    run. One the process does not live through leaves it behind either way,
+    under a name nothing but the next download reads.
 
     os.replace moves it in one step, the two names being in the same folder and
     so on the same drive.
@@ -163,11 +165,113 @@ def _download_whole(dest: str, fetch):
         fetch(part)
         os.replace(part, dest)
     except BaseException:           # KeyboardInterrupt too, which is no Exception
-        try:
-            os.remove(part)
-        except OSError:
-            pass
+        if not keep_part:
+            try:
+                os.remove(part)
+            except OSError:
+                pass
         raise
+
+
+# Seconds a download may wait for the server before it is given up, its
+# part-file kept for the next run to continue. Without one, a connection that
+# went quiet held the launcher at the same percentage for ever.
+DOWNLOAD_TIMEOUT_SEC = 60
+
+# "bytes 100-199/200" for a part of a file, "bytes */200" when none was sent
+_CONTENT_RANGE = re.compile(r"bytes (?:(\d+)-\d+|\*)/(\d+)")
+
+
+class _CannotResume(Exception):
+    """The server will not send a file's rest from where its part-file ends."""
+
+
+def _file_size(path: str) -> int:
+    """Bytes in the file at path, or 0 when there is none."""
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+
+def _open_download(url: str, start: int) -> tuple:
+    """
+    Ask for url from byte start on, the whole of it when start is 0.
+
+    Returns the response, positioned at start, and the whole file's size (-1
+    when the server gives none), or None for the response when the file ends
+    at start, so there is nothing left to send. Raises _CannotResume when the
+    server answers a resume with anything but the rest: the whole file again, a
+    part from elsewhere, or a size other than the part-file's own.
+    """
+    headers = {"User-Agent": APP_NAME}
+    if start:
+        headers["Range"] = f"bytes={start}-"
+    try:
+        response = urllib.request.urlopen(urllib.request.Request(url, headers=headers),
+                                          timeout=DOWNLOAD_TIMEOUT_SEC)
+    except urllib.error.HTTPError as e:
+        if e.code != 416 or not start:      # 416: nothing lies at or past start
+            raise
+        found = _CONTENT_RANGE.match(e.headers.get("Content-Range", ""))
+        if found:
+            size = int(found.group(2))
+        else:
+            # S3 and NASA's server say no size with it, so it is read from the
+            # whole file's answer, which is closed before any of it comes
+            response, size = _open_download(url, 0)
+            response.close()
+        if size == start:
+            return None, start
+        raise _CannotResume() from e
+    if not start:
+        length = response.headers.get("Content-Length", "")
+        return response, int(length) if length.isdigit() else -1
+    found = _CONTENT_RANGE.match(response.headers.get("Content-Range", ""))
+    if response.status == 206 and found and found.group(1) and int(found.group(1)) == start:
+        return response, int(found.group(2))
+    response.close()
+    raise _CannotResume()
+
+
+def _fetch_resuming(url: str, part: str, report):
+    """
+    Download url into the file part, continuing from what it already holds.
+
+    A download that broke off - a dropped connection, Ctrl+C, the window closed -
+    leaves its bytes in part, and the next one asks the server only for the
+    rest, so a break at 8 GB of the elevation map's 8.5 does not cost the 8 GB
+    again. A server that will not send only the rest has the file written over
+    from the start. report(done_bytes, total_bytes) is told how far it has got,
+    total being -1 when the server gives no size.
+
+    Raises when the connection ends before the whole size has come; what did
+    come stays in part.
+    """
+    start = _file_size(part)
+    if start:
+        try:
+            response, total = _open_download(url, start)
+        except _CannotResume:
+            start = 0
+        else:
+            print(f"  Continuing from {start / 1024**2:,.0f} MB downloaded before.", flush=True)
+    if not start:
+        response, total = _open_download(url, 0)
+    done = start
+    report(done, total)
+    if response is None:
+        return
+    with response, open(part, "ab" if start else "wb") as f:
+        while True:
+            chunk = response.read(1024**2)
+            if not chunk:
+                break
+            f.write(chunk)
+            done += len(chunk)
+            report(done, total)
+    if total > 0 and done != total:
+        raise OSError(f"the download ended after {done:,} of {total:,} bytes")
 
 
 def _urlretrieve(url: str, dest: str, on_progress=None):
@@ -176,20 +280,17 @@ def _urlretrieve(url: str, dest: str, on_progress=None):
     the same to on_progress(done_bytes, total_bytes) if one is given - total
     being 0 or less when the server gives no length. The launcher passes one, so
     its window can say it too; it may be called on a thread other than Tk's.
+    A download that broke off before is continued, not begun again.
     """
-    opener = urllib.request.build_opener()
-    opener.addheaders = [('User-Agent', APP_NAME)]
-    urllib.request.install_opener(opener)
     progress = _DownloadProgress()
 
-    def report(blocks: int, block_size: int, total: int):
-        progress.report(blocks, block_size, total)
+    def report(done: int, total: int):
+        progress.report(done, total)
         if on_progress is not None:
-            done = blocks * block_size
-            on_progress(min(done, total) if total > 0 else done, total)
+            on_progress(done, total)
 
     try:
-        _download_whole(dest, lambda part: urllib.request.urlretrieve(url, part, reporthook=report))
+        _download_whole(dest, lambda part: _fetch_resuming(url, part, report), keep_part=True)
     finally:
         progress.finish()
 
@@ -215,7 +316,8 @@ def check_elevation_file(elevation_file: str, downscale: int, on_progress=None) 
                   f"using the cached data downscaled by {downscale}.")
             return True
         if elevation_file == DEFAULT_ELEVATION_FILE_LOCAL_PATH:
-            free = free_space(elevation_file)
+            # What an earlier download left need not fit a second time
+            free = free_space(elevation_file) + _file_size(elevation_file + ".part")
             if free < DEFAULT_ELEVATION_FILE_SIZE_BYTES * 1.02:
                 print(f"Not enough disk space to download default elevation file ({DEFAULT_ELEVATION_FILE_SIZE_GB} GB required).")
                 return False
@@ -225,6 +327,7 @@ def check_elevation_file(elevation_file: str, downscale: int, on_progress=None) 
                 _urlretrieve(DEFAULT_ELEVATION_FILE_REMOTE_PATH, elevation_file, on_progress)
             except Exception as e:
                 print(f"Error downloading default elevation file: {e}")
+                print("What came is kept; run again to continue from there.")
                 return False
         else:
             print(f"Elevation file not found: {elevation_file}")
@@ -240,7 +343,7 @@ def get_starmap_file(on_progress=None) -> Optional[str]:
         if starmap_cache_available(STARMAP_FILE_LOCAL_PATH, starmap_target_width()):
             print(f"Starmap file {STARMAP_FILE_LOCAL_PATH} is not present; using the cached star map.")
             return STARMAP_FILE_LOCAL_PATH
-        free = free_space(STARMAP_FILE_LOCAL_PATH)
+        free = free_space(STARMAP_FILE_LOCAL_PATH) + _file_size(STARMAP_FILE_LOCAL_PATH + ".part")
         if free < STARMAP_FILE_SIZE_BYTES * 1.02:
             print(f"Not enough disk space to download starmap file ({STARMAP_FILE_SIZE_MB} MB required).")
             return None
@@ -250,6 +353,7 @@ def get_starmap_file(on_progress=None) -> Optional[str]:
             _urlretrieve(STARMAP_FILE_REMOTE_PATH, STARMAP_FILE_LOCAL_PATH, on_progress)
         except Exception as e:
             print(f"Error downloading starmap file: {e}")
+            print("What came is kept; run again to continue from there.")
             return None
     return STARMAP_FILE_LOCAL_PATH
 

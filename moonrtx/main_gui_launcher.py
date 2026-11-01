@@ -1000,7 +1000,8 @@ class MainWindow(tk.Tk):
                 if not check_elevation_file(elevation_file, downscale,
                                             on_progress=downloading("the elevation map")):
                     job["result"] = ("error", "Elevation file is not present or downloading "
-                                              "default file failed.")
+                                              "default file failed. A download that broke off "
+                                              "continues from where it stopped when you run again.")
                     return
                 # Fetched through PlotOptiX's own helper when missing, which says
                 # nothing of how far it has got; at 71 MB it is the shortest wait
