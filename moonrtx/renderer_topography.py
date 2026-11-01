@@ -574,10 +574,10 @@ class TopographyMixin:
             "• The dark lines join places of equal height, every height given above.\n"
             "• With Names ticked, the names of the features inside the area at least\n"
             "   1% of its longer side across, from the program's own list - a\n"
-            "   satellite crater's by its letter\n"
-            "   alone - each over a dot above its middle, at the height of its\n"
-            "   highest ground, a crater's rim, so it is not sunk in its own floor.\n"
-            "   A name with no room over its dot is put nearby, joined to it by a line.\n"
+            "   satellite crater's by its letter alone - each over a dot above its\n"
+            "   middle, at the height of its highest ground, a crater's rim, so it\n"
+            "   is not sunk in its own floor. A name with no room over its dot is\n"
+            "   put nearby, joined to it by a line.\n"
             "• The height and the place of the ground under the pointer are written\n"
             "   at the bottom left, and the place is marked on the Moon as well.\n"
             "• Drag with the left button to turn it: left and right spin it round,\n"
@@ -1011,17 +1011,32 @@ class TopographyMixin:
             palette = [ramp(b / max(1, bands - 1)) for b in range(bands)]
             band = np.clip(np.floor(fine_heights / step) - first, 0, bands - 1).astype(int)
             # Each name at the height of the highest ground within its
-            # feature - a crater's rim, a mountain's top - or, for one smaller
-            # than the grid's steps, of the ground nearest its middle
+            # feature - a crater's rim, a mountain's top - in the fine samples,
+            # whose rims the grid's steps can fall either side of; or, for one
+            # smaller than their steps, of the ground nearest its middle. Looked
+            # for only round the feature: the grid's places within it and a
+            # step beyond, where the fine samples lie at the same share of the
+            # way across and down
+            rows, cols = heights.shape
+            down, along = ((n - 1) / (m - 1) for n, m in zip(fine_heights.shape, heights.shape))
             raised = []
             for name, nx, ny, radius_km in names:
                 apart = np.hypot(x - nx, y - ny)
-                within = apart <= max(radius_km, spacing_km)
-                top = heights[within].max() if within.any() else heights.flat[apart.argmin()]
+                near_rows, near_cols = np.nonzero(apart <= max(radius_km, spacing_km))
+                if near_rows.size == 0:
+                    near_rows, near_cols = np.unravel_index([apart.argmin()], apart.shape)
+                r0, r1 = max(0, near_rows.min() - 1), min(rows - 1, near_rows.max() + 1)
+                c0, c1 = max(0, near_cols.min() - 1), min(cols - 1, near_cols.max() + 1)
+                around = (slice(math.floor(r0 * down), math.ceil(r1 * down) + 1),
+                          slice(math.floor(c0 * along), math.ceil(c1 * along) + 1))
+                tops = fine_heights[around]
+                apart = np.hypot(fine_x[around] - nx, fine_y[around] - ny)
+                within = apart <= radius_km
+                top = tops[within].max() if within.any() else tops.flat[apart.argmin()]
                 raised.append((name, nx - mid_x, ny - mid_y, float(top)))
             state["given"] = {
                 "x": x - mid_x, "y": y - mid_y, "heights": heights, "low": low, "mid_z": mid_z,
-                "flat": flat, "ground": ground, "spacing": spacing_km, "names": raised,
+                "flat": flat, "ground": ground, "names": raised,
                 "fine_x": (fine_x - mid_x).astype(np.float32), "fine_y": (fine_y - mid_y).astype(np.float32),
                 "fine_heights": fine_heights.astype(np.float32),
                 "fine_colours": np.array(palette, dtype=np.float32)[band], "thick": thick_step}
@@ -1121,14 +1136,22 @@ class TopographyMixin:
             """
             The ground under a point of the canvas: (height in metres, lat,
             lon), or None off the block - where the cell painted there (see
-            nearest_cell) puts it.
+            nearest_cell) puts it, and its height the fine samples' there.
             """
             cell = nearest_cell(px, py)
             if cell is None:
                 return None
             _depth, row, col, weights = cell
             given = state["given"]
-            metres = sum(w * given["heights"][row + r, col + k] for (r, k), w in weights)
+            # The height from the fine samples, as paint() takes the colours
+            # and the lines from them: the grid's own, between its corners,
+            # could be a colour or a line away from them on a steep rim
+            fine = given["fine_heights"]
+            rows, cols = given["heights"].shape
+            on_fine_y = (row + sum(w * r for (r, _k), w in weights)) * (fine.shape[0] - 1) / (rows - 1)
+            on_fine_x = (col + sum(w * k for (_r, k), w in weights)) * (fine.shape[1] - 1) / (cols - 1)
+            metres = cv2.remap(fine, np.float32([[on_fine_x]]), np.float32([[on_fine_y]]),
+                               cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)[0, 0]
             unit = sum(w * given["ground"][row + r, col + k] for (r, k), w in weights)
             return (float(metres), *lat_lon(unit))
 
